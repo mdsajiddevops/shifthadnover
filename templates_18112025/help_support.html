@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block title %}Help & Support{% endblock %}
+
+{% block extra_css %}
+<style>
+    .help-card {
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+    
+    .help-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+    
+    .help-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: white;
+        margin: 0 auto 15px;
+    }
+    
+    .help-icon-blue { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .help-icon-green { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+    .help-icon-orange { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+    .help-icon-purple { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
+    
+    .faq-item {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+    
+    .faq-question {
+        background: none;
+        border: none;
+        width: 100%;
+        text-align: left;
+        padding: 15px;
+        font-weight: 500;
+        color: #495057;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .faq-question:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .faq-answer {
+        padding: 0 15px 15px;
+        color: #6c757d;
+        display: none;
+    }
+    
+    .faq-answer.show {
+        display: block;
+    }
+    
+    .contact-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 30px;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0 text-primary">
+                    <i class="bi bi-question-circle me-2"></i>Help & Support
+                </h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Help & Support</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contact Support -->
+    <div class="row">
+        <div class="col-12">
+            <div class="contact-card">
+                <h3 class="mb-3">Need Immediate Help?</h3>
+                <p class="mb-4">Our support team is here to help you with any questions or issues.</p>
+                <div class="row">
+                    <div class="col-md-4">
+                        <i class="bi bi-envelope-fill" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                        <h6>Email Support</h6>
+                        <p>support@shifthandover.com</p>
+                    </div>
+                    <div class="col-md-4">
+                        <i class="bi bi-telephone-fill" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                        <h6>Phone Support</h6>
+                        <p>+1 (555) 123-4567</p>
+                    </div>
+                    <div class="col-md-4">
+                        <i class="bi bi-chat-dots-fill" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                        <h6>Live Chat</h6>
+                        <p>Available 24/7</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Help Cards -->
+    <div class="row mb-5">
+        <div class="col-md-3 mb-4">
+            <div class="card help-card text-center">
+                <div class="card-body">
+                    <div class="help-icon help-icon-blue">
+                        <i class="bi bi-book"></i>
+                    </div>
+                    <h5 class="card-title">User Guide</h5>
+                    <p class="card-text">Comprehensive documentation on how to use all features of the Shift Handover application.</p>
+                    <a href="#user-guide" class="btn btn-primary">Read Guide</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="card help-card text-center">
+                <div class="card-body">
+                    <div class="help-icon help-icon-green">
+                        <i class="bi bi-play-circle"></i>
+                    </div>
+                    <h5 class="card-title">Video Tutorials</h5>
+                    <p class="card-text">Step-by-step video tutorials to help you get started and learn advanced features.</p>
+                    <a href="#tutorials" class="btn btn-info">Watch Videos</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="card help-card text-center">
+                <div class="card-body">
+                    <div class="help-icon help-icon-orange">
+                        <i class="bi bi-question-circle"></i>
+                    </div>
+                    <h5 class="card-title">FAQs</h5>
+                    <p class="card-text">Find answers to the most commonly asked questions about the application.</p>
+                    <a href="#faq" class="btn btn-warning">View FAQs</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="card help-card text-center">
+                <div class="card-body">
+                    <div class="help-icon help-icon-purple">
+                        <i class="bi bi-bug"></i>
+                    </div>
+                    <h5 class="card-title">Report Issue</h5>
+                    <p class="card-text">Found a bug or having technical difficulties? Report issues to our support team.</p>
+                    <a href="#report" class="btn btn-danger">Report Bug</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FAQ Section -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card help-card">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="mb-0" id="faq">
+                        <i class="bi bi-patch-question me-2 text-primary"></i>Frequently Asked Questions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="faq-item">
+                        <button class="faq-question" onclick="toggleFaq(this)">
+                            <i class="bi bi-plus-circle me-2"></i>How do I create a new shift handover?
+                        </button>
+                        <div class="faq-answer">
+                            <p>To create a new shift handover, navigate to the "Handover" page from the sidebar menu, fill in the required information including incidents, key points, and next shift details, then click "Submit Handover".</p>
+                        </div>
+                    </div>
+                    
+                    <div class="faq-item">
+                        <button class="faq-question" onclick="toggleFaq(this)">
+                            <i class="bi bi-plus-circle me-2"></i>How do I view shift reports?
+                        </button>
+                        <div class="faq-answer">
+                            <p>Go to the "Reports" section in the sidebar menu. You can filter reports by date, shift type, and status. Click on any report to view detailed information.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="faq-item">
+                        <button class="faq-question" onclick="toggleFaq(this)">
+                            <i class="bi bi-plus-circle me-2"></i>How do I manage team rosters?
+                        </button>
+                        <div class="faq-answer">
+                            <p>Access the "Roster" page to view and manage shift schedules. You can add team members, assign shifts, and upload roster files in Excel format.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="faq-item">
+                        <button class="faq-question" onclick="toggleFaq(this)">
+                            <i class="bi bi-plus-circle me-2"></i>How do I change my password?
+                        </button>
+                        <div class="faq-answer">
+                            <p>Click on your profile dropdown in the sidebar and select "My Profile". In the profile page, scroll down to the "Change Password" section and follow the instructions.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="faq-item">
+                        <button class="faq-question" onclick="toggleFaq(this)">
+                            <i class="bi bi-plus-circle me-2"></i>What browsers are supported?
+                        </button>
+                        <div class="faq-answer">
+                            <p>The application works best with modern browsers including Chrome, Firefox, Safari, and Edge. We recommend using the latest version for optimal performance.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="faq-item">
+                        <button class="faq-question" onclick="toggleFaq(this)">
+                            <i class="bi bi-plus-circle me-2"></i>How do I export reports?
+                        </button>
+                        <div class="faq-answer">
+                            <p>In the Reports section, use the export buttons to download reports in various formats including PDF, Excel, and CSV. You can also customize the export settings.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card help-card">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="mb-0">
+                        <i class="bi bi-link-45deg me-2 text-primary"></i>Quick Links
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <a href="/handover" class="text-decoration-none">
+                                        <i class="bi bi-arrow-right-circle me-2 text-primary"></i>Create New Handover
+                                    </a>
+                                </li>
+                                <li class="mb-2">
+                                    <a href="/handover-reports" class="text-decoration-none">
+                                        <i class="bi bi-arrow-right-circle me-2 text-primary"></i>View Reports
+                                    </a>
+                                </li>
+                                <li class="mb-2">
+                                    <a href="/roster" class="text-decoration-none">
+                                        <i class="bi bi-arrow-right-circle me-2 text-primary"></i>Manage Roster
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <a href="/team" class="text-decoration-none">
+                                        <i class="bi bi-arrow-right-circle me-2 text-primary"></i>Team Details
+                                    </a>
+                                </li>
+                                <li class="mb-2">
+                                    <a href="/profile" class="text-decoration-none">
+                                        <i class="bi bi-arrow-right-circle me-2 text-primary"></i>My Profile
+                                    </a>
+                                </li>
+                                <li class="mb-2">
+                                    <a href="/escalation-matrix" class="text-decoration-none">
+                                        <i class="bi bi-arrow-right-circle me-2 text-primary"></i>Escalation Matrix
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleFaq(button) {
+        const answer = button.nextElementSibling;
+        const icon = button.querySelector('i');
+        
+        if (answer.classList.contains('show')) {
+            answer.classList.remove('show');
+            icon.className = 'bi bi-plus-circle me-2';
+        } else {
+            // Close all other FAQs
+            document.querySelectorAll('.faq-answer').forEach(item => {
+                item.classList.remove('show');
+            });
+            document.querySelectorAll('.faq-question i').forEach(icon => {
+                icon.className = 'bi bi-plus-circle me-2';
+            });
+            
+            // Open this FAQ
+            answer.classList.add('show');
+            icon.className = 'bi bi-dash-circle me-2';
+        }
+    }
+</script>
+{% endblock %}

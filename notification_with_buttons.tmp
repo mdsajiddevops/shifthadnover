@@ -1,0 +1,6 @@
+<div class=" notification-item\>
+ <strong>TEST INCIDENT: DAVID-NOTIFICATION-TEST</strong><br>
+ This is a test notification for debugging purposes<br>
+ <small>Assigned by: test_user - 2025-10-31 12:00:00</small>
+ <div class=\notification-actions mt-2\>
+ <button class=\btn btn-success btn-sm me-2\ onclick=\acceptAssignment 1 \ style=\background-color:

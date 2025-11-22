@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid px-0">
+    {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
+    <div class="card shadow-sm p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="mb-0">Escalation Matrix Upload</h2>
+            <a href="{{ url_for('escalation_matrix.download_sample_escalation_matrix') }}" class="btn btn-outline-primary">
+                <i class="fas fa-download me-2"></i>Download Sample Template
+            </a>
+        </div>
+        
+        <form method="POST" enctype="multipart/form-data" class="mb-4">
+            <div class="row g-3">
+                {% if current_user.role == 'super_admin' %}
+                <!-- Super Admin: Can select any account and team -->
+                <div class="col-md-4">
+                    <label for="upload_account_id" class="form-label fw-semibold">
+                        <i class="fas fa-building me-1"></i>Account <span class="text-danger">*</span>
+                    </label>
+                    <select name="upload_account_id" id="upload_account_id" class="form-select" required onchange="updateUploadTeamsDropdown(this.value)">
+                        <option value="">-- Select Account --</option>
+                        {% for account in accounts %}
+                        <option value="{{ account.id }}">{{ account.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="upload_team_id" class="form-label fw-semibold">
+                        <i class="fas fa-users me-1"></i>Team <span class="text-danger">*</span>
+                    </label>
+                    <select name="upload_team_id" id="upload_team_id" class="form-select" required>
+                        <option value="">-- Select Team --</option>
+                    </select>
+                </div>
+                {% elif current_user.role == 'account_admin' %}
+                <!-- Account Admin: Fixed account, can select team -->
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">
+                        <i class="fas fa-building me-1"></i>Account
+                    </label>
+                    <input type="text" class="form-control" value="{{ accounts[0].name if accounts else 'N/A' }}" readonly>
+                    <input type="hidden" name="upload_account_id" value="{{ accounts[0].id if accounts else '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="upload_team_id" class="form-label fw-semibold">
+                        <i class="fas fa-users me-1"></i>Team <span class="text-danger">*</span>
+                    </label>
+                    <select name="upload_team_id" id="upload_team_id" class="form-select" required>
+                        <option value="">-- Select Team --</option>
+                        {% for team in teams %}
+                        <option value="{{ team.id }}">{{ team.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% else %}
+                <!-- Team Admin: Fixed account and team -->
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">
+                        <i class="fas fa-building me-1"></i>Account
+                    </label>
+                    <input type="text" class="form-control" value="{{ accounts[0].name if accounts else 'N/A' }}" readonly>
+                    <input type="hidden" name="upload_account_id" value="{{ accounts[0].id if accounts else '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">
+                        <i class="fas fa-users me-1"></i>Team
+                    </label>
+                    <input type="text" class="form-control" value="{{ teams[0].name if teams else 'N/A' }}" readonly>
+                    <input type="hidden" name="upload_team_id" value="{{ teams[0].id if teams else '' }}">
+                </div>
+                {% endif %}
+                
+                <div class="col-md-4">
+                    <label for="file" class="form-label fw-semibold">
+                        <i class="fas fa-file-excel me-1"></i>Excel File <span class="text-danger">*</span>
+                    </label>
+                    <input type="file" name="file" id="file" accept=".xlsx" class="form-control" required>
+                </div>
+            </div>
+            
+            <div class="row mt-3">
+                <div class="col-12">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-upload me-2"></i>Upload Escalation Matrix
+                    </button>
+                </div>
+            </div>
+        </form>
+        
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Upload Instructions:</strong>
+            <ul class="mb-0 mt-2">
+                <li>Only .xlsx files are supported</li>
+                <li>Use the sample template as a reference for the required format</li>
+                <li>Each sheet in the Excel file represents an application</li>
+                <li>Uploading a new file will replace the existing one for the selected account/team</li>
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+    <div class="card shadow-sm p-4 mb-4">
+        <h2 class="mb-4">Escalation Matrix Filter</h2>
+        {% if current_user.role == 'super_admin' %}
+            <form method="get" class="mb-4">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label for="account_id" class="form-label">Account</label>
+                        <select name="account_id" id="account_id" class="form-select" onchange="updateTeamsDropdown(this.value)">
+                            <option value="">-- Select Account --</option>
+                            {% for account in accounts %}
+                            <option value="{{ account.id }}" {% if selected_account_id == account.id %}selected{% endif %}>{{ account.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="team_id" class="form-label">Team</label>
+                        <select name="team_id" id="team_id" class="form-select">
+                            <option value="">-- Select Team --</option>
+                            {% for team in teams %}
+                            <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="application" class="form-label">Select Application</label>
+                        <select name="application" id="application" class="form-select">
+                            <option value="">-- Select Application --</option>
+                            {% for app in app_names %}
+                            <option value="{{ app }}" {% if selected_app == app %}selected{% endif %}>{{ app }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">Apply Filter</button>
+                    </div>
+                </div>
+            </form>
+            <script>
+            function updateTeamsDropdown(accountId) {
+                fetch('/get_teams?account_id=' + accountId)
+                    .then(response => response.json())
+                    .then(data => {
+                        const teamSelect = document.getElementById('team_id');
+                        teamSelect.innerHTML = '<option value="">-- Select Team --</option>';
+                        data.teams.forEach(team => {
+                            teamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
+                        });
+                    });
+            }
+            
+            // Function for upload form team dropdown
+            function updateUploadTeamsDropdown(accountId) {
+                if (!accountId) {
+                    const uploadTeamSelect = document.getElementById('upload_team_id');
+                    uploadTeamSelect.innerHTML = '<option value="">-- Select Team --</option>';
+                    return;
+                }
+                
+                // Use the existing /get_teams endpoint instead of the new one
+                fetch('/get_teams?account_id=' + accountId)
+                    .then(response => response.json())
+                    .then(data => {
+                        const uploadTeamSelect = document.getElementById('upload_team_id');
+                        uploadTeamSelect.innerHTML = '<option value="">-- Select Team --</option>';
+                        if (data.teams && data.teams.length > 0) {
+                            data.teams.forEach(team => {
+                                uploadTeamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
+                            });
+                        } else {
+                            uploadTeamSelect.innerHTML += '<option value="">-- No teams available --</option>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching teams:', error);
+                        const uploadTeamSelect = document.getElementById('upload_team_id');
+                        uploadTeamSelect.innerHTML = '<option value="">-- Error loading teams --</option>';
+                    });
+            }
+            </script>
+        {% elif current_user.role == 'account_admin' %}
+            <form method="get" class="mb-4">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4">
+                        <label for="team_id" class="form-label">Team</label>
+                        <select name="team_id" id="team_id" class="form-select">
+                            <option value="">-- Select Team --</option>
+                            {% for team in teams %}
+                            <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="application" class="form-label">Select Application</label>
+                        <select name="application" id="application" class="form-select">
+                            <option value="">-- Select Application --</option>
+                            {% for app in app_names %}
+                            <option value="{{ app }}" {% if selected_app == app %}selected{% endif %}>{{ app }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">Apply Filter</button>
+                    </div>
+                </div>
+            </form>
+        {% elif current_user.role == 'team_admin' %}
+            <form method="get" class="mb-4">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-6">
+                        <label for="application" class="form-label">Select Application</label>
+                        <select name="application" id="application" class="form-select">
+                            <option value="">-- Select Application --</option>
+                            {% for app in app_names %}
+                            <option value="{{ app }}" {% if selected_app == app %}selected{% endif %}>{{ app }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">Apply Filter</button>
+                    </div>
+                </div>
+            </form>
+        {% else %}
+            <!-- Regular Users: View only with limited access -->
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>View Access:</strong> You can view escalation matrices for your account and team. Contact your administrator to upload or modify matrices.
+            </div>
+            {% if app_names %}
+            <form method="get" class="mb-4">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-6">
+                        <label for="application" class="form-label">Select Application</label>
+                        <select name="application" id="application" class="form-select">
+                            <option value="">-- Select Application --</option>
+                            {% for app in app_names %}
+                            <option value="{{ app }}" {% if selected_app == app %}selected{% endif %}>{{ app }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">Apply Filter</button>
+                    </div>
+                </div>
+            </form>
+            {% else %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                No escalation matrices available for your account and team. Contact your administrator to upload matrices.
+            </div>
+            {% endif %}
+        {% endif %}
+    {% if matrix_data %}
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle">
+                <thead class="table-light">
+                    <tr>
+                        {% for col in matrix_data[0].keys() %}
+                        <th>{{ col }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in matrix_data %}
+                    <tr>
+                        {% for val in row.values() %}
+                        <td>{{ val }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% elif selected_app %}
+        <div class="alert alert-warning">No data found for the selected application.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

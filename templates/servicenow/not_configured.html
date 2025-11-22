@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        ServiceNow Integration Not Configured
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-cloud-slash text-muted" style="font-size: 4rem;"></i>
+                    </div>
+                    
+                    <h5>Configuration Required</h5>
+                    <p class="text-muted">
+                        ServiceNow integration is not properly configured. Please contact your system administrator 
+                        to set up the following configuration parameters:
+                    </p>
+                    
+                    <div class="alert alert-info">
+                        <h6>Required Environment Variables:</h6>
+                        <ul class="mb-0">
+                            <li><code>SERVICENOW_INSTANCE</code> - Your ServiceNow instance URL</li>
+                            <li><code>SERVICENOW_USERNAME</code> - ServiceNow API username</li>
+                            <li><code>SERVICENOW_PASSWORD</code> - ServiceNow API password</li>
+                            <li><code>SERVICENOW_ENABLED=true</code> - Enable the integration</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <h6>Assignment Groups Setup:</h6>
+                        <p class="mb-0">
+                            After configuration, you'll need to map your teams to ServiceNow assignment groups 
+                            to fetch relevant incidents during shifts.
+                        </p>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary">
+                            <i class="bi bi-arrow-left me-2"></i>
+                            Back to Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

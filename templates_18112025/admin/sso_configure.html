@@ -1,0 +1,247 @@
+<!-- SSO Provider Configuration Form -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configure {{ template.name }} - {{ config.SITE_NAME or 'Shift Handover' }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
+                <div class="position-sticky pt-3">
+                    <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted">
+                        <span>SSO Configuration</span>
+                    </h6>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('sso_config.sso_dashboard') }}">
+                                <i class="fas fa-tachometer-alt"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#">
+                                <i class="fas fa-cog"></i> Configure {{ template.name }}
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('dashboard.dashboard') }}">
+                                <i class="fas fa-arrow-left"></i> Back to Main
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">Configure {{ template.name }}</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <a href="{{ url_for('sso_config.sso_dashboard') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left"></i> Back to Dashboard
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Flash messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <!-- Configuration Form -->
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-cog"></i>
+                                    {{ template.name }} Configuration
+                                </h5>
+                                <small class="text-muted">{{ template.description }}</small>
+                            </div>
+                            <div class="card-body">
+                                <form method="POST" action="{{ url_for('sso_config.save_provider_config', provider_type=provider_type) }}">
+                                    <!-- Provider Name -->
+                                    <div class="mb-3">
+                                        <label for="provider_name" class="form-label">Provider Name *</label>
+                                        <input type="text" class="form-control" id="provider_name" name="provider_name" 
+                                               value="{{ config.get('provider_name', template.name) }}" required>
+                                        <div class="form-text">Display name for this SSO provider</div>
+                                    </div>
+
+                                    <!-- Enabled Toggle -->
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="enabled" name="enabled" 
+                                                   {% if config.get('enabled') == 'true' %}checked{% endif %}>
+                                            <label class="form-check-label" for="enabled">
+                                                Enable this SSO provider
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <hr>
+
+                                    <!-- Dynamic Fields -->
+                                    {% for field in template.fields %}
+                                        <div class="mb-3">
+                                            <label for="{{ field.name }}" class="form-label">
+                                                {{ field.label }}
+                                                {% if field.required %}*{% endif %}
+                                            </label>
+                                            
+                                            {% if field.type == 'text' or field.type == 'url' %}
+                                                <input type="{{ field.type }}" class="form-control" 
+                                                       id="{{ field.name }}" name="{{ field.name }}"
+                                                       value="{{ config.get(field.name, field.get('default', '')) }}"
+                                                       placeholder="{{ field.get('placeholder', '') }}"
+                                                       {% if field.required %}required{% endif %}>
+                                            
+                                            {% elif field.type == 'password' %}
+                                                <input type="password" class="form-control" 
+                                                       id="{{ field.name }}" name="{{ field.name }}"
+                                                       value="{{ config.get(field.name, '') }}"
+                                                       {% if field.required %}required{% endif %}>
+                                                {% if field.get('sensitive') %}
+                                                    <div class="form-text text-warning">
+                                                        <i class="fas fa-lock"></i> This value will be encrypted
+                                                    </div>
+                                                {% endif %}
+                                            
+                                            {% elif field.type == 'textarea' %}
+                                                <textarea class="form-control" id="{{ field.name }}" name="{{ field.name }}" 
+                                                          rows="6" {% if field.required %}required{% endif %}>{{ config.get(field.name, '') }}</textarea>
+                                            
+                                            {% elif field.type == 'select' %}
+                                                <select class="form-select" id="{{ field.name }}" name="{{ field.name }}" 
+                                                        {% if field.required %}required{% endif %}>
+                                                    <option value="">Select an option</option>
+                                                    {% for option in field.options %}
+                                                        <option value="{{ option }}" 
+                                                                {% if config.get(field.name) == option or field.get('default') == option %}selected{% endif %}>
+                                                            {{ option }}
+                                                        </option>
+                                                    {% endfor %}
+                                                </select>
+                                            
+                                            {% elif field.type == 'checkbox' %}
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" 
+                                                           id="{{ field.name }}" name="{{ field.name }}"
+                                                           {% if config.get(field.name) == 'true' or field.get('default') %}checked{% endif %}>
+                                                    <label class="form-check-label" for="{{ field.name }}">
+                                                        {{ field.label }}
+                                                    </label>
+                                                </div>
+                                            {% endif %}
+
+                                            {% if field.get('description') %}
+                                                <div class="form-text">{{ field.description }}</div>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+
+                                    <!-- Submit Buttons -->
+                                    <div class="d-flex gap-2 mt-4">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-save"></i> Save Configuration
+                                        </button>
+                                        <a href="{{ url_for('sso_config.sso_dashboard') }}" class="btn btn-secondary">
+                                            <i class="fas fa-times"></i> Cancel
+                                        </a>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Configuration Guide -->
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-info-circle"></i>
+                                    Setup Guide
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                {% if provider_type == 'google_oauth' %}
+                                    <h6>Google Cloud Console Setup:</h6>
+                                    <ol class="small">
+                                        <li>Go to <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
+                                        <li>Create/select a project</li>
+                                        <li>Go to "APIs & Services" → "Credentials"</li>
+                                        <li>Create OAuth 2.0 Client ID</li>
+                                        <li>Set redirect URI: <code>{{ request.url_root }}auth/sso/callback/oauth</code></li>
+                                        <li>Copy Client ID and Client Secret here</li>
+                                    </ol>
+
+                                {% elif provider_type == 'azure_ad' %}
+                                    <h6>Azure AD Setup:</h6>
+                                    <ol class="small">
+                                        <li>Go to Azure Portal</li>
+                                        <li>Navigate to "Azure Active Directory"</li>
+                                        <li>Go to "App registrations" → "New registration"</li>
+                                        <li>Set redirect URI: <code>{{ request.url_root }}auth/sso/callback/azure_ad</code></li>
+                                        <li>Generate client secret</li>
+                                        <li>Copy Tenant ID, Client ID, and Client Secret</li>
+                                    </ol>
+
+                                {% elif provider_type == 'saml' %}
+                                    <h6>SAML Setup:</h6>
+                                    <ol class="small">
+                                        <li>Configure your SAML Identity Provider</li>
+                                        <li>Set ACS URL: <code>{{ request.url_root }}auth/sso/callback/saml</code></li>
+                                        <li>Set Entity ID: <code>{{ request.url_root }}sso/metadata</code></li>
+                                        <li>Download IdP certificate</li>
+                                        <li>Configure attribute mappings for email</li>
+                                    </ol>
+
+                                {% else %}
+                                    <h6>OAuth 2.0 Setup:</h6>
+                                    <ol class="small">
+                                        <li>Register application with your OAuth provider</li>
+                                        <li>Set redirect URI: <code>{{ request.url_root }}auth/sso/callback/oauth</code></li>
+                                        <li>Obtain client credentials</li>
+                                        <li>Configure endpoint URLs</li>
+                                        <li>Test the configuration</li>
+                                    </ol>
+                                {% endif %}
+
+                                <div class="mt-3">
+                                    <h6>Testing:</h6>
+                                    <p class="small">After saving, use the "Test" button on the dashboard to verify connectivity.</p>
+                                </div>
+
+                                <div class="mt-3">
+                                    <h6>Security Notes:</h6>
+                                    <ul class="small">
+                                        <li>Client secrets are encrypted in database</li>
+                                        <li>Use HTTPS in production</li>
+                                        <li>Review provider permissions</li>
+                                        <li>Monitor authentication logs</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

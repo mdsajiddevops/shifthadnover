@@ -1,0 +1,549 @@
+{% extends "base.html" %}
+
+{% block title %}Request Shift Swap{% endblock %}
+
+{% block content %}
+<style>
+/* Modern Shift Swap Request UI - Fixed Version */
+:root {
+    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --text-primary: #2c3e50;
+    --border-color: #dee2e6;
+}
+
+body {
+    background: #f8f9fa !important;
+    color: #2c3e50 !important;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+}
+
+.main-content {
+    padding: 20px;
+}
+
+.page-header {
+    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%) !important;
+    color: white !important;
+    padding: 2rem 0;
+    margin-bottom: 2rem;
+    text-align: center;
+    border-radius: 15px;
+}
+
+.page-title {
+    font-size: 2.5rem !important;
+    font-weight: 700 !important;
+    color: white !important;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.page-subtitle {
+    font-size: 1.1rem !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+    margin: 0;
+    font-weight: 400;
+}
+
+.swap-form-container {
+    background: white !important;
+    border-radius: 25px !important;
+    padding: 2.5rem !important;
+    margin-bottom: 2rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
+    border: 1px solid #e9ecef !important;
+    position: relative;
+    overflow: hidden;
+}
+
+.swap-form-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--primary-gradient);
+}
+
+.form-section {
+    background: #f8f9fa !important;
+    border-radius: 15px !important;
+    padding: 2rem !important;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e9ecef !important;
+    position: relative;
+}
+
+.form-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--primary-gradient);
+    border-radius: 15px 15px 0 0;
+}
+
+.section-title {
+    font-size: 1.3rem !important;
+    font-weight: 700 !important;
+    color: #2c3e50 !important;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.section-title i {
+    color: #4a90e2 !important;
+    font-size: 1.2rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-label {
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    color: #2c3e50 !important;
+    margin-bottom: 0.75rem;
+    display: block;
+}
+
+.required {
+    color: #dc3545 !important;
+    margin-left: 3px;
+}
+
+.form-control {
+    width: 100% !important;
+    padding: 12px 15px !important;
+    border: 2px solid #dee2e6 !important;
+    border-radius: 8px !important;
+    font-size: 1rem !important;
+    color: #2c3e50 !important;
+    background: white !important;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+
+.form-control:focus {
+    outline: none !important;
+    border-color: #4a90e2 !important;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1) !important;
+}
+
+.form-control:read-only {
+    background: #f8f9fa !important;
+    border-color: #dee2e6 !important;
+    color: #6c757d !important;
+}
+
+.shift-details-box {
+    background: rgba(74, 144, 226, 0.05) !important;
+    border: 2px solid rgba(74, 144, 226, 0.2) !important;
+    border-radius: 10px !important;
+    padding: 15px;
+    margin-top: 10px;
+    display: none;
+}
+
+.shift-details-box.show {
+    display: block;
+}
+
+.shift-details-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+}
+
+.shift-details-label {
+    font-weight: 600 !important;
+    color: #2c3e50 !important;
+}
+
+.shift-details-value {
+    font-weight: 700 !important;
+    color: #4a90e2 !important;
+    padding: 4px 8px;
+    background: rgba(74, 144, 226, 0.1);
+    border-radius: 5px;
+}
+
+.submit-section {
+    text-align: center;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #dee2e6;
+}
+
+.btn {
+    padding: 12px 30px !important;
+    border: none !important;
+    border-radius: 25px !important;
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    margin: 0 10px;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%) !important;
+    color: white !important;
+    box-shadow: 0 4px 15px rgba(74, 144, 226, 0.3) !important;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(74, 144, 226, 0.4) !important;
+    color: white !important;
+    text-decoration: none;
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%) !important;
+    color: white !important;
+    box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3) !important;
+}
+
+.btn-secondary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(108, 117, 125, 0.4) !important;
+    color: white !important;
+    text-decoration: none;
+}
+
+.alert {
+    padding: 15px 20px !important;
+    border-radius: 10px !important;
+    margin-bottom: 20px;
+    border: none !important;
+    font-weight: 500;
+}
+
+.alert-success {
+    background: #d4edda !important;
+    color: #155724 !important;
+    border-left: 4px solid #28a745 !important;
+}
+
+.alert-error {
+    background: #f8d7da !important;
+    color: #721c24 !important;
+    border-left: 4px solid #dc3545 !important;
+}
+
+.alert-warning {
+    background: #fff3cd !important;
+    color: #856404 !important;
+    border-left: 4px solid #ffc107 !important;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .page-title {
+        font-size: 2rem !important;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .swap-form-container {
+        padding: 1.5rem !important;
+        margin: 10px;
+    }
+    
+    .form-section {
+        padding: 1.5rem !important;
+    }
+    
+    .btn {
+        width: 100%;
+        margin: 5px 0;
+    }
+}
+</style>
+
+<div class="main-content">
+    <div class="page-header">
+        <div class="container">
+            <h1 class="page-title">
+                <i class="fas fa-exchange-alt"></i>
+                Shift Swap Request
+            </h1>
+            <p class="page-subtitle">Request to swap shifts with team members</p>
+        </div>
+    </div>
+
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-lg-10 mx-auto">
+                <div class="swap-form-container">
+                    
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'error' if category == 'error' else category }}">
+                                    {{ message }}
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    
+                    <form id="swapRequestForm" method="POST">
+                        <!-- Basic Information Card -->
+                        <div class="form-section">
+                            <div class="section-title">
+                                <i class="fas fa-info-circle"></i>
+                                Basic Information
+                            </div>
+                            
+                            <!-- Date Selection -->
+                            <div class="form-group">
+                                <label for="swap_date" class="form-label">
+                                    Date <span class="required">*</span>
+                                </label>
+                                <input type="date" 
+                                       id="swap_date" 
+                                       name="swap_date" 
+                                       class="form-control" 
+                                       required
+                                       min="{{ min_date }}"
+                                       max="{{ max_date }}">
+                            </div>
+                        
+                            <!-- From Engineer -->
+                            <div class="form-group">
+                                <label for="from_engineer" class="form-label">
+                                    From Engineer <span class="required">*</span>
+                                </label>
+                            {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
+                                <select id="from_engineer" 
+                                        name="from_engineer_id" 
+                                        class="form-control" 
+                                        required>
+                                    <option value="">Select engineer requesting swap</option>
+                                    {% for member in team_members %}
+                                        <option value="{{ member.id }}">{{ member.full_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            {% else %}
+                                <input type="text" 
+                                       id="from_engineer" 
+                                       name="from_engineer_display" 
+                                       class="form-control" 
+                                       value="{{ (current_user.first_name + ' ' + current_user.last_name) if (current_user.first_name and current_user.last_name) else current_user.username }}" 
+                                       readonly>
+                                <input type="hidden" 
+                                       name="from_engineer_id" 
+                                       value="{{ current_user.id }}">
+                            {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Shift Details Section -->
+                        <div class="form-section">
+                            <div class="section-title">
+                                <i class="fas fa-clock"></i>
+                                Current Shift Details
+                            </div>
+                            <div id="shiftDetailsBox" class="shift-details-box">
+                                <div class="shift-details-item">
+                                    <span class="shift-details-label">Shift Type:</span>
+                                    <span id="shiftType" class="shift-details-value">-</span>
+                                </div>
+                            </div>
+                            <input type="hidden" id="original_shift_code" name="original_shift_code">
+                        </div>
+                        
+                        <!-- Swap With Engineer Section -->
+                        <div class="form-section">
+                            <div class="section-title">
+                                <i class="fas fa-users"></i>
+                                Swap With Engineer
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="swap_with_engineer">
+                                    Select Engineer <span class="required">*</span>
+                                </label>
+                                <select id="swap_with_engineer" 
+                                        name="swap_with_engineer_id" 
+                                        class="form-control" 
+                                        required>
+                                    <option value="">Select engineer to swap with</option>
+                                    <!-- Will be populated dynamically -->
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Submit Section -->
+                        <div class="submit-section">
+                            <button type="submit" class="btn btn-primary" id="submitBtn">
+                                <i class="fas fa-paper-plane"></i>
+                                Submit Request
+                            </button>
+                            <a href="{{ url_for('shift_swap_leave.dashboard') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i>
+                                Back to Dashboard
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const swapDateInput = document.getElementById('swap_date');
+    const fromEngineerSelect = document.getElementById('from_engineer');
+    const shiftDetailsBox = document.getElementById('shiftDetailsBox');
+    const shiftType = document.getElementById('shiftType');
+    const originalShiftCodeInput = document.getElementById('original_shift_code');
+    const swapWithSelect = document.getElementById('swap_with_engineer');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    let currentUserId = {{ current_user.id }};
+    let isAdmin = {{ 'true' if current_user.role in ['super_admin', 'account_admin', 'team_admin'] else 'false' }};
+    
+    // Set minimum date to today
+    const today = new Date();
+    const minDate = today.toISOString().split('T')[0];
+    swapDateInput.min = minDate;
+    
+    // Set maximum date to 3 months from now
+    const maxDate = new Date();
+    maxDate.setMonth(maxDate.getMonth() + 3);
+    swapDateInput.max = maxDate.toISOString().split('T')[0];
+    
+    // Load shift details when date and engineer are selected
+    async function loadShiftDetails() {
+        const selectedDate = swapDateInput.value;
+        const selectedEngineerId = isAdmin ? fromEngineerSelect.value : currentUserId;
+        
+        if (!selectedDate || !selectedEngineerId) {
+            shiftDetailsBox.classList.remove('show');
+            return;
+        }
+        
+        try {
+            const url = `/shift-management/api/user-shift-details?date=${selectedDate}&user_id=${selectedEngineerId}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (data.success && data.shift && data.shift.shift_code) {
+                shiftType.textContent = data.shift.shift_code;
+                originalShiftCodeInput.value = data.shift.shift_code;
+                shiftDetailsBox.classList.add('show');
+                await loadAvailableEngineers(selectedDate, selectedEngineerId);
+            } else {
+                shiftType.textContent = 'Off';
+                originalShiftCodeInput.value = 'OFF';
+                shiftDetailsBox.classList.add('show');
+                await loadAvailableEngineers(selectedDate, selectedEngineerId);
+            }
+        } catch (error) {
+            console.error('Error loading shift details:', error);
+            showAlert('Error loading shift details. Please try again.', 'error');
+        }
+    }
+    
+    // Load available engineers to swap with
+    async function loadAvailableEngineers(date, fromEngineerId) {
+        try {
+            const url = `/shift-management/api/available-engineers?date=${date}&exclude_user_id=${fromEngineerId}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (data.success) {
+                swapWithSelect.innerHTML = '<option value="">Select engineer to swap with</option>';
+                
+                data.engineers.forEach(engineer => {
+                    const option = document.createElement('option');
+                    option.value = engineer.id;
+                    option.textContent = `${engineer.full_name} (${engineer.current_shift || 'Off'})`;
+                    swapWithSelect.appendChild(option);
+                });
+                
+                if (data.engineers.length === 0) {
+                    swapWithSelect.innerHTML = '<option value="">No engineers available for swap</option>';
+                }
+            } else {
+                console.error('Available engineers API error:', data.error);
+                showAlert(data.error || 'Error loading available engineers', 'error');
+            }
+        } catch (error) {
+            console.error('Error loading available engineers:', error);
+            showAlert('Error loading available engineers. Please try again.', 'error');
+        }
+    }
+    
+    // Event listeners
+    swapDateInput.addEventListener('change', loadShiftDetails);
+    
+    if (isAdmin && fromEngineerSelect) {
+        fromEngineerSelect.addEventListener('change', loadShiftDetails);
+    }
+    
+    // Form submission
+    document.getElementById('swapRequestForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Validate form
+        if (!swapDateInput.value || !swapWithSelect.value) {
+            showAlert('Please fill in all required fields.', 'error');
+            return;
+        }
+        
+        // Show loading state
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+        
+        // Submit form
+        this.submit();
+    });
+    
+    // Utility function to show alerts
+    function showAlert(message, type) {
+        const existingAlert = document.querySelector('.alert');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
+        
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type}`;
+        alert.textContent = message;
+        
+        const form = document.getElementById('swapRequestForm');
+        form.parentNode.insertBefore(alert, form);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (alert.parentNode) {
+                alert.remove();
+            }
+        }, 5000);
+    }
+});
+</script>
+
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}

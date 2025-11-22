@@ -1,0 +1,411 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Notifications v2.1 - Shift Handover App{% endblock %}
+
+{% block extra_css %}
+<style>
+    .notifications-container {
+        padding: 20px;
+        background-color: #f8f9fa;
+        min-height: calc(100vh - 80px);
+    }
+
+    .page-header {
+        background: white;
+        border-radius: 12px;
+        padding: 30px;
+        margin-bottom: 30px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-left: 4px solid #007bff;
+    }
+
+    .page-title {
+        font-size: 2.2rem;
+        font-weight: 600;
+        color: #2c3e50;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .page-subtitle {
+        color: #6c757d;
+        margin: 8px 0 0 0;
+        font-size: 1.1rem;
+    }
+
+    .notifications-section {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        overflow: hidden;
+        margin-bottom: 30px;
+    }
+
+    .section-header {
+        background: #ffffff;
+        color: #495057;
+        padding: 16px 20px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .section-header i {
+        color: #6c757d;
+        font-size: 1.1rem;
+    }
+
+    .section-count {
+        background-color: #dc3545;
+        color: white;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 12px;
+        margin-left: auto;
+    }
+
+    .section-count.general {
+        background-color: #6c757d;
+    }
+
+    .section-header i {
+        font-size: 1.4rem;
+    }
+
+    .notification-card {
+        border-bottom: 1px solid #e9ecef;
+        padding: 20px 25px;
+        transition: background-color 0.2s ease;
+    }
+
+    .notification-card:last-child {
+        border-bottom: none;
+    }
+
+    .notification-card:hover {
+        background-color: #f8f9fa;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="notifications-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="fas fa-bell"></i>
+            Notifications
+        </h1>
+        <p class="page-subtitle">Stay updated with system alerts and incident assignments</p>
+    </div>
+
+    <!-- General Notifications Card Section -->
+    {% set general_notifications = notifications|selectattr('type', 'ne', 'incident')|list %}
+    {% if general_notifications %}
+    <div class="notifications-section general-section">
+        <h3 class="section-header">
+            <i class="fas fa-info-circle"></i>
+            General Notifications
+        </h3>
+        {% for notification in general_notifications %}
+        <div class="notification-card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                <h5 style="margin: 0; color: #2c3e50; font-weight: 600;">
+                    {{ notification.title }}
+                    <span style="background-color: #e3f2fd; color: #1976d2; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; margin-left: 8px;">
+                        {{ notification.type|title }}
+                    </span>
+                </h5>
+                <small style="color: #6c757d;">{{ notification.timestamp.strftime('%B %d, %Y at %I:%M %p') }}</small>
+            </div>
+            <p style="margin: 8px 0; color: #495057;">{{ notification.message }}</p>
+            <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #e9ecef;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div></div> <!-- Empty div to maintain layout -->
+                    {% if not notification.read %}
+                    <button class="btn btn-primary btn-sm" style="padding: 4px 12px; font-size: 0.8rem;">
+                        <i class="fas fa-check"></i> Mark as Read
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Section Separator -->
+    <div style="height: 20px;"></div>
+
+    <!-- Incident Assignments Card Section -->
+    {% set incident_notifications = notifications|selectattr('type', 'equalto', 'incident')|list %}
+    {% if incident_notifications %}
+    <div class="notifications-section incident-section">
+        <h3 class="section-header">
+            <i class="fas fa-exclamation-triangle"></i>
+            Incident Assignments
+        </h3>
+        {% for notification in incident_notifications %}
+        <div class="notification-card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                <h5 style="margin: 0; color: #2c3e50; font-weight: 600;">
+                    {{ notification.title }}
+                    {% if notification.priority %}
+                    <span style="background-color: {% if notification.priority == 'high' %}#dc3545{% elif notification.priority == 'medium' %}#ffc107{% else %}#28a745{% endif %}; color: {% if notification.priority == 'medium' %}#212529{% else %}white{% endif %}; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; margin-left: 8px; font-weight: 600;">
+                        {{ notification.priority|title }}
+                    </span>
+                    {% endif %}
+                </h5>
+                <small style="color: #6c757d;">{{ notification.timestamp.strftime('%B %d, %Y at %I:%M %p') }}</small>
+            </div>
+            <p style="margin: 8px 0; color: #495057;">{{ notification.message }}</p>
+            
+            {% if notification.assignment_data %}
+            <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-top: 10px;">
+                <h6 style="color: #495057; margin-bottom: 8px; font-weight: 600;">
+                    <i class="fas fa-clipboard-list"></i> Incident Details
+                </h6>
+                <p style="margin: 5px 0; color: #6c757d; font-size: 0.9rem;"><strong>Incident ID:</strong> {{ notification.assignment_data.incident_id }}</p>
+                <p style="margin: 5px 0; color: #6c757d; font-size: 0.9rem;"><strong>Priority:</strong> {{ notification.assignment_data.incident_priority }}</p>
+                <p style="margin: 5px 0; color: #6c757d; font-size: 0.9rem;"><strong>Assigned By:</strong> {{ notification.assignment_data.assigned_by }}</p>
+                <p style="margin: 5px 0; color: #6c757d; font-size: 0.9rem;"><strong>Status:</strong> {{ notification.assignment_data.status|title }}</p>
+            </div>
+            {% endif %}
+            
+            <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #e9ecef;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #6c757d; font-size: 0.9rem;">Assignment ID: #{{ notification.id }}</span>
+                    
+                    {% if notification.assignment_data.status == 'pending' %}
+                    <!-- Show Accept/Reject buttons for pending assignments -->
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-success btn-sm assignment-action-btn" 
+                                data-assignment-id="{{ notification.id }}" 
+                                data-action="accept"
+                                style="padding: 4px 12px; font-size: 0.8rem;">
+                            <i class="fas fa-check"></i> Accept
+                        </button>
+                        <button class="btn btn-danger btn-sm assignment-action-btn" 
+                                data-assignment-id="{{ notification.id }}" 
+                                data-action="reject"
+                                style="padding: 4px 12px; font-size: 0.8rem;">
+                            <i class="fas fa-times"></i> Reject
+                        </button>
+                    </div>
+                    {% else %}
+                    <!-- Show status badge for completed assignments -->
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        {% if notification.assignment_data.status == 'accepted' %}
+                        <span class="badge" style="background-color: #28a745; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.8rem;">
+                            <i class="fas fa-check-circle"></i> Accepted
+                        </span>
+                        {% elif notification.assignment_data.status == 'rejected' %}
+                        <span class="badge" style="background-color: #dc3545; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.8rem;">
+                            <i class="fas fa-times-circle"></i> Rejected
+                        </span>
+                        {% endif %}
+                        <small style="color: #6c757d; font-size: 0.75rem;">
+                            {% if notification.assignment_data.response_comments %}
+                            Response: {{ notification.assignment_data.response_comments }}
+                            {% endif %}
+                        </small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not notifications %}
+    <div class="notifications-section">
+        <div style="text-align: center; padding: 60px 20px; color: #6c757d;">
+            <i class="fas fa-bell-slash" style="font-size: 4rem; margin-bottom: 20px; opacity: 0.5;"></i>
+            <h5>No Notifications</h5>
+            <p>You're all caught up! No new notifications at this time.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Assignment Response Modal -->
+<div class="modal fade" id="assignmentResponseModal" tabindex="-1" role="dialog" aria-labelledby="assignmentResponseModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="assignmentResponseModalLabel">Assignment Response</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="incident-title"><strong>Incident:</strong></label>
+                    <p id="incident-title" class="form-control-plaintext"></p>
+                </div>
+                <div class="form-group">
+                    <label for="action-type"><strong>Action:</strong></label>
+                    <p id="action-type" class="form-control-plaintext"></p>
+                </div>
+                <div class="form-group">
+                    <label for="response-comments"><strong>Comments/Notes:</strong></label>
+                    <textarea id="response-comments" class="form-control" rows="4" 
+                              placeholder="Add your comments or notes about this assignment (optional)"></textarea>
+                    <small class="form-text text-muted">
+                        You can provide additional context, estimated resolution time, or any concerns about this assignment.
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancel-action-btn">Cancel</button>
+                <button type="button" class="btn" id="confirm-action-btn">
+                    <i class="fas fa-check"></i> Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentAssignmentId = null;
+    let currentAction = null;
+    let currentButton = null;
+
+    // Handle Accept/Reject button clicks - show modal instead of direct action
+    document.querySelectorAll('.assignment-action-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+            currentAssignmentId = this.getAttribute('data-assignment-id');
+            currentAction = this.getAttribute('data-action');
+            currentButton = this;
+            
+            // Find the incident title from the notification card
+            const notificationCard = this.closest('.notification-card');
+            const incidentTitle = notificationCard.querySelector('h5').textContent.trim();
+            
+            // Update modal content
+            document.getElementById('incident-title').textContent = incidentTitle;
+            document.getElementById('action-type').textContent = currentAction === 'accept' ? 'Accept Assignment' : 'Reject Assignment';
+            document.getElementById('response-comments').value = '';
+            
+            // Update confirm button styling and text
+            const confirmBtn = document.getElementById('confirm-action-btn');
+            if (currentAction === 'accept') {
+                confirmBtn.className = 'btn btn-success';
+                confirmBtn.innerHTML = '<i class="fas fa-check"></i> Accept Assignment';
+            } else {
+                confirmBtn.className = 'btn btn-danger';
+                confirmBtn.innerHTML = '<i class="fas fa-times"></i> Reject Assignment';
+            }
+            
+            // Show the modal
+            $('#assignmentResponseModal').modal('show');
+        });
+    });
+
+    // Handle modal confirm button click
+    document.getElementById('confirm-action-btn').addEventListener('click', function() {
+        if (!currentAssignmentId || !currentAction || !currentButton) return;
+        
+        const comments = document.getElementById('response-comments').value.trim();
+        
+        // Close modal
+        $('#assignmentResponseModal').modal('hide');
+        
+        // Disable button and show loading state
+        const originalText = currentButton.innerHTML;
+        currentButton.disabled = true;
+        currentButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        
+        // Send AJAX request with comments
+        fetch('/assignment-action', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                assignment_id: currentAssignmentId,
+                action: currentAction,
+                comments: comments
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success message
+                showToast('Assignment ' + currentAction + 'ed successfully! Refreshing page...', 'success');
+                
+                // Refresh page after short delay to show updated status
+                setTimeout(function() {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                // Restore button on error
+                if (currentButton) {
+                    currentButton.disabled = false;
+                    currentButton.innerHTML = originalText;
+                }
+                showToast('Error: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            // Restore button on error
+            if (currentButton) {
+                currentButton.disabled = false;
+                currentButton.innerHTML = originalText;
+            }
+            showToast('Network error occurred', 'error');
+        });
+        
+        // Reset current variables
+        currentAssignmentId = null;
+        currentAction = null;
+        currentButton = null;
+    });
+
+    // Handle modal cancel button click
+    document.getElementById('cancel-action-btn').addEventListener('click', function() {
+        // Close modal
+        $('#assignmentResponseModal').modal('hide');
+        
+        // Reset current variables
+        currentAssignmentId = null;
+        currentAction = null;
+        currentButton = null;
+    });
+
+    // Handle modal close (X button or ESC key)
+    $('#assignmentResponseModal').on('hidden.bs.modal', function () {
+        // Reset current variables when modal is closed
+        currentAssignmentId = null;
+        currentAction = null;
+        currentButton = null;
+    });
+});
+
+// Simple toast notification function
+function showToast(message, type) {
+    const toast = document.createElement('div');
+    toast.className = 'alert alert-' + (type === 'success' ? 'success' : 'danger') + ' position-fixed';
+    toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 350px;';
+    toast.innerHTML = '<i class="fas fa-' + (type === 'success' ? 'check-circle' : 'exclamation-circle') + '"></i> ' + message;
+    
+    document.body.appendChild(toast);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(function() {
+        if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+        }
+    }, 3000);
+}
+</script>
+{% endblock %}

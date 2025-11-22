@@ -1,0 +1,911 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications & Assignments{% endblock %}
+
+{% block extra_css %}
+<style>
+    .notifications-wrapper {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px 0;
+    }
+
+    .notifications-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 15px;
+    }
+    
+    .page-header {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 15px;
+        padding: 25px 30px;
+        margin-bottom: 25px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(10px);
+    }
+    
+    .page-title {
+        color: #2c3e50;
+        font-size: 2.2rem;
+        font-weight: 700;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+    
+    .page-subtitle {
+        color: #6c757d;
+        font-size: 1.1rem;
+        margin: 8px 0 0 0;
+        font-weight: 400;
+    }
+
+    .notification-stats {
+        display: flex;
+        gap: 15px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+    }
+
+    .stat-badge {
+        background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 25px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 4px 15px rgba(79, 172, 254, 0.3);
+    }
+
+    .stat-badge.pending {
+        background: linear-gradient(45deg, #ff6b6b 0%, #ffa726 100%);
+        box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+    }
+
+    .stat-badge.handover {
+        background: linear-gradient(45deg, #4ecdc4 0%, #44a08d 100%);
+        box-shadow: 0 4px 15px rgba(78, 205, 196, 0.3);
+    }
+    
+    .notifications-section {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 15px;
+        padding: 30px;
+        margin-bottom: 25px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(10px);
+    }
+    
+    .section-title {
+        color: #2c3e50;
+        font-size: 1.6rem;
+        font-weight: 700;
+        margin-bottom: 25px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 15px;
+        border-bottom: 3px solid #e9ecef;
+    }
+
+    .section-title i {
+        color: #667eea;
+        font-size: 1.4rem;
+    }
+    
+    .notification-card {
+        background: #ffffff;
+        border: 1px solid #e3e6f0;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .notification-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .notification-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+        border-color: #667eea;
+    }
+
+    .notification-card.pending::before {
+        background: linear-gradient(45deg, #ff6b6b 0%, #ffa726 100%);
+    }
+
+    .notification-card.handover::before {
+        background: linear-gradient(45deg, #4ecdc4 0%, #44a08d 100%);
+    }
+    
+    .notification-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 15px;
+        gap: 15px;
+    }
+    
+    .notification-title {
+        margin: 0;
+        color: #2c3e50;
+        font-weight: 700;
+        font-size: 1.2rem;
+        line-height: 1.4;
+        flex: 1;
+    }
+
+    .notification-timestamp {
+        color: #6c757d;
+        font-size: 0.9rem;
+        font-weight: 500;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .priority-badge {
+        padding: 6px 14px;
+        border-radius: 25px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-left: 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .priority-high {
+        background: linear-gradient(45deg, #ff6b6b 0%, #ee5a52 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
+    }
+    
+    .priority-medium {
+        background: linear-gradient(45deg, #ffa726 0%, #ffb74d 100%);
+        color: #333;
+        box-shadow: 0 2px 8px rgba(255, 167, 38, 0.3);
+    }
+    
+    .priority-low {
+        background: linear-gradient(45deg, #4caf50 0%, #66bb6a 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+    }
+    
+    .notification-message {
+        margin: 15px 0;
+        color: #495057;
+        font-size: 1rem;
+        line-height: 1.6;
+    }
+    
+    .incident-details {
+        background: linear-gradient(135deg, #f8f9ff 0%, #e3e6f0 100%);
+        border: 1px solid #d1ecf1;
+        border-radius: 10px;
+        padding: 20px;
+        margin-top: 15px;
+        position: relative;
+    }
+
+    .incident-details::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px 10px 0 0;
+    }
+    
+    .details-title {
+        color: #2c3e50;
+        margin-bottom: 15px;
+        font-weight: 700;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .detail-row {
+        display: flex;
+        margin: 10px 0;
+        color: #495057;
+        font-size: 0.95rem;
+    }
+    
+    .detail-label {
+        font-weight: 700;
+        color: #2c3e50;
+        min-width: 120px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .detail-value {
+        flex: 1;
+        color: #495057;
+    }
+    
+    .notification-footer {
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 2px solid #f1f3f4;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    
+    .assignment-id {
+        color: #6c757d;
+        font-size: 0.9rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .action-btn {
+        padding: 10px 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        border-radius: 25px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+        min-width: 110px;
+        justify-content: center;
+    }
+    
+    .btn-accept {
+        background: linear-gradient(45deg, #4caf50 0%, #45a049 100%);
+        color: white;
+        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+    }
+    
+    .btn-accept:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        color: white;
+    }
+    
+    .btn-reject {
+        background: linear-gradient(45deg, #f44336 0%, #d32f2f 100%);
+        color: white;
+        box-shadow: 0 4px 15px rgba(244, 67, 54, 0.3);
+    }
+    
+    .btn-reject:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(244, 67, 54, 0.4);
+        color: white;
+    }
+    
+    .status-badge {
+        padding: 8px 16px;
+        border-radius: 25px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .status-accepted {
+        background: linear-gradient(45deg, #4caf50 0%, #45a049 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+    }
+    
+    .status-rejected {
+        background: linear-gradient(45deg, #f44336 0%, #d32f2f 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3);
+    }
+
+    .response-comment {
+        color: #6c757d;
+        font-size: 0.85rem;
+        font-style: italic;
+        margin-top: 8px;
+        padding: 8px 12px;
+        background: rgba(108, 117, 125, 0.1);
+        border-radius: 8px;
+        border-left: 3px solid #6c757d;
+    }
+    
+    .no-notifications {
+        text-align: center;
+        padding: 80px 20px;
+        color: #6c757d;
+    }
+    
+    .no-notifications i {
+        font-size: 5rem;
+        margin-bottom: 25px;
+        opacity: 0.3;
+        background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .no-notifications h5 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 15px;
+        color: #495057;
+    }
+    
+    .no-notifications p {
+        font-size: 1.1rem;
+        margin: 0;
+    }
+
+    /* Modal Improvements */
+    .modal-content {
+        border-radius: 15px;
+        border: none;
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-header {
+        background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px 15px 0 0;
+        padding: 20px 25px;
+    }
+
+    .modal-title {
+        font-weight: 700;
+        font-size: 1.3rem;
+    }
+
+    .modal-body {
+        padding: 25px;
+    }
+
+    .form-group label {
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 8px;
+    }
+
+    .form-control {
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
+        padding: 10px 15px;
+        transition: all 0.3s ease;
+    }
+
+    .form-control:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+
+    /* Toast Notifications */
+    .toast-notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        max-width: 400px;
+        border-radius: 10px;
+        border: none;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        animation: slideInRight 0.3s ease;
+    }
+
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    /* Loading State */
+    .btn-loading {
+        position: relative;
+        color: transparent !important;
+    }
+
+    .btn-loading::after {
+        content: "";
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        top: 50%;
+        left: 50%;
+        margin-left: -8px;
+        margin-top: -8px;
+        border: 2px solid transparent;
+        border-top-color: #ffffff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .page-title {
+            font-size: 1.8rem;
+        }
+        
+        .notification-header {
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .notification-timestamp {
+            align-self: flex-start;
+        }
+        
+        .notification-footer {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .action-buttons {
+            width: 100%;
+            justify-content: space-between;
+        }
+        
+        .action-btn {
+            flex: 1;
+        }
+
+        .notification-stats {
+            justify-content: center;
+        }
+
+        .stat-badge {
+            flex: 1;
+            justify-content: center;
+            min-width: 120px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="notifications-wrapper">
+    <div class="notifications-container">
+        <!-- Page Header -->
+        <div class="page-header">
+            <h1 class="page-title">
+                <i class="fas fa-bell"></i>
+                Notifications & Assignments
+            </h1>
+            <p class="page-subtitle">Stay updated with your shift handovers and incident assignments</p>
+            
+            <!-- Notification Statistics -->
+            <div class="notification-stats">
+                {% set pending_count = incident_notifications|selectattr('assignment_data.status', 'equalto', 'pending')|list|length %}
+                {% set handover_count = handover_notifications|length %}
+                {% set total_count = notifications|length %}
+                
+                <div class="stat-badge">
+                    <i class="fas fa-bell"></i>
+                    <span>{{ total_count }} Total</span>
+                </div>
+                
+                {% if pending_count > 0 %}
+                <div class="stat-badge pending">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>{{ pending_count }} Pending</span>
+                </div>
+                {% endif %}
+                
+                {% if handover_count > 0 %}
+                <div class="stat-badge handover">
+                    <i class="fas fa-exchange-alt"></i>
+                    <span>{{ handover_count }} Handovers</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Handover Notifications Section -->
+        {% if handover_notifications %}
+        <div class="notifications-section">
+            <h3 class="section-title">
+                <i class="fas fa-exchange-alt"></i>
+                Shift Handovers
+            </h3>
+            {% for notification in handover_notifications %}
+            <div class="notification-card handover">
+                <div class="notification-header">
+                    <h5 class="notification-title">{{ notification.title }}</h5>
+                    <div class="notification-timestamp">
+                        <i class="fas fa-clock"></i>
+                        {{ notification.timestamp.strftime('%b %d, %Y at %I:%M %p') }}
+                    </div>
+                </div>
+                <p class="notification-message">{{ notification.message }}</p>
+                
+                <div class="notification-footer">
+                    <div class="assignment-id">
+                        <i class="fas fa-hashtag"></i>
+                        ID: {{ notification.id }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Incident Assignments Section -->
+        {% if incident_notifications %}
+        <div class="notifications-section">
+            <h3 class="section-title">
+                <i class="fas fa-exclamation-triangle"></i>
+                Incident Assignments
+            </h3>
+            {% for notification in incident_notifications %}
+            <div class="notification-card {% if notification.assignment_data.status == 'pending' %}pending{% endif %}">
+                <div class="notification-header">
+                    <h5 class="notification-title">
+                        {{ notification.title }}
+                        {% if notification.priority %}
+                        <span class="priority-badge priority-{{ notification.priority }}">
+                            <i class="fas fa-flag"></i>
+                            {{ notification.priority }}
+                        </span>
+                        {% endif %}
+                    </h5>
+                    <div class="notification-timestamp">
+                        <i class="fas fa-clock"></i>
+                        {{ notification.timestamp.strftime('%b %d, %Y at %I:%M %p') }}
+                    </div>
+                </div>
+                <p class="notification-message">{{ notification.message }}</p>
+                
+                {% if notification.assignment_data %}
+                <div class="incident-details">
+                    <h6 class="details-title">
+                        <i class="fas fa-info-circle"></i>
+                        Incident Details
+                    </h6>
+                    <div class="detail-row">
+                        <div class="detail-label">
+                            <i class="fas fa-hashtag"></i>
+                            Incident ID:
+                        </div>
+                        <div class="detail-value">{{ notification.assignment_data.incident_id }}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">
+                            <i class="fas fa-flag"></i>
+                            Priority:
+                        </div>
+                        <div class="detail-value">
+                            <span class="priority-badge priority-{{ notification.assignment_data.incident_priority|lower }}">
+                                {{ notification.assignment_data.incident_priority|title }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">
+                            <i class="fas fa-user"></i>
+                            Assigned By:
+                        </div>
+                        <div class="detail-value">{{ notification.assignment_data.assigned_by }}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">
+                            <i class="fas fa-tasks"></i>
+                            Status:
+                        </div>
+                        <div class="detail-value">
+                            <span class="status-badge status-{{ notification.assignment_data.status }}">
+                                <i class="fas fa-{% if notification.assignment_data.status == 'accepted' %}check{% elif notification.assignment_data.status == 'rejected' %}times{% else %}clock{% endif %}"></i>
+                                {{ notification.assignment_data.status|title }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="notification-footer">
+                    <div class="assignment-id">
+                        <i class="fas fa-hashtag"></i>
+                        Assignment ID: {{ notification.id }}
+                    </div>
+                    
+                    {% if notification.assignment_data.status == 'pending' %}
+                    <div class="action-buttons">
+                        <button class="action-btn btn-accept assignment-action-btn" 
+                                data-assignment-id="{{ notification.id }}" 
+                                data-action="accept">
+                            <i class="fas fa-check"></i>
+                            Accept
+                        </button>
+                        <button class="action-btn btn-reject assignment-action-btn" 
+                                data-assignment-id="{{ notification.id }}" 
+                                data-action="reject">
+                            <i class="fas fa-times"></i>
+                            Reject
+                        </button>
+                    </div>
+                    {% else %}
+                    <div>
+                        <div class="status-badge status-{{ notification.assignment_data.status }}">
+                            <i class="fas fa-{% if notification.assignment_data.status == 'accepted' %}check-circle{% else %}times-circle{% endif %}"></i>
+                            {{ notification.assignment_data.status|title }}
+                        </div>
+                        {% if notification.assignment_data.response_comments %}
+                        <div class="response-comment">
+                            <i class="fas fa-comment"></i>
+                            {{ notification.assignment_data.response_comments }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- No Notifications State -->
+        {% if not notifications %}
+        <div class="notifications-section">
+            <div class="no-notifications">
+                <i class="fas fa-bell-slash"></i>
+                <h5>All Clear!</h5>
+                <p>You have no new notifications at this time. Great job staying on top of things!</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Enhanced Assignment Response Modal -->
+<div class="modal fade" id="assignmentResponseModal" tabindex="-1" role="dialog" aria-labelledby="assignmentResponseModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="assignmentResponseModalLabel">
+                    <i class="fas fa-clipboard-check"></i>
+                    Assignment Response
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="incident-title">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Incident:
+                    </label>
+                    <p id="incident-title" class="form-control-plaintext font-weight-bold"></p>
+                </div>
+                <div class="form-group">
+                    <label for="action-type">
+                        <i class="fas fa-clipboard-check"></i>
+                        Action:
+                    </label>
+                    <p id="action-type" class="form-control-plaintext font-weight-bold"></p>
+                </div>
+                <div class="form-group">
+                    <label for="response-comments">
+                        <i class="fas fa-comment"></i>
+                        Comments/Notes:
+                    </label>
+                    <textarea id="response-comments" class="form-control" rows="4" 
+                              placeholder="Add your comments, estimated resolution time, or any concerns about this assignment..."></textarea>
+                    <small class="form-text text-muted">
+                        <i class="fas fa-info-circle"></i>
+                        Optional: Provide additional context or notes about your response to this assignment.
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancel-action-btn">
+                    <i class="fas fa-times"></i>
+                    Cancel
+                </button>
+                <button type="button" class="btn" id="confirm-action-btn">
+                    <i class="fas fa-check"></i>
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentAssignmentId = null;
+    let currentAction = null;
+    let currentButton = null;
+
+    // Handle Accept/Reject button clicks - show modal instead of direct action
+    document.querySelectorAll('.assignment-action-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+            currentAssignmentId = this.getAttribute('data-assignment-id');
+            currentAction = this.getAttribute('data-action');
+            currentButton = this;
+            
+            // Find the incident title from the notification card
+            const notificationCard = this.closest('.notification-card');
+            const incidentTitle = notificationCard.querySelector('.notification-title').textContent.trim();
+            
+            // Update modal content
+            document.getElementById('incident-title').textContent = incidentTitle;
+            document.getElementById('action-type').textContent = currentAction === 'accept' ? 'Accept Assignment' : 'Reject Assignment';
+            document.getElementById('response-comments').value = '';
+            
+            // Update confirm button styling and text
+            const confirmBtn = document.getElementById('confirm-action-btn');
+            if (currentAction === 'accept') {
+                confirmBtn.className = 'btn btn-success';
+                confirmBtn.innerHTML = '<i class="fas fa-check"></i> Accept Assignment';
+            } else {
+                confirmBtn.className = 'btn btn-danger';
+                confirmBtn.innerHTML = '<i class="fas fa-times"></i> Reject Assignment';
+            }
+            
+            // Show the modal
+            $('#assignmentResponseModal').modal('show');
+        });
+    });
+
+    // Handle modal confirm button click
+    document.getElementById('confirm-action-btn').addEventListener('click', function() {
+        if (!currentAssignmentId || !currentAction || !currentButton) return;
+        
+        const comments = document.getElementById('response-comments').value.trim();
+        
+        // Close modal
+        $('#assignmentResponseModal').modal('hide');
+        
+        // Add loading state to button
+        const originalText = currentButton.innerHTML;
+        currentButton.disabled = true;
+        currentButton.classList.add('btn-loading');
+        currentButton.innerHTML = 'Processing...';
+        
+        // Send AJAX request with comments
+        fetch('/assignment-action', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                assignment_id: currentAssignmentId,
+                action: currentAction,
+                comments: comments
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success message
+                showToast('Assignment ' + currentAction + 'ed successfully! Refreshing page...', 'success');
+                
+                // Refresh page after short delay to show updated status
+                setTimeout(function() {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                // Restore button on error
+                if (currentButton) {
+                    currentButton.disabled = false;
+                    currentButton.classList.remove('btn-loading');
+                    currentButton.innerHTML = originalText;
+                }
+                showToast('Error: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            // Restore button on error
+            if (currentButton) {
+                currentButton.disabled = false;
+                currentButton.classList.remove('btn-loading');
+                currentButton.innerHTML = originalText;
+            }
+            showToast('Network error occurred', 'error');
+        });
+        
+        // Reset current variables
+        currentAssignmentId = null;
+        currentAction = null;
+        currentButton = null;
+    });
+
+    // Handle modal cancel button click
+    document.getElementById('cancel-action-btn').addEventListener('click', function() {
+        // Close modal
+        $('#assignmentResponseModal').modal('hide');
+        
+        // Reset current variables
+        currentAssignmentId = null;
+        currentAction = null;
+        currentButton = null;
+    });
+
+    // Handle modal close (X button or ESC key)
+    $('#assignmentResponseModal').on('hidden.bs.modal', function () {
+        // Reset current variables when modal is closed
+        currentAssignmentId = null;
+        currentAction = null;
+        currentButton = null;
+    });
+});
+
+// Enhanced toast notification function
+function showToast(message, type) {
+    const toast = document.createElement('div');
+    toast.className = 'alert alert-' + (type === 'success' ? 'success' : 'danger') + ' toast-notification';
+    
+    const icon = type === 'success' ? 'check-circle' : 'exclamation-circle';
+    toast.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="fas fa-${icon} mr-2"></i>
+            <span>${message}</span>
+        </div>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Auto-remove after 4 seconds
+    setTimeout(function() {
+        if (toast.parentNode) {
+            toast.style.animation = 'slideInRight 0.3s ease reverse';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }
+    }, 4000);
+}
+</script>
+{% endblock %}

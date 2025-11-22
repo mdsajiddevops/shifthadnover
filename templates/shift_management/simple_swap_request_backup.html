@@ -1,0 +1,845 @@
+{% extends "base.html" %}
+
+{% block title %}Request Shift Swap{% endblock %}
+
+{% block content %}
+<style>
+    :root {
+        --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        --warning-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        --glass-bg: rgba(255, 255, 255, 0.25);
+        --glass-border: rgba(255, 255, 255, 0.18);
+        --shadow-light: 0 8px 32px rgba(31, 38, 135, 0.37);
+        --shadow-hover: 0 15px 35px rgba(31, 38, 135, 0.2);
+        --primary-color: #4a90e2;
+        --secondary-color: #f5f7fa;
+        --accent-color: #2c5aa0;
+        --success-color: #28a745;
+        --warning-color: #ffc107;
+        --danger-color: #dc3545;
+        --text-primary: #2c3e50;
+        --text-secondary: #6c757d;
+        --border-color: #dee2e6;
+        --shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    body {
+        background: #f8f9fa;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        min-height: 100vh;
+        color: #2c3e50;
+    }
+    
+    .page-header {
+        background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+        color: white;
+        padding: 2rem 0;
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+    
+    .page-title {
+        font-size: 3rem;
+        font-weight: 700;
+        color: white;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    
+    .page-subtitle {
+        font-size: 1.2rem;
+        color: rgba(255, 255, 255, 0.9);
+        margin: 0;
+        font-weight: 400;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    
+    @media (max-width: 768px) {
+        .page-title {
+            font-size: 2rem;
+            flex-direction: column;
+            gap: 10px;
+        }
+    }
+    
+    .swap-form-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-radius: 25px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 2.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .swap-form-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: var(--primary-gradient);
+        border-radius: 25px 25px 0 0;
+    }
+    
+    .form-section {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        border: 1px solid #e9ecef;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+    
+    .form-section:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    }
+    
+    .form-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: var(--primary-gradient);
+        border-radius: 20px 20px 0 0;
+    }
+    
+    .section-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #e9ecef;
+        position: relative;
+    }
+    
+    .section-title i {
+        background: var(--primary-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-size: 1.2rem;
+    }
+    
+    .section-title::after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        width: 50px;
+        height: 2px;
+        background: var(--primary-gradient);
+        border-radius: 2px;
+    }
+    
+    .form-group {
+        margin-bottom: 1.25rem;
+        position: relative;
+    }
+    
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        font-weight: 500;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0.5rem 0.5rem 0;
+    }
+    
+    .btn-primary {
+        background: var(--primary-color);
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        background: var(--accent-color);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-hover);
+    }
+    
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+    
+    .btn-secondary:hover {
+        background: #5a6268;
+        transform: translateY(-1px);
+    }
+    
+    .shift-details-box {
+        background: var(--secondary-color);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 1rem;
+    }
+    
+    .shift-details-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .shift-details-item:last-child {
+        border-bottom: none;
+    }
+    
+    .shift-details-label {
+        font-weight: 500;
+        color: var(--text-secondary);
+    }
+    
+    .shift-details-value {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+        position: relative;
+    }
+    
+    .form-label {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 0.75rem;
+        display: block;
+    }
+    
+    .required {
+        color: #e74c3c;
+        margin-left: 3px;
+    }
+    
+    .form-control {
+        width: 100%;
+        padding: 15px 20px;
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        font-size: 1rem;
+        color: #2c3e50;
+        background: #fff;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-sizing: border-box;
+        font-family: inherit;
+    }
+    
+    .form-control:focus {
+        outline: none;
+        border-color: #4a90e2;
+        box-shadow: 0 0 0 4px rgba(74, 144, 226, 0.1);
+        transform: translateY(-2px);
+    }
+    
+    .form-control:read-only {
+        background: #f8f9fa;
+        border-color: #dee2e6;
+        color: #6c757d;
+        cursor: not-allowed;
+    }
+    
+    .form-control::placeholder {
+        color: #adb5bd;
+        font-style: italic;
+    }
+    
+    .shift-details-box {
+        background: linear-gradient(135deg, rgba(74, 144, 226, 0.05) 0%, rgba(116, 75, 162, 0.05) 100%);
+        border: 2px solid rgba(74, 144, 226, 0.2);
+        border-radius: 15px;
+        padding: 20px;
+        margin-top: 15px;
+        display: none;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .shift-details-box::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: var(--primary-gradient);
+        border-radius: 15px 15px 0 0;
+    }
+    
+    .shift-details-box.show {
+        display: block;
+        animation: slideDown 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-20px) scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+    
+    .shift-details-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid rgba(74, 144, 226, 0.1);
+    }
+    
+    .shift-details-item:last-child {
+        border-bottom: none;
+    }
+    
+    .shift-details-label {
+        font-weight: 600;
+        color: #2c3e50;
+        font-size: 1rem;
+    }
+    
+    .shift-details-value {
+        font-weight: 700;
+        color: #4a90e2;
+        font-size: 1.1rem;
+        padding: 6px 12px;
+        background: rgba(74, 144, 226, 0.1);
+        border-radius: 8px;
+    }
+    
+    .submit-section {
+        text-align: center;
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid #e9ecef;
+    }
+    
+    .btn {
+        padding: 15px 40px;
+        border: none;
+        border-radius: 50px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+        letter-spacing: 0.5px;
+        margin: 0 10px;
+        text-transform: none;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        transition: left 0.6s;
+    }
+    
+    .btn:hover::before {
+        left: 100%;
+    }
+    
+    .btn-primary {
+        background: var(--primary-gradient);
+        color: white !important;
+        box-shadow: 0 4px 20px rgba(74, 144, 226, 0.3);
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-3px) scale(1.05);
+        box-shadow: 0 8px 30px rgba(74, 144, 226, 0.4);
+        color: white !important;
+        text-decoration: none;
+    }
+    
+    .btn-secondary {
+        background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+        color: white !important;
+        box-shadow: 0 4px 20px rgba(108, 117, 125, 0.3);
+    }
+    
+    .btn-secondary:hover {
+        transform: translateY(-3px) scale(1.05);
+        box-shadow: 0 8px 30px rgba(108, 117, 125, 0.4);
+        color: white !important;
+        text-decoration: none;
+    }
+    
+    .loading-spinner {
+        display: none;
+        width: 20px;
+        height: 20px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top: 2px solid white;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .alert {
+        padding: 18px 24px;
+        border-radius: 12px;
+        margin-bottom: 25px;
+        border: 1px solid transparent;
+        font-weight: 500;
+        font-size: 1rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .alert::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: currentColor;
+    }
+    
+    .alert-success {
+        background: linear-gradient(135deg, #d1f2eb 0%, #a7f3d0 100%);
+        color: #065f46;
+        border-color: #10b981;
+    }
+    
+    .alert-error {
+        background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+        color: #991b1b;
+        border-color: #ef4444;
+    }
+    
+    .alert-warning {
+        background: linear-gradient(135deg, #fffbeb 0%, #fed7aa 100%);
+        color: #92400e;
+        border-color: #f59e0b;
+    }
+    
+    .loading-spinner {
+        display: none;
+        width: 20px;
+        height: 20px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top: 2px solid white;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    /* Modern Card Layout Enhancements */
+    .form-section {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        border: 1px solid #e9ecef;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+    
+    @media (max-width: 768px) {
+        .page-title {
+            font-size: 2rem;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .page-subtitle {
+            font-size: 1rem;
+        }
+        
+        .swap-form-container {
+            margin: 10px;
+            padding: 1.5rem;
+            border-radius: 15px;
+        }
+        
+        .form-section {
+            padding: 1.5rem;
+            border-radius: 15px;
+        }
+        
+        .section-title {
+            font-size: 1.2rem;
+        }
+        
+        .btn {
+            width: 100%;
+            margin: 8px 0;
+            padding: 12px 30px;
+        }
+        
+        .submit-section {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .swap-form-container {
+            margin: 5px;
+            padding: 1rem;
+        }
+        
+        .form-section {
+            padding: 1rem;
+        }
+        
+        .page-header {
+            padding: 1.5rem 0;
+        }
+        
+        .page-title {
+            font-size: 1.8rem;
+        }
+    }
+</style>
+
+<div class="main-content">
+    <div class="page-header">
+        <div class="container">
+            <h1 class="page-title">
+                <i class="fas fa-exchange-alt"></i>
+                Shift Swap Request
+            </h1>
+            <p class="page-subtitle">Request to swap shifts with team members</p>
+        </div>
+    </div>
+
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-lg-10 mx-auto">
+                <div class="swap-form-container">
+                
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'error' if category == 'error' else category }}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                <form id="swapRequestForm" method="POST">
+                    <!-- Basic Information Card -->
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-info-circle"></i>
+                            Basic Information
+                        </div>
+                        
+                        <!-- Date Selection -->
+                        <div class="form-group">
+                            <label for="swap_date" class="form-label">
+                                Date <span class="required">*</span>
+                            </label>
+                            <input type="date" 
+                                   id="swap_date" 
+                                   name="swap_date" 
+                                   class="form-control" 
+                                   required
+                                   min="{{ min_date }}"
+                                   max="{{ max_date }}">
+                        </div>
+                    
+                        <!-- From Engineer -->
+                        <div class="form-group">
+                            <label for="from_engineer" class="form-label">
+                                From Engineer <span class="required">*</span>
+                            </label>
+                        {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
+                            <select id="from_engineer" 
+                                    name="from_engineer_id" 
+                                    class="form-control" 
+                                    required>
+                                <option value="">Select engineer requesting swap</option>
+                                {% for member in team_members %}
+                                    <option value="{{ member.id }}">{{ member.full_name }}</option>
+                                {% endfor %}
+                            </select>
+                        {% else %}
+                            <input type="text" 
+                                   id="from_engineer" 
+                                   name="from_engineer_display" 
+                                   class="form-control" 
+                                   value="{{ (current_user.first_name + ' ' + current_user.last_name) if (current_user.first_name and current_user.last_name) else current_user.username }}" 
+                                   readonly>
+                            <input type="hidden" 
+                                   name="from_engineer_id" 
+                                   value="{{ current_user.id }}">
+                        {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Shift Details Section -->
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-clock"></i>
+                            Current Shift Details
+                        </div>
+                        <div id="shiftDetailsBox" class="shift-details-box">
+                            <div class="shift-details-item">
+                                <span class="shift-details-label">Shift Type:</span>
+                                <span id="shiftType" class="shift-details-value">-</span>
+                            </div>
+                        </div>
+                        <input type="hidden" id="original_shift_code" name="original_shift_code">
+                    </div>
+                    
+                    <!-- Swap With Engineer Section -->
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-users"></i>
+                            Swap With Engineer
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="swap_with_engineer">
+                                Select Engineer <span class="required">*</span>
+                            </label>
+                            <select id="swap_with_engineer" 
+                                    name="swap_with_engineer_id" 
+                                    class="form-control" 
+                                    required>
+                                <option value="">Select engineer to swap with</option>
+                                <!-- Will be populated dynamically -->
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Submit Section -->
+                    <div class="submit-section">
+                        <button type="submit" class="btn btn-primary" id="submitBtn">
+                            <i class="fas fa-paper-plane"></i>
+                            <span class="loading-spinner"></span>
+                            Submit Request
+                        </button>
+                        <a href="{{ url_for('shift_swap_leave.dashboard') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i>
+                            Back to Dashboard
+                        </a>
+                    </div>
+                </form>
+            </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const swapDateInput = document.getElementById('swap_date');
+    const fromEngineerSelect = document.getElementById('from_engineer');
+    const shiftDetailsBox = document.getElementById('shiftDetailsBox');
+    const shiftType = document.getElementById('shiftType');
+    const originalShiftCodeInput = document.getElementById('original_shift_code');
+    const swapWithSelect = document.getElementById('swap_with_engineer');
+    const submitBtn = document.getElementById('submitBtn');
+    const loadingSpinner = submitBtn.querySelector('.loading-spinner');
+    
+    let currentUserId = {{ current_user.id }};
+    let isAdmin = {{ 'true' if current_user.role in ['super_admin', 'account_admin', 'team_admin'] else 'false' }};
+    
+    // Set minimum date to today
+    const today = new Date();
+    const minDate = today.toISOString().split('T')[0];
+    swapDateInput.min = minDate;
+    
+    // Set maximum date to 3 months from now
+    const maxDate = new Date();
+    maxDate.setMonth(maxDate.getMonth() + 3);
+    swapDateInput.max = maxDate.toISOString().split('T')[0];
+    
+    // Load shift details when date and engineer are selected
+    async function loadShiftDetails() {
+        const selectedDate = swapDateInput.value;
+        const selectedEngineerId = isAdmin ? fromEngineerSelect.value : currentUserId;
+        
+        console.log('Loading shift details for:', { selectedDate, selectedEngineerId, isAdmin });
+        
+        if (!selectedDate || !selectedEngineerId) {
+            console.log('Missing date or engineer ID');
+            shiftDetailsBox.classList.remove('show');
+            return;
+        }
+        
+        try {
+            const url = `/shift-management/api/user-shift-details?date=${selectedDate}&user_id=${selectedEngineerId}`;
+            console.log('Fetching shift details from:', url);
+            
+            const response = await fetch(url);
+            console.log('Response status:', response.status);
+            
+            const data = await response.json();
+            console.log('Shift details response:', data);
+            
+            if (data.success && data.shift && data.shift.shift_code) {
+                shiftType.textContent = data.shift.shift_code;
+                originalShiftCodeInput.value = data.shift.shift_code;
+                shiftDetailsBox.classList.add('show');
+                
+                // Load available engineers to swap with
+                await loadAvailableEngineers(selectedDate, selectedEngineerId);
+            } else {
+                shiftType.textContent = 'Off';
+                originalShiftCodeInput.value = 'OFF';
+                shiftDetailsBox.classList.add('show');
+                
+                // Still load available engineers
+                await loadAvailableEngineers(selectedDate, selectedEngineerId);
+            }
+        } catch (error) {
+            console.error('Error loading shift details:', error);
+            showAlert('Error loading shift details. Please try again.', 'error');
+        }
+    }
+    
+    // Load available engineers to swap with
+    async function loadAvailableEngineers(date, fromEngineerId) {
+        try {
+            const url = `/shift-management/api/available-engineers?date=${date}&exclude_user_id=${fromEngineerId}`;
+            console.log('Fetching available engineers from:', url);
+            
+            const response = await fetch(url);
+            console.log('Available engineers response status:', response.status);
+            
+            const data = await response.json();
+            console.log('Available engineers data:', data);
+            
+            if (data.success) {
+                swapWithSelect.innerHTML = '<option value="">Select engineer to swap with</option>';
+                
+                data.engineers.forEach(engineer => {
+                    const option = document.createElement('option');
+                    option.value = engineer.id;
+                    option.textContent = `${engineer.full_name} (${engineer.current_shift || 'Off'})`;
+                    swapWithSelect.appendChild(option);
+                });
+                
+                if (data.engineers.length === 0) {
+                    swapWithSelect.innerHTML = '<option value="">No engineers available for swap</option>';
+                }
+                
+                console.log(`Loaded ${data.engineers.length} engineers`);
+            } else {
+                console.error('Available engineers API error:', data.error);
+                showAlert(data.error || 'Error loading available engineers', 'error');
+            }
+        } catch (error) {
+            console.error('Error loading available engineers:', error);
+            showAlert('Error loading available engineers. Please try again.', 'error');
+        }
+    }
+    
+    // Event listeners
+    swapDateInput.addEventListener('change', function() {
+        console.log('Date changed to:', swapDateInput.value);
+        loadShiftDetails();
+    });
+    
+    if (isAdmin) {
+        fromEngineerSelect.addEventListener('change', loadShiftDetails);
+    }
+    
+    // For all users, load shift details when date changes
+    // This will work for both admin and regular users
+    
+    // Form submission
+    document.getElementById('swapRequestForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Validate form
+        if (!swapDateInput.value || !swapWithSelect.value) {
+            showAlert('Please fill in all required fields.', 'error');
+            return;
+        }
+        
+        // Show loading state
+        submitBtn.disabled = true;
+        loadingSpinner.style.display = 'inline-block';
+        
+        // Submit form
+        this.submit();
+    });
+    
+    // Utility function to show alerts
+    function showAlert(message, type) {
+        const existingAlert = document.querySelector('.alert');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
+        
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type}`;
+        alert.textContent = message;
+        
+        const form = document.getElementById('swapRequestForm');
+        form.parentNode.insertBefore(alert, form);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (alert.parentNode) {
+                alert.remove();
+            }
+        }, 5000);
+    }
+});
+</script>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}

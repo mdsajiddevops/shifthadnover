@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications & Assignments{% endblock %}
+
+{% block content %}
+<style>
+.notifications-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.notification-card {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+    border-left: 4px solid #f39c12;
+    transition: transform 0.2s;
+}
+
+.notification-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+    background: linear-gradient(90deg, #f8f9fa, #e9ecef);
+    border-bottom: 1px solid #dee2e6;
+    font-weight: bold;
+}
+
+.priority-high { border-left-color: #e74c3c; }
+.priority-medium { border-left-color: #f39c12; }
+.priority-low { border-left-color: #2ecc71; }
+
+.btn-action {
+    min-width: 80px;
+    margin-right: 5px;
+}
+
+.comments-section {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    margin-top: 15px;
+    border: 1px solid #dee2e6;
+}
+</style>
+
+<div class="container-fluid">
+    <div class="notifications-header">
+        <h2><i class="fas fa-bell"></i> Notifications & Assignments</h2>
+        <p>Manage your incident assignments and notifications</p>
+    </div>
+
+    {% if pending_assignments %}
+    <div class="section">
+        <h4><i class="fas fa-exclamation-triangle text-warning"></i> PENDING INCIDENT ASSIGNMENTS</h4>
+        {% for assignment in pending_assignments %}
+        <div class="notification-card priority-{{ assignment.priority|default('medium') }}">
+            <div class="card-header">
+                <h5><i class="fas fa-clipboard-list"></i> {{ assignment.title or assignment.incident_number }}</h5>
+                <small class="text-muted">Incident Assignment</small>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <p><strong>Created:</strong> {{ assignment.created_at.strftime('%Y-%m-%d %H:%M') if assignment.created_at else 'N/A' }}</p>
+                        {% if assignment.shift_info %}
+                        <p><i class="fas fa-clock text-info"></i> {{ assignment.shift_info }}</p>
+                        {% endif %}
+                        {% if assignment.description %}
+                        <p>{{ assignment.description }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Comment section (initially hidden) -->
+                    <div id="comments-section-{{ assignment.id }}" class="comments-section" style="display: none;">
+                        <label id="comments-label-{{ assignment.id }}">Comments:</label>
+                        <textarea id="response-comments-{{ assignment.id }}" class="form-control" rows="3" placeholder="Enter your comments..."></textarea>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-primary btn-sm" onclick="submitResponse({{ assignment.id }})">
+                                <i class="fas fa-paper-plane"></i> Submit Response
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="cancelResponse({{ assignment.id }})">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4 text-right">
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-success btn-action" onclick="respondToNotification({{ assignment.id }}, 'accept')">
+                                <i class="fas fa-check"></i> Accept
+                            </button>
+                            <button type="button" class="btn btn-danger btn-action" onclick="respondToNotification({{ assignment.id }}, 'reject')">
+                                <i class="fas fa-times"></i> Reject
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> No pending assignments at this time.
+    </div>
+    {% endif %}
+
+    {% if notifications %}
+    <div class="section mt-4">
+        <h4><i class="fas fa-bell text-info"></i> RECENT NOTIFICATIONS</h4>
+        {% for notification in notifications %}
+        <div class="notification-card">
+            <div class="card-body">
+                <h6>{{ notification.title or 'Notification' }}</h6>
+                <p class="text-muted">{{ notification.message or notification.description }}</p>
+                <small class="text-muted">{{ notification.created_at.strftime('%Y-%m-%d %H:%M') if notification.created_at else 'N/A' }}</small>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- ENSURE FUNCTIONS ARE AVAILABLE GLOBALLY BEFORE DOM -->
+<script>
+console.log("🚀 LOADING NOTIFICATION FUNCTIONS INTO GLOBAL SCOPE 🚀");
+
+// Immediately define functions in global scope
+window.respondToNotification = function(notificationId, action) {
+    console.log("✅ respondToNotification called:", notificationId, action);
+    
+    // Update label
+    const label = document.getElementById("comments-label-" + notificationId);
+    if (label) {
+        if (action === 'reject') {
+            label.innerHTML = '<span style="color: red;">Comments (Required for rejection):</span>';
+        } else {
+            label.innerHTML = 'Comments (Optional):';
+        }
+    }
+    
+    // Show comments section
+    const section = document.getElementById("comments-section-" + notificationId);
+    if (section) {
+        section.style.display = 'block';
+    }
+    
+    // Store current action
+    window.currentAction = action;
+    window.currentNotificationId = notificationId;
+};
+
+window.cancelResponse = function(notificationId) {
+    console.log("✅ cancelResponse called:", notificationId);
+    
+    const section = document.getElementById("comments-section-" + notificationId);
+    if (section) {
+        section.style.display = 'none';
+    }
+    
+    const textarea = document.getElementById("response-comments-" + notificationId);
+    if (textarea) {
+        textarea.value = '';
+    }
+    
+    window.currentAction = null;
+    window.currentNotificationId = null;
+};
+
+window.submitResponse = function(notificationId) {
+    console.log("✅ submitResponse called:", notificationId);
+    
+    const textarea = document.getElementById("response-comments-" + notificationId);
+    const comments = textarea ? textarea.value.trim() : '';
+    
+    if (window.currentAction === 'reject' && !comments) {
+        alert('Comments are required when rejecting an assignment.');
+        return;
+    }
+    
+    const submitButton = document.querySelector(`button[onclick*="submitResponse(${notificationId})"]`);
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    }
+    
+    const data = {
+        notification_id: notificationId,
+        action: window.currentAction,
+        comments: comments
+    };
+    
+    console.log("Sending data:", data);
+    
+    // Get CSRF token if available
+    const csrfToken = document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '';
+    const headers = {
+        'Content-Type': 'application/json',
+    };
+    if (csrfToken) {
+        headers['X-CSRFToken'] = csrfToken;
+    }
+
+    fetch('/assignment/assignment-response', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log("Response:", data);
+        if (data.success) {
+            alert('Assignment ' + window.currentAction + 'ed successfully!');
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to process'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred: ' + error.message);
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Response';
+        }
+    });
+};
+
+// Test that functions are available
+console.log("✅ Functions defined globally:", {
+    respondToNotification: typeof window.respondToNotification,
+    cancelResponse: typeof window.cancelResponse,
+    submitResponse: typeof window.submitResponse
+});
+</script>
+{% endblock %}

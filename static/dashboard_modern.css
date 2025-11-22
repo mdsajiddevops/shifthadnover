@@ -1,0 +1,324 @@
+/* ========================================
+   MODERN GLASS-MORPHISM DASHBOARD STYLES
+   ======================================== */
+
+/* Root Variables for Consistent Theming */
+:root {
+    --glass-bg: rgba(255, 255, 255, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    --glass-hover-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --success-gradient: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    --warning-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    --info-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    --accent-gradient: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+/* Dashboard Background Enhancement */
+.container-fluid {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    min-height: 100vh;
+    padding: 2rem;
+}
+
+/* Modern Header Styling */
+.dashboard-header {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    box-shadow: var(--glass-shadow);
+}
+
+.dashboard-header h2 {
+    color: #2d3748;
+    font-weight: 700;
+    margin: 0;
+    font-size: 1.8rem;
+}
+
+/* Glass-Morphism Statistics Cards */
+.modern-stats-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 1.5rem;
+    height: 120px;
+    box-shadow: var(--glass-shadow);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.modern-stats-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--primary-gradient);
+    opacity: 0.1;
+    transition: opacity 0.3s ease;
+    z-index: 1;
+}
+
+.modern-stats-card:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: var(--glass-hover-shadow);
+}
+
+.modern-stats-card:hover::before {
+    opacity: 0.15;
+}
+
+.modern-stats-card.success::before {
+    background: var(--success-gradient);
+}
+
+.modern-stats-card.warning::before {
+    background: var(--warning-gradient);
+}
+
+.modern-stats-card.info::before {
+    background: var(--info-gradient);
+}
+
+.modern-stats-card.accent::before {
+    background: var(--accent-gradient);
+}
+
+/* Card Content */
+.stats-content {
+    position: relative;
+    z-index: 2;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.stats-icon {
+    font-size: 2.5rem;
+    margin-right: 1rem;
+    opacity: 0.9;
+    filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.1));
+    transition: transform 0.3s ease;
+}
+
+.modern-stats-card:hover .stats-icon {
+    transform: scale(1.1) rotate(5deg);
+}
+
+.stats-details {
+    flex-grow: 1;
+}
+
+.stats-number {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: #2d3748;
+    margin: 0;
+    line-height: 1;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    transition: color 0.3s ease;
+}
+
+.stats-label {
+    font-size: 0.9rem;
+    color: #4a5568;
+    font-weight: 600;
+    margin-top: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Notification Badge */
+.notification-badge {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: bold;
+    box-shadow: 0 4px 12px rgba(238, 90, 82, 0.4);
+    animation: pulse 2s infinite;
+    z-index: 3;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+/* Content Cards */
+.modern-content-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: var(--glass-shadow);
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+.modern-content-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--glass-hover-shadow);
+}
+
+.modern-content-card h5 {
+    color: #2d3748;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    font-size: 1.2rem;
+}
+
+.modern-content-card .badge {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+    border-radius: 10px;
+}
+
+/* Incident List Styling */
+.modern-incident-item {
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.modern-incident-item:hover {
+    background: rgba(255, 255, 255, 0.7);
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.incident-title {
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 0.25rem;
+}
+
+.incident-meta {
+    font-size: 0.85rem;
+    color: #718096;
+}
+
+/* Current Time Display */
+#current-time {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 15px;
+    padding: 0.75rem 1.5rem;
+    color: #2d3748;
+    font-weight: 600;
+    font-size: 1rem;
+    box-shadow: var(--glass-shadow);
+}
+
+/* Loading Animation */
+.stats-number.loading {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+@keyframes loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Counter Animation */
+.counter {
+    display: inline-block;
+    animation: countUp 1.5s ease-out;
+}
+
+@keyframes countUp {
+    from { 
+        opacity: 0;
+        transform: translateY(20px) scale(0.8);
+    }
+    to { 
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .modern-stats-card {
+        height: 100px;
+        padding: 1rem;
+    }
+    
+    .stats-icon {
+        font-size: 2rem;
+    }
+    
+    .stats-number {
+        font-size: 1.8rem;
+    }
+    
+    .stats-label {
+        font-size: 0.8rem;
+    }
+}
+
+/* Smooth Page Load Animation */
+.dashboard-container {
+    animation: fadeInUp 0.8s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Enhanced Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #764ba2, #667eea);
+}

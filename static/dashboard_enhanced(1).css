@@ -1,0 +1,420 @@
+/* Enhanced Dashboard Styles */
+.dashboard-stats {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    padding: 1.5rem;
+    color: white;
+    margin-bottom: 1rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+
+/* Compact Dashboard Stats */
+.dashboard-stats-compact {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    padding: 1rem;
+    color: white;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+    height: 80px;
+}
+
+.dashboard-stats-compact:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+.stat-icon-compact {
+    font-size: 1.8rem;
+    opacity: 0.8;
+    margin-right: 0.75rem;
+    min-width: 40px;
+}
+
+.stat-number-compact {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.2rem;
+    line-height: 1;
+}
+
+.stat-label-compact {
+    font-size: 0.85rem;
+    opacity: 0.9;
+    line-height: 1.2;
+}
+
+.notification-badge-compact {
+    background: rgba(255,255,255,0.3);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+/* Compact Metric Cards */
+.metric-card-compact {
+    background: white;
+    border-radius: 12px;
+    padding: 1.25rem;
+    box-shadow: 0 3px 15px rgba(0,0,0,0.08);
+    border: 1px solid rgba(0,0,0,0.05);
+    transition: all 0.2s ease;
+    height: 100%;
+}
+
+.metric-card-compact:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(0,0,0,0.12);
+}
+
+/* Incident List Styles */
+.incidents-list {
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.incident-item {
+    border-left: 4px solid #e9ecef;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 0 8px 8px 0;
+    transition: all 0.2s ease;
+}
+
+.incident-item:hover {
+    border-left-color: #007bff;
+    background: #e3f2fd;
+}
+
+.incident-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 0.4rem;
+    color: #2c3e50;
+}
+
+.incident-meta {
+    margin-bottom: 0.4rem;
+}
+
+.incident-desc {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-bottom: 0.3rem;
+    line-height: 1.4;
+}
+
+.incident-assigned {
+    font-size: 0.8rem;
+    color: #495057;
+}
+
+/* Engineer List Styles */
+.engineer-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    padding: 0.4rem;
+    border-radius: 6px;
+    transition: background 0.2s ease;
+}
+
+.engineer-item:hover {
+    background: rgba(0,123,255,0.05);
+}
+
+.engineer-name {
+    font-size: 0.9rem;
+    margin-left: 0.5rem;
+}
+
+.shift-header {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: #495057;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 0.3rem;
+}
+
+.no-engineers {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+.no-engineers i {
+    margin-right: 0.5rem;
+}
+
+/* Action Item Cards */
+.action-item-card {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 0.75rem;
+    transition: all 0.2s ease;
+    height: 120px;
+    display: flex;
+    flex-direction: column;
+}
+
+.action-item-card:hover {
+    border-color: #007bff;
+    box-shadow: 0 2px 10px rgba(0,123,255,0.1);
+}
+
+.action-item-header {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.action-item-content {
+    flex-grow: 1;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: #495057;
+    margin-bottom: 0.5rem;
+}
+
+.action-item-footer {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-top: auto;
+}
+
+/* Small Action Item Cards for Compact Layout */
+.action-item-card-small {
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 0.5rem;
+    transition: all 0.2s ease;
+    height: 85px;
+    display: flex;
+    flex-direction: column;
+    font-size: 0.8rem;
+}
+
+.action-item-card-small:hover {
+    border-color: #007bff;
+    box-shadow: 0 1px 8px rgba(0,123,255,0.1);
+}
+
+.action-item-header-small {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+}
+
+.action-item-content-small {
+    flex-grow: 1;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    color: #495057;
+    margin-bottom: 0.3rem;
+}
+
+.action-item-footer-small {
+    font-size: 0.7rem;
+    color: #6c757d;
+    margin-top: auto;
+}
+
+.badge-small {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.4rem;
+}
+
+.dashboard-stats:hover {
+    transform: translateY(-5px);
+}
+
+.stat-icon {
+    font-size: 3rem;
+    opacity: 0.7;
+    margin-bottom: 1rem;
+}
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+.metric-card {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+    border: 1px solid rgba(0,0,0,0.05);
+    transition: all 0.3s ease;
+}
+
+.metric-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.12);
+}
+
+.chart-container {
+    background: white;
+    border-radius: 15px;
+    padding: 2rem;
+    margin: 1rem 0;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+}
+
+.progress-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: white;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-circle::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: conic-gradient(#4CAF50 var(--progress, 0%), #e0e0e0 0%);
+    border-radius: 50%;
+    z-index: -1;
+}
+
+.heatmap-container {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+}
+
+.heatmap-cell {
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    display: inline-block;
+    margin: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.heatmap-cell:hover {
+    transform: scale(1.1);
+    border: 2px solid #333;
+}
+
+.incident-priority-high { background: #ff4757; }
+.incident-priority-medium { background: #ffa502; }
+.incident-priority-low { background: #2ed573; }
+.incident-priority-none { background: #f1f2f6; }
+
+.timeline-item {
+    border-left: 3px solid #007bff;
+    padding-left: 1rem;
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -6px;
+    top: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #007bff;
+}
+
+.shift-status-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+}
+
+.shift-active { background: #28a745; }
+.shift-ending { background: #ffc107; }
+.shift-upcoming { background: #17a2b8; }
+.shift-inactive { background: #6c757d; }
+
+.real-time-updates {
+    background: linear-gradient(45deg, #ff9a56, #ff6b6b);
+    color: white;
+    padding: 1rem;
+    border-radius: 10px;
+    margin: 1rem 0;
+}
+
+.notification-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #dc3545;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .metric-card {
+        background: #2d3748;
+        color: #e2e8f0;
+        border-color: #4a5568;
+    }
+    
+    .chart-container {
+        background: #2d3748;
+        color: #e2e8f0;
+    }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .dashboard-stats {
+        margin-bottom: 1rem;
+        padding: 1rem;
+    }
+    
+    .stat-number {
+        font-size: 2rem;
+    }
+    
+    .progress-circle {
+        width: 80px;
+        height: 80px;
+        font-size: 1.2rem;
+    }
+}

@@ -1,0 +1,727 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+.collapsible-console {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.collapsible-console.show {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.console-header {
+    cursor: pointer;
+    user-select: none;
+}
+
+.console-header:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.scheduler-status {
+    transition: all 0.3s ease;
+}
+
+.alert-auto-dismiss {
+    animation: slideInDown 0.5s ease;
+}
+
+@keyframes slideInDown {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+</style>
+
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">CTask Assignment Dashboard</h2>
+            <p class="text-muted mb-0">Automatically assign change tasks to engineers based on shift roster</p>
+        </div>
+        <div>
+            <button class="btn btn-primary me-2" onclick="processPendingCTasks()">
+                <i class="fas fa-sync-alt me-1"></i>Process Pending CTasks
+            </button>
+            <button class="btn btn-outline-info me-2" onclick="forceSchedulerCheck()">
+                <i class="fas fa-clock me-1"></i>Force Check
+            </button>
+            <button class="btn btn-outline-secondary" onclick="refreshSchedulerStatus()">
+                <i class="fas fa-info-circle me-1"></i>Status
+            </button>
+        </div>
+    </div>
+
+    <!-- Scheduler Status -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-robot me-2"></i>Automatic Assignment Status
+                    </h5>
+                    <div>
+                        <button class="btn btn-success btn-sm me-2" onclick="startAutomaticAssignment()" id="startBtn">
+                            <i class="fas fa-play me-1"></i>Start
+                        </button>
+                        <button class="btn btn-danger btn-sm me-2" onclick="stopAutomaticAssignment()" id="stopBtn">
+                            <i class="fas fa-stop me-1"></i>Stop
+                        </button>
+                        <button class="btn btn-outline-info btn-sm" onclick="refreshSchedulerStatus()">
+                            <i class="fas fa-sync-alt me-1"></i>Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="schedulerStatus" class="d-flex align-items-center">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        <span>Loading scheduler status...</span>
+                    </div>
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Use Start/Stop buttons to control automatic assignment of change tasks to engineers.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Assignment Form -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-user-plus me-2"></i>Quick CTask Assignment
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="quickAssignmentForm">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">CTask Number</label>
+                                <input type="text" class="form-control" id="ctaskNumber" 
+                                       placeholder="e.g., CTASK0010001" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Planned Date</label>
+                                <input type="date" class="form-control" id="plannedDate" 
+                                       value="{{ today.strftime('%Y-%m-%d') }}" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Planned Time</label>
+                                <input type="time" class="form-control" id="plannedTime" 
+                                       placeholder="06:30" required>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button type="button" class="btn btn-success me-2" onclick="assignCTask()">
+                                    <i class="fas fa-user-check me-1"></i>Assign
+                                </button>
+                                <button type="button" class="btn btn-outline-info" onclick="findEngineer()">
+                                    <i class="fas fa-search me-1"></i>Find Engineer
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    <!-- Assignment Result -->
+                    <div id="assignmentResult" class="mt-3" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Console Output -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-terminal me-2"></i>Assignment Console Output
+                        <button class="btn btn-link btn-sm p-0 ms-2" onclick="toggleConsole()" id="consoleToggleBtn">
+                            <i class="fas fa-chevron-down" id="consoleToggleIcon"></i>
+                        </button>
+                    </h5>
+                    <div>
+                        <button class="btn btn-outline-secondary btn-sm me-2" onclick="refreshConsole()">
+                            <i class="fas fa-sync-alt me-1"></i>Refresh
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" onclick="clearConsole()">
+                            <i class="fas fa-trash me-1"></i>Clear
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body collapse" id="consoleOutputContainer">
+                    <div id="consoleOutput" class="bg-dark text-light p-3 rounded" style="font-family: 'Courier New', monospace; height: 300px; overflow-y: auto;">
+                        <div class="text-muted">Console minimized. Click the arrow above to expand...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shift Schedule Overview -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-calendar-alt me-2"></i>Shift Schedule (Next 7 Days)
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Day Shift (06:30-15:30)</th>
+                                    <th>Evening Shift (14:45-23:45)</th>
+                                    <th>Night Shift (21:45-06:45)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for date_str, shifts in shift_schedule.items() %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ date_str }}</strong>
+                                        <br><small class="text-muted">
+                                            {{ (date_str | strptime('%Y-%m-%d')).strftime('%A') }}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        {% if shifts.D %}
+                                            {% for engineer in shifts.D %}
+                                            <span class="badge bg-primary me-1 mb-1">
+                                                {{ engineer.name }}
+                                            </span>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-muted">No assignment</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if shifts.E %}
+                                            {% for engineer in shifts.E %}
+                                            <span class="badge bg-warning text-dark me-1 mb-1">
+                                                {{ engineer.name }}
+                                            </span>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-muted">No assignment</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if shifts.N %}
+                                            {% for engineer in shifts.N %}
+                                            <span class="badge bg-dark me-1 mb-1">
+                                                {{ engineer.name }}
+                                            </span>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-muted">No assignment</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">
+                                        No shift schedule data available
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Assignment History -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-history me-2"></i>Recent Assignment History
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="assignmentHistory">
+                        <p class="text-muted">No recent assignments to display</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mb-0">Processing...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Show/hide loading modal
+function showLoading() {
+    const modalElement = document.getElementById('loadingModal');
+    let modalInstance = bootstrap.Modal.getInstance(modalElement);
+    
+    // If no instance exists, create one
+    if (!modalInstance) {
+        modalInstance = new bootstrap.Modal(modalElement);
+    }
+    
+    modalInstance.show();
+}
+
+function hideLoading() {
+    const modalElement = document.getElementById('loadingModal');
+    const modalInstance = bootstrap.Modal.getInstance(modalElement);
+    
+    if (modalInstance) {
+        modalInstance.hide();
+    }
+    
+    // Force hide regardless - sometimes Bootstrap modals can be sticky
+    setTimeout(() => {
+        modalElement.classList.remove('show');
+        modalElement.style.display = 'none';
+        modalElement.setAttribute('aria-hidden', 'true');
+        modalElement.removeAttribute('aria-modal');
+        modalElement.removeAttribute('role');
+        
+        // Remove backdrop if exists
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+        
+        // Remove modal-open class from body
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+    }, 50);
+}
+
+// Show result message
+function showResult(message, isSuccess = true) {
+    // First, ensure loading modal is hidden
+    hideLoading();
+    
+    const resultDiv = document.getElementById('assignmentResult');
+    const alertClass = isSuccess ? 'alert-success' : 'alert-danger';
+    const icon = isSuccess ? 'fa-check-circle' : 'fa-exclamation-triangle';
+    
+    resultDiv.innerHTML = `
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+            <i class="fas ${icon} me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    resultDiv.style.display = 'block';
+}
+
+// Assign CTask function
+async function assignCTask() {
+    const ctaskNumber = document.getElementById('ctaskNumber').value;
+    const plannedDate = document.getElementById('plannedDate').value;
+    const plannedTime = document.getElementById('plannedTime').value;
+    
+    if (!ctaskNumber || !plannedDate || !plannedTime) {
+        showResult('Please fill in all required fields', false);
+        return;
+    }
+    
+    showLoading();
+    
+    try {
+        const response = await fetch('/assign-ctask', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                ctask_number: ctaskNumber,
+                planned_date: plannedDate,
+                planned_time: plannedTime + ':00'  // Add seconds
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showResult(`Successfully assigned ${ctaskNumber} to ${result.assigned_to} (${result.shift_code} shift)`);
+            // Clear form
+            document.getElementById('quickAssignmentForm').reset();
+            document.getElementById('plannedDate').value = '{{ today.strftime('%Y-%m-%d') }}';
+        } else {
+            showResult(result.message, false);
+        }
+        
+    } catch (error) {
+        showResult(`Error: ${error.message}`, false);
+    } finally {
+        hideLoading();
+        
+        // Force hide loading modal after a short delay as a backup
+        setTimeout(() => {
+            hideLoading();
+        }, 100);
+    }
+}
+
+// Find engineer function
+async function findEngineer() {
+    const plannedDate = document.getElementById('plannedDate').value;
+    const plannedTime = document.getElementById('plannedTime').value;
+    
+    if (!plannedDate || !plannedTime) {
+        showResult('Please specify planned date and time', false);
+        return;
+    }
+    
+    showLoading();
+    
+    try {
+        const response = await fetch('/find-engineer', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                planned_date: plannedDate,
+                planned_time: plannedTime + ':00'  // Add seconds
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const engineer = result.engineer;
+            showResult(`Engineer on duty: ${engineer.name} (${engineer.email}) - ${engineer.shift_code} shift`);
+        } else {
+            showResult(result.message, false);
+        }
+        
+    } catch (error) {
+        showResult(`Error: ${error.message}`, false);
+    } finally {
+        hideLoading();
+        
+        // Force hide loading modal after a short delay as a backup
+        setTimeout(() => {
+            hideLoading();
+        }, 100);
+    }
+}
+
+// Process pending CTasks
+async function processPendingCTasks() {
+    if (!confirm('Process all pending CTasks for auto-assignment?')) {
+        return;
+    }
+    
+    showLoading();
+    
+    try {
+        const response = await fetch('/process-pending-ctasks', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showResult(`Processed ${result.successful_assignments} CTasks successfully. ${result.failed_assignments} failed.`);
+        } else {
+            showResult(result.message, false);
+        }
+        
+    } catch (error) {
+        showResult(`Error: ${error.message}`, false);
+    } finally {
+        hideLoading();
+        
+        // Force hide loading modal after a short delay as a backup
+        setTimeout(() => {
+            hideLoading();
+        }, 100);
+    }
+}
+
+// Set default time based on current time
+document.addEventListener('DOMContentLoaded', function() {
+    const now = new Date();
+    const timeString = now.toTimeString().slice(0, 5);
+    document.getElementById('plannedTime').value = timeString;
+    
+    // Load scheduler status and console output
+    refreshSchedulerStatus();
+    refreshConsole();
+});
+
+// Scheduler management functions
+async function refreshSchedulerStatus() {
+    try {
+        const response = await fetch('/scheduler-status');
+        const data = await response.json();
+        
+        if (data.success) {
+            const statusInfo = data.status;
+            const status = statusInfo.status;
+            const statusElement = document.getElementById('schedulerStatus');
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            
+            const runningBadge = status === 'Running'
+                ? '<span class="badge bg-success me-2"><i class="fas fa-play me-1"></i>Running</span>'
+                : '<span class="badge bg-danger me-2"><i class="fas fa-stop me-1"></i>Stopped</span>';
+            
+            const lastCheck = statusInfo.last_check || 'Never';
+            const nextCheck = statusInfo.next_check || 'Unknown';
+            const checkInterval = statusInfo.check_interval || '2 minutes';
+            
+            statusElement.innerHTML = `
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        ${runningBadge}
+                        <span class="me-3">Check Interval: ${checkInterval}</span>
+                    </div>
+                    <div class="text-muted small">
+                        Last Check: ${lastCheck} | Next Check: ${nextCheck}
+                    </div>
+                </div>
+            `;
+            
+            // Update button states
+            if (status === 'Running') {
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                startBtn.classList.add('disabled');
+                stopBtn.classList.remove('disabled');
+            } else {
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                startBtn.classList.remove('disabled');
+                stopBtn.classList.add('disabled');
+            }
+        } else {
+            document.getElementById('schedulerStatus').innerHTML = 
+                '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>Error loading status</span>';
+        }
+    } catch (error) {
+        document.getElementById('schedulerStatus').innerHTML = 
+            '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>Error loading status</span>';
+    }
+}
+
+async function forceSchedulerCheck() {
+    if (!confirm('Force an immediate check for unassigned CTasks?')) {
+        return;
+    }
+    
+    showLoading();
+    
+    try {
+        const response = await fetch('/force-scheduler-check', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showResult(`Forced check completed: ${data.results.successful_assignments || 0} assignments made`, true);
+            refreshSchedulerStatus();
+        } else {
+            showResult(`Error: ${data.message}`, false);
+        }
+        
+    } catch (error) {
+        showResult(`Error: ${error.message}`, false);
+    } finally {
+        hideLoading();
+        
+        // Force hide loading modal after a short delay as a backup
+        setTimeout(() => {
+            hideLoading();
+        }, 100);
+    }
+}
+
+// Console management functions
+async function refreshConsole() {
+    try {
+        const response = await fetch('/console-output?count=50');
+        const data = await response.json();
+        
+        if (data.success) {
+            const consoleElement = document.getElementById('consoleOutput');
+            if (data.console_output) {
+                consoleElement.innerHTML = `<pre class="mb-0">${data.console_output}</pre>`;
+                // Auto-scroll to bottom
+                consoleElement.scrollTop = consoleElement.scrollHeight;
+            } else {
+                consoleElement.innerHTML = '<div class="text-muted">No console output yet.</div>';
+            }
+        } else {
+            document.getElementById('consoleOutput').innerHTML = 
+                '<div class="text-danger">Error loading console output</div>';
+        }
+    } catch (error) {
+        document.getElementById('consoleOutput').innerHTML = 
+            '<div class="text-danger">Error loading console output</div>';
+    }
+}
+
+async function clearConsole() {
+    if (!confirm('Clear all console output?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/clear-console', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('consoleOutput').innerHTML = 
+                '<div class="text-muted">Console cleared.</div>';
+        } else {
+            showResult(`Error: ${data.message}`, false);
+        }
+        
+    } catch (error) {
+        showResult(`Error: ${error.message}`, false);
+    }
+}
+
+// Console toggle functionality
+function toggleConsole() {
+    const container = document.getElementById('consoleOutputContainer');
+    const icon = document.getElementById('consoleToggleIcon');
+    
+    if (container.classList.contains('show')) {
+        container.classList.remove('show');
+        icon.classList.remove('fa-chevron-up');
+        icon.classList.add('fa-chevron-down');
+    } else {
+        container.classList.add('show');
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-up');
+        // Refresh console when expanding
+        refreshConsole();
+    }
+}
+
+// Start automatic assignment
+async function startAutomaticAssignment() {
+    try {
+        const response = await fetch('/start-automatic-assignment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showResult('Automatic assignment started successfully', true);
+            refreshSchedulerStatus();
+        } else {
+            showResult(`Error: ${data.message}`, false);
+        }
+        
+    } catch (error) {
+        showResult(`Error: ${error.message}`, false);
+    }
+}
+
+// Stop automatic assignment
+async function stopAutomaticAssignment() {
+    try {
+        const response = await fetch('/stop-automatic-assignment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showResult('Automatic assignment stopped successfully', true);
+            refreshSchedulerStatus();
+        } else {
+            showResult(`Error: ${data.message}`, false);
+        }
+        
+    } catch (error) {
+        showResult(`Error: ${error.message}`, false);
+    }
+}
+
+// Initialization and auto-refresh
+document.addEventListener('DOMContentLoaded', function() {
+    // Initial load
+    refreshSchedulerStatus();
+    refreshConsole();
+    
+    // Auto-refresh status every 30 seconds
+    setInterval(refreshSchedulerStatus, 30000);
+    
+    // Auto-refresh console every 10 seconds
+    setInterval(refreshConsole, 10000);
+    
+    // Set default date to today
+    const today = new Date();
+    const formattedDate = today.toISOString().split('T')[0];
+    const plannedDateElement = document.getElementById('plannedDate');
+    if (plannedDateElement) {
+        plannedDateElement.value = formattedDate;
+    }
+});
+
+// Auto-refresh console every 10 seconds
+// Note: Moved to DOMContentLoaded event
+</script>
+
+{% endblock %}

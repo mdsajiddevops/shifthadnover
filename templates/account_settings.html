@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Account Settings{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0 text-primary">
+                    <i class="bi bi-gear me-2"></i>Account Settings
+                </h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Account Settings</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-gear me-2"></i>Account Preferences
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Account settings are currently managed by your system administrator. 
+                        For changes to your account preferences, please contact your admin or use the 
+                        <a href="/profile" class="alert-link">Profile</a> page to update personal information.
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-primary mb-3">Current Settings</h6>
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>Username:</strong></td>
+                                    <td>{{ user.username }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Role:</strong></td>
+                                    <td>{{ user.role|title|replace('_', ' ') }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Account Status:</strong></td>
+                                    <td><span class="badge bg-success">Active</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Last Login:</strong></td>
+                                    <td>Current Session</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-primary mb-3">Quick Actions</h6>
+                            <div class="d-grid gap-2">
+                                <a href="/profile" class="btn btn-outline-primary">
+                                    <i class="bi bi-person me-2"></i>Edit Profile
+                                </a>
+                                <a href="/notifications" class="btn btn-outline-info">
+                                    <i class="bi bi-bell me-2"></i>Manage Notifications
+                                </a>
+                                <a href="/help" class="btn btn-outline-secondary">
+                                    <i class="bi bi-question-circle me-2"></i>Get Help
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

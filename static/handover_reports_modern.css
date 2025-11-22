@@ -1,0 +1,562 @@
+/* Modern Handover Reports CSS - Glass Morphism Design */
+
+:root {
+    --glass-bg: rgba(255, 255, 255, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    --backdrop-blur: 20px;
+    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    --warning-gradient: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    --danger-gradient: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+    --info-gradient: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+    --dark-gradient: linear-gradient(135deg, #2d3436 0%, #636e72 100%);
+    --transition-speed: 0.3s;
+    --border-radius: 20px;
+    --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    --hover-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* Page Container */
+.handover-reports-container {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 2rem 1rem;
+}
+
+/* Header Section */
+.reports-header {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+    padding: 2rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.reports-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: conic-gradient(from 0deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    animation: rotate 20s linear infinite;
+    z-index: -1;
+}
+
+.reports-header h1 {
+    color: #fff;
+    font-weight: 700;
+    font-size: 2.5rem;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    margin-bottom: 0.5rem;
+}
+
+.reports-header .subtitle {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 1.1rem;
+    font-weight: 400;
+}
+
+.header-badges {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.modern-badge {
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    border-radius: 15px;
+    padding: 0.75rem 1.5rem;
+    color: #fff;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    transition: all var(--transition-speed) ease;
+}
+
+.modern-badge:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.modern-badge i {
+    font-size: 1.2rem;
+}
+
+/* Glass Cards */
+.glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+    transition: all var(--transition-speed) ease;
+    overflow: hidden;
+    position: relative;
+}
+
+.glass-card:hover {
+    box-shadow: var(--hover-shadow);
+    transform: translateY(-5px);
+}
+
+.glass-card-header {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--glass-border);
+    padding: 1.5rem 2rem;
+    position: relative;
+}
+
+.glass-card-header h5 {
+    color: #fff;
+    font-weight: 600;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.glass-card-header i {
+    font-size: 1.3rem;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.glass-card-body {
+    padding: 2rem;
+}
+
+/* Modern Form Elements */
+.modern-form-group {
+    margin-bottom: 1.5rem;
+}
+
+.modern-label {
+    color: #fff;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.modern-input,
+.modern-select {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    color: #fff;
+    font-size: 1rem;
+    transition: all var(--transition-speed) ease;
+    width: 100%;
+}
+
+.modern-input:focus,
+.modern-select:focus {
+    outline: none;
+    border-color: rgba(116, 185, 255, 0.8);
+    box-shadow: 0 0 0 3px rgba(116, 185, 255, 0.1);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.modern-input::placeholder {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.modern-select option {
+    background: #2c3e50;
+    color: #fff;
+}
+
+/* Modern Buttons */
+.btn-modern {
+    background: var(--primary-gradient);
+    border: none;
+    border-radius: 12px;
+    padding: 0.75rem 1.5rem;
+    color: #fff;
+    font-weight: 600;
+    transition: all var(--transition-speed) ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    text-decoration: none;
+}
+
+.btn-modern:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    color: #fff;
+}
+
+.btn-success-modern {
+    background: var(--success-gradient);
+}
+
+.btn-warning-modern {
+    background: var(--warning-gradient);
+    color: #2c3e50;
+}
+
+.btn-danger-modern {
+    background: var(--danger-gradient);
+}
+
+.btn-info-modern {
+    background: var(--info-gradient);
+}
+
+/* Modern Table */
+.modern-table-container {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    box-shadow: var(--card-shadow);
+}
+
+.modern-table {
+    width: 100%;
+    margin: 0;
+    background: transparent;
+    color: #fff;
+}
+
+.modern-table thead th {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: none;
+    color: #fff;
+    font-weight: 600;
+    padding: 1.5rem 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.modern-table tbody tr {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all var(--transition-speed) ease;
+}
+
+.modern-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: scale(1.01);
+}
+
+.modern-table tbody td {
+    padding: 1.5rem 1rem;
+    border: none;
+    vertical-align: middle;
+}
+
+/* Status Badges */
+.status-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 25px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.status-badge.morning {
+    background: linear-gradient(135deg, #f39c12, #f1c40f);
+    color: #2c3e50;
+}
+
+.status-badge.evening {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: #fff;
+}
+
+.status-badge.night {
+    background: linear-gradient(135deg, #2c3e50, #34495e);
+    color: #fff;
+}
+
+.status-badge.draft {
+    background: linear-gradient(135deg, #f39c12, #e67e22);
+    color: #fff;
+}
+
+.status-badge.sent {
+    background: linear-gradient(135deg, #27ae60, #2ecc71);
+    color: #fff;
+}
+
+/* Modern Accordion */
+.modern-accordion {
+    border: none;
+    background: transparent;
+}
+
+.modern-accordion-item {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+    transition: all var(--transition-speed) ease;
+}
+
+.modern-accordion-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.modern-accordion-button {
+    background: transparent;
+    border: none;
+    color: #fff;
+    padding: 1rem 1.25rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    text-align: left;
+    transition: all var(--transition-speed) ease;
+}
+
+.modern-accordion-button:not(.collapsed) {
+    background: rgba(116, 185, 255, 0.1);
+    color: #74b9ff;
+}
+
+.modern-accordion-button:focus {
+    box-shadow: none;
+    border-color: transparent;
+}
+
+.modern-accordion-body {
+    background: rgba(255, 255, 255, 0.02);
+    padding: 1.25rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Incident Type Badges */
+.incident-badge {
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.incident-badge.open {
+    background: var(--danger-gradient);
+    color: #fff;
+}
+
+.incident-badge.closed {
+    background: var(--success-gradient);
+    color: #fff;
+}
+
+.incident-badge.priority {
+    background: var(--warning-gradient);
+    color: #2c3e50;
+}
+
+.incident-badge.handover {
+    background: var(--info-gradient);
+    color: #fff;
+}
+
+/* Key Points Cards */
+.keypoint-card {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    transition: all var(--transition-speed) ease;
+}
+
+.keypoint-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.keypoint-title {
+    color: #74b9ff;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.keypoint-status {
+    padding: 0.3rem 0.7rem;
+    border-radius: 15px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.keypoint-meta {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.empty-state i {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.6;
+}
+
+.empty-state h5 {
+    color: #fff;
+    margin-bottom: 1rem;
+}
+
+/* Loading States */
+.loading-spinner {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s linear infinite;
+}
+
+/* Animations */
+@keyframes rotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in-up {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .handover-reports-container {
+        padding: 1rem 0.5rem;
+    }
+    
+    .reports-header {
+        padding: 1.5rem;
+    }
+    
+    .reports-header h1 {
+        font-size: 2rem;
+    }
+    
+    .glass-card-body {
+        padding: 1.5rem;
+    }
+    
+    .modern-table-container {
+        overflow-x: auto;
+    }
+    
+    .header-badges {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
+@media (max-width: 576px) {
+    .reports-header h1 {
+        font-size: 1.75rem;
+    }
+    
+    .glass-card-body {
+        padding: 1rem;
+    }
+    
+    .glass-card-header {
+        padding: 1rem 1.5rem;
+    }
+}
+
+/* Table Responsiveness */
+@media (max-width: 992px) {
+    .incident-col,
+    .keypoints-col {
+        min-width: 300px;
+    }
+}
+
+/* Hover Effects for Interactive Elements */
+.interactive-row {
+    cursor: pointer;
+    transition: all var(--transition-speed) ease;
+}
+
+.interactive-row:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Export Alert Styling */
+.export-alert {
+    background: rgba(116, 185, 255, 0.1);
+    border: 1px solid rgba(116, 185, 255, 0.3);
+    border-radius: 12px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* Focus States for Accessibility */
+.modern-input:focus,
+.modern-select:focus,
+.btn-modern:focus,
+.modern-accordion-button:focus {
+    outline: 2px solid rgba(116, 185, 255, 0.5);
+    outline-offset: 2px;
+}

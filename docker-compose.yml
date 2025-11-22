@@ -1,0 +1,148 @@
+# Shift Handover Application - Production Docker Compose
+# This file uses Docker secrets for secure credential management
+# Works for both local development and production deployment
+
+version: '3.7'
+
+services:
+  # MySQL Database Service
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: shift_handover
+      MYSQL_USER: user
+      # Passwords loaded from Docker secrets
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql_password
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+    
+    secrets:
+      - mysql_password
+      - mysql_root_password
+    
+    ports:
+      - "3306:3306"
+    
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init_local.sql:/docker-entrypoint-initdb.d/init_local.sql:ro
+    
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+      start_period: 30s
+    
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --innodb-buffer-pool-size=256M
+      --max-connections=100
+    
+    # Security settings for production
+    security_opt:
+      - no-new-privileges:true
+
+  # Shift Handover Web Application
+  web:
+    build: .
+    restart: unless-stopped
+    command: python app.py
+    
+    volumes:
+      - .:/app
+      - app_logs:/app/logs
+    
+    ports:
+      - "5000:5000"
+    
+    environment:
+      # Flask Configuration
+      FLASK_ENV: production
+      FLASK_APP: app.py
+      FLASK_DEBUG: 0
+      
+      # Database Configuration (uses Docker secrets)
+      DATABASE_URL_FILE: /run/secrets/database_url
+      DATABASE_HOST: db
+      DATABASE_PORT: 3306
+      DATABASE_NAME: shift_handover
+      DATABASE_USER: user
+      
+      # Core application secrets loaded from Docker secrets:
+      # - SECRET_KEY from /run/secrets/flask_secret_key
+      # - SSO_ENCRYPTION_KEY from /run/secrets/sso_encryption_key  
+      # - SECRETS_MASTER_KEY from /run/secrets/secrets_master_key
+      
+      # Email Configuration (basic settings, credentials from database)
+      SMTP_SERVER: smtp.gmail.com
+      SMTP_PORT: 587
+      
+      # Force use of database configuration for app settings
+      USE_DATABASE_CONFIG: "true"
+      
+    secrets:
+      - flask_secret_key
+      - database_url
+      - sso_encryption_key
+      - secrets_master_key
+      - smtp_username
+      - smtp_password
+      - mysql_user_password
+    
+    depends_on:
+      - db
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Security settings for production
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp
+
+# Docker Secrets Configuration
+# These secrets must be created before deployment
+# For local development: files in ./secrets/ directory
+# For production: external Docker secrets or Docker Swarm secrets
+secrets:
+  flask_secret_key:
+    file: ./secrets/flask_secret_key
+  
+  database_url:
+    file: ./secrets/database_url
+  
+  sso_encryption_key:
+    file: ./secrets/sso_encryption_key
+  
+  secrets_master_key:
+    file: ./secrets/secrets_master_key
+  
+  mysql_password:
+    file: ./secrets/mysql_password
+  
+  mysql_root_password:
+    file: ./secrets/mysql_root_password
+  
+  mysql_user_password:
+    file: ./secrets/mysql_user_password
+  
+  smtp_username:
+    file: ./secrets/smtp_username
+  
+  smtp_password:
+    file: ./secrets/smtp_password
+
+# Persistent Storage Volumes
+volumes:
+  mysql_data:
+    driver: local
+  app_logs:
+    driver: local

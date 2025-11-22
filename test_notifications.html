@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Notification Test</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Notification System Test</h1>
+    <div id="status">Testing...</div>
+    <div id="notifications"></div>
+    
+    <script>
+    $(document).ready(function() {
+        // Test the notification API
+        $.ajax({
+            url: '/api/get_pending_assignments',
+            method: 'GET',
+            success: function(data) {
+                $('#status').html('<div style="color: green;">✅ API Response Successful</div>');
+                $('#notifications').html('<pre>' + JSON.stringify(data, null, 2) + '</pre>');
+            },
+            error: function(xhr, status, error) {
+                $('#status').html('<div style="color: red;">❌ API Error: ' + error + '</div>');
+                $('#notifications').html('<pre>Status: ' + xhr.status + '\nResponse: ' + xhr.responseText + '</pre>');
+            }
+        });
+    });
+    </script>
+</body>
+</html>

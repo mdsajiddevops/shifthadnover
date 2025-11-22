@@ -1,0 +1,793 @@
+from flask_mail import Message
+from flask import current_app
+
+def send_handover_email(shift):
+    print(f"[DEBUG] ✅ send_handover_email called from email_service.py for shift_id={shift.id}")
+    
+    # Import mail here to avoid circular import
+    from flask import current_app
+    import os
+    import logging
+    from models.models import Incident, ShiftKeyPoint, TeamMember, Team, User, Account
+    from models.app_config import AppConfig
+    
+    # Fix Flask-Mail configuration by loading SMTP settings from database
+    mail = None
+    try:
+        # Use SQLAlchemy to get SMTP configuration from MySQL database
+        from models.models import db
+        
+        # Use the existing MySQL database connection
+        print(f"[EMAIL_SERVICE] 📍 Using MySQL database connection")
+        
+        # Query SMTP configuration from the database using SQLAlchemy
+        try:
+            # Try to get from smtp_config table first
+            result = db.session.execute(db.text("SELECT config_key, config_value FROM smtp_config"))
+            configs = dict(result.fetchall())
+            print(f"[EMAIL_SERVICE] 🔍 Loaded configs from MySQL smtp_config: {list(configs.keys())}")
+        except Exception as db_error:
+            # Fallback: try to get from app_config table if smtp_config doesn't exist
+            print(f"[EMAIL_SERVICE] ⚠️ smtp_config table not found, trying app_config: {db_error}")
+            try:
+                result = db.session.execute(db.text("SELECT config_key, config_value FROM app_config WHERE config_key LIKE 'smtp_%' OR config_key LIKE 'mail_%'"))
+                configs = dict(result.fetchall())
+                print(f"[EMAIL_SERVICE] � Loaded configs from MySQL app_config: {list(configs.keys())}")
+            except Exception as fallback_error:
+                print(f"[EMAIL_SERVICE] ❌ Could not load SMTP config from database: {fallback_error}")
+                configs = {}
+        
+        if configs:
+            print(f"[EMAIL_SERVICE] 🔍 Loaded configs from database: {list(configs.keys())}")
+            
+            # Update Flask app configuration with SMTP settings
+            app = current_app._get_current_object()
+            
+            # Safely get port with proper error handling
+            smtp_port = configs.get('smtp_port', '587')
+            if smtp_port is None or smtp_port == '':
+                smtp_port = '587'  # Default fallback
+            
+            try:
+                smtp_port_int = int(smtp_port)
+            except (ValueError, TypeError) as port_error:
+                print(f"[EMAIL_SERVICE] ⚠️ Invalid port value '{smtp_port}', using default 587: {port_error}")
+                smtp_port_int = 587
+            
+            smtp_mapping = {
+                'MAIL_SERVER': configs.get('smtp_server'),
+                'MAIL_PORT': smtp_port_int,
+                'MAIL_USERNAME': configs.get('smtp_username'),
+                'MAIL_PASSWORD': configs.get('smtp_password'),
+                'MAIL_USE_TLS': configs.get('smtp_use_tls', 'false').lower() == 'true',
+                'MAIL_USE_SSL': configs.get('smtp_use_ssl', 'false').lower() == 'true',
+                'MAIL_DEFAULT_SENDER': configs.get('mail_default_sender'),
+                'MAIL_TIMEOUT': 30,
+                # Add additional Flask-Mail parameters with proper defaults
+                'MAIL_MAX_EMAILS': None,  # No limit
+                'MAIL_SUPPRESS_SEND': False,  # Don't suppress sending
+                'MAIL_ASCII_ATTACHMENTS': False,  # Allow non-ASCII attachments
+                'TESTING': False  # Not in testing mode
+            }
+            
+            print(f"[EMAIL_SERVICE] 🔍 Raw config values: {configs}")
+            print(f"[EMAIL_SERVICE] 🔍 Prepared SMTP mapping: {smtp_mapping}")
+            
+            # Check for None values that might cause Flask-Mail issues
+            for key, value in smtp_mapping.items():
+                if value is None:
+                    print(f"[EMAIL_SERVICE] ⚠️ WARNING: {key} is None!")
+                else:
+                    print(f"[EMAIL_SERVICE] ✅ {key}: {value} (type: {type(value)})")
+            
+            # Only update if we have valid SMTP config
+            if smtp_mapping['MAIL_SERVER'] and smtp_mapping['MAIL_USERNAME']:
+                # Validate critical configuration values before updating
+                required_configs = ['MAIL_SERVER', 'MAIL_PORT', 'MAIL_USERNAME', 'MAIL_PASSWORD']
+                missing_configs = [key for key in required_configs if smtp_mapping.get(key) is None]
+                
+                if missing_configs:
+                    print(f"[EMAIL_SERVICE] ❌ Missing required configs: {missing_configs}")
+                    print(f"[EMAIL_SERVICE] 🚫 Skipping Flask-Mail configuration due to missing values")
+                else:
+                    print(f"[EMAIL_SERVICE] ✅ All required SMTP configs present")
+                    
+                    # Update app config directly
+                    app.config.update(smtp_mapping)
+                    
+                    # Verify the values were set correctly
+                    print(f"[EMAIL_SERVICE] 📋 Final app config check:")
+                    for key in required_configs:
+                        value = app.config.get(key)
+                        print(f"[EMAIL_SERVICE]   {key}: {value} (type: {type(value)})")
+                    
+                    # Reinitialize Mail object with new configuration
+                    from flask_mail import Mail
+                    mail = Mail()
+                    mail.init_app(app)
+                    
+                    # Update the current mail object in app extensions
+                app.extensions['mail'] = mail
+                
+                print(f"[EMAIL_SERVICE] ✅ Flask-Mail reconfigured with: {smtp_mapping['MAIL_SERVER']}:{smtp_mapping['MAIL_PORT']}")
+            else:
+                print(f"[EMAIL_SERVICE] ⚠️ Incomplete SMTP configuration in database - Server: {smtp_mapping['MAIL_SERVER']}, Username: {smtp_mapping['MAIL_USERNAME']}")
+                mail = current_app.extensions.get('mail')
+        else:
+            print(f"[EMAIL_SERVICE] ⚠️ No SMTP configuration found in database")
+            mail = current_app.extensions.get('mail')
+            
+    except Exception as e:
+        print(f"[EMAIL_SERVICE] ⚠️ Could not reconfigure Flask-Mail: {e}")
+        import traceback
+        print(f"[EMAIL_SERVICE] 🔍 Full error details: {traceback.format_exc()}")
+        mail = current_app.extensions.get('mail')
+    
+    # Fallback to existing mail if reconfiguration failed
+    if mail is None:
+        mail = current_app.extensions.get('mail')
+    
+    # Quick bypass for local development to avoid email delays
+    if os.environ.get('LOCAL_DEVELOPMENT') == 'True' and os.environ.get('SKIP_EMAIL_FOR_SPEED', 'false').lower() == 'true':
+        print("[EMAIL_SERVICE] 🚀 Skipping email sending for local development (SKIP_EMAIL_FOR_SPEED=true)")
+        return
+    
+    # Check if email notifications are enabled in SMTP configuration
+    from models.smtp_config import SMTPConfig
+    smtp_enabled = SMTPConfig.get_config('smtp_enabled', 'false').lower() == 'true'
+    if not smtp_enabled:
+        print("[EMAIL_SERVICE] 📧 Email sending is disabled in SMTP configuration (smtp_enabled=false)")
+        return
+    
+    # Check if email notifications are enabled in app configuration (backward compatibility)
+    notifications_enabled = AppConfig.get_config('email_notifications_enabled', 'true').lower() == 'true'
+    if not notifications_enabled:
+        logging.info("[EMAIL_SERVICE] Email notifications are disabled in app configuration")
+        return
+    
+    subject = f"🔄 {shift.current_shift_type} to {shift.next_shift_type} Shift Handover - {shift.date}"
+    
+    # Build comprehensive recipient list using configured recipients
+    recipients = set()
+    
+    # 1. Add configured handover email recipients (primary)
+    configured_recipients = AppConfig.get_config('handover_email_recipients', '')
+    if configured_recipients:
+        for email in configured_recipients.split(','):
+            email = email.strip()
+            if email:
+                recipients.add(email)
+    
+    # 2. Add configured priority alert recipients if there are high-priority incidents
+    priority_alert_recipients = AppConfig.get_config('priority_alert_recipients', '')
+    if priority_alert_recipients:
+        # Check for high-priority incidents
+        priority_incidents = Incident.query.filter_by(shift_id=shift.id, type='Priority').all()
+        escalated_incidents = Incident.query.filter_by(shift_id=shift.id, type='Escalated').all()
+        high_priority_count = len([i for i in priority_incidents + escalated_incidents 
+                                 if i.priority and i.priority.lower() in ['high', 'critical']])
+        
+        if high_priority_count > 0:
+            for email in priority_alert_recipients.split(','):
+                email = email.strip()
+                if email:
+                    recipients.add(email)
+    
+    # 3. Fallback: Add next shift engineers' emails if available
+    if not recipients:
+        for engineer in shift.next_engineers:
+            if hasattr(engineer, 'email') and engineer.email:
+                recipients.add(engineer.email)
+    
+    # 4. Fallback: Add team administrators for this team
+    if not recipients and shift.team_id:
+        team_admins = User.query.filter_by(team_id=shift.team_id, role='team_admin').all()
+        for admin in team_admins:
+            if admin.email:
+                recipients.add(admin.email)
+        
+        # Also add account admins for this account
+        if shift.account_id:
+            account_admins = User.query.filter_by(account_id=shift.account_id, role='account_admin').all()
+            for admin in account_admins:
+                if admin.email:
+                    recipients.add(admin.email)
+    
+    # 5. Final fallback: Add configured team email if available
+    if not recipients:
+        team_email = current_app.config.get('TEAM_EMAIL')
+        if team_email:
+            recipients.add(team_email)
+    
+    # Convert set to list
+    recipients = list(recipients)
+    
+    if not recipients:
+        logging.warning("No email recipients found for handover notification - please configure email recipients in admin settings")
+        return
+
+    # Gather details with correct incident types
+    current_engineers = ', '.join([e.name for e in shift.current_engineers]) if shift.current_engineers else 'None assigned'
+    next_engineers = ', '.join([e.name for e in shift.next_engineers]) if shift.next_engineers else 'None assigned'
+    
+    # Fix incident type queries (using correct types from database)
+    open_incidents = Incident.query.filter_by(shift_id=shift.id, type='Open').all()
+    closed_incidents = Incident.query.filter_by(shift_id=shift.id, type='Closed').all()
+    priority_incidents = Incident.query.filter_by(shift_id=shift.id, type='Priority').all()
+    handover_incidents = Incident.query.filter_by(shift_id=shift.id, type='Handover').all()
+    escalated_incidents = Incident.query.filter_by(shift_id=shift.id, type='Escalated').all()
+    key_points = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
+    
+    # Get team name for context
+    team_name = "Team"
+    if shift.team_id:
+        team = Team.query.get(shift.team_id)
+        if team:
+            team_name = team.name
+
+    # Get account name for context
+    account_name = "Account"
+    if shift.account_id:
+        account = Account.query.get(shift.account_id)
+        if account:
+            account_name = account.name
+
+    def detailed_incidents_section():
+        sections = ""
+        
+        # Open Incidents
+        if open_incidents:
+            sections += '<h4 style="color: #dc3545; margin-top: 20px;">🔴 Open Incidents</h4>'
+            sections += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
+            sections += '<tr style="background-color: #f8f9fa;"><th>Incident ID</th><th>Priority</th><th>Assigned To</th><th>Description</th></tr>'
+            for inc in open_incidents:
+                sections += f'<tr><td>{inc.title}</td><td>{inc.priority or "Medium"}</td><td>{inc.assigned_to or "-"}</td><td>{inc.description or "-"}</td></tr>'
+            sections += '</table>'
+        
+        # Closed Incidents  
+        if closed_incidents:
+            sections += '<h4 style="color: #198754; margin-top: 20px;">✅ Closed Incidents</h4>'
+            sections += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
+            sections += '<tr style="background-color: #f8f9fa;"><th>Incident ID</th><th>Resolution</th></tr>'
+            for inc in closed_incidents:
+                sections += f'<tr><td>{inc.title}</td><td>{inc.description or "Resolved"}</td></tr>'
+            sections += '</table>'
+        
+        # Priority Incidents
+        if priority_incidents:
+            sections += '<h4 style="color: #fd7e14; margin-top: 20px;">⚡ Priority Incidents</h4>'
+            sections += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
+            sections += '<tr style="background-color: #f8f9fa;"><th>Incident ID</th><th>Priority Level</th><th>Escalated To</th><th>Impact</th></tr>'
+            for inc in priority_incidents:
+                sections += f'<tr><td>{inc.title}</td><td>{inc.priority or "High"}</td><td>{inc.escalated_to or "-"}</td><td>{inc.description or "-"}</td></tr>'
+            sections += '</table>'
+        
+        # Handover Incidents
+        if handover_incidents:
+            sections += '<h4 style="color: #0d6efd; margin-top: 20px;">🔄 Handover Incidents</h4>'
+            sections += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
+            sections += '<tr style="background-color: #f8f9fa;"><th>Incident ID</th><th>Status</th><th>Next Action By</th><th>Notes</th></tr>'
+            for inc in handover_incidents:
+                sections += f'<tr><td>{inc.title}</td><td>{inc.status or "Active"}</td><td>{inc.assigned_to or "-"}</td><td>{inc.description or "-"}</td></tr>'
+            sections += '</table>'
+        
+        if not sections:
+            sections = '<h4>📋 Incidents</h4><p style="color: #6c757d; font-style: italic;">No incidents reported for this shift.</p>'
+        
+        return sections
+
+    def key_points_section():
+        if not key_points:
+            return '<h4>🎯 Key Points</h4><p style="color: #6c757d; font-style: italic;">No key points reported for this shift.</p>'
+        
+        section = '<h4 style="margin-top: 20px;">🎯 Key Points</h4>'
+        section += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
+        section += '<tr style="background-color: #f8f9fa;"><th>Description</th><th>Status</th><th>Responsible</th><th>JIRA ID</th></tr>'
+        
+        for kp in key_points:
+            responsible = TeamMember.query.get(kp.responsible_engineer_id).name if kp.responsible_engineer_id else "-"
+            jira_id = kp.jira_id or "-"
+            status_color = "#198754" if kp.status == "Closed" else "#ffc107" if kp.status == "In Progress" else "#dc3545"
+            section += f'<tr><td>{kp.description}</td><td style="color: {status_color}; font-weight: bold;">{kp.status}</td><td>{responsible}</td><td>{jira_id}</td></tr>'
+        
+        section += '</table>'
+        return section
+
+    def recipient_info():
+        recipient_types = []
+        if configured_recipients:
+            recipient_types.append("Configured Recipients")
+        if priority_alert_recipients and len([i for i in priority_incidents + escalated_incidents if i.priority and i.priority.lower() in ['high', 'critical']]) > 0:
+            recipient_types.append("Priority Alert Recipients")
+        if not configured_recipients and not priority_alert_recipients:
+            recipient_types.append("Team Members & Administrators")
+        
+        return " + ".join(recipient_types) if recipient_types else "Default Recipients"
+
+    # Create comprehensive HTML email
+    html = f"""
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; }}
+            .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
+            .summary-table {{ border-collapse: collapse; width: 100%; margin-bottom: 20px; }}
+            .summary-table th {{ background-color: #e9ecef; padding: 12px; text-align: left; border: 1px solid #dee2e6; }}
+            .summary-table td {{ padding: 12px; border: 1px solid #dee2e6; }}
+            h2 {{ color: white; margin: 0; }}
+            h3 {{ color: #495057; border-bottom: 2px solid #007bff; padding-bottom: 10px; }}
+            h4 {{ color: #495057; margin-top: 25px; margin-bottom: 15px; }}
+            .footer {{ margin-top: 30px; padding: 15px; background-color: #f8f9fa; border-radius: 5px; font-size: 0.9em; color: #6c757d; }}
+            .alert {{ padding: 10px; margin: 10px 0; border-radius: 5px; }}
+            .alert-warning {{ background-color: #fff3cd; border-left: 4px solid #ffc107; }}
+            .alert-danger {{ background-color: #f8d7da; border-left: 4px solid #dc3545; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h2>Shift Handover Report</h2>
+            <p style="margin: 10px 0 0 0;"><strong>Team:</strong> {team_name} | <strong>Date:</strong> {shift.date} | <strong>Transition:</strong> {shift.current_shift_type} → {shift.next_shift_type}</p>
+        </div>
+        
+        <h3>📋 Shift Handover Details</h3>
+        <table class="summary-table">
+            <tr><th style="width: 30%;">Date</th><td>{shift.date}</td></tr>
+            <tr><th>From</th><td>{shift.current_shift_type}</td></tr>
+            <tr><th>To</th><td>{shift.next_shift_type}</td></tr>
+            <tr><th>Account</th><td>{account_name}</td></tr>
+            <tr><th>Team</th><td>{team_name}</td></tr>
+            <tr><th>Current Shift Engineers</th><td>{current_engineers}</td></tr>
+            <tr><th>Next Shift Engineers</th><td>{next_engineers}</td></tr>
+            <tr><th>Submission Time</th><td>{shift.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if shift.submitted_at else 'Just submitted'}</td></tr>
+            <tr><th>Status</th><td><span style="color: #198754; font-weight: bold;">✅ Completed</span></td></tr>
+        </table>
+        
+        {detailed_incidents_section()}
+        
+        {key_points_section()}
+        
+        <div class="footer">
+            <p><strong>📧 This is an automated shift handover notification.</strong></p>
+            <p>✉️ <strong>Recipient Category:</strong> {recipient_info()}</p>
+            <p>👥 <strong>Sent to:</strong> {len(recipients)} recipients</p>
+            <p>🔗 <strong>Action Required:</strong> Please review all incidents and key points. Take ownership of assigned items.</p>
+            <p>❓ <strong>Questions?</strong> Contact the current shift engineers or your team lead for clarifications.</p>
+            <p><em>Generated by Shift Handover Management System</em></p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    # Create plain text version for email clients that don't support HTML
+    text_content = f"""
+SHIFT HANDOVER REPORT
+=====================
+Team: {team_name}
+Date: {shift.date}
+Transition: {shift.current_shift_type} to {shift.next_shift_type}
+
+TEAM INFORMATION:
+Current Shift Engineers: {current_engineers}
+Next Shift Engineers: {next_engineers}
+
+INCIDENTS SUMMARY:
+- Open Incidents: {len(open_incidents)}
+- Priority Incidents: {len(priority_incidents)}
+- Escalated Incidents: {len(escalated_incidents)}
+- Handover Incidents: {len(handover_incidents)}
+- Closed Incidents: {len(closed_incidents)}
+
+KEY POINTS: {len(key_points)} items
+
+RECIPIENT INFO:
+- Category: {recipient_info()}
+- Count: {len(recipients)} recipients
+
+Please view this email in HTML format for detailed incident and key point information.
+
+This is an automated notification from the Shift Handover Management System.
+Configure email recipients in Admin > Secrets Management > Email Recipients.
+    """
+    
+    # Get the configured default sender
+    sender = current_app.config.get('MAIL_DEFAULT_SENDER')
+    if not sender:
+        sender = current_app.config.get('MAIL_USERNAME')
+    
+    # If Flask config doesn't have sender, try to load from SMTPConfig directly
+    if not sender:
+        try:
+            from models.smtp_config import SMTPConfig
+            sender = SMTPConfig.get_config('mail_default_sender')
+            print(f"[EMAIL_SERVICE] ✅ Loaded sender from SMTPConfig: {sender}")
+        except Exception as e:
+            print(f"[EMAIL_SERVICE] ❌ Failed to load sender from SMTPConfig: {e}")
+            sender = 'noreply@shift-handover.local'  # Final fallback
+            print(f"[EMAIL_SERVICE] ⚠️ Using fallback sender: {sender}")
+    
+    print(f"[EMAIL_SERVICE] 📧 Using sender: {sender}")
+    
+    # Debug the message parameters before creating the Message
+    print(f"[EMAIL_SERVICE] 🔍 Message parameters:")
+    print(f"  - Subject: {subject}")
+    print(f"  - Recipients: {recipients} (type: {type(recipients)})")
+    print(f"  - Sender: {sender} (type: {type(sender)})")
+    print(f"  - Recipients length: {len(recipients) if recipients else 'None'}")
+    
+    # Validate parameters before creating Message
+    if not subject:
+        raise ValueError("Subject cannot be None or empty")
+    if not recipients:
+        raise ValueError("Recipients cannot be None or empty")
+    if not sender:
+        raise ValueError("Sender cannot be None or empty")
+    
+    try:
+        # Create Message with explicit parameter validation
+        from flask_mail import Message
+        
+        # Ensure recipients is a proper list
+        if isinstance(recipients, str):
+            recipients = [recipients]
+        elif not isinstance(recipients, list):
+            recipients = list(recipients)
+        
+        # Ensure all recipients are strings
+        recipients = [str(recipient).strip() for recipient in recipients if recipient]
+        
+        # Create message step by step
+        print(f"[EMAIL_SERVICE] 🔧 Creating Message object...")
+        msg = Message()
+        msg.subject = str(subject)
+        msg.recipients = recipients
+        msg.sender = str(sender)
+        
+        print(f"[EMAIL_SERVICE] ✅ Message object created successfully")
+        print(f"[EMAIL_SERVICE]   Subject: '{msg.subject}'")
+        print(f"[EMAIL_SERVICE]   Recipients: {msg.recipients}")
+        print(f"[EMAIL_SERVICE]   Sender: '{msg.sender}'")
+        print(f"[EMAIL_SERVICE] ✅ Message object created successfully")
+    except Exception as msg_error:
+        print(f"[EMAIL_SERVICE] ❌ Failed to create Message object: {msg_error}")
+        print(f"[EMAIL_SERVICE] 🔍 Message creation error type: {type(msg_error)}")
+        raise msg_error
+    
+    msg.body = text_content
+    msg.html = html
+    
+    logging.basicConfig(level=logging.DEBUG, force=True)
+    print(f"[EMAIL_SERVICE] Sending handover email to {len(recipients)} recipients via configured settings")
+    logging.debug(f"[EMAIL_SERVICE] Enhanced handover email details - Recipients: {recipients}, Team: {team_name}")
+    
+    try:
+        import time
+        
+        # Set up timeout for Flask-Mail sending (10 seconds max)
+        print(f"[EMAIL_SERVICE] 🕐 Attempting Flask-Mail send with 10-second timeout...")
+        start_time = time.time()
+        
+        # Use simple socket-based timeout approach (works in any thread)
+        import socket
+        original_timeout = socket.getdefaulttimeout()
+        try:
+            socket.setdefaulttimeout(10)  # 10 second timeout for all socket operations
+            
+            # Final validation before attempting send
+            from flask import current_app
+            app = current_app._get_current_object()
+            critical_configs = ['MAIL_SERVER', 'MAIL_PORT', 'MAIL_USERNAME', 'MAIL_PASSWORD']
+            print(f"[EMAIL_SERVICE] 🔍 Pre-send config validation:")
+            for config in critical_configs:
+                value = app.config.get(config)
+                print(f"[EMAIL_SERVICE]   {config}: {value} (type: {type(value)})")
+                if value is None:
+                    print(f"[EMAIL_SERVICE] ❌ CRITICAL: {config} is None - this will cause Flask-Mail failure!")
+            
+            # Also check all Flask-Mail related configs
+            all_mail_configs = {k: v for k, v in app.config.items() if k.startswith('MAIL_')}
+            print(f"[EMAIL_SERVICE] 📋 All MAIL_ configurations:")
+            for key, value in all_mail_configs.items():
+                print(f"[EMAIL_SERVICE]   {key}: {value} (type: {type(value)})")
+            
+            # Try recreating the mail instance to ensure it uses the latest config
+            from flask_mail import Mail
+            fresh_mail = Mail()
+            fresh_mail.init_app(app)
+            print(f"[EMAIL_SERVICE] � Created fresh Mail instance")
+            
+            # Use the fresh mail instance
+            fresh_mail.send(msg)
+            print(f"[EMAIL_SERVICE] ✅ Flask-Mail sent successfully after {time.time() - start_time:.2f}s")
+        finally:
+            socket.setdefaulttimeout(original_timeout)  # Restore original timeout
+        
+        elapsed = time.time() - start_time
+        print(f"[EMAIL_SERVICE] ✅ Enhanced handover email sent successfully to {len(recipients)} recipients in {elapsed:.2f}s")
+        logging.debug(f"[EMAIL_SERVICE] ✅ Enhanced handover email sent successfully")
+    except (Exception, TimeoutError) as e:
+        error_message = str(e)
+        elapsed = time.time() - start_time if 'start_time' in locals() else 0
+        print(f"[EMAIL_SERVICE] ❌ Flask-Mail failed to send enhanced handover email after {elapsed:.2f}s: {e}")
+        logging.error(f"[EMAIL_SERVICE] ❌ Flask-Mail failed to send enhanced handover email: {e}")
+        
+        # Provide helpful context for common network issues
+        if "getaddrinfo failed" in error_message:
+            print(f"[EMAIL_SERVICE] 💡 Network Issue: Cannot resolve SMTP server hostname")
+            print(f"[EMAIL_SERVICE] 💡 This is common in local development when EPAM internal servers are not accessible")
+            print(f"[EMAIL_SERVICE] 💡 Handover data has been saved successfully - only email delivery failed")
+        elif "Authentication Required" in error_message:
+            print(f"[EMAIL_SERVICE] 💡 Auth Issue: SMTP authentication failed - check credentials")
+        elif "Connection refused" in error_message or "timed out" in error_message or "Connection unexpectedly closed" in error_message:
+            print(f"[EMAIL_SERVICE] 💡 Connection Issue: Cannot reach SMTP server or service unavailable")
+            print(f"[EMAIL_SERVICE] 💡 For local development, this is expected if EPAM SMTP service is down")
+        
+        # Try UNS Email Service as fallback
+        print(f"[EMAIL_SERVICE] 🔄 Attempting UNS Email Service as fallback...")
+        try:
+            from services.flask_uns_email import FlaskUNSEmailIntegration
+            from flask import current_app
+            
+            # Try to send via UNS Email Service using the correct method
+            uns_integration = FlaskUNSEmailIntegration(current_app)
+            
+            # Initialize if not already done
+            if not hasattr(uns_integration, '_email_sender') or uns_integration._email_sender is None:
+                uns_integration.init_app(current_app)
+            
+            uns_result = uns_integration.send_handover_email(
+                shift=shift,
+                recipients=recipients
+            )
+            
+            if uns_result.get('success'):
+                print(f"[EMAIL_SERVICE] ✅ UNS Email fallback successful! Sent to {len(recipients)} recipients")
+                logging.info(f"[EMAIL_SERVICE] ✅ UNS Email fallback successful")
+                return  # Success with UNS Email - don't raise exception
+            else:
+                print(f"[EMAIL_SERVICE] ❌ UNS Email fallback also failed: {uns_result.get('error', 'Unknown error')}")
+                
+        except Exception as uns_e:
+            print(f"[EMAIL_SERVICE] ❌ UNS Email fallback error: {uns_e}")
+        
+        print(f"[EMAIL_SERVICE] 💡 All email methods failed - handover data saved successfully anyway")
+        raise
+
+
+def send_incident_assignment_notification(incident_id, incident_description, assigned_engineer, incident_type, shift_date):
+    """Send notification email when an incident is assigned to an engineer"""
+    from flask import current_app
+    mail = current_app.extensions.get('mail')
+    import logging
+    from models.models import TeamMember, User
+    
+    # Check if email is configured before attempting to send
+    smtp_server = current_app.config.get('MAIL_SERVER')
+    if not smtp_server:
+        logging.info("[EMAIL_SERVICE] Email not configured - skipping incident assignment notification")
+        return
+    
+    # Find the assigned engineer's email
+    try:
+        # First try to find by name in TeamMember table
+        team_member = TeamMember.query.filter_by(name=assigned_engineer).first()
+        engineer_email = team_member.email if team_member else None
+        
+        # If not found in TeamMember, try User table
+        if not engineer_email:
+            user = User.query.filter_by(username=assigned_engineer).first()
+            if not user:
+                # Try by display name parts
+                name_parts = assigned_engineer.split()
+                if len(name_parts) >= 2:
+                    user = User.query.filter(
+                        User.first_name.ilike(name_parts[0]),
+                        User.last_name.ilike(name_parts[-1])
+                    ).first()
+            engineer_email = user.email if user else None
+        
+        # Get team email for CC
+        team_email = current_app.config.get('TEAM_EMAIL', '')
+        
+        if not engineer_email:
+            logging.warning(f"Could not find email for engineer: {assigned_engineer}")
+            # Send only to team email if engineer email not found
+            recipients = [team_email] if team_email else []
+        else:
+            recipients = [engineer_email]
+            if team_email and team_email != engineer_email:
+                recipients.append(team_email)
+        
+        if not recipients:
+            logging.warning("No email recipients found for incident assignment notification")
+            return
+        
+        subject = f"Incident Assignment: {incident_id} - {incident_type}"
+        
+        html = f"""
+        <html>
+        <head></head>
+        <body>
+            <h2>Incident Assignment Notification</h2>
+            <p>Dear {assigned_engineer},</p>
+            
+            <p>You have been assigned a new {incident_type.lower()} incident for shift on <strong>{shift_date}</strong>.</p>
+            
+            <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin: 20px 0;">
+                <tr>
+                    <th style="background-color: #f8f9fa; text-align: left;">Incident ID</th>
+                    <td>{incident_id}</td>
+                </tr>
+                <tr>
+                    <th style="background-color: #f8f9fa; text-align: left;">Type</th>
+                    <td>{incident_type}</td>
+                </tr>
+                <tr>
+                    <th style="background-color: #f8f9fa; text-align: left;">Assigned To</th>
+                    <td>{assigned_engineer}</td>
+                </tr>
+                <tr>
+                    <th style="background-color: #f8f9fa; text-align: left;">Description</th>
+                    <td>{incident_description}</td>
+                </tr>
+                <tr>
+                    <th style="background-color: #f8f9fa; text-align: left;">Shift Date</th>
+                    <td>{shift_date}</td>
+                </tr>
+            </table>
+            
+            <p>Please take appropriate action and update the incident status in the shift handover system.</p>
+            
+            <p>Best regards,<br>
+            Shift Handover System</p>
+        </body>
+        </html>
+        """
+        
+        # Get the configured default sender
+        sender = current_app.config.get('MAIL_DEFAULT_SENDER')
+        if not sender:
+            sender = current_app.config.get('MAIL_USERNAME')
+        
+        # If Flask config doesn't have sender, try to load from SMTPConfig directly
+        if not sender:
+            try:
+                from models.smtp_config import SMTPConfig
+                sender = SMTPConfig.get_config('mail_default_sender')
+                print(f"[EMAIL_SERVICE] ✅ Loaded sender from SMTPConfig: {sender}")
+            except Exception as e:
+                print(f"[EMAIL_SERVICE] ❌ Failed to load sender from SMTPConfig: {e}")
+                sender = 'noreply@shift-handover.local'  # Final fallback
+                print(f"[EMAIL_SERVICE] ⚠️ Using fallback sender: {sender}")
+        
+        print(f"[EMAIL_SERVICE] 📧 Using sender for incident notification: {sender}")
+        
+        msg = Message(subject=subject, recipients=recipients, sender=sender)
+        msg.body = "Please view this email in HTML format."
+        msg.html = html
+        
+        logging.info(f"[INCIDENT_ASSIGNMENT] Sending notification to {recipients} for incident {incident_id}")
+        try:
+            mail.send(msg)
+            logging.info(f"[INCIDENT_ASSIGNMENT] Email sent successfully to {recipients}")
+        except Exception as e:
+            logging.error(f"[INCIDENT_ASSIGNMENT] Failed to send email to {recipients}: {e}")
+            raise
+            
+    except Exception as e:
+        logging.error(f"[INCIDENT_ASSIGNMENT] Error in send_incident_assignment_notification: {e}")
+        raise
+
+def send_assignment_response_email(notification, responder, action, comments):
+    """
+    Send follow-up email when an assignment is accepted or rejected
+    
+    Args:
+        notification: HandoverNotification object
+        responder: User who responded
+        action: 'accept' or 'reject'
+        comments: User's comments
+    """
+    try:
+        from flask_mail import Mail
+        import os
+        from models.models import db, User, Team, Account
+        
+        # Get SMTP configuration
+        mail = None
+        try:
+            result = db.session.execute(db.text("SELECT config_key, config_value FROM smtp_config"))
+            configs = dict(result.fetchall())
+        except Exception:
+            try:
+                result = db.session.execute(db.text("SELECT config_key, config_value FROM app_config WHERE config_key LIKE 'smtp_%' OR config_key LIKE 'mail_%'"))
+                configs = dict(result.fetchall())
+            except Exception:
+                configs = {}
+        
+        if not configs:
+            return {'success': False, 'error': 'SMTP configuration not found'}
+        
+        # Configure Flask-Mail
+        app = current_app._get_current_object()
+        smtp_port = configs.get('smtp_port', '587')
+        if smtp_port is None or smtp_port == '':
+            smtp_port = '587'
+        
+        app.config.update({
+            'MAIL_SERVER': configs.get('smtp_server', 'localhost'),
+            'MAIL_PORT': int(smtp_port),
+            'MAIL_USE_TLS': configs.get('smtp_use_tls', 'true').lower() == 'true',
+            'MAIL_USE_SSL': configs.get('smtp_use_ssl', 'false').lower() == 'true',
+            'MAIL_USERNAME': configs.get('smtp_username', ''),
+            'MAIL_PASSWORD': configs.get('smtp_password', ''),
+            'MAIL_DEFAULT_SENDER': configs.get('smtp_default_sender', 'noreply@company.com')
+        })
+        
+        mail = Mail(app)
+        
+        # Get team email or configured recipients
+        recipients = []
+        
+        # Get team email if available
+        if notification.team_id:
+            team = Team.query.get(notification.team_id)
+            if team and hasattr(team, 'email') and team.email:
+                recipients.append(team.email)
+        
+        # Get configured team email from configs
+        team_email = configs.get('team_email')
+        if team_email and team_email not in recipients:
+            recipients.append(team_email)
+        
+        # Fallback to default recipient
+        if not recipients:
+            recipients = ['admin@company.com']  # Configure this appropriately
+        
+        # Create email subject and body
+        action_text = 'Accepted' if action == 'accept' else 'Rejected'
+        subject = f"Assignment Response: {notification.title} - {action_text}"
+        
+        # Create the email body
+        body = f"""
+Assignment Response Notification
+
+Assignment Details:
+- Title: {notification.title}
+- Response: {action_text}
+- Responded by: {responder.first_name} {responder.last_name} ({responder.username})
+- Response Date: {notification.read_at or 'Just now'}
+
+"""
+        
+        if comments:
+            body += f"Comments:\n{comments}\n\n"
+        
+        body += f"""
+Original Assignment:
+- Type: {notification.notification_type}
+- Created: {notification.created_at}
+- Message: {notification.message}
+
+This is an automated notification from the Shift Handover System.
+"""
+        
+        # Create and send the email
+        msg = Message(
+            subject=subject,
+            sender=app.config['MAIL_DEFAULT_SENDER'],
+            recipients=recipients,
+            body=body
+        )
+        
+        mail.send(msg)
+        
+        return {
+            'success': True, 
+            'message': f'Follow-up email sent to {", ".join(recipients)}'
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'error': f'Failed to send follow-up email: {str(e)}'
+        }

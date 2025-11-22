@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile{% endblock %}
+
+{% block extra_css %}
+<style>
+    .profile-card {
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+    }
+    
+    .profile-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+    }
+    
+    .profile-avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 4px solid #fff;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    
+    .form-control:focus {
+        border-color: #4285f4;
+        box-shadow: 0 0 0 0.2rem rgba(66, 133, 244, 0.25);
+    }
+    
+    .btn-primary {
+        background-color: #4285f4;
+        border-color: #4285f4;
+    }
+    
+    .btn-primary:hover {
+        background-color: #3367d6;
+        border-color: #3367d6;
+    }
+    
+    .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .stats-item {
+        text-align: center;
+    }
+    
+    .stats-number {
+        font-size: 2rem;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    
+    .stats-label {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0 text-primary">
+                    <i class="bi bi-person-circle me-2"></i>My Profile
+                </h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+                        <li class="breadcrumb-item active">My Profile</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Profile Information Card -->
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card profile-card h-100">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <img src="https://ui-avatars.com/api/?name={{ user.username|urlencode }}&background=4285f4&color=fff&size=120" 
+                             alt="Profile Avatar" class="profile-avatar">
+                    </div>
+                    <h4 class="card-title">{{ user.username }}</h4>
+                    <p class="card-text text-muted">{{ user.role|title|replace('_', ' ') }}</p>
+                    
+                    <!-- Account and Team Display -->
+                    {% if account or team %}
+                    <div class="mt-3 mb-3">
+                        {% if account %}
+                        <div class="d-flex align-items-center justify-content-center mb-2">
+                            <i class="bi bi-building text-primary me-2"></i>
+                            <span class="fw-bold">{{ account.name }}</span>
+                        </div>
+                        {% endif %}
+                        {% if team %}
+                        <div class="d-flex align-items-center justify-content-center">
+                            <i class="bi bi-people text-info me-2"></i>
+                            <span>{{ team.name }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
+                    <div class="row text-center mt-4">
+                        <div class="col-4">
+                            <div class="border-end">
+                                <h6 class="text-primary mb-1">
+                                    <i class="bi bi-building"></i>
+                                </h6>
+                                <small class="text-muted">{% if account %}{{ account.name[:10] }}...{% if account.name|length > 10 %}{% else %}{% endif %}{% else %}No Account{% endif %}</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="border-end">
+                                <h6 class="text-info mb-1">
+                                    <i class="bi bi-people"></i>
+                                </h6>
+                                <small class="text-muted">{% if team %}{{ team.name[:10] }}...{% if team.name|length > 10 %}{% else %}{% endif %}{% else %}No Team{% endif %}</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <h6 class="text-success mb-1">
+                                <i class="bi bi-shield-check"></i>
+                            </h6>
+                            <small class="text-muted">{% if user.onboarding_completed %}Onboarded{% else %}Pending{% endif %}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Profile Form -->
+        <div class="col-lg-8 col-md-6 mb-4">
+            <div class="card profile-card">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="mb-0">
+                        <i class="bi bi-pencil-square me-2 text-primary"></i>Edit Profile Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                    <i class="bi bi-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' if category == 'success' else 'info-circle' }} me-2"></i>
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    <form method="POST" action="{{ url_for('user_profile.edit_profile') }}" id="profileForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="first_name" class="form-label">
+                                    <i class="bi bi-person me-1"></i>First Name
+                                </label>
+                                <input type="text" class="form-control" id="first_name" name="first_name" 
+                                       value="{{ user.first_name or '' }}" placeholder="Enter your first name">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="last_name" class="form-label">
+                                    <i class="bi bi-person me-1"></i>Last Name
+                                </label>
+                                <input type="text" class="form-control" id="last_name" name="last_name" 
+                                       value="{{ user.last_name or '' }}" placeholder="Enter your last name">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="username" class="form-label">
+                                <i class="bi bi-at me-1"></i>Username
+                            </label>
+                            <input type="text" class="form-control" id="username" value="{{ user.username }}" disabled>
+                            <div class="form-text">Username cannot be changed</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">
+                                <i class="bi bi-envelope me-1"></i>Email Address
+                            </label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   value="{{ user.email or '' }}" placeholder="Enter your email address">
+                        </div>
+                        <div class="mb-3">
+                            <label for="role" class="form-label">
+                                <i class="bi bi-shield-check me-1"></i>Role
+                            </label>
+                            <input type="text" class="form-control" id="role" value="{{ user.role|title|replace('_', ' ') }}" disabled>
+                            <div class="form-text">Role is managed by administrators</div>
+                        </div>
+                        
+                        <!-- Account and Team Information -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="account" class="form-label">
+                                    <i class="bi bi-building me-1"></i>Account
+                                </label>
+                                <input type="text" class="form-control" id="account" 
+                                       value="{% if account %}{{ account.name }}{% else %}Not Assigned{% endif %}" disabled>
+                                <div class="form-text">
+                                    {% if account %}
+                                        Account ID: {{ account.id }}
+                                    {% else %}
+                                        Account assignment is managed during onboarding
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="team" class="form-label">
+                                    <i class="bi bi-people me-1"></i>Team
+                                </label>
+                                <input type="text" class="form-control" id="team" 
+                                       value="{% if team %}{{ team.name }}{% else %}Not Assigned{% endif %}" disabled>
+                                <div class="form-text">
+                                    {% if team %}
+                                        Team ID: {{ team.id }}
+                                    {% else %}
+                                        Team assignment is managed during onboarding
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary" id="saveProfileBtn">
+                                <i class="bi bi-save me-2"></i>Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Organization Information Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card profile-card">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="mb-0">
+                        <i class="bi bi-diagram-3 me-2 text-info"></i>Organization Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Account Information -->
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-start mb-3">
+                                <div class="me-3">
+                                    <div class="bg-primary bg-opacity-10 rounded-circle p-3">
+                                        <i class="bi bi-building text-primary fs-4"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">Account</h6>
+                                    {% if account %}
+                                        <p class="mb-1 fw-bold text-primary">{{ account.name }}</p>
+                                        <small class="text-muted">
+                                            <i class="bi bi-hash me-1"></i>ID: {{ account.id }}
+                                            {% if account.is_active %}
+                                                <span class="badge bg-success ms-2">Active</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary ms-2">Inactive</span>
+                                            {% endif %}
+                                        </small>
+                                    {% else %}
+                                        <p class="mb-1 text-muted">Not Assigned</p>
+                                        <small class="text-muted">
+                                            <i class="bi bi-info-circle me-1"></i>Complete onboarding to get account assignment
+                                        </small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Team Information -->
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-start mb-3">
+                                <div class="me-3">
+                                    <div class="bg-info bg-opacity-10 rounded-circle p-3">
+                                        <i class="bi bi-people text-info fs-4"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">Team</h6>
+                                    {% if team %}
+                                        <p class="mb-1 fw-bold text-info">{{ team.name }}</p>
+                                        <small class="text-muted">
+                                            <i class="bi bi-hash me-1"></i>ID: {{ team.id }}
+                                            {% if team.is_active %}
+                                                <span class="badge bg-success ms-2">Active</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary ms-2">Inactive</span>
+                                            {% endif %}
+                                        </small>
+                                    {% else %}
+                                        <p class="mb-1 text-muted">Not Assigned</p>
+                                        <small class="text-muted">
+                                            <i class="bi bi-info-circle me-1"></i>Complete onboarding to get team assignment
+                                        </small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Onboarding Status -->
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="border-top pt-3">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-person-check-fill me-2 fs-5 
+                                           {% if user.onboarding_completed %}text-success{% else %}text-warning{% endif %}"></i>
+                                        <div>
+                                            <h6 class="mb-0">Onboarding Status</h6>
+                                            <small class="text-muted">
+                                                {% if user.onboarding_completed %}
+                                                    Completed successfully
+                                                {% else %}
+                                                    Onboarding required
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        {% if user.onboarding_completed %}
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-check-circle me-1"></i>Complete
+                                            </span>
+                                        {% else %}
+                                            <a href="{{ url_for('onboarding.index') }}" class="btn btn-warning btn-sm">
+                                                <i class="bi bi-arrow-right me-1"></i>Complete Onboarding
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Change Password Card -->
+        <div class="col-12">
+            <div class="card profile-card">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="mb-0">
+                        <i class="bi bi-key me-2 text-warning"></i>Change Password
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('user_profile.change_password') }}" id="passwordForm">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="current_password" class="form-label">
+                                    <i class="bi bi-lock me-1"></i>Current Password
+                                </label>
+                                <input type="password" class="form-control" id="current_password" name="current_password" required>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="new_password" class="form-label">
+                                    <i class="bi bi-key me-1"></i>New Password
+                                </label>
+                                <input type="password" class="form-control" id="new_password" name="new_password" 
+                                       minlength="6" required>
+                                <div class="form-text">Minimum 6 characters</div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="confirm_password" class="form-label">
+                                    <i class="bi bi-check2-circle me-1"></i>Confirm Password
+                                </label>
+                                <input type="password" class="form-control" id="confirm_password" name="confirm_password" 
+                                       minlength="6" required>
+                            </div>
+                        </div>
+                        <div class="d-grid col-md-3">
+                            <button type="submit" class="btn btn-warning" id="changePasswordBtn">
+                                <i class="bi bi-key me-2"></i>Change Password
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Password confirmation validation
+    document.getElementById('confirm_password').addEventListener('input', function() {
+        const newPassword = document.getElementById('new_password').value;
+        const confirmPassword = this.value;
+        
+        if (newPassword !== confirmPassword) {
+            this.setCustomValidity('Passwords do not match');
+            this.classList.add('is-invalid');
+        } else {
+            this.setCustomValidity('');
+            this.classList.remove('is-invalid');
+        }
+    });
+
+    // Form submission handling with loading states
+    document.getElementById('profileForm').addEventListener('submit', function(e) {
+        const btn = document.getElementById('saveProfileBtn');
+        btn.innerHTML = '<i class="spinner-border spinner-border-sm me-2"></i>Saving...';
+        btn.disabled = true;
+    });
+
+    document.getElementById('passwordForm').addEventListener('submit', function(e) {
+        const newPassword = document.getElementById('new_password').value;
+        const confirmPassword = document.getElementById('confirm_password').value;
+        
+        if (newPassword !== confirmPassword) {
+            e.preventDefault();
+            alert('Passwords do not match!');
+            return false;
+        }
+        
+        if (newPassword.length < 6) {
+            e.preventDefault();
+            alert('Password must be at least 6 characters long!');
+            return false;
+        }
+        
+        const btn = document.getElementById('changePasswordBtn');
+        btn.innerHTML = '<i class="spinner-border spinner-border-sm me-2"></i>Changing...';
+        btn.disabled = true;
+    });
+
+    // Email validation
+    document.getElementById('email').addEventListener('blur', function() {
+        const email = this.value;
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        
+        if (email && !emailPattern.test(email)) {
+            this.classList.add('is-invalid');
+            this.setCustomValidity('Please enter a valid email address');
+        } else {
+            this.classList.remove('is-invalid');
+            this.setCustomValidity('');
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,1149 @@
+{% extends "layout_enhanced.html" %}
+
+{% block title %}Request Shift Swap{% endblock %}
+
+{% block head %}
+<style>
+    :root {
+        --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        --glass-bg: rgba(255, 255, 255, 0.25);
+        --glass-border: rgba(255, 255, 255, 0.18);
+        --shadow-light: 0 8px 32px rgba(31, 38, 135, 0.37);
+        --shadow-hover: 0 15px 35px rgba(31, 38, 135, 0.2);
+    }
+    
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #667eea 100%);
+        background-attachment: fixed;
+        min-height: 100vh;
+    }
+    
+    .swap-form-container {
+        max-width: 900px;
+        margin: 0 auto;
+        background: var(--glass-bg);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border-radius: 25px;
+        border: 1px solid var(--glass-border);
+        box-shadow: var(--shadow-light);
+        padding: 40px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .swap-form-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: var(--primary-gradient);
+        border-radius: 25px 25px 0 0;
+    }
+    
+    .form-header {
+        text-align: center;
+        margin-bottom: 40px;
+        position: relative;
+    }
+    
+    .form-header h2 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 15px;
+        background: var(--primary-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 15px;
+    }
+    
+    .form-header .header-icon {
+        background: var(--primary-gradient);
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+    }
+    
+    .form-header .header-icon i {
+        color: white;
+        font-size: 1.2rem;
+    }
+    
+    .form-header p {
+        color: #64748b;
+        font-size: 1.2rem;
+        font-weight: 500;
+        margin: 0;
+    }
+    
+    .form-section {
+        margin-bottom: 30px;
+        padding: 30px;
+        background: rgba(255, 255, 255, 0.4);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .form-section:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    }
+    
+    .form-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: var(--primary-gradient);
+        border-radius: 0 20px 20px 0;
+    }
+    
+    .form-section h4 {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .form-section h4 i {
+        background: var(--primary-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-size: 1.2em;
+    }
+    
+    .form-group {
+        margin-bottom: 25px;
+        position: relative;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 10px;
+        font-weight: 600;
+        color: #2c3e50;
+        font-size: 1rem;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .form-group .required-indicator {
+        color: #e74c3c;
+        margin-left: 3px;
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 15px 20px;
+        background: rgba(255, 255, 255, 0.6);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 15px;
+        font-size: 1rem;
+        font-weight: 500;
+        color: #2c3e50;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        box-sizing: border-box;
+    }
+    
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: rgba(102, 126, 234, 0.5);
+        background: rgba(255, 255, 255, 0.8);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+        transform: translateY(-2px);
+    }
+    
+    .form-group input::placeholder,
+    .form-group select::placeholder,
+    .form-group textarea::placeholder {
+        color: #94a3b8;
+        font-weight: 400;
+    }
+    
+    .form-group textarea {
+        resize: vertical;
+        min-height: 120px;
+        font-family: inherit;
+    }
+    
+    .form-row {
+        display: flex;
+        gap: 20px;
+    }
+    
+    .form-row .form-group {
+        flex: 1;
+    }
+    
+    .submit-buttons {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+        margin-top: 40px;
+        padding: 30px;
+        background: rgba(255, 255, 255, 0.3);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .btn {
+        padding: 15px 35px;
+        border: none;
+        border-radius: 50px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+        transition: left 0.5s;
+    }
+    
+    .btn:hover::before {
+        left: 100%;
+    }
+    
+    .btn-primary {
+        background: var(--primary-gradient);
+        color: white;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-3px) scale(1.02);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+    
+    .btn-secondary {
+        background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+        color: white;
+        box-shadow: 0 4px 15px rgba(149, 165, 166, 0.3);
+    }
+    
+    .btn-secondary:hover {
+        transform: translateY(-3px) scale(1.02);
+        box-shadow: 0 8px 25px rgba(149, 165, 166, 0.4);
+        text-decoration: none;
+        color: white;
+    }
+    
+    .loading-overlay {
+        display: none;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(5px);
+        -webkit-backdrop-filter: blur(5px);
+        justify-content: center;
+        align-items: center;
+        border-radius: 25px;
+        z-index: 1000;
+    }
+    
+    .partners-container {
+        max-height: 300px;
+        overflow-y: auto;
+        padding: 10px;
+        border-radius: 15px;
+        background: rgba(255, 255, 255, 0.1);
+    }
+    
+    .partners-container::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .partners-container::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+    }
+    
+    .partners-container::-webkit-scrollbar-thumb {
+        background: var(--primary-gradient);
+        border-radius: 3px;
+    }
+    
+    .eligible-partners {
+        margin-top: 20px;
+        display: none;
+    }
+    
+    .eligible-partners h5 {
+        color: #2c3e50;
+        font-weight: 600;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .eligible-partners h5 i {
+        background: var(--success-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .partner-card {
+        background: rgba(255, 255, 255, 0.5);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 15px;
+        padding: 15px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    
+    .partner-card:hover {
+        border-color: rgba(102, 126, 234, 0.4);
+        background: rgba(255, 255, 255, 0.7);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+    }
+    
+    .partner-card.selected {
+        border-color: rgba(79, 172, 254, 0.6);
+        background: rgba(79, 172, 254, 0.1);
+        box-shadow: 0 8px 25px rgba(79, 172, 254, 0.3);
+    }
+    
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .swap-form-container {
+            padding: 25px;
+            margin: 10px;
+        }
+        
+        .form-header h2 {
+            font-size: 2rem;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .form-section {
+            padding: 20px;
+        }
+        
+        .form-row {
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .submit-buttons {
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .btn {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+    
+    .search-button {
+        background: var(--success-gradient);
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 15px;
+        box-shadow: 0 4px 15px rgba(79, 172, 254, 0.3);
+    }
+    
+    .search-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(79, 172, 254, 0.4);
+    }
+    
+    .search-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+    
+    .spinner {
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-top: 4px solid white;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .schedule-preview {
+        background-color: white;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 15px;
+        margin-top: 15px;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .schedule-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 5px 0;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .schedule-item:last-child {
+        border-bottom: none;
+    }
+    
+    .eligible-partners {
+        display: none;
+        margin-top: 15px;
+        padding: 15px;
+        background-color: #e8f4fd;
+        border-radius: 6px;
+        border: 1px solid #bee5eb;
+    }
+    
+    .partner-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    .partner-item:last-child {
+        border-bottom: none;
+    }
+    
+    .partner-info {
+        flex: 1;
+    }
+    
+    .partner-name {
+        font-weight: bold;
+        color: #2c3e50;
+    }
+    
+    .partner-details {
+        font-size: 14px;
+        color: #7f8c8d;
+    }
+    
+    .select-partner-btn {
+        padding: 6px 12px;
+        background-color: #27ae60;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    
+    .select-partner-btn:hover {
+        background-color: #229954;
+    }
+    
+    .error-message {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+        border-radius: 4px;
+        padding: 10px;
+        margin-bottom: 20px;
+    }
+    
+    .success-message {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+        border-radius: 4px;
+        padding: 10px;
+        margin-bottom: 20px;
+    }
+    
+    @media (max-width: 768px) {
+        .swap-form-container {
+            margin: 10px;
+            padding: 20px;
+        }
+        
+        .form-row {
+            flex-direction: column;
+            gap: 0;
+        }
+        
+        .submit-buttons {
+            flex-direction: column;
+        }
+        
+        .btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block enhanced_content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="swap-form-container" style="position: relative;">
+                <div class="loading-overlay" id="loadingOverlay">
+                    <div class="spinner"></div>
+                </div>
+                
+                <div class="form-header">
+                    <h2>
+                        <span class="header-icon">
+                            <i class="fas fa-exchange-alt"></i>
+                        </span>
+                        Request Shift Swap
+                    </h2>
+                    <p>Request to swap your shift with a team member</p>
+                </div>
+                
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="{{ 'error-message' if category == 'error' else 'success-message' }}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                <form id="swapRequestForm" method="POST">
+                    <!-- Your Current Shift -->
+                    <div class="form-section">
+                        <h4><i class="fas fa-calendar-day"></i> Your Current Shift</h4>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="original_date">Date:</label>
+                                <input type="date" id="original_date" name="original_date" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="original_shift_code">Shift:</label>
+                                <select id="original_shift_code" name="original_shift_code" required>
+                                    <option value="">Select your shift</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <button type="button" id="checkEligiblePartners" class="search-button">
+                            <i class="fas fa-search"></i> Find Available Partners
+                        </button>
+                        
+                        <div id="eligiblePartners" class="eligible-partners">
+                            <h5><i class="fas fa-users"></i> Available Team Members</h5>
+                            <div id="partnersList"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Swap Details -->
+                    <div class="form-section">
+                        <h4><i class="fas fa-user-friends"></i> Swap Details</h4>
+                        
+                        <div class="form-group">
+                            <label for="swap_with_id">Swap With:</label>
+                            <select id="swap_with_id" name="swap_with_id" required>
+                                <option value="">Select team member</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="swap_date">Their Date:</label>
+                                <input type="date" id="swap_date" name="swap_date" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="swap_shift_code">Their Shift:</label>
+                                <select id="swap_shift_code" name="swap_shift_code" required>
+                                    <option value="">Select their shift</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Reason -->
+                    <div class="form-section">
+                        <h4><i class="fas fa-comment-alt"></i> Reason for Swap</h4>
+                        
+                        <div class="form-group">
+                            <label for="reason">Please explain why you need this swap:</label>
+                            <textarea id="reason" name="reason" placeholder="Enter your reason for requesting this shift swap..." required></textarea>
+                        </div>
+                    </div>
+                    
+                    <!-- Submit Buttons -->
+                    <div class="submit-buttons">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Submit Swap Request
+                        </button>
+                        <a href="{{ url_for('shift_swap_leave.dashboard') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Back to Dashboard
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let shiftCodes = [];
+let teamMembers = [];
+let userSchedule = [];
+
+// Load initial data when page loads
+// Simple test function
+function populateDropdownsTest() {
+    console.log('=== JAVASCRIPT STARTING ===');
+    
+    // Simple test - try to populate dropdowns manually with static data
+    const shiftSelect = document.getElementById('original_shift_code');
+    const memberSelect = document.getElementById('swap_with_id');
+    
+    if (shiftSelect) {
+        console.log('Found shift select element');
+        shiftSelect.innerHTML = '<option value="">Select shift</option>' +
+                               '<option value="DAY">DAY</option>' +
+                               '<option value="NIGHT">NIGHT</option>' +
+                               '<option value="EVENING">EVENING</option>';
+    } else {
+        console.error('Could not find shift select element');
+    }
+    
+    if (memberSelect) {
+        console.log('Found member select element');
+        memberSelect.innerHTML = '<option value="">Select team member</option>' +
+                                '<option value="1">Test User 1</option>' +
+                                '<option value="2">Test User 2</option>' +
+                                '<option value="3">Test User 3</option>';
+    } else {
+        console.error('Could not find member select element');
+    }
+    
+    console.log('=== JAVASCRIPT COMPLETED ===');
+}
+
+// Initialize page data
+async function initializePage() {
+    console.log('=== INITIALIZING PAGE ===');
+    
+    // Load data from APIs
+    await loadShiftCodes();
+    await loadTeamMembers();
+    await loadUserSchedule();
+    
+    console.log('=== PAGE INITIALIZATION COMPLETE ===');
+}
+
+// Try multiple ways to execute the function
+console.log('Script loaded!');
+
+// Try immediate execution after delay
+setTimeout(initializePage, 500);
+
+// Try on page load
+window.addEventListener('load', initializePage);
+
+// Try on DOM ready
+document.addEventListener('DOMContentLoaded', initializePage);
+
+// Also keep the static test for fallback
+setTimeout(populateDropdownsTest, 100);
+
+// Load available shift codes
+async function loadShiftCodes() {
+    try {
+        console.log('Loading shift codes...');
+        const response = await fetch('/shift-management/api/shift-codes', {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        console.log('Shift codes response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Shift codes data:', data);
+        
+        if (data.success) {
+            shiftCodes = data.shift_codes || [];
+            console.log('Loaded shift codes:', shiftCodes);
+            populateShiftDropdowns();
+        } else {
+            console.error('Shift codes API error:', data.error);
+            showNotification(data.error || 'Error loading shift codes', 'error');
+        }
+    } catch (error) {
+        console.error('Error loading shift codes:', error);
+        console.log('Falling back to test endpoint for shift codes...');
+        
+        // Fallback to test endpoint if main endpoint fails
+        try {
+            const fallbackResponse = await fetch('/shift-management/api/test-shift-codes');
+            if (fallbackResponse.ok) {
+                const fallbackData = await fallbackResponse.json();
+                if (fallbackData.success) {
+                    shiftCodes = fallbackData.shift_codes || [];
+                    console.log('Loaded shift codes from fallback:', shiftCodes);
+                    populateShiftDropdowns();
+                    return;
+                }
+            }
+        } catch (fallbackError) {
+            console.error('Fallback also failed:', fallbackError);
+        }
+        
+        showNotification('Error loading shift codes: ' + error.message, 'error');
+    }
+}
+
+// Populate shift dropdowns
+function populateShiftDropdowns() {
+    console.log('Populating shift dropdowns with codes:', shiftCodes);
+    
+    const originalShiftSelect = document.getElementById('original_shift_code');
+    const swapShiftSelect = document.getElementById('swap_shift_code');
+    
+    if (!originalShiftSelect || !swapShiftSelect) {
+        console.error('Shift dropdown elements not found');
+        return;
+    }
+    
+    // Clear existing options except the first one
+    originalShiftSelect.innerHTML = '<option value="">Select your shift</option>';
+    swapShiftSelect.innerHTML = '<option value="">Select their shift</option>';
+    
+    // Add shift codes to dropdowns
+    if (Array.isArray(shiftCodes) && shiftCodes.length > 0) {
+        shiftCodes.forEach(code => {
+            if (code && code.trim()) {
+                const option1 = new Option(code, code);
+                const option2 = new Option(code, code);
+                originalShiftSelect.appendChild(option1);
+                swapShiftSelect.appendChild(option2);
+            }
+        });
+        console.log(`Added ${shiftCodes.length} shift codes to dropdowns`);
+    } else {
+        console.warn('No shift codes available to populate dropdowns');
+        showNotification('No shift codes available. Please contact your administrator.', 'warning');
+    }
+}
+
+// Load team members
+async function loadTeamMembers() {
+    try {
+        console.log('Loading team members...');
+        const response = await fetch('/shift-management/api/team-members', {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        console.log('Team members response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Team members data:', data);
+        
+        if (data.success) {
+            teamMembers = data.team_members || data.members || [];
+            console.log('Loaded team members:', teamMembers);
+            populateTeamMemberDropdown();
+        } else {
+            console.error('Team members API error:', data.error);
+            showNotification(data.error || 'Error loading team members', 'error');
+        }
+    } catch (error) {
+        console.error('Error loading team members:', error);
+        console.log('Falling back to test endpoint for team members...');
+        
+        // Fallback to test endpoint if main endpoint fails
+        try {
+            const fallbackResponse = await fetch('/shift-management/api/test-team-members');
+            if (fallbackResponse.ok) {
+                const fallbackData = await fallbackResponse.json();
+                if (fallbackData.success) {
+                    teamMembers = fallbackData.team_members || [];
+                    console.log('Loaded team members from fallback:', teamMembers);
+                    populateTeamMemberDropdown();
+                    return;
+                }
+            }
+        } catch (fallbackError) {
+            console.error('Fallback also failed:', fallbackError);
+        }
+        
+        showNotification('Error loading team members: ' + error.message, 'error');
+    }
+}
+
+// Populate team member dropdown
+function populateTeamMemberDropdown() {
+    console.log('Populating team member dropdown with members:', teamMembers);
+    
+    const swapWithSelect = document.getElementById('swap_with_id');
+    
+    if (!swapWithSelect) {
+        console.error('Team member dropdown element not found');
+        return;
+    }
+    
+    swapWithSelect.innerHTML = '<option value="">Select team member</option>';
+    
+    if (Array.isArray(teamMembers) && teamMembers.length > 0) {
+        teamMembers.forEach(member => {
+            if (member && member.id && member.full_name) {
+                const option = new Option(member.full_name, member.id);
+                swapWithSelect.appendChild(option);
+            }
+        });
+        console.log(`Added ${teamMembers.length} team members to dropdown`);
+    } else {
+        console.warn('No team members available to populate dropdown');
+        showNotification('No team members available for swap.', 'warning');
+    }
+}
+
+// Load user schedule
+async function loadUserSchedule() {
+    try {
+        console.log('Loading user schedule...');
+        const response = await fetch('/shift-management/api/user-schedule');
+        console.log('User schedule response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('User schedule data:', data);
+        
+        if (data.success) {
+            userSchedule = data.schedule || [];
+            console.log('Loaded user schedule:', userSchedule);
+        } else {
+            console.warn('User schedule API warning:', data.error);
+            // Don't show error for user schedule as it's optional
+        }
+    } catch (error) {
+        console.warn('Warning loading user schedule:', error);
+        // Don't show error for user schedule as it's optional
+    }
+}
+
+// Populate shift dropdowns
+function populateShiftDropdowns() {
+    const originalShiftSelect = document.getElementById('original_shift_code');
+    const swapShiftSelect = document.getElementById('swap_shift_code');
+    
+    // Clear existing options (except first)
+    originalShiftSelect.innerHTML = '<option value="">Select your shift</option>';
+    swapShiftSelect.innerHTML = '<option value="">Select their shift</option>';
+    
+    // Add shift codes
+    shiftCodes.forEach(code => {
+        const option1 = document.createElement('option');
+        option1.value = code;
+        option1.textContent = code;
+        originalShiftSelect.appendChild(option1);
+        
+        const option2 = document.createElement('option');
+        option2.value = code;
+        option2.textContent = code;
+        swapShiftSelect.appendChild(option2);
+    });
+}
+
+// Check for eligible partners
+document.getElementById('checkEligiblePartners').addEventListener('click', async function() {
+    const date = document.getElementById('original_date').value;
+    const shiftCode = document.getElementById('original_shift_code').value;
+    
+    if (!date || !shiftCode) {
+        showNotification('Please select date and shift first', 'error');
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        const response = await fetch(`/shift-management/api/eligible-partners?date=${date}&shift_code=${shiftCode}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            displayEligiblePartners(data.partners);
+        } else {
+            showNotification(data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error checking eligible partners:', error);
+        showNotification('Error checking available partners', 'error');
+    } finally {
+        showLoading(false);
+    }
+});
+
+// Display eligible partners
+function displayEligiblePartners(partners) {
+    const partnersContainer = document.getElementById('eligiblePartners');
+    const partnersList = document.getElementById('partnersList');
+    
+    if (partners.length === 0) {
+        partnersList.innerHTML = '<p style="text-align: center; color: #7f8c8d; font-style: italic; padding: 20px;">No available partners found for this date and shift.</p>';
+    } else {
+        partnersList.innerHTML = partners.map(partner => `
+            <div class="partner-card" data-partner-id="${partner.id}" onclick="selectPartner(${partner.id}, '${partner.full_name}')">
+                <div class="partner-info">
+                    <div class="partner-name" style="font-weight: 600; color: #2c3e50; margin-bottom: 5px;">${partner.full_name}</div>
+                    <div class="partner-details" style="color: #64748b; font-size: 0.9rem;">
+                        ${partner.username} • Current: ${partner.current_shift} • ${partner.email}
+                    </div>
+                </div>
+                <div class="select-indicator" style="margin-left: auto; color: #667eea;">
+                    <i class="fas fa-check-circle" style="display: none;"></i>
+                    <i class="fas fa-plus-circle"></i>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    // Show the partners container
+    partnersContainer.style.display = 'block';
+}
+
+// Select partner function
+function selectPartner(partnerId, partnerName) {
+    // Update the dropdown
+    const swapWithSelect = document.getElementById('swap_with_id');
+    swapWithSelect.value = partnerId;
+    
+    // Update visual selection
+    document.querySelectorAll('.partner-card').forEach(card => {
+        card.classList.remove('selected');
+        const plusIcon = card.querySelector('.fa-plus-circle');
+        const checkIcon = card.querySelector('.fa-check-circle');
+        if (plusIcon) plusIcon.style.display = 'inline';
+        if (checkIcon) checkIcon.style.display = 'none';
+    });
+    
+    const selectedCard = document.querySelector(`[data-partner-id="${partnerId}"]`);
+    if (selectedCard) {
+        selectedCard.classList.add('selected');
+        const plusIcon = selectedCard.querySelector('.fa-plus-circle');
+        const checkIcon = selectedCard.querySelector('.fa-check-circle');
+        if (plusIcon) plusIcon.style.display = 'none';
+        if (checkIcon) checkIcon.style.display = 'inline';
+    }
+    
+    showNotification(`Selected ${partnerName} as swap partner`, 'success');
+}
+
+
+// Handle form submission
+document.getElementById('swapRequestForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    // Validate form
+    const requiredFields = ['original_date', 'original_shift_code', 'swap_with_id', 'swap_date', 'swap_shift_code', 'reason'];
+    let isValid = true;
+    
+    for (const field of requiredFields) {
+        const element = document.getElementById(field);
+        if (!element.value.trim()) {
+            showNotification(`Please fill in the ${field.replace('_', ' ')} field`, 'error');
+            element.focus();
+            isValid = false;
+            break;
+        }
+    }
+    
+    if (!isValid) return;
+    
+    // Additional validation
+    const originalDate = new Date(document.getElementById('original_date').value);
+    const swapDate = new Date(document.getElementById('swap_date').value);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (originalDate < today || swapDate < today) {
+        showNotification('Cannot swap shifts for past dates', 'error');
+        return;
+    }
+    
+    if (originalDate.getTime() === swapDate.getTime()) {
+        showNotification('Cannot swap shifts on the same date', 'error');
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        const formData = new FormData(this);
+        const jsonData = Object.fromEntries(formData);
+        
+        const response = await fetch('/shift-management/swap/request', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(jsonData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification('Shift swap request submitted successfully!', 'success');
+            setTimeout(() => {
+                window.location.href = '/shift-management/dashboard';
+            }, 2000);
+        } else {
+            showNotification(result.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error submitting swap request:', error);
+        showNotification('An error occurred while submitting your request', 'error');
+    } finally {
+        showLoading(false);
+    }
+});
+
+// Utility functions
+function showLoading(show) {
+    document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+}
+
+function showNotification(message, type = 'info') {
+    console.log(`Notification [${type}]: ${message}`);
+    
+    // Create notification element
+    const notification = document.createElement('div');
+    
+    // Set styling based on type
+    if (type === 'success') {
+        notification.className = 'success-message';
+        notification.innerHTML = `<i class="fas fa-check-circle"></i> ${message}`;
+    } else if (type === 'error') {
+        notification.className = 'error-message';
+        notification.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+    } else if (type === 'warning') {
+        notification.className = 'error-message'; // Use error styling for warnings
+        notification.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${message}`;
+    } else {
+        notification.className = 'success-message';
+        notification.innerHTML = `<i class="fas fa-info-circle"></i> ${message}`;
+    }
+    
+    notification.style.position = 'fixed';
+    notification.style.top = '20px';
+    notification.style.right = '20px';
+    notification.style.zIndex = '9999';
+    notification.style.minWidth = '300px';
+    notification.style.maxWidth = '500px';
+    notification.style.cursor = 'pointer';
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 7 seconds
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.remove();
+        }
+    }, 7000);
+    
+    // Make it clickable to dismiss
+    notification.addEventListener('click', function() {
+        this.remove();
+    });
+}
+
+// Set minimum date to today
+document.getElementById('original_date').min = new Date().toISOString().split('T')[0];
+document.getElementById('swap_date').min = new Date().toISOString().split('T')[0];
+</script>
+{% endblock %}

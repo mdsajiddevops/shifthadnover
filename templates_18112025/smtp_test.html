@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMTP Configuration Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-12">
+                <h2>SMTP Configuration Test</h2>
+                <p>Testing the SMTP configuration API endpoints directly:</p>
+                
+                <div class="card">
+                    <div class="card-body">
+                        <h5>API Test Results:</h5>
+                        <div id="results">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <span class="ms-2">Testing API...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <h5>Manual Login Test:</h5>
+                    <p>To access the full SMTP configuration interface:</p>
+                    <ol>
+                        <li>Go to <a href="http://127.0.0.1:5000/login" target="_blank">http://127.0.0.1:5000/login</a></li>
+                        <li>Use credentials: username=<code>admin</code>, password=<code>admin123</code></li>
+                        <li>Select account_id=<code>1</code> and team_id=<code>1</code></li>
+                        <li>Then visit <a href="http://127.0.0.1:5000/admin/secrets" target="_blank">http://127.0.0.1:5000/admin/secrets</a></li>
+                        <li>Click on the <strong>SMTP</strong> tab</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Test the API endpoint
+        fetch('/admin/secrets/api/smtp/config')
+            .then(response => {
+                const resultsDiv = document.getElementById('results');
+                
+                if (response.status === 401) {
+                    resultsDiv.innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Authentication Required:</strong> 
+                            The API requires login. Please log in first using the manual steps below.
+                        </div>
+                    `;
+                    return null;
+                }
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                return response.json();
+            })
+            .then(data => {
+                const resultsDiv = document.getElementById('results');
+                
+                if (data) {
+                    if (data.success) {
+                        const status = data.status || {};
+                        resultsDiv.innerHTML = `
+                            <div class="alert alert-success">
+                                <i class="fas fa-check-circle me-2"></i>
+                                <strong>API Working!</strong> 
+                                SMTP Configuration Status: ${status.configured_count || 0}/${status.total_required || 0} fields configured
+                                (${status.config_status || 'none'})
+                            </div>
+                            <div class="mt-3">
+                                <h6>Configuration Fields Found:</h6>
+                                <ul class="list-group">
+                                    ${Object.keys(data.smtp_config || {}).map(key => 
+                                        `<li class="list-group-item d-flex justify-content-between align-items-center">
+                                            ${key}
+                                            <span class="badge ${(data.smtp_config[key].configured) ? 'bg-success' : 'bg-warning'} rounded-pill">
+                                                ${(data.smtp_config[key].configured) ? 'Configured' : 'Missing'}
+                                            </span>
+                                        </li>`
+                                    ).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    } else {
+                        resultsDiv.innerHTML = `
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>API Error:</strong> ${data.error}
+                            </div>
+                        `;
+                    }
+                }
+            })
+            .catch(error => {
+                const resultsDiv = document.getElementById('results');
+                resultsDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Connection Error:</strong> ${error.message}
+                    </div>
+                `;
+            });
+    </script>
+</body>
+</html>

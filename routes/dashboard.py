@@ -1,0 +1,783 @@
+
+from flask import Blueprint, render_template, request, flash
+from flask_login import login_required, current_user
+from models.models import Incident, TeamMember, ShiftRoster, ShiftKeyPoint, Shift, Account, Team, User, db
+import plotly.graph_objs as go
+import plotly
+import json
+from datetime import datetime, timedelta, time as dt_time
+import pytz
+from sqlalchemy import func, or_, and_
+
+dashboard_bp = Blueprint('dashboard', __name__)
+
+@dashboard_bp.route('/get_teams_for_account')
+@login_required
+def get_teams_for_account():
+    """AJAX endpoint to get teams based on account selection"""
+    from flask import jsonify
+    account_id = request.args.get('account_id')
+    
+    if not account_id:
+        return jsonify([])
+    
+    # Security check
+    if current_user.role == 'super_admin':
+        # Super admin can access any account
+        teams = Team.query.filter_by(account_id=account_id, is_active=True).all()
+    elif current_user.role == 'account_admin' and current_user.account_id == int(account_id):
+        # Account admin can only access their own account
+        teams = Team.query.filter_by(account_id=account_id, is_active=True).all()
+    else:
+        # Regular users cannot access this endpoint
+        return jsonify([])
+    
+    team_list = [{'id': team.id, 'name': team.name} for team in teams]
+    return jsonify(team_list)
+
+def get_ist_now():
+    utc_now = datetime.utcnow()
+    ist = pytz.timezone('Asia/Kolkata')
+    return utc_now.replace(tzinfo=pytz.utc).astimezone(ist)
+
+def get_shift_type_and_next(now):
+    # Shift timings (IST):
+    # Morning: 6:30-15:30, Evening: 14:45-23:45, Night: 21:45-6:45 (next day)
+    t = now.time()
+    if dt_time(6,30) <= t < dt_time(15,30):
+        return 'Morning', 'Evening'
+    elif dt_time(14,45) <= t < dt_time(23,45):
+        return 'Evening', 'Night'
+    else:
+        # Night shift covers 21:45-6:45 (next day)
+        return 'Night', 'Morning'
+
+def get_engineers_for_shift(date, shift_code, account_id=None, team_id=None):
+    # shift_code: 'E' (Evening), 'D' (Day/Morning), 'N' (Night)
+    print(f"[DEBUG] *** GET_ENGINEERS_FOR_SHIFT CALLED ***")
+    print(f"[DEBUG] Parameters: date={date}, shift_code={shift_code}, account_id={account_id}, team_id={team_id}")
+    
+    query = ShiftRoster.query.filter_by(date=date, shift_code=shift_code)
+    
+    # SECURITY FIX: Apply enhanced role-based filtering to match roster security
+    if account_id and team_id:
+        # When specific account/team provided (admin filtering)
+        print(f"[DEBUG] Applying admin filtering: account_id={account_id}, team_id={team_id}")
+        query = query.filter_by(account_id=account_id, team_id=team_id)
+    elif current_user.is_authenticated:
+        if current_user.role == 'super_admin':
+            # Super admin sees all data (no additional filtering)
+            print(f"[DEBUG] Super admin access - no additional filtering")
+            pass
+        elif current_user.role == 'account_admin':
+            # Account admin sees only their account data
+            if not current_user.account_id:
+                print(f"[DEBUG] Account admin has no account_id - returning empty")
+                return []  # No account assigned = no results
+            print(f"[DEBUG] Account admin filtering: account_id={current_user.account_id}")
+            query = query.filter_by(account_id=current_user.account_id)
+        else:
+            # Regular users and team admins - ONLY their own team
+            if not current_user.team_id:
+                print(f"[DEBUG] Regular user has no team_id - returning empty")
+                return []  # No team assigned = no results
+            print(f"[DEBUG] Regular user filtering: account_id={current_user.account_id}, team_id={current_user.team_id}")
+            query = query.filter_by(account_id=current_user.account_id, team_id=current_user.team_id)
+    
+    entries = query.all()
+    print(f"[DEBUG] ShiftRoster query found {len(entries)} entries")
+    for i, entry in enumerate(entries):
+        print(f"[DEBUG] Entry {i+1}: team_member_id={entry.team_member_id}, account_id={entry.account_id}, team_id={entry.team_id}")
+    
+    member_ids = [e.team_member_id for e in entries]
+    
+    if not member_ids:
+        print(f"[DEBUG] No member_ids found - returning empty list")
+        return []
+    
+    # Apply same security filtering to TeamMember query
+    tm_query = TeamMember.query.filter(TeamMember.id.in_(member_ids))
+    print(f"[DEBUG] TeamMember base query for member_ids: {member_ids}")
+    
+    if account_id and team_id:
+        # When specific account/team provided (admin filtering)
+        print(f"[DEBUG] Applying TeamMember admin filtering: account_id={account_id}, team_id={team_id}")
+        tm_query = tm_query.filter_by(account_id=account_id, team_id=team_id)
+    elif current_user.is_authenticated:
+        if current_user.role == 'super_admin':
+            # Super admin sees all team members (no additional filtering)
+            print(f"[DEBUG] TeamMember super admin access - no additional filtering")
+            pass
+        elif current_user.role == 'account_admin':
+            # Account admin sees only their account team members
+            if current_user.account_id:
+                print(f"[DEBUG] TeamMember account admin filtering: account_id={current_user.account_id}")
+                tm_query = tm_query.filter_by(account_id=current_user.account_id)
+        else:
+            # Regular users and team admins - ONLY their own team members
+            if current_user.team_id:
+                print(f"[DEBUG] TeamMember regular user filtering: account_id={current_user.account_id}, team_id={current_user.team_id}")
+                tm_query = tm_query.filter_by(account_id=current_user.account_id, team_id=current_user.team_id)
+            else:
+                print(f"[DEBUG] TeamMember regular user has no team_id - returning empty")
+                return []  # No team assigned = no results
+    
+    final_members = tm_query.all()
+    print(f"[DEBUG] Final TeamMember query returned {len(final_members)} members")
+    for i, member in enumerate(final_members):
+        team_name = member.team.name if member.team else 'Unknown'
+        print(f"[DEBUG] Final member {i+1}: {member.name} (Team: {team_name}, Account: {member.account_id})")
+    
+    return final_members
+
+def get_incident_trends_data(range_type, start_date=None, end_date=None):
+    """Generate incident trends data for charts"""
+    ist_now = get_ist_now()
+    
+    if range_type == '1d':
+        start_date = ist_now.date()
+        end_date = start_date
+    elif range_type == '7d':
+        start_date = ist_now.date() - timedelta(days=6)
+        end_date = ist_now.date()
+    elif range_type == '30d':
+        start_date = ist_now.date() - timedelta(days=29)
+        end_date = ist_now.date()
+    elif range_type == '1y':
+        start_date = ist_now.date() - timedelta(days=364)
+        end_date = ist_now.date()
+    
+    # Query incidents within date range
+    query = db.session.query(
+        func.date(Incident.created_at).label('date'),
+        func.count(Incident.id).label('count')
+    ).filter(
+        func.date(Incident.created_at).between(start_date, end_date)
+    )
+    
+    if current_user.role not in ['super_admin']:
+        query = query.filter_by(account_id=current_user.account_id, team_id=current_user.team_id)
+    
+    results = query.group_by(func.date(Incident.created_at)).all()
+    
+    # Create date range and fill missing dates with 0
+    date_range = []
+    current_date = start_date
+    while current_date <= end_date:
+        date_range.append(current_date)
+        current_date += timedelta(days=1)
+    
+    # Create data dictionary
+    data_dict = {result.date: result.count for result in results}
+    
+    # Fill in missing dates
+    dates = []
+    counts = []
+    for date in date_range:
+        dates.append(date.strftime('%Y-%m-%d'))
+        counts.append(data_dict.get(date, 0))
+    
+    return dates, counts
+
+@dashboard_bp.route('/')
+@login_required
+def dashboard():
+    print(f"[DEBUG] Dashboard: Starting dashboard route execution...", flush=True)
+    
+    # Check if user just completed onboarding
+    if request.args.get('onboarding_complete') == 'true':
+        # Get user's account and team info for personalized welcome
+        account_name = current_user.account.name if current_user.account else "the application"
+        team_name = current_user.team.name if current_user.team else ""
+        
+        if team_name:
+            welcome_msg = f"Welcome to the Shift Handover Application! You're now part of {account_name} - {team_name}."
+        else:
+            welcome_msg = f"Welcome to the Shift Handover Application! You're now part of {account_name}."
+        
+        flash(welcome_msg, 'success')
+    
+    ist_now = get_ist_now()
+    today = ist_now.date()
+    shift_map = {'Morning': 'D', 'Evening': 'E', 'Night': 'N'}
+    current_shift_type, next_shift_type = get_shift_type_and_next(ist_now)
+    current_shift_code = shift_map[current_shift_type]
+    next_shift_code = shift_map[next_shift_type]
+    next_shift_code = shift_map[next_shift_type]
+    next_date = today + timedelta(days=1)
+
+    from flask import session
+    print(f"[DEBUG] Dashboard: current_user.is_authenticated={getattr(current_user, 'is_authenticated', None)}, id={getattr(current_user, 'id', None)}, username={getattr(current_user, 'username', None)}")
+    
+    # 🆕 ENHANCED DASHBOARD FILTERING - Handle filter parameters and session storage
+    accounts = []
+    teams = []
+    selected_account_id = None
+    selected_team_id = None
+    
+    # Update session with filter values if provided in URL
+    if request.args.get('account_id'):
+        session['dashboard_selected_account_id'] = request.args.get('account_id')
+    if request.args.get('team_id'):
+        session['dashboard_selected_team_id'] = request.args.get('team_id')
+    
+    if current_user.role == 'super_admin':
+        # Super Admin: Can filter by any account and team
+        accounts = Account.query.filter_by(is_active=True).all()
+        selected_account_id = request.args.get('account_id') or session.get('dashboard_selected_account_id')
+        
+        teams = Team.query.filter_by(is_active=True)
+        if selected_account_id:
+            teams = teams.filter_by(account_id=selected_account_id)
+        teams = teams.all()
+        
+        selected_team_id = request.args.get('team_id') or session.get('dashboard_selected_team_id')
+        
+        # For filtering data
+        filter_account_id = selected_account_id
+        filter_team_id = selected_team_id
+        
+    elif current_user.role == 'account_admin':
+        # Account Admin: Can filter by teams within their account
+        filter_account_id = current_user.account_id
+        accounts = [Account.query.get(filter_account_id)] if filter_account_id else []
+        teams = Team.query.filter_by(account_id=filter_account_id, is_active=True).all()
+        
+        selected_team_id = request.args.get('team_id') or session.get('dashboard_selected_team_id')
+        
+        # If no team selected, default to show all teams in the account (None means all)
+        filter_team_id = selected_team_id
+        
+    else:
+        # Regular users and team admins: Fixed to their team
+        filter_account_id = current_user.account_id
+        filter_team_id = current_user.team_id
+        accounts = [Account.query.get(filter_account_id)] if filter_account_id else []
+        teams = [Team.query.get(filter_team_id)] if filter_team_id else []
+        selected_account_id = filter_account_id
+        selected_team_id = filter_team_id
+
+    # Get incidents handed over TO the current shift from the previous shift
+    # This shows only incidents that were specifically handed over, not all incidents
+    
+    # 🔧 FIXED LOGIC: Find ONLY the PREVIOUS SHIFT handover (not old handovers from previous days)
+    # Show only the immediately previous shift handover details
+    print(f"[DEBUG] Dashboard: Looking for PREVIOUS SHIFT handover TO {current_shift_type} shift")
+    
+    def get_previous_shift_handover(current_shift, today_date, account_id, team_id):
+        """Get the previous shift handover based on current shift and date"""
+        previous_shift_map = {
+            'Morning': ('Night', today_date - timedelta(days=1)),  # Morning comes after Night (previous day)
+            'Evening': ('Morning', today_date),                    # Evening comes after Morning (same day)
+            'Night': ('Evening', today_date)                       # Night comes after Evening (same day)
+        }
+        
+        if current_shift not in previous_shift_map:
+            return None
+            
+        prev_shift_type, search_date = previous_shift_map[current_shift]
+        
+        print(f"[DEBUG] Looking for {prev_shift_type} → {current_shift} handover on {search_date}")
+        
+        # Look for handover FROM previous shift TO current shift on the correct date
+        handover = Shift.query.filter_by(
+            current_shift_type=prev_shift_type,
+            next_shift_type=current_shift,
+            date=search_date,
+            account_id=account_id,
+            team_id=team_id,
+            status='sent'
+        ).order_by(Shift.id.desc()).first()
+        
+        if handover:
+            print(f"[DEBUG] Found previous shift handover: ID={handover.id}, {handover.current_shift_type}→{handover.next_shift_type}, date={handover.date}")
+        else:
+            print(f"[DEBUG] No previous shift handover found for {prev_shift_type}→{current_shift} on {search_date}")
+            
+        return handover
+    
+    if filter_account_id and filter_team_id:
+        # Get the previous shift handover (not any old handover)
+        target_handover = get_previous_shift_handover(current_shift_type, today, filter_account_id, filter_team_id)
+        
+        if target_handover:
+            print(f"[DEBUG] Dashboard: Found target handover ID={target_handover.id}, {target_handover.current_shift_type}→{target_handover.next_shift_type}, date={target_handover.date}")
+            
+            # Get only Open incidents and Handover incidents from the target shift
+            # 🔧 FIXED: Only show Open and Handover incidents in "Recent Handover Incidents"
+            # Priority and Escalated incidents have their own separate sections
+            raw_incidents = Incident.query.filter(
+                Incident.shift_id == target_handover.id,
+                Incident.account_id == filter_account_id,
+                Incident.team_id == filter_team_id,
+                Incident.type.in_(['Open', 'Handover']),  # Only Open and Handover incidents
+                Incident.status != 'Closed'  # Exclude closed incidents
+            ).all()
+            
+            print(f"[DEBUG] Dashboard: Found {len(raw_incidents)} raw incidents from handover")
+            
+            # 🔧 ENHANCED LOGIC: Filter out incidents that were closed in newer handovers
+            open_incidents = []
+            for incident in raw_incidents:
+                # Check if this incident was closed in any newer shift
+                newer_closed_incident = Incident.query.filter(
+                    Incident.account_id == filter_account_id,
+                    Incident.team_id == filter_team_id,
+                    Incident.shift_id > target_handover.id,  # Only newer shifts
+                    Incident.title == incident.title,  # Same incident
+                    Incident.type == 'Closed',  # Closed type
+                    Incident.status == 'Resolved'  # Resolved status
+                ).first()
+                
+                if not newer_closed_incident:
+                    # This incident was not closed in a newer handover, so show it
+                    open_incidents.append(incident)
+                    print(f"[DEBUG] Dashboard: Including incident '{incident.title}' (type: {incident.type}, priority: {incident.priority})")
+                else:
+                    print(f"[DEBUG] Dashboard: Incident '{incident.title}' was closed in shift {newer_closed_incident.shift_id}, not showing")
+        else:
+            print(f"[DEBUG] Dashboard: No handover found TO {current_shift_type} shift")
+            open_incidents = []
+            
+    elif filter_account_id:
+        # Account admin logic - get previous shift handover for the account
+        def get_account_previous_shift_handover(current_shift, today_date, account_id):
+            """Get previous shift handover for account admin (across all teams in account)"""
+            previous_shift_map = {
+                'Morning': ('Night', today_date - timedelta(days=1)),
+                'Evening': ('Morning', today_date),
+                'Night': ('Evening', today_date)
+            }
+            
+            if current_shift not in previous_shift_map:
+                return None
+                
+            prev_shift_type, search_date = previous_shift_map[current_shift]
+            
+            # Look for most recent handover in the account on the correct date
+            handover = Shift.query.filter_by(
+                current_shift_type=prev_shift_type,
+                next_shift_type=current_shift,
+                date=search_date,
+                account_id=account_id,
+                status='sent'
+            ).order_by(Shift.id.desc()).first()
+            
+            return handover
+            
+        target_handover = get_account_previous_shift_handover(current_shift_type, today, filter_account_id)
+            
+        if target_handover:
+            # 🔧 FIXED: Only include Open and Handover incidents for account admin recent handover section
+            raw_incidents = Incident.query.filter(
+                Incident.shift_id == target_handover.id,
+                Incident.account_id == filter_account_id,
+                Incident.type.in_(['Open', 'Handover']),  # Only Open and Handover incidents
+                Incident.status != 'Closed'
+            ).all()
+            
+            open_incidents = []
+            for incident in raw_incidents:
+                newer_closed_incident = Incident.query.filter(
+                    Incident.account_id == filter_account_id,
+                    Incident.shift_id > target_handover.id,
+                    Incident.title == incident.title,
+                    Incident.type == 'Closed',
+                    Incident.status == 'Resolved'
+                ).first()
+                
+                if not newer_closed_incident:
+                    open_incidents.append(incident)
+        else:
+            open_incidents = []
+            
+    else:
+        # For super admin, get previous shift handovers from all accounts/teams (not old handovers)
+        def get_super_admin_previous_shift_handovers(current_shift, today_date):
+            """Get previous shift handovers for super admin"""
+            previous_shift_map = {
+                'Morning': ('Night', today_date - timedelta(days=1)),
+                'Evening': ('Morning', today_date),
+                'Night': ('Evening', today_date)
+            }
+            
+            if current_shift not in previous_shift_map:
+                return []
+                
+            prev_shift_type, search_date = previous_shift_map[current_shift]
+            
+            # Get handovers from the previous shift on the correct date
+            handovers = Shift.query.filter_by(
+                current_shift_type=prev_shift_type,
+                next_shift_type=current_shift,
+                date=search_date,
+                status='sent'
+            ).order_by(Shift.id.desc()).limit(20).all()  # Limit to prevent too many results
+            
+            return handovers
+            
+        target_handovers = get_super_admin_previous_shift_handovers(current_shift_type, today)
+        
+        open_incidents = []
+        for shift in target_handovers:
+            # 🔧 FIXED: Only include Open and Handover incidents for super admin recent handover section
+            raw_incidents = Incident.query.filter(
+                Incident.shift_id == shift.id,
+                Incident.type.in_(['Open', 'Handover']),  # Only Open and Handover incidents
+                Incident.status != 'Closed'
+            ).all()
+            
+            for incident in raw_incidents:
+                newer_closed_incident = Incident.query.filter(
+                    Incident.account_id == incident.account_id,
+                    Incident.team_id == incident.team_id,
+                    Incident.shift_id > shift.id,
+                    Incident.title == incident.title,
+                    Incident.type == 'Closed',
+                    Incident.status == 'Resolved'
+                ).first()
+                
+                if not newer_closed_incident:
+                    open_incidents.append(incident)
+    # Current shift engineers
+    if current_shift_type == 'Night' and ist_now.time() < dt_time(6,45):
+        night_date = today - timedelta(days=1)
+        current_engineers = get_engineers_for_shift(night_date, current_shift_code, filter_account_id, filter_team_id)
+    else:
+        current_engineers = get_engineers_for_shift(today, current_shift_code, filter_account_id, filter_team_id)
+    # Next shift engineers
+    print(f"[DEBUG] *** NEXT SHIFT ENGINEERS CALCULATION ***")
+    print(f"[DEBUG] Current time: {ist_now.strftime('%H:%M:%S')}")
+    print(f"[DEBUG] Next shift type: {next_shift_type}, Next shift code: {next_shift_code}")
+    print(f"[DEBUG] Current user: {current_user.username}, Role: {current_user.role}")
+    print(f"[DEBUG] User account_id: {current_user.account_id}, team_id: {current_user.team_id}")
+    print(f"[DEBUG] Filter account_id: {filter_account_id}, Filter team_id: {filter_team_id}")
+    
+    # Modified: Always use TODAY's date to match roster filter behavior
+    # This ensures dashboard and roster show consistent data
+    print(f"[DEBUG] Using TODAY date for {next_shift_type} shift: {today}")
+    next_shift_engineers = get_engineers_for_shift(today, next_shift_code, filter_account_id, filter_team_id)
+    
+    print(f"[DEBUG] DASHBOARD RESULT: Found {len(next_shift_engineers)} engineers for next shift")
+    for i, engineer in enumerate(next_shift_engineers):
+        team_name = engineer.team.name if engineer.team else 'Unknown'
+        print(f"[DEBUG] Engineer {i+1}: {engineer.name} (Team: {team_name}, Account: {engineer.account_id})")
+    if filter_account_id and filter_team_id:
+        # 🔧 FIXED: Get ALL key points first, then deduplicate, then filter by status
+        # This ensures we find the latest key point even if it's closed
+        all_key_points = ShiftKeyPoint.query.filter_by(account_id=filter_account_id, team_id=filter_team_id).all()
+        
+        # Apply deduplication logic: keep only the latest (by id) for each (description, jira_id) pair
+        kp_map = {}
+        for kp in all_key_points:
+            key = (kp.description, kp.jira_id)
+            if key not in kp_map or kp.id > kp_map[key].id:
+                kp_map[key] = kp
+        
+        # Filter to only show Open and In Progress after deduplication
+        # Attach assigned user info to each key point
+        open_key_points = []
+        from models.models import TeamMember, User
+        for kp in kp_map.values():
+            if kp.status in ['Open', 'In Progress']:
+                assigned_user = None
+                print(f"[DEBUG] Processing key point ID {kp.id}: {kp.description[:30]}...")
+                print(f"[DEBUG] responsible_engineer_id: {kp.responsible_engineer_id}")
+                
+                if kp.responsible_engineer_id:
+                    team_member = TeamMember.query.get(kp.responsible_engineer_id)
+                    print(f"[DEBUG] Team member found: {team_member.name if team_member else 'None'}")
+                    
+                    if team_member:
+                        # Prefer linked user if available, else fallback to team member name
+                        if team_member.user_id:
+                            user = User.query.get(team_member.user_id)
+                            assigned_user = user.username if user else team_member.name
+                            print(f"[DEBUG] Using user: {assigned_user}")
+                        else:
+                            assigned_user = team_member.name
+                            print(f"[DEBUG] Using team member name: {assigned_user}")
+                
+                kp.assigned_to_display = assigned_user or "Unassigned"
+                print(f"[DEBUG] Final assigned_to_display: {kp.assigned_to_display}")
+                open_key_points.append(kp)
+        
+        # Get priority incidents ONLY Priority type from the target handover
+        # 🔧 FIXED: Only show Priority incidents in "Priority Incidents" section
+        # Escalated incidents will be shown separately if needed
+        if target_handover:
+            priority_incidents = Incident.query.filter(
+                Incident.shift_id == target_handover.id,
+                Incident.account_id == filter_account_id,
+                Incident.team_id == filter_team_id,
+                Incident.type == 'Priority',  # Only Priority incidents
+                Incident.status != 'Closed'
+            ).all()
+            
+            # Apply same closure filtering logic
+            filtered_priority_incidents = []
+            for incident in priority_incidents:
+                newer_closed_incident = Incident.query.filter(
+                    Incident.account_id == filter_account_id,
+                    Incident.team_id == filter_team_id,
+                    Incident.shift_id > target_handover.id,
+                    Incident.title == incident.title,
+                    Incident.type == 'Closed',
+                    Incident.status == 'Resolved'
+                ).first()
+                
+                if not newer_closed_incident:
+                    filtered_priority_incidents.append(incident)
+            
+            priority_incidents = filtered_priority_incidents
+        else:
+            priority_incidents = []
+            
+    elif filter_account_id:
+        # 🔧 FIXED: Get ALL key points first, then deduplicate, then filter by status
+        # This ensures we find the latest key point even if it's closed
+        all_key_points = ShiftKeyPoint.query.filter_by(account_id=filter_account_id).all()
+        
+        # Apply deduplication logic: keep only the latest (by id) for each (description, jira_id) pair
+        kp_map = {}
+        for kp in all_key_points:
+            key = (kp.description, kp.jira_id)
+            if key not in kp_map or kp.id > kp_map[key].id:
+                kp_map[key] = kp
+        
+        # Filter to only show Open and In Progress after deduplication
+        # Attach assigned user info to each key point
+        open_key_points = []
+        from models.models import TeamMember, User
+        for kp in kp_map.values():
+            if kp.status in ['Open', 'In Progress']:
+                assigned_user = None
+                if kp.responsible_engineer_id:
+                    team_member = TeamMember.query.get(kp.responsible_engineer_id)
+                    if team_member:
+                        # Prefer linked user if available, else fallback to team member name
+                        if team_member.user_id:
+                            user = User.query.get(team_member.user_id)
+                            assigned_user = user.username if user else team_member.name
+                        else:
+                            assigned_user = team_member.name
+                kp.assigned_to_display = assigned_user or "Unassigned"
+                open_key_points.append(kp)
+        
+        # Get priority incidents ONLY Priority type from the target handover
+        # 🔧 FIXED: Only show Priority incidents in account admin view
+        if target_handover:
+            priority_incidents = Incident.query.filter(
+                Incident.shift_id == target_handover.id,
+                Incident.account_id == filter_account_id,
+                Incident.type == 'Priority',  # Only Priority incidents
+                Incident.status != 'Closed'
+            ).all()
+            
+            # Apply same closure filtering logic
+            filtered_priority_incidents = []
+            for incident in priority_incidents:
+                newer_closed_incident = Incident.query.filter(
+                    Incident.account_id == filter_account_id,
+                    Incident.shift_id > target_handover.id,
+                    Incident.title == incident.title,
+                    Incident.type == 'Closed',
+                    Incident.status == 'Resolved'
+                ).first()
+                
+                if not newer_closed_incident:
+                    filtered_priority_incidents.append(incident)
+            
+            priority_incidents = filtered_priority_incidents
+        else:
+            priority_incidents = []
+    else:
+        # 🔧 FIXED: For super admin without filters, get ALL key points first, then deduplicate, then filter
+        all_key_points = ShiftKeyPoint.query.all()
+        
+        # Apply deduplication logic: keep only the latest (by id) for each (description, jira_id) pair
+        kp_map = {}
+        for kp in all_key_points:
+            key = (kp.description, kp.jira_id)
+            if key not in kp_map or kp.id > kp_map[key].id:
+                kp_map[key] = kp
+        
+        # Filter to only show Open and In Progress after deduplication
+        # Attach assigned user info to each key point
+        open_key_points = []
+        from models.models import TeamMember, User
+        for kp in kp_map.values():
+            if kp.status in ['Open', 'In Progress']:
+                assigned_user = None
+                if kp.responsible_engineer_id:
+                    team_member = TeamMember.query.get(kp.responsible_engineer_id)
+                    if team_member:
+                        # Prefer linked user if available, else fallback to team member name
+                        if team_member.user_id:
+                            user = User.query.get(team_member.user_id)
+                            assigned_user = user.username if user else team_member.name
+                        else:
+                            assigned_user = team_member.name
+                kp.assigned_to_display = assigned_user or "Unassigned"
+                open_key_points.append(kp)
+        
+        # Get priority incidents ONLY from target handovers (not all active incidents)
+        priority_incidents = []
+        for shift in target_handovers:
+            # 🔧 FIXED: Get only Priority incidents from each target handover for super admin
+            shift_priority_incidents = Incident.query.filter(
+                Incident.shift_id == shift.id,
+                Incident.type == 'Priority',  # Only Priority incidents
+                Incident.status != 'Closed'
+            ).all()
+            
+            # Apply closure filtering
+            for incident in shift_priority_incidents:
+                newer_closed_incident = Incident.query.filter(
+                    Incident.account_id == incident.account_id,
+                    Incident.team_id == incident.team_id,
+                    Incident.shift_id > shift.id,
+                    Incident.title == incident.title,
+                    Incident.type == 'Closed',
+                    Incident.status == 'Resolved'
+                ).first()
+                
+                if not newer_closed_incident:
+                    priority_incidents.append(incident)
+
+    # Chart logic
+    range_opt = request.args.get('range', '7d')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    if range_opt == '1d':
+        from_date = today - timedelta(days=1)
+        to_date = today
+    elif range_opt == '7d':
+        from_date = today - timedelta(days=7)
+        to_date = today
+    elif range_opt == '30d':
+        from_date = today - timedelta(days=30)
+        to_date = today
+    elif range_opt == '1y':
+        from_date = today - timedelta(days=365)
+        to_date = today
+    elif range_opt == 'custom' and start_date and end_date:
+        from_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        to_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+    else:
+        from_date = today - timedelta(days=7)
+        to_date = today
+
+    date_list = [(from_date + timedelta(days=i)) for i in range((to_date - from_date).days + 1)]
+    open_counts = []
+    closed_counts = []
+    handover_counts = []
+    priority_counts = []
+    for d in date_list:
+        base_incident_query = db.session.query(Incident).join(Shift, Incident.shift_id == Shift.id)
+        if current_user.role != 'admin':
+            base_incident_query = base_incident_query.filter(Incident.account_id==current_user.account_id, Incident.team_id==current_user.team_id)
+        open_c = base_incident_query.filter(Incident.type=='Open', Shift.date==d).count()
+        closed_c = base_incident_query.filter(Incident.type=='Closed', Shift.date==d).count()
+        handover_c = base_incident_query.filter(Incident.type=='Handover', Shift.date==d).count()
+        priority_c = base_incident_query.filter(Incident.type=='Priority', Shift.date==d).count()
+        open_counts.append(open_c)
+        closed_counts.append(closed_c)
+        handover_counts.append(handover_c)
+        priority_counts.append(priority_c)
+
+    x_dates = [d.strftime('%Y-%m-%d') for d in date_list]
+    trace_open = go.Bar(x=x_dates, y=open_counts, name='Open Incidents', marker_color='#3498db')
+    trace_closed = go.Bar(x=x_dates, y=closed_counts, name='Closed Incidents', marker_color='#2ecc71')
+    trace_handover = go.Bar(x=x_dates, y=handover_counts, name='Handover Incidents', marker_color='#f39c12')
+    trace_priority = go.Bar(x=x_dates, y=priority_counts, name='Priority Incidents', marker_color='#e74c3c')
+    data = [trace_open, trace_closed, trace_handover, trace_priority]
+    layout = go.Layout(
+        barmode='group', 
+        xaxis={'title': 'Date'}, 
+        yaxis={'title': 'Count'}, 
+        title='Incident Trends Over Time',
+        height=400,
+        margin=dict(l=50, r=50, t=80, b=50)
+    )
+    graphJSON = json.dumps({'data': data, 'layout': layout}, cls=plotly.utils.PlotlyJSONEncoder)
+
+    # Calculate priority distribution for pie chart
+    print(f"[DEBUG] Dashboard: Starting priority distribution calculation...", flush=True)
+    priority_distribution = {
+        'critical': 0,
+        'high': 0, 
+        'medium': 0,
+        'low': 0
+    }
+    
+    print(f"[DEBUG] Dashboard: Processing {len(open_incidents)} open incidents for priority distribution...", flush=True)
+    for incident in open_incidents:
+        if hasattr(incident, 'priority') and incident.priority:
+            priority_lower = incident.priority.lower()
+            if priority_lower in priority_distribution:
+                priority_distribution[priority_lower] += 1
+            elif priority_lower == 'urgent':  # Handle alternate naming
+                priority_distribution['critical'] += 1
+
+    print(f"[DEBUG] Dashboard: Priority distribution completed: {priority_distribution}", flush=True)
+
+    print(f"[DEBUG] Dashboard: *** NOTIFICATION SECTION REACHED ***", flush=True)
+    print(f"[DEBUG] Dashboard: About to query notifications...", flush=True)
+    # Get pending notifications for the current user
+    pending_notifications = []
+    pending_count = 0
+    try:
+        print(f"[DEBUG] Dashboard: Importing HandoverNotification model...", flush=True)
+        from models.handover_enhanced import HandoverNotification
+        from models.models import User  # Ensure User import is available
+        print(f"[DEBUG] Dashboard: Model imported successfully", flush=True)
+        
+        print(f"[DEBUG] Dashboard: Querying notifications for user_id={current_user.id}", flush=True)
+        pending_notifications = HandoverNotification.query.filter_by(
+            recipient_id=current_user.id,
+            is_read=False
+        ).order_by(HandoverNotification.created_at.desc()).all()
+        
+        pending_count = len(pending_notifications)
+        print(f"[DEBUG] Dashboard: Found {pending_count} unread notifications for user {current_user.id} ({current_user.username})", flush=True)
+        
+        for notif in pending_notifications:
+            print(f"[DEBUG] Dashboard: Notification ID {notif.id}: {notif.title}", flush=True)
+            
+    except ImportError as e:
+        print(f"[ERROR] Dashboard: Import error for HandoverNotification: {e}", flush=True)
+        pending_notifications = []
+        pending_count = 0
+    except Exception as e:
+        print(f"[ERROR] Dashboard: Error getting pending notifications: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        pending_notifications = []
+        pending_count = 0
+
+    return render_template(
+        'dashboard.html',
+        accounts=accounts,
+        teams=teams,
+        selected_account_id=selected_account_id,
+        selected_team_id=selected_team_id,
+        filter_account_id=filter_account_id,
+        filter_team_id=filter_team_id,
+        open_incidents=open_incidents,
+        current_engineers=current_engineers,
+        next_shift_engineers=next_shift_engineers,
+        open_key_points=open_key_points,
+        priority_incidents=priority_incidents,
+        priority_distribution=priority_distribution,
+        current_shift_type=current_shift_type,
+        next_shift_type=next_shift_type,
+        today=today,
+        next_date=next_date,
+        graphJSON=graphJSON,
+        selected_range=range_opt,
+        start_date=start_date or from_date.strftime('%Y-%m-%d'),
+        end_date=end_date or to_date.strftime('%Y-%m-%d'),
+        pending_count=pending_count,
+        pending_notifications=pending_notifications
+    )

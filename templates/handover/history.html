@@ -1,0 +1,438 @@
+{% extends "base.html" %}
+
+{% block title %}Handover History{% endblock %}
+
+{% block head %}
+<style>
+    .history-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .history-card {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        padding: 30px;
+        margin-bottom: 20px;
+    }
+    
+    .tabs {
+        display: flex;
+        border-bottom: 1px solid #dee2e6;
+        margin-bottom: 30px;
+    }
+    
+    .tab {
+        padding: 12px 24px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        color: #6c757d;
+        transition: all 0.15s ease-in-out;
+    }
+    
+    .tab.active {
+        color: #007bff;
+        border-bottom: 2px solid #007bff;
+    }
+    
+    .tab-content {
+        display: none;
+    }
+    
+    .tab-content.active {
+        display: block;
+    }
+    
+    .handover-item {
+        background: #f8f9fa;
+        border: 1px solid #e1e5e9;
+        border-radius: 6px;
+        padding: 20px;
+        margin-bottom: 15px;
+    }
+    
+    .handover-header {
+        display: flex;
+        justify-content: between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    
+    .handover-status {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
+    .status-draft {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .status-submitted {
+        background: #d1ecf1;
+        color: #0c5460;
+    }
+    
+    .status-completed {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .priority-high {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
+    .priority-medium {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .priority-low {
+        background: #d1ecf1;
+        color: #0c5460;
+    }
+    
+    .handover-meta {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 15px;
+        font-size: 14px;
+        color: #6c757d;
+    }
+    
+    .handover-summary {
+        font-weight: 600;
+        margin-bottom: 10px;
+        color: #495057;
+    }
+    
+    .handover-notes {
+        color: #6c757d;
+        margin-bottom: 15px;
+    }
+    
+    .assignment-item {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 15px;
+        margin-bottom: 10px;
+    }
+    
+    .assignment-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    
+    .assignment-status {
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
+    .status-pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .status-accepted {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .status-declined {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
+    .status-needs_clarification {
+        background: #e2e3e5;
+        color: #383d41;
+    }
+    
+    .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        text-decoration: none;
+        display: inline-block;
+        text-align: center;
+        margin-right: 8px;
+    }
+    
+    .btn-primary {
+        background: #007bff;
+        color: white;
+    }
+    
+    .btn-success {
+        background: #28a745;
+        color: white;
+    }
+    
+    .btn-danger {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .btn-warning {
+        background: #ffc107;
+        color: #212529;
+    }
+    
+    .btn-sm {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+    
+    .no-items {
+        text-align: center;
+        padding: 40px;
+        color: #6c757d;
+    }
+    
+    .response-section {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #e9ecef;
+    }
+    
+    .form-control {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .form-group {
+        margin-bottom: 15px;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+        color: #495057;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="history-container">
+    <div class="history-card">
+        <h1>Handover History</h1>
+        <p class="text-muted">View your submitted handovers and assigned incidents.</p>
+        
+        <div class="tabs">
+            <button class="tab active" data-tab="handovers">My Handovers</button>
+            <button class="tab" data-tab="assignments">My Assignments</button>
+        </div>
+        
+        <!-- My Handovers Tab -->
+        <div id="handovers" class="tab-content active">
+            {% if handovers %}
+                {% for handover in handovers %}
+                <div class="handover-item">
+                    <div class="handover-header">
+                        <div style="flex: 1;">
+                            <div class="handover-summary">{{ handover.summary }}</div>
+                            <div class="handover-meta">
+                                <span>📅 {{ handover.shift_end_time.strftime('%Y-%m-%d %H:%M') }}</span>
+                                <span>🕒 Created {{ handover.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                                <span class="handover-status status-{{ handover.status }}">{{ handover.status }}</span>
+                                <span class="priority-{{ handover.priority }} handover-status">{{ handover.priority }} priority</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="handover-notes">{{ handover.detailed_notes }}</div>
+                    
+                    {% if handover.incident_assignments %}
+                    <div style="margin-top: 15px;">
+                        <strong>Incident Assignments ({{ handover.incident_assignments|length }}):</strong>
+                        {% for assignment in handover.incident_assignments %}
+                        <div class="assignment-item">
+                            <div class="assignment-header">
+                                <span>🎯 {{ assignment.incident_description[:80] }}{% if assignment.incident_description|length > 80 %}...{% endif %}</span>
+                                <span class="assignment-status status-{{ assignment.status }}">{{ assignment.status }}</span>
+                            </div>
+                            <div style="font-size: 12px; color: #6c757d;">
+                                Assigned to: {{ assignment.assigned_to.full_name or assignment.assigned_to.username }}
+                                {% if assignment.priority %}| Priority: {{ assignment.priority }}{% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-items">
+                    <h3>No Handovers Found</h3>
+                    <p>You haven't created any handovers yet.</p>
+                    <a href="{{ url_for('handover_enhanced.enhanced_handover_form') }}" class="btn btn-primary">Create New Handover</a>
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- My Assignments Tab -->
+        <div id="assignments" class="tab-content">
+            {% if assignments %}
+                {% for assignment in assignments %}
+                <div class="assignment-item">
+                    <div class="assignment-header">
+                        <div style="flex: 1;">
+                            <strong>{{ assignment.incident_description }}</strong>
+                            <div style="font-size: 12px; color: #6c757d; margin-top: 5px;">
+                                From handover: {{ assignment.handover_request.summary }}
+                                | Assigned by: {{ assignment.handover_request.submitter.full_name or assignment.handover_request.submitter.username }}
+                                | {{ assignment.assigned_at.strftime('%Y-%m-%d %H:%M') }}
+                            </div>
+                        </div>
+                        <div>
+                            <span class="assignment-status status-{{ assignment.status }}">{{ assignment.status }}</span>
+                            {% if assignment.priority %}
+                            <span class="priority-{{ assignment.priority }} handover-status">{{ assignment.priority }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    {% if assignment.notes %}
+                    <div style="margin: 10px 0; color: #6c757d;">
+                        <strong>Notes:</strong> {{ assignment.notes }}
+                    </div>
+                    {% endif %}
+                    
+                    {% if assignment.status == 'pending' %}
+                    <div class="response-section">
+                        <div class="form-group">
+                            <label>Response Notes</label>
+                            <textarea class="form-control response-notes" data-assignment-id="{{ assignment.id }}" 
+                                      rows="2" placeholder="Add your response notes..."></textarea>
+                        </div>
+                        <div>
+                            <button class="btn btn-success btn-sm respond-btn" data-assignment-id="{{ assignment.id }}" data-response-type="accepted">
+                                Accept
+                            </button>
+                            <button class="btn btn-danger btn-sm respond-btn" data-assignment-id="{{ assignment.id }}" data-response-type="declined">
+                                Decline
+                            </button>
+                            <button class="btn btn-warning btn-sm respond-btn" data-assignment-id="{{ assignment.id }}" data-response-type="needs_clarification">
+                                Need Clarification
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if assignment.responses %}
+                    <div style="margin-top: 15px;">
+                        <strong>Response History:</strong>
+                        {% for response in assignment.responses %}
+                        <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                            <div style="font-size: 12px; color: #6c757d;">
+                                {{ response.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                - {{ response.responder.full_name or response.responder.username }}
+                                - <span class="assignment-status status-{{ response.response_type }}">{{ response.response_type }}</span>
+                            </div>
+                            {% if response.response_notes %}
+                            <div style="margin-top: 5px;">{{ response.response_notes }}</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-items">
+                    <h3>No Assignments Found</h3>
+                    <p>You don't have any incident assignments yet.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Tab switching
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            const targetTab = this.dataset.tab;
+            
+            // Update tab styles
+            tabs.forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Update content
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+                if (content.id === targetTab) {
+                    content.classList.add('active');
+                }
+            });
+        });
+    });
+    
+    // Response button handlers
+    const respondButtons = document.querySelectorAll('.respond-btn');
+    respondButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const assignmentId = this.dataset.assignmentId;
+            const responseType = this.dataset.responseType;
+            respondToAssignment(assignmentId, responseType);
+        });
+    });
+});
+
+async function respondToAssignment(assignmentId, responseType) {
+    const notesTextarea = document.querySelector(`textarea[data-assignment-id="${assignmentId}"]`);
+    const responseNotes = notesTextarea ? notesTextarea.value : '';
+    
+    try {
+        const response = await fetch(`/handover/assignments/${assignmentId}/respond`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                response_type: responseType,
+                response_notes: responseNotes
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Response submitted successfully!');
+            window.location.reload();
+        } else {
+            alert('Error submitting response: ' + result.error);
+        }
+    } catch (error) {
+        alert('Error submitting response: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

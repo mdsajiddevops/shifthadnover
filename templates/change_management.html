@@ -1,0 +1,457 @@
+{% extends "base.html" %}
+
+{% block title %}Change Management{% endblock %}
+
+{% block extra_css %}
+<style>
+    .change-section {
+        margin-bottom: 2rem;
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        background: white;
+    }
+    
+    .change-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+    
+    .change-title {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin: 0;
+        color: #495057;
+    }
+    
+    .change-count {
+        background: #007bff;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: bold;
+    }
+    
+    .change-item {
+        margin-bottom: 1rem;
+        padding: 1rem;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+    }
+    
+    .change-item:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        border-color: #007bff;
+    }
+    
+    .change-number {
+        font-weight: bold;
+        color: #007bff;
+        text-decoration: none;
+        font-size: 1.1rem;
+    }
+    
+    .change-number:hover {
+        color: #0056b3;
+        text-decoration: underline;
+    }
+    
+    .change-description {
+        margin: 0.5rem 0;
+        color: #6c757d;
+    }
+    
+    .change-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 0.75rem;
+        font-size: 0.875rem;
+    }
+    
+    .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    
+    .meta-label {
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .meta-value {
+        color: #6c757d;
+    }
+    
+    .state-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+    
+    .state-new { background: #e3f2fd; color: #1565c0; }
+    .state-assessment { background: #fff3e0; color: #ef6c00; }
+    .state-authorized { background: #e8f5e8; color: #2e7d32; }
+    .state-scheduled { background: #f3e5f5; color: #7b1fa2; }
+    .state-implementation { background: #fff8e1; color: #f57f17; }
+    .state-review { background: #e1f5fe; color: #0277bd; }
+    .state-closed { background: #e8f5e8; color: #388e3c; }
+    .state-cancelled { background: #ffebee; color: #d32f2f; }
+    
+    .task-state-pending { background: #f5f5f5; color: #616161; }
+    .task-state-open { background: #e3f2fd; color: #1565c0; }
+    .task-state-wip { background: #fff8e1; color: #f57f17; }
+    .task-state-complete { background: #e8f5e8; color: #388e3c; }
+    .task-state-incomplete { background: #ffebee; color: #d32f2f; }
+    .task-state-skipped { background: #f5f5f5; color: #9e9e9e; }
+    
+    .date-time {
+        font-family: 'Courier New', monospace;
+        font-size: 0.8rem;
+    }
+    
+    .shift-controls {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    
+    .loading-spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #007bff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .error-message {
+        background: #f8d7da;
+        color: #721c24;
+        padding: 1rem;
+        border-radius: 6px;
+        border: 1px solid #f5c6cb;
+        margin-bottom: 1rem;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #6c757d;
+    }
+    
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: #adb5bd;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4">
+                <i class="fas fa-exchange-alt"></i>
+                Change Management
+            </h2>
+            
+            <!-- Control Panel -->
+            <div class="shift-controls">
+                <div>
+                    <strong>Assignment Group:</strong> 
+                    <span id="assignment-group-display">Loading...</span>
+                </div>
+                <button id="refresh-btn" class="btn btn-primary">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <div id="loading-indicator" class="loading-spinner" style="display: none;"></div>
+            </div>
+            
+            <!-- Error Message -->
+            <div id="error-message" class="error-message" style="display: none;"></div>
+            
+            <!-- Change Requests Section -->
+            <div class="change-section">
+                <div class="change-header">
+                    <h3 class="change-title">
+                        <i class="fas fa-clipboard-list"></i>
+                        Change Requests
+                    </h3>
+                    <span id="cr-count" class="change-count">0</span>
+                </div>
+                <div id="change-requests-list">
+                    <div class="empty-state">
+                        <i class="fas fa-clipboard-list"></i>
+                        <p>No change requests found for your assignment group.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Change Tasks Section -->
+            <div class="change-section">
+                <div class="change-header">
+                    <h3 class="change-title">
+                        <i class="fas fa-tasks"></i>
+                        Change Tasks
+                    </h3>
+                    <span id="ct-count" class="change-count">0</span>
+                </div>
+                <div id="change-tasks-list">
+                    <div class="empty-state">
+                        <i class="fas fa-tasks"></i>
+                        <p>No change tasks found for your assignment group.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    console.log('jQuery loaded:', typeof $);
+    console.log('Document ready fired');
+    
+    // State mappings
+    const changeStates = {
+        '-5': 'New',
+        '-4': 'Assessment', 
+        '-3': 'Authorized',
+        '-2': 'Scheduled',
+        '-1': 'Implementation',
+        '0': 'Review',
+        '3': 'Closed',
+        '4': 'Cancelled'
+    };
+    
+    const taskStates = {
+        '-5': 'Pending',
+        '1': 'Open',
+        '2': 'Work in Progress',
+        '3': 'Closed Complete',
+        '4': 'Closed Incomplete',
+        '7': 'Closed Skipped'
+    };
+    
+    function getStateClass(state, isTask = false) {
+        const stateMap = {
+            '-5': isTask ? 'task-state-pending' : 'state-new',
+            '-4': 'state-assessment',
+            '-3': 'state-authorized',
+            '-2': 'state-scheduled',
+            '-1': 'state-implementation',
+            '0': 'state-review',
+            '1': 'task-state-open',
+            '2': 'task-state-wip',
+            '3': isTask ? 'task-state-complete' : 'state-closed',
+            '4': isTask ? 'task-state-incomplete' : 'state-cancelled',
+            '7': 'task-state-skipped'
+        };
+        return stateMap[state] || '';
+    }
+    
+    function formatDateTime(dateTimeStr) {
+        if (!dateTimeStr) return 'Not set';
+        try {
+            const date = new Date(dateTimeStr);
+            return date.toLocaleString();
+        } catch (e) {
+            return dateTimeStr;
+        }
+    }
+    
+    function loadChangeData() {
+        console.log('loadChangeData called');
+        $('#loading-indicator').show();
+        $('#error-message').hide();
+        
+        console.log('Making AJAX request to /api/get_change_requests');
+        $.ajax({
+            url: '/api/get_change_requests',
+            method: 'GET',
+            beforeSend: function() {
+                console.log('AJAX request starting...');
+            },
+            success: function(data) {
+                console.log('AJAX success:', data);
+                $('#loading-indicator').hide();
+                
+                if (data.error) {
+                    $('#error-message').text(data.error).show();
+                    return;
+                }
+                
+                // Update assignment group display
+                if (data.assignment_groups && data.assignment_groups.length > 0) {
+                    $('#assignment-group-display').text(data.assignment_groups.join(', '));
+                } else {
+                    $('#assignment-group-display').text('No groups configured');
+                }
+                
+                // Update counts
+                $('#cr-count').text(data.total_crs || 0);
+                $('#ct-count').text(data.total_tasks || 0);
+                
+                // Render change requests
+                renderChangeRequests(data.change_requests || []);
+                
+                // Render change tasks
+                renderChangeTasks(data.change_tasks || []);
+            },
+            error: function(xhr, status, error) {
+                console.log('AJAX error:', xhr, status, error);
+                $('#loading-indicator').hide();
+                $('#error-message').text('Failed to load change data: ' + error).show();
+            }
+        });
+    }
+    
+    function renderChangeRequests(changeRequests) {
+        const container = $('#change-requests-list');
+        container.empty();
+        
+        if (changeRequests.length === 0) {
+            container.html(`
+                <div class="empty-state">
+                    <i class="fas fa-clipboard-list"></i>
+                    <p>No change requests found for your assignment group.</p>
+                </div>
+            `);
+            return;
+        }
+        
+        changeRequests.forEach(function(cr) {
+            const stateText = changeStates[cr.state] || cr.state;
+            const stateClass = getStateClass(cr.state, false);
+            
+            const html = `
+                <div class="change-item">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <a href="#" class="change-number">${cr.number}</a>
+                        <span class="state-badge ${stateClass}">${stateText}</span>
+                    </div>
+                    <div class="change-description">
+                        <strong>${cr.short_description || 'No title'}</strong>
+                    </div>
+                    <div class="change-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Assignment Group:</span>
+                            <span class="meta-value">${cr.assignment_group || 'Unassigned'}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Assigned:</span>
+                            <span class="meta-value">${cr.assigned_to || 'Unassigned'}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Risk:</span>
+                            <span class="meta-value">${cr.risk || 'Not set'}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Priority:</span>
+                            <span class="meta-value">${cr.priority || 'Not set'}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Start:</span>
+                            <span class="meta-value date-time">${formatDateTime(cr.start_date || cr.work_start)}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">End:</span>
+                            <span class="meta-value date-time">${formatDateTime(cr.end_date || cr.work_end)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.append(html);
+        });
+    }
+    
+    function renderChangeTasks(changeTasks) {
+        const container = $('#change-tasks-list');
+        container.empty();
+        
+        if (changeTasks.length === 0) {
+            container.html(`
+                <div class="empty-state">
+                    <i class="fas fa-tasks"></i>
+                    <p>No change tasks found for your assignment group.</p>
+                </div>
+            `);
+            return;
+        }
+        
+        changeTasks.forEach(function(ct) {
+            const stateText = taskStates[ct.state] || ct.state;
+            const stateClass = getStateClass(ct.state, true);
+            
+            const html = `
+                <div class="change-item">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <a href="#" class="change-number">${ct.number}</a>
+                        <span class="state-badge ${stateClass}">${stateText}</span>
+                    </div>
+                    <div class="change-description">
+                        <strong>${ct.short_description || 'No title'}</strong>
+                    </div>
+                    <div class="change-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Assignment Group:</span>
+                            <span class="meta-value">${ct.assignment_group || 'Unassigned'}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Assigned:</span>
+                            <span class="meta-value">${ct.assigned_to || 'Unassigned'}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Change Request:</span>
+                            <span class="meta-value">${ct.change_request || 'Not linked'}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Planned Start:</span>
+                            <span class="meta-value date-time">${formatDateTime(ct.planned_start_date || ct.work_start)}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Planned End:</span>
+                            <span class="meta-value date-time">${formatDateTime(ct.planned_end_date || ct.work_end)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.append(html);
+        });
+    }
+    
+    // Event handlers
+    $('#refresh-btn').click(function() {
+        loadChangeData();
+    });
+    
+    // Load initial data
+    console.log('About to call loadChangeData()');
+    loadChangeData();
+});
+</script>
+{% endblock %}

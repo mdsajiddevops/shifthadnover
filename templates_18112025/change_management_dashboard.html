@@ -1,0 +1,651 @@
+{% extends "base.html" %}
+
+{% block title %}Change Management Dashboard{% endblock %}
+
+{% block content %}
+<style>
+    :root {
+        --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        --warning-gradient: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        --danger-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        --text-primary: #1a202c;
+        --text-secondary: #718096;
+        --bg-primary: #ffffff;
+        --bg-secondary: #f8fafc;
+        --border-color: rgba(102, 126, 234, 0.12);
+        --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+
+    body {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        min-height: 100vh;
+        color: var(--text-primary);
+        line-height: 1.6;
+    }
+
+    .modern-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .page-header {
+        text-align: center;
+        margin-bottom: 3rem;
+        position: relative;
+    }
+
+    .main-title {
+        font-size: 3rem;
+        font-weight: 900;
+        background: var(--primary-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 1rem;
+        letter-spacing: -0.02em;
+    }
+
+    .assignment-info {
+        background: white;
+        padding: 1rem 2rem;
+        border-radius: 50px;
+        display: inline-block;
+        box-shadow: var(--shadow-md);
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+        font-weight: 600;
+    }
+
+    .assignment-info i {
+        color: #667eea;
+        margin-right: 0.5rem;
+    }
+
+    .stats-overview {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 2rem;
+        margin-bottom: 3rem;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 24px;
+        padding: 2.5rem;
+        text-align: center;
+        box-shadow: var(--shadow-lg);
+        border: 1px solid var(--border-color);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 5px;
+        background: var(--primary-gradient);
+        border-radius: 24px 24px 0 0;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-12px) scale(1.02);
+        box-shadow: var(--shadow-2xl);
+        border-color: rgba(102, 126, 234, 0.3);
+    }
+
+    .stat-icon {
+        font-size: 3.5rem;
+        margin-bottom: 1.5rem;
+        background: var(--primary-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        transition: transform 0.3s ease;
+    }
+
+    .stat-card:hover .stat-icon {
+        transform: scale(1.1) rotate(5deg);
+    }
+
+    .stat-value {
+        font-size: 3.5rem;
+        font-weight: 900;
+        color: var(--text-primary);
+        margin-bottom: 0.75rem;
+        background: var(--primary-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        line-height: 1;
+    }
+
+    .stat-label {
+        font-size: 1.2rem;
+        color: var(--text-secondary);
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+    }
+
+    .section-card {
+        background: white;
+        border-radius: 28px;
+        margin-bottom: 3rem;
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow-lg);
+        overflow: hidden;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+    }
+
+    .section-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 5px;
+        background: var(--primary-gradient);
+        border-radius: 28px 28px 0 0;
+    }
+
+    .section-card:hover {
+        transform: translateY(-8px);
+        box-shadow: var(--shadow-2xl);
+        border-color: rgba(102, 126, 234, 0.3);
+    }
+
+    .section-header {
+        background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(102, 126, 234, 0.03) 100%);
+        color: var(--text-primary);
+        padding: 2.5rem 2.5rem 2rem 2.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+    }
+
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .section-title i {
+        background: var(--primary-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .section-count {
+        background: var(--primary-gradient);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 50px;
+        font-size: 1rem;
+        font-weight: 700;
+        box-shadow: var(--shadow-md);
+    }
+
+    .table-container {
+        padding: 2.5rem;
+        background: white;
+        border-radius: 0 0 28px 28px;
+    }
+
+    .modern-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        margin: 0;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .modern-table thead th {
+        background: linear-gradient(135deg, #f8fafc 0%, rgba(102, 126, 234, 0.08) 100%);
+        color: var(--text-primary);
+        padding: 1.75rem 1.25rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.1em;
+        border: none;
+        border-bottom: 2px solid rgba(102, 126, 234, 0.15);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .modern-table tbody tr {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+        background: white;
+    }
+
+    .modern-table tbody tr:nth-child(even) {
+        background: rgba(248, 250, 252, 0.5);
+    }
+
+    .modern-table tbody tr:hover {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+        transform: translateX(8px);
+        box-shadow: 8px 0 25px rgba(102, 126, 234, 0.15);
+        border-color: rgba(102, 126, 234, 0.3);
+    }
+
+    .modern-table tbody td {
+        padding: 1.5rem 1.25rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+        border: none;
+        vertical-align: middle;
+    }
+
+    .modern-table tbody td:first-child {
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .status-badge {
+        padding: 0.5rem 1.25rem;
+        border-radius: 50px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        display: inline-block;
+        border: 2px solid transparent;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .status-badge:hover {
+        transform: scale(1.05);
+        box-shadow: var(--shadow-md);
+    }
+
+    .status-new { 
+        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); 
+        color: #1e40af; 
+        border-color: #3b82f6;
+    }
+    
+    .status-open { 
+        background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); 
+        color: #166534; 
+        border-color: #22c55e;
+    }
+    
+    .status-closed { 
+        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%); 
+        color: #475569; 
+        border-color: #64748b;
+    }
+    
+    .status-review { 
+        background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%); 
+        color: #be185d; 
+        border-color: #ec4899;
+    }
+    
+    .status-implement { 
+        background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%); 
+        color: #c2410c; 
+        border-color: #f97316;
+    }
+    
+    .status-scheduled { 
+        background: linear-gradient(135deg, #ccfbf1 0%, #99f6e4 100%); 
+        color: #0f766e; 
+        border-color: #14b8a6;
+    }
+
+    .priority-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .priority-1, .priority-critical { background: var(--danger-gradient); color: white; }
+    .priority-2, .priority-high { background: var(--warning-gradient); color: white; }
+    .priority-3, .priority-moderate { background: var(--success-gradient); color: white; }
+    .priority-4, .priority-low { background: var(--secondary-gradient); color: white; }
+
+    .loading-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-secondary);
+    }
+
+    .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(102, 126, 234, 0.2);
+        border-left: 4px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-secondary);
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.3;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 1024px) {
+        .modern-container { padding: 1rem; }
+        .stats-overview { gap: 1rem; }
+        .section-header { padding: 2rem 1.5rem 1.5rem 1.5rem; }
+        .section-title { font-size: 1.4rem; }
+        .table-container { padding: 1.5rem; }
+    }
+
+    @media (max-width: 768px) {
+        .modern-container { padding: 1rem; }
+        .main-title { font-size: 2rem; text-align: center; }
+        .stats-overview { grid-template-columns: 1fr; gap: 1rem; }
+        .section-header { 
+            flex-direction: column; 
+            gap: 1rem; 
+            text-align: center;
+            padding: 1.5rem;
+        }
+        .section-title { font-size: 1.2rem; }
+        .modern-table thead th,
+        .modern-table tbody td {
+            padding: 0.75rem 0.5rem;
+            font-size: 0.9rem;
+        }
+        .stat-card {
+            padding: 1.5rem;
+        }
+        .stat-value { font-size: 2.5rem; }
+        .stat-label { font-size: 1rem; }
+    }
+
+    @media (max-width: 480px) {
+        .modern-container { padding: 0.5rem; }
+        .main-title { font-size: 1.7rem; }
+        .stat-card { padding: 1.25rem; }
+        .stat-value { font-size: 2rem; }
+        .section-card { margin-bottom: 2rem; }
+        .modern-table thead th,
+        .modern-table tbody td {
+            padding: 0.5rem 0.25rem;
+            font-size: 0.8rem;
+        }
+        .status-badge { 
+            padding: 0.25rem 0.75rem; 
+            font-size: 0.75rem; 
+        }
+    }
+
+    /* Smooth page transitions */
+    .modern-container {
+        animation: fadeInUp 0.6s ease-out;
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Card stagger animation */
+    .stat-card:nth-child(1) { animation-delay: 0.1s; }
+    .stat-card:nth-child(2) { animation-delay: 0.2s; }
+    .stat-card:nth-child(3) { animation-delay: 0.3s; }
+    .stat-card:nth-child(4) { animation-delay: 0.4s; }
+
+    .section-card:nth-child(1) { animation-delay: 0.5s; }
+    .section-card:nth-child(2) { animation-delay: 0.6s; }
+</style>
+
+<div class="modern-container">
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1 class="main-title">Change Management</h1>
+        <div class="assignment-info">
+            <i class="fas fa-users"></i>
+            <strong>Assignment Group:</strong> Supply Chain - L2
+        </div>
+    </div>
+
+    <!-- Status Alert -->
+    <div id="status" class="alert alert-info" style="display: none;">Loading data...</div>
+
+    <!-- Stats Overview -->
+    <div class="stats-overview">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-clipboard-list"></i>
+            </div>
+            <div class="stat-value" id="cr-stat">0</div>
+            <div class="stat-label">Change Requests</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-tasks"></i>
+            </div>
+            <div class="stat-value" id="ct-stat">0</div>
+            <div class="stat-label">Change Tasks</div>
+        </div>
+    </div>
+
+    <!-- Change Requests Section -->
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">
+                <i class="fas fa-clipboard-list"></i>
+                Change Requests
+            </div>
+            <div class="section-count" id="cr-count">0</div>
+        </div>
+        <div class="table-container">
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th>Number</th>
+                        <th>Description</th>
+                        <th>State</th>
+                        <th>Priority</th>
+                        <th>Assignment Group</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody id="cr-table">
+                    <tr>
+                        <td colspan="6" class="loading-state">
+                            <div class="loading-spinner"></div>
+                            Loading change requests...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Change Tasks Section -->
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">
+                <i class="fas fa-tasks"></i>
+                Change Tasks
+            </div>
+            <div class="section-count" id="ct-count">0</div>
+        </div>
+        <div class="table-container">
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th>Number</th>
+                        <th>Description</th>
+                        <th>State</th>
+                        <th>Change Request</th>
+                        <th>Assignment Group</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody id="ct-table">
+                    <tr>
+                        <td colspan="6" class="loading-state">
+                            <div class="loading-spinner"></div>
+                            Loading change tasks...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+console.log('Change Management Dashboard script loaded');
+
+function updateStatus(msg, type='info') {
+    console.log('Updating status:', msg, type);
+    const status = document.getElementById('status');
+    if (status) {
+        status.className = `alert alert-${type}`;
+        status.textContent = msg;
+    }
+}
+
+function renderTable(data, tableId, columns) {
+    console.log('Rendering table:', tableId, 'with', data?.length || 0, 'items');
+    const table = document.getElementById(tableId);
+    if (!table) {
+        console.error('Table element not found:', tableId);
+        return;
+    }
+    
+    if (!data || data.length === 0) {
+        table.innerHTML = `<tr><td colspan="${columns.length}" class="text-center text-muted">No data found</td></tr>`;
+        return;
+    }
+    
+    let html = '';
+    data.slice(0, 10).forEach(item => {
+        html += '<tr>';
+        columns.forEach(col => {
+            html += `<td>${item[col] || ''}</td>`;
+        });
+        html += '</tr>';
+    });
+    table.innerHTML = html;
+}
+
+function loadChangeData() {
+    console.log('Loading change data...');
+    updateStatus('Loading data...', 'info');
+    
+    fetch('/api/get_change_requests')
+        .then(response => {
+            console.log('API response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('API data received:', data);
+            
+            if (data.error) {
+                updateStatus('API Error: ' + data.error, 'danger');
+                return;
+            }
+            
+            // Update counts
+            const crCount = data.total_crs || 0;
+            const ctCount = data.total_tasks || 0;
+            
+            const crCountElement = document.getElementById('cr-count');
+            const ctCountElement = document.getElementById('ct-count');
+            
+            if (crCountElement) crCountElement.textContent = crCount;
+            if (ctCountElement) ctCountElement.textContent = ctCount;
+            
+            // Render tables
+            renderTable(data.change_requests, 'cr-table', ['number', 'short_description', 'state', 'priority', 'assignment_group']);
+            renderTable(data.change_tasks, 'ct-table', ['number', 'short_description', 'state', 'change_request', 'assignment_group']);
+            
+            updateStatus(`✅ Loaded ${crCount} change requests and ${ctCount} change tasks`, 'success');
+        })
+        .catch(error => {
+            console.error('API Error:', error);
+            updateStatus('❌ Error loading data: ' + error.message, 'danger');
+        });
+}
+
+// Multiple ways to ensure the function runs
+console.log('Setting up event listeners...');
+
+// Method 1: DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM Content Loaded - calling loadChangeData');
+    loadChangeData();
+});
+
+// Method 2: Window load (backup)
+window.addEventListener('load', function() {
+    console.log('Window loaded - calling loadChangeData as backup');
+    // Only call if status still shows "Loading data..."
+    const status = document.getElementById('status');
+    if (status && status.textContent.includes('Loading data...')) {
+        loadChangeData();
+    }
+});
+
+// Method 3: Immediate execution with delay (last resort)
+setTimeout(function() {
+    console.log('Timeout check - calling loadChangeData as last resort');
+    const status = document.getElementById('status');
+    if (status && status.textContent.includes('Loading data...')) {
+        console.log('Status still loading, forcing data load');
+        loadChangeData();
+    }
+}, 2000);
+
+console.log('Change Management Dashboard script setup complete');
+</script>
+{% endblock %}

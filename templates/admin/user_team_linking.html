@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}User-Team Member Linking - Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-link"></i> User-Team Member Linking Management</h2>
+                <button class="btn btn-primary" onclick="bulkAutoLink()">
+                    <i class="fas fa-magic"></i> Bulk Auto-Link (80%+ confidence)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Unlinked Team Members</h5>
+                    <h3 class="card-text">{{ unlinked_members|length }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Unlinked Users</h5>
+                    <h3 class="card-text">{{ unlinked_users|length }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">High Confidence Matches</h5>
+                    <h3 class="card-text">{{ potential_matches|selectattr('confidence', 'ge', 80)|list|length }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Review Required</h5>
+                    <h3 class="card-text">{{ potential_matches|selectattr('confidence', 'lt', 80)|selectattr('confidence', 'ge', 50)|list|length }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Potential Matches Section -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-search"></i> Suggested Matches</h5>
+                </div>
+                <div class="card-body">
+                    {% if potential_matches %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Team Member</th>
+                                    <th>Team Member Email</th>
+                                    <th>Suggested User</th>
+                                    <th>User Email</th>
+                                    <th>Confidence</th>
+                                    <th>Reason</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for match in potential_matches %}
+                                <tr id="row-{{ match.team_member.id }}">
+                                    <td><strong>{{ match.team_member.name }}</strong></td>
+                                    <td>{{ match.team_member.email or 'N/A' }}</td>
+                                    <td>
+                                        {% if match.suggested_user %}
+                                            {{ match.suggested_user.username }}
+                                        {% else %}
+                                            <em>No suggestion</em>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if match.suggested_user %}
+                                            {{ match.suggested_user.email }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if match.confidence >= 80 %}
+                                            <span class="badge badge-success">{{ match.confidence }}%</span>
+                                        {% elif match.confidence >= 50 %}
+                                            <span class="badge badge-warning">{{ match.confidence }}%</span>
+                                        {% else %}
+                                            <span class="badge badge-danger">{{ match.confidence }}%</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ match.reason or 'No match found' }}</td>
+                                    <td>
+                                        {% if match.suggested_user %}
+                                        <button class="btn btn-sm btn-success" 
+                                                onclick="linkUserTeam({{ match.suggested_user.id }}, {{ match.team_member.id }})">
+                                            <i class="fas fa-link"></i> Link
+                                        </button>
+                                        {% endif %}
+                                        <button class="btn btn-sm btn-secondary" 
+                                                onclick="showManualLinkModal({{ match.team_member.id }}, '{{ match.team_member.name }}')">
+                                            <i class="fas fa-cog"></i> Manual
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i> All team members are linked to users!
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual Linking Section -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-users"></i> Unlinked Team Members</h5>
+                </div>
+                <div class="card-body">
+                    {% if unlinked_members %}
+                    <div class="list-group">
+                        {% for tm in unlinked_members %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ tm.name }}</strong><br>
+                                <small class="text-muted">{{ tm.email or 'No email' }}</small>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary" 
+                                    onclick="showManualLinkModal({{ tm.id }}, '{{ tm.name }}')">
+                                <i class="fas fa-link"></i> Link
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">No unlinked team members found.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-user"></i> Unlinked Users</h5>
+                </div>
+                <div class="card-body">
+                    {% if unlinked_users %}
+                    <div class="list-group">
+                        {% for user in unlinked_users %}
+                        <div class="list-group-item">
+                            <strong>{{ user.username }}</strong><br>
+                            <small class="text-muted">{{ user.email }}</small><br>
+                            <small class="text-muted">Role: {{ user.role }}</small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">No unlinked users found.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Link Modal -->
+<div class="modal fade" id="manualLinkModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Manual Link User to Team Member</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="manualLinkForm">
+                    <input type="hidden" id="modalTeamMemberId">
+                    <div class="form-group">
+                        <label>Team Member:</label>
+                        <input type="text" class="form-control" id="modalTeamMemberName" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="modalUserId">Select User:</label>
+                        <select class="form-control" id="modalUserId" required>
+                            <option value="">Choose a user...</option>
+                            {% for user in unlinked_users %}
+                            <option value="{{ user.id }}">{{ user.username }} ({{ user.email }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitManualLink()">Link</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function linkUserTeam(userId, teamMemberId) {
+    if (!confirm('Are you sure you want to link this user to the team member?')) {
+        return;
+    }
+    
+    fetch('/admin/api/link-user-team', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            user_id: userId,
+            team_member_id: teamMemberId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Network error: ' + error);
+    });
+}
+
+function showManualLinkModal(teamMemberId, teamMemberName) {
+    document.getElementById('modalTeamMemberId').value = teamMemberId;
+    document.getElementById('modalTeamMemberName').value = teamMemberName;
+    document.getElementById('modalUserId').value = '';
+    $('#manualLinkModal').modal('show');
+}
+
+function submitManualLink() {
+    const teamMemberId = document.getElementById('modalTeamMemberId').value;
+    const userId = document.getElementById('modalUserId').value;
+    
+    if (!userId) {
+        alert('Please select a user');
+        return;
+    }
+    
+    linkUserTeam(userId, teamMemberId);
+    $('#manualLinkModal').modal('hide');
+}
+
+function bulkAutoLink() {
+    if (!confirm('This will automatically link all team members with 80%+ confidence matches. Continue?')) {
+        return;
+    }
+    
+    fetch('/admin/api/bulk-auto-link', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            min_confidence: 80
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            if (data.errors && data.errors.length > 0) {
+                console.log('Bulk link errors:', data.errors);
+            }
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Network error: ' + error);
+    });
+}
+</script>
+
+{% endblock %}

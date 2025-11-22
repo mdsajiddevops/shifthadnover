@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}Request Leave{% endblock %}
+
+{% block content %}
+<style>
+/* Modern Leave Request Styling */
+body {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif !important;
+    color: #2c3e50 !important;
+    min-height: 100vh;
+}
+
+.page-header {
+    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%) !important;
+    color: white !important;
+    padding: 2rem;
+    margin: 20px;
+    text-align: center;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.modern-form-card {
+    background: white !important;
+    border-radius: 25px !important;
+    padding: 3rem !important;
+    margin: 20px auto !important;
+    max-width: 800px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15) !important;
+    border: 1px solid #e9ecef !important;
+    position: relative;
+}
+
+.section-header {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #2c3e50;
+    margin: 2rem 0 1.5rem 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #f8f9fa;
+}
+
+.leave-type-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.leave-type-option {
+    background: #f8f9fa;
+    border: 2px solid #e9ecef;
+    border-radius: 15px;
+    padding: 20px 15px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.leave-type-option:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+    border-color: #667eea;
+}
+
+.leave-type-option.selected {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: #667eea;
+}
+
+.leave-type-option input[type="radio"] {
+    display: none;
+}
+
+.form-group {
+    margin-bottom: 2rem;
+}
+
+.form-label {
+    display: block;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 8px;
+    font-size: 1rem;
+}
+
+.form-control {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    background: #f8f9fa;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    background: white;
+}
+
+.shift-info {
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 8px;
+    font-size: 0.9rem;
+    color: #1565c0;
+}
+
+.btn-modern {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    padding: 15px 30px;
+    border: none;
+    border-radius: 25px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px;
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.btn-modern:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    color: white !important;
+    text-decoration: none;
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%) !important;
+}
+</style>
+
+<div class="page-header">
+    <h1 style="margin: 0; font-size: 2.5rem;">Request Leave</h1>
+    <p style="margin: 10px 0 0 0; font-size: 1.1rem; opacity: 0.9;">
+        Submit a leave request for approval by your team administrator
+    </p>
+</div>
+
+<div class="modern-form-card">
+    <form method="POST" id="leaveRequestForm">
+        <!-- Leave Type Selection -->
+        <div class="section-header">Leave Type</div>
+
+        <div class="leave-type-grid">
+            <div class="leave-type-option" onclick="selectLeaveType('sick', this)">
+                <input type="radio" name="leave_type" value="sick" id="sick">
+                <div style="font-weight: 600;">Sick Leave</div>
+                <div style="font-size: 0.8rem; opacity: 0.8;">Medical reasons (SL)</div>
+            </div>
+
+            <div class="leave-type-option" onclick="selectLeaveType('vacation', this)">
+                <input type="radio" name="leave_type" value="vacation" id="vacation">
+                <div style="font-weight: 600;">Vacation</div>
+                <div style="font-size: 0.8rem; opacity: 0.8;">Planned time off (VL)</div>
+            </div>
+
+            <div class="leave-type-option" onclick="selectLeaveType('personal', this)">
+                <input type="radio" name="leave_type" value="personal" id="personal">
+                <div style="font-weight: 600;">Casual Leave</div>
+                <div style="font-size: 0.8rem; opacity: 0.8;">Personal matters (CL)</div>
+            </div>
+
+            <div class="leave-type-option" onclick="selectLeaveType('emergency', this)">
+                <input type="radio" name="leave_type" value="emergency" id="emergency">
+                <div style="font-weight: 600;">Emergency</div>
+                <div style="font-size: 0.8rem; opacity: 0.8;">Urgent situations (CL)</div>
+            </div>
+
+            <div class="leave-type-option" onclick="selectLeaveType('family', this)">
+                <input type="radio" name="leave_type" value="family" id="family">
+                <div style="font-weight: 600;">Family Leave</div>
+                <div style="font-size: 0.8rem; opacity: 0.8;">Family obligations (CL)</div>
+            </div>
+
+            <div class="leave-type-option" onclick="selectLeaveType('other', this)">
+                <input type="radio" name="leave_type" value="other" id="other">
+                <div style="font-weight: 600;">Other Leave</div>
+                <div style="font-size: 0.8rem; opacity: 0.8;">Specify in reason (OL)</div>
+            </div>
+        </div>
+
+        <!-- Leave Details -->
+        <div class="section-header">Leave Details</div>
+
+        <div class="form-group">
+            <label class="form-label" for="leave_date">Leave Date</label>
+            <input type="date" id="leave_date" name="leave_date" class="form-control" required onchange="fetchUserShift()">
+            <div id="date-info" class="shift-info" style="display: none;">
+                <span id="date-info-text"></span>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="shift_code">Shift to Miss</label>
+            <select id="shift_code" name="shift_code" class="form-control" required>
+                <option value="">Select date first to auto-populate shift</option>
+                <option value="D">Day Shift (D)</option>
+                <option value="E">Evening Shift (E)</option>
+                <option value="N">Night Shift (N)</option>
+                <option value="OS">On-Site (OS)</option>
+                <option value="OF">Off Duty (OF)</option>
+                <option value="O">Week Off (O)</option>
+            </select>
+            <div id="shift-info" class="shift-info" style="display: none;">
+                <span id="shift-info-text"></span>
+            </div>
+        </div>
+
+        <!-- Reason -->
+        <div class="section-header">Reason for Leave</div>
+
+        <div class="form-group">
+            <textarea id="reason" name="reason" class="form-control"
+                      placeholder="Please explain your reason for leave..."
+                      rows="4"></textarea>
+        </div>
+
+        <!-- Buttons -->
+        <div style="text-align: center; margin-top: 3rem;">
+            <button type="submit" class="btn-modern">Submit Leave Request</button>
+            <a href="{{ url_for('shift_swap_leave.dashboard') }}" class="btn-modern btn-secondary">Back to Dashboard</a>
+        </div>
+    </form>
+</div>
+
+<script>
+function selectLeaveType(type, element) {
+    document.querySelectorAll('.leave-type-option').forEach(opt => {
+        opt.classList.remove('selected');
+    });
+    element.classList.add('selected');
+    document.getElementById(type).checked = true;
+}
+
+async function fetchUserShift() {
+    const dateInput = document.getElementById('leave_date');
+    const shiftSelect = document.getElementById('shift_code');
+    const shiftInfo = document.getElementById('shift-info');
+    const shiftInfoText = document.getElementById('shift-info-text');
+    const dateInfo = document.getElementById('date-info');
+    const dateInfoText = document.getElementById('date-info-text');
+    
+    const selectedDate = dateInput.value;
+    
+    if (!selectedDate) {
+        shiftSelect.innerHTML = '<option value="">Select date first to auto-populate shift</option>';
+        shiftInfo.style.display = 'none';
+        dateInfo.style.display = 'none';
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/shift-management/api/user-shift/${selectedDate}`);
+        const data = await response.json();
+        
+        if (data.success && data.shift) {
+            shiftSelect.value = data.shift.code;
+            shiftInfoText.textContent = `Your scheduled shift: ${data.shift.name} (${data.shift.code})`;
+            shiftInfo.style.display = 'block';
+            
+            const dateObj = new Date(selectedDate);
+            const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+            dateInfoText.textContent = `${dayName}, ${dateObj.toLocaleDateString()}`;
+            dateInfo.style.display = 'block';
+        } else {
+            shiftInfoText.textContent = 'No shift scheduled. Please select manually.';
+            shiftInfo.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        shiftInfoText.textContent = 'Error loading shift. Please select manually.';
+        shiftInfo.style.display = 'block';
+    }
+}
+
+document.getElementById('leaveRequestForm').addEventListener('submit', function(e) {
+    const leaveType = document.querySelector('input[name="leave_type"]:checked');
+    const leaveDate = document.getElementById('leave_date').value;
+    const shiftCode = document.getElementById('shift_code').value;
+
+    if (!leaveType || !leaveDate || !shiftCode) {
+        e.preventDefault();
+        alert('Please fill all required fields');
+        return;
+    }
+
+    const selectedDate = new Date(leaveDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (selectedDate < today) {
+        e.preventDefault();
+        alert('Cannot request leave for past dates');
+        return;
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('leave_date').setAttribute('min', today);
+});
+</script>
+
+{% endblock %}

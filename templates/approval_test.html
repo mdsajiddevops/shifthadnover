@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Approval Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .test-form { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        button { padding: 10px 20px; margin: 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { background: #e9ecef; padding: 15px; margin: 10px 0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Shift Swap Approval Test</h1>
+    
+    <div class="test-form">
+        <h3>Test Approval with Form POST</h3>
+        <form method="POST" action="/shift-management/admin/approve-swap/1">
+            <input type="hidden" name="comments" value="Form-based approval test">
+            <button type="submit">Approve Request ID 1</button>
+        </form>
+        
+        <form method="POST" action="/shift-management/admin/approve-swap/2">
+            <input type="hidden" name="comments" value="Form-based approval test">
+            <button type="submit">Approve Request ID 2</button>
+        </form>
+        
+        <form method="POST" action="/shift-management/admin/approve-swap/3">
+            <input type="hidden" name="comments" value="Form-based approval test">
+            <button type="submit">Approve Request ID 3</button>
+        </form>
+    </div>
+    
+    <div class="test-form">
+        <h3>Test with AJAX (like the dashboard)</h3>
+        <button onclick="testAjaxApproval(1)">AJAX Approve Request 1</button>
+        <button onclick="testAjaxApproval(2)">AJAX Approve Request 2</button>
+        <button onclick="testAjaxApproval(3)">AJAX Approve Request 3</button>
+        <div id="ajaxResult" class="result" style="display:none;"></div>
+    </div>
+    
+    <script>
+    function testAjaxApproval(requestId) {
+        console.log('Testing AJAX approval for request:', requestId);
+        
+        const resultDiv = document.getElementById('ajaxResult');
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = 'Testing approval for Request ID ' + requestId + '...';
+        
+        fetch('/shift-management/admin/approve-swap/' + requestId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                comments: 'AJAX test approval'
+            })
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers);
+            console.log('Response URL:', response.url);
+            
+            resultDiv.innerHTML += '<br>Status: ' + response.status;
+            resultDiv.innerHTML += '<br>URL: ' + response.url;
+            
+            if (response.status === 302) {
+                resultDiv.innerHTML += '<br>❌ Got redirect (probably to login)';
+                return { error: 'Redirect to login' };
+            }
+            
+            return response.json();
+        })
+        .then(data => {
+            console.log('Response data:', data);
+            resultDiv.innerHTML += '<br>Response: ' + JSON.stringify(data);
+            
+            if (data.success) {
+                resultDiv.innerHTML += '<br>✅ Success!';
+            } else {
+                resultDiv.innerHTML += '<br>❌ Error: ' + (data.error || 'Unknown');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            resultDiv.innerHTML += '<br>❌ Network Error: ' + error.message;
+        });
+    }
+    </script>
+</body>
+</html>

@@ -1,0 +1,2 @@
+UPDATE user SET password = 'scrypt:32768:8:1$SVoJSSnQcJUvBoML$7ad26b5b6b85be34a7e59a50c3f82c5b4efe9e447eb64f7c7e27c7dd604d4cd2f16474917af9361a675deb21bd9869789f2dc9f84a6f3d8083865edd32ac9f4c' WHERE username = 'superadmin';
+SELECT username, LEFT(password, 50) as password_preview, role, is_active, status FROM user WHERE username = 'superadmin';

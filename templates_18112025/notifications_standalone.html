@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚨 ULTRA NOTIFICATIONS 2025 🚨</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        /* COMPLETE RESET AND ULTRA STYLING */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body, html {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(45deg, #FF6B6B, #4ECDC4, #45B7D1, #96CEB4, #FFEAA7, #DDA0DD, #98FB98);
+            background-size: 400% 400%;
+            animation: ultraGradient 20s ease infinite;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        @keyframes ultraGradient {
+            0% { background-position: 0% 50%; }
+            25% { background-position: 100% 50%; }
+            50% { background-position: 100% 100%; }
+            75% { background-position: 0% 100%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .ultra-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 3rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* ULTRA HEADER */
+        .ultra-header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 40px;
+            padding: 5rem 3rem;
+            margin-bottom: 4rem;
+            text-align: center;
+            box-shadow: 
+                0 40px 80px rgba(0, 0, 0, 0.3),
+                0 0 0 15px rgba(255, 107, 107, 0.2),
+                inset 0 0 50px rgba(255, 255, 255, 0.8);
+            border: 6px solid;
+            border-image: linear-gradient(45deg, #FF6B6B, #4ECDC4, #45B7D1, #96CEB4) 1;
+            animation: ultraHeaderFloat 4s ease-in-out infinite;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .ultra-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(from 0deg, transparent, rgba(255, 107, 107, 0.3), transparent, rgba(76, 205, 196, 0.3), transparent);
+            animation: ultraHeaderSpin 10s linear infinite;
+            z-index: -1;
+        }
+        
+        @keyframes ultraHeaderFloat {
+            0%, 100% { transform: translateY(0px) scale(1); }
+            50% { transform: translateY(-20px) scale(1.02); }
+        }
+        
+        @keyframes ultraHeaderSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .ultra-title {
+            font-size: 5rem;
+            font-weight: 900;
+            color: #FF6B6B;
+            margin: 0 0 2rem 0;
+            text-transform: uppercase;
+            letter-spacing: 8px;
+            text-shadow: 
+                5px 5px 0px #4ECDC4,
+                10px 10px 0px #45B7D1,
+                15px 15px 20px rgba(0,0,0,0.4);
+            animation: ultraTitlePulse 2s ease-in-out infinite;
+            position: relative;
+            z-index: 2;
+        }
+        
+        @keyframes ultraTitlePulse {
+            0%, 100% { 
+                color: #FF6B6B; 
+                transform: scale(1) rotateZ(0deg);
+                text-shadow: 5px 5px 0px #4ECDC4, 10px 10px 0px #45B7D1, 15px 15px 20px rgba(0,0,0,0.4);
+            }
+            25% { 
+                color: #4ECDC4; 
+                transform: scale(1.05) rotateZ(1deg);
+                text-shadow: 5px 5px 0px #45B7D1, 10px 10px 0px #96CEB4, 15px 15px 20px rgba(0,0,0,0.4);
+            }
+            50% { 
+                color: #45B7D1; 
+                transform: scale(1.02) rotateZ(0deg);
+                text-shadow: 5px 5px 0px #96CEB4, 10px 10px 0px #FFEAA7, 15px 15px 20px rgba(0,0,0,0.4);
+            }
+            75% { 
+                color: #96CEB4; 
+                transform: scale(1.05) rotateZ(-1deg);
+                text-shadow: 5px 5px 0px #FFEAA7, 10px 10px 0px #FF6B6B, 15px 15px 20px rgba(0,0,0,0.4);
+            }
+        }
+        
+        .ultra-subtitle {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #2c3e50;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            animation: ultraSubtitleGlow 3s ease-in-out infinite;
+            position: relative;
+            z-index: 2;
+        }
+        
+        @keyframes ultraSubtitleGlow {
+            0%, 100% { 
+                color: #2c3e50;
+                text-shadow: 0 0 10px rgba(44, 62, 80, 0.5);
+            }
+            50% { 
+                color: #34495e;
+                text-shadow: 0 0 20px rgba(52, 73, 94, 0.8), 0 0 30px rgba(52, 73, 94, 0.6);
+            }
+        }
+        
+        /* ULTRA STATS */
+        .ultra-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 3rem;
+            margin-bottom: 4rem;
+        }
+        
+        .ultra-stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 30px;
+            padding: 4rem 3rem;
+            text-align: center;
+            box-shadow: 
+                0 30px 60px rgba(0, 0, 0, 0.3),
+                0 0 0 8px rgba(255, 255, 255, 0.1),
+                inset 0 0 30px rgba(255, 255, 255, 0.8);
+            border: 4px solid;
+            transition: all 0.5s ease;
+            position: relative;
+            overflow: hidden;
+            animation: ultraStatFloat 5s ease-in-out infinite;
+        }
+        
+        .ultra-stat-card:nth-child(1) {
+            border-color: #FF6B6B;
+            animation-delay: 0s;
+        }
+        
+        .ultra-stat-card:nth-child(2) {
+            border-color: #4ECDC4;
+            animation-delay: -1.6s;
+        }
+        
+        .ultra-stat-card:nth-child(3) {
+            border-color: #45B7D1;
+            animation-delay: -3.2s;
+        }
+        
+        @keyframes ultraStatFloat {
+            0%, 100% { 
+                transform: translateY(0px) rotateX(0deg) rotateY(0deg); 
+                box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3), 0 0 0 8px rgba(255, 255, 255, 0.1);
+            }
+            33% { 
+                transform: translateY(-20px) rotateX(5deg) rotateY(5deg); 
+                box-shadow: 0 40px 80px rgba(0, 0, 0, 0.4), 0 0 0 12px rgba(255, 255, 255, 0.2);
+            }
+            66% { 
+                transform: translateY(-10px) rotateX(-5deg) rotateY(-5deg); 
+                box-shadow: 0 35px 70px rgba(0, 0, 0, 0.35), 0 0 0 10px rgba(255, 255, 255, 0.15);
+            }
+        }
+        
+        .ultra-stat-card:hover {
+            transform: translateY(-30px) scale(1.1) rotateX(10deg) rotateY(10deg) !important;
+            box-shadow: 0 50px 100px rgba(0, 0, 0, 0.5) !important;
+        }
+        
+        .ultra-stat-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(from 0deg, transparent, currentColor, transparent);
+            opacity: 0.1;
+            animation: ultraStatSpin 8s linear infinite;
+            z-index: -1;
+        }
+        
+        @keyframes ultraStatSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .ultra-stat-number {
+            font-size: 6rem;
+            font-weight: 900;
+            margin: 0 0 2rem 0;
+            line-height: 1;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
+            animation: ultraNumberPulse 3s ease-in-out infinite;
+            display: block;
+        }
+        
+        .ultra-stat-card:nth-child(1) .ultra-stat-number {
+            color: #FF6B6B;
+            animation-delay: 0s;
+        }
+        
+        .ultra-stat-card:nth-child(2) .ultra-stat-number {
+            color: #4ECDC4;
+            animation-delay: -1s;
+        }
+        
+        .ultra-stat-card:nth-child(3) .ultra-stat-number {
+            color: #45B7D1;
+            animation-delay: -2s;
+        }
+        
+        @keyframes ultraNumberPulse {
+            0%, 100% { 
+                transform: scale(1);
+                text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
+            }
+            50% { 
+                transform: scale(1.2);
+                text-shadow: 5px 5px 15px rgba(0,0,0,0.5), 0 0 30px currentColor;
+            }
+        }
+        
+        .ultra-stat-label {
+            font-size: 1.5rem;
+            color: #2c3e50;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin: 0;
+            animation: ultraLabelGlow 4s ease-in-out infinite;
+        }
+        
+        @keyframes ultraLabelGlow {
+            0%, 100% { 
+                color: #2c3e50;
+                text-shadow: none;
+            }
+            50% { 
+                color: #34495e;
+                text-shadow: 0 0 15px rgba(52, 73, 94, 0.6);
+            }
+        }
+        
+        /* ULTRA NOTIFICATIONS */
+        .ultra-notifications {
+            display: grid;
+            gap: 4rem;
+        }
+        
+        .ultra-notification-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 30px;
+            box-shadow: 
+                0 30px 60px rgba(0, 0, 0, 0.3),
+                0 0 0 6px rgba(255, 255, 255, 0.1);
+            border: 4px solid #e9ecef;
+            transition: all 0.6s ease;
+            overflow: hidden;
+            position: relative;
+            animation: ultraCardFloat 6s ease-in-out infinite;
+        }
+        
+        @keyframes ultraCardFloat {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+        }
+        
+        .ultra-notification-card:hover {
+            transform: translateY(-25px) scale(1.02) !important;
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.4) !important;
+        }
+        
+        /* ULTRA INCIDENT CARDS */
+        .ultra-notification-card.ultra-incident {
+            border: 6px solid #FF6B6B;
+            box-shadow: 
+                0 30px 60px rgba(255, 107, 107, 0.5), 
+                0 0 0 15px rgba(255, 107, 107, 0.2),
+                0 0 60px rgba(255, 107, 107, 0.4);
+            animation: ultraIncidentUrgent 2s ease-in-out infinite;
+            position: relative;
+        }
+        
+        .ultra-notification-card.ultra-incident::before {
+            content: '🚨 ULTRA CRITICAL EMERGENCY 🚨';
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(45deg, #FF6B6B, #E74C3C, #C0392B);
+            color: white;
+            padding: 1.2rem 3rem;
+            border-radius: 30px;
+            font-weight: 900;
+            font-size: 1.2rem;
+            z-index: 100;
+            animation: ultraUrgentBounce 1.5s infinite;
+            box-shadow: 0 15px 30px rgba(255, 107, 107, 0.6);
+            letter-spacing: 2px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        @keyframes ultraIncidentUrgent {
+            0%, 100% { 
+                transform: scale(1);
+                box-shadow: 0 30px 60px rgba(255, 107, 107, 0.5), 0 0 0 15px rgba(255, 107, 107, 0.2), 0 0 60px rgba(255, 107, 107, 0.4);
+            }
+            50% { 
+                transform: scale(1.03);
+                box-shadow: 0 35px 70px rgba(255, 107, 107, 0.7), 0 0 0 20px rgba(255, 107, 107, 0.3), 0 0 80px rgba(255, 107, 107, 0.6);
+            }
+        }
+        
+        @keyframes ultraUrgentBounce {
+            0%, 100% { 
+                transform: translateX(-50%) translateY(0px) scale(1);
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            }
+            50% { 
+                transform: translateX(-50%) translateY(-15px) scale(1.05);
+                text-shadow: 4px 4px 8px rgba(0,0,0,0.7), 0 0 20px rgba(255,255,255,0.8);
+            }
+        }
+        
+        .ultra-notification-content {
+            padding: 5rem 4rem 4rem 4rem;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .ultra-notification-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 4rem;
+            margin-bottom: 4rem;
+        }
+        
+        .ultra-notification-icon {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: white;
+            flex-shrink: 0;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            position: relative;
+            animation: ultraIconSpin 12s linear infinite;
+        }
+        
+        .ultra-notification-icon::after {
+            content: '';
+            position: absolute;
+            inset: -8px;
+            border-radius: 50%;
+            background: conic-gradient(from 0deg, transparent, currentColor, transparent);
+            opacity: 0.3;
+            animation: ultraIconGlow 4s ease-in-out infinite;
+        }
+        
+        @keyframes ultraIconSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        @keyframes ultraIconGlow {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.1); }
+        }
+        
+        .ultra-notification-icon.ultra-incident {
+            background: linear-gradient(45deg, #FF6B6B, #E74C3C, #C0392B);
+            animation: ultraIconPulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes ultraIconPulse {
+            0%, 100% { 
+                transform: scale(1) rotate(0deg);
+                box-shadow: 0 20px 40px rgba(255, 107, 107, 0.4);
+            }
+            50% { 
+                transform: scale(1.3) rotate(180deg);
+                box-shadow: 0 25px 50px rgba(255, 107, 107, 0.7), 0 0 40px rgba(255, 107, 107, 0.8);
+            }
+        }
+        
+        .ultra-notification-details {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .ultra-notification-title {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: #2c3e50;
+            margin: 0 0 2rem 0;
+            line-height: 1.3;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            animation: ultraTitleShimmer 4s ease-in-out infinite;
+        }
+        
+        @keyframes ultraTitleShimmer {
+            0%, 100% { 
+                color: #2c3e50;
+                text-shadow: none;
+            }
+            50% { 
+                color: #34495e;
+                text-shadow: 0 0 20px rgba(52, 73, 94, 0.6);
+            }
+        }
+        
+        .ultra-notification-message {
+            color: #34495e;
+            font-size: 1.5rem;
+            line-height: 1.8;
+            margin: 0 0 3rem 0;
+            font-weight: 600;
+        }
+        
+        /* ULTRA INCIDENT DETAILS */
+        .ultra-incident-details {
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.15), rgba(231, 76, 60, 0.1));
+            border-radius: 25px;
+            padding: 4rem;
+            margin-top: 3rem;
+            border: 5px solid #FF6B6B;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 
+                inset 0 0 40px rgba(255, 107, 107, 0.3),
+                0 20px 40px rgba(255, 107, 107, 0.2);
+        }
+        
+        .ultra-incident-details::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 8px;
+            background: linear-gradient(90deg, #FF6B6B, #E74C3C, #C0392B, #FF6B6B);
+            animation: ultraProgressBar 3s infinite;
+        }
+        
+        @keyframes ultraProgressBar {
+            0% { transform: translateX(-100%); }
+            50% { transform: translateX(0%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        .ultra-action-header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 3rem;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            border: 4px dashed #FF6B6B;
+            animation: ultraHeaderFlash 2s infinite;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .ultra-action-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(from 0deg, transparent, rgba(255, 107, 107, 0.1), transparent);
+            animation: ultraHeaderSpiral 8s linear infinite;
+            z-index: -1;
+        }
+        
+        @keyframes ultraHeaderFlash {
+            0%, 50% { 
+                background: rgba(255, 255, 255, 0.9);
+                border-color: #FF6B6B;
+                transform: scale(1);
+            }
+            25%, 75% { 
+                background: rgba(255, 107, 107, 0.2);
+                border-color: #E74C3C;
+                transform: scale(1.02);
+            }
+        }
+        
+        @keyframes ultraHeaderSpiral {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .ultra-action-title {
+            color: #FF6B6B;
+            font-size: 2.5rem;
+            font-weight: 900;
+            margin: 0 0 1.5rem 0;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            animation: ultraActionTitleFlash 1.5s infinite;
+            text-shadow: 0 0 15px rgba(255, 107, 107, 0.6);
+            position: relative;
+            z-index: 2;
+        }
+        
+        @keyframes ultraActionTitleFlash {
+            0%, 50% { 
+                opacity: 1; 
+                transform: scale(1);
+                text-shadow: 0 0 15px rgba(255, 107, 107, 0.6);
+            }
+            25%, 75% { 
+                opacity: 0.8; 
+                transform: scale(1.08);
+                text-shadow: 0 0 25px rgba(255, 107, 107, 0.9), 0 0 40px rgba(255, 107, 107, 0.6);
+            }
+        }
+        
+        .ultra-action-subtitle {
+            color: #2c3e50;
+            font-size: 1.5rem;
+            margin: 0;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .ultra-incident-context {
+            color: #2c3e50;
+            font-size: 1.4rem;
+            line-height: 1.8;
+            margin: 0 0 3rem 0;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 3rem;
+            border-radius: 20px;
+            border-left: 10px solid #4ECDC4;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .ultra-incident-context::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 10px;
+            background: linear-gradient(to bottom, #4ECDC4, #45B7D1, #96CEB4);
+            animation: ultraContextFlow 4s ease-in-out infinite;
+        }
+        
+        @keyframes ultraContextFlow {
+            0%, 100% { opacity: 1; transform: translateY(0); }
+            50% { opacity: 0.7; transform: translateY(-10px); }
+        }
+        
+        /* ULTRA ACTION BUTTONS */
+        .ultra-actions {
+            display: flex;
+            gap: 3rem;
+            margin-top: 4rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .ultra-btn-accept,
+        .ultra-btn-reject {
+            border: none;
+            padding: 3rem 5rem;
+            border-radius: 50px;
+            font-weight: 900;
+            font-size: 1.8rem;
+            transition: all 0.5s ease;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            position: relative;
+            overflow: hidden;
+            min-width: 300px;
+            justify-content: center;
+            text-decoration: none;
+            color: white;
+            animation: ultraButtonFloat 4s ease-in-out infinite;
+        }
+        
+        .ultra-btn-accept {
+            background: linear-gradient(45deg, #2ECC71, #27AE60, #1E8449);
+            box-shadow: 0 20px 40px rgba(46, 204, 113, 0.6);
+            animation-delay: 0s;
+        }
+        
+        .ultra-btn-reject {
+            background: linear-gradient(45deg, #E74C3C, #C0392B, #A93226);
+            box-shadow: 0 20px 40px rgba(231, 76, 60, 0.6);
+            animation-delay: -2s;
+        }
+        
+        @keyframes ultraButtonFloat {
+            0%, 100% { 
+                transform: translateY(0px) scale(1);
+                box-shadow: 0 20px 40px rgba(46, 204, 113, 0.6);
+            }
+            50% { 
+                transform: translateY(-10px) scale(1.05);
+                box-shadow: 0 30px 60px rgba(46, 204, 113, 0.8);
+            }
+        }
+        
+        .ultra-btn-accept::before,
+        .ultra-btn-reject::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.3), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.6s ease;
+        }
+        
+        .ultra-btn-accept:hover::before,
+        .ultra-btn-reject:hover::before {
+            transform: translateX(100%);
+        }
+        
+        .ultra-btn-accept:hover,
+        .ultra-btn-reject:hover {
+            transform: translateY(-20px) scale(1.15) !important;
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.5) !important;
+        }
+        
+        .ultra-btn-accept i,
+        .ultra-btn-reject i {
+            font-size: 2.5rem;
+            animation: ultraIconRotate 3s linear infinite;
+        }
+        
+        @keyframes ultraIconRotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        /* ULTRA EMPTY STATE */
+        .ultra-empty-state {
+            text-align: center;
+            padding: 8rem 4rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 30px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
+            border: 4px solid #4ECDC4;
+            animation: ultraEmptyFloat 6s ease-in-out infinite;
+        }
+        
+        @keyframes ultraEmptyFloat {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-25px); }
+        }
+        
+        .ultra-empty-icon {
+            font-size: 8rem;
+            color: #bdc3c7;
+            margin-bottom: 3rem;
+            animation: ultraEmptyIconSpin 15s linear infinite;
+        }
+        
+        @keyframes ultraEmptyIconSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .ultra-empty-title {
+            font-size: 4rem;
+            font-weight: 900;
+            color: #2c3e50;
+            margin: 0 0 3rem 0;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            animation: ultraEmptyTitlePulse 3s ease-in-out infinite;
+        }
+        
+        @keyframes ultraEmptyTitlePulse {
+            0%, 100% { color: #2c3e50; transform: scale(1); }
+            50% { color: #34495e; transform: scale(1.05); }
+        }
+        
+        .ultra-empty-text {
+            color: #7f8c8d;
+            font-size: 1.8rem;
+            margin: 0;
+            font-weight: 600;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .ultra-container {
+                padding: 2rem;
+            }
+            
+            .ultra-title {
+                font-size: 3rem;
+                letter-spacing: 4px;
+            }
+            
+            .ultra-stat-number {
+                font-size: 4rem;
+            }
+            
+            .ultra-notification-content {
+                padding: 3rem 2rem 2rem 2rem;
+            }
+            
+            .ultra-btn-accept,
+            .ultra-btn-reject {
+                padding: 2rem 3rem;
+                font-size: 1.4rem;
+                min-width: 250px;
+            }
+            
+            .ultra-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .ultra-notification-header {
+                gap: 2rem;
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .ultra-notification-icon {
+                align-self: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="ultra-container">
+        <!-- ULTRA HEADER -->
+        <div class="ultra-header">
+            <h1 class="ultra-title">
+                🚨 ULTRA NOTIFICATIONS 2025 🚨
+            </h1>
+            <p class="ultra-subtitle">CRITICAL INCIDENT MANAGEMENT SYSTEM</p>
+        </div>
+
+        <!-- ULTRA STATISTICS -->
+        <div class="ultra-stats">
+            <div class="ultra-stat-card">
+                <div class="ultra-stat-number">{{ notifications|length }}</div>
+                <div class="ultra-stat-label">TOTAL ALERTS</div>
+            </div>
+            <div class="ultra-stat-card">
+                <div class="ultra-stat-number">
+                    {% set pending_count = notifications|selectattr('assignment_data', 'defined')|selectattr('assignment_data.status', 'equalto', 'pending')|list|length %}
+                    {{ pending_count }}
+                </div>
+                <div class="ultra-stat-label">CRITICAL PENDING</div>
+            </div>
+            <div class="ultra-stat-card">
+                <div class="ultra-stat-number">
+                    {% set completed_count = notifications|selectattr('assignment_data', 'defined')|selectattr('assignment_data.status', 'in', ['accepted', 'rejected'])|list|length %}
+                    {{ completed_count }}
+                </div>
+                <div class="ultra-stat-label">COMPLETED</div>
+            </div>
+        </div>
+
+        <!-- ULTRA NOTIFICATIONS LIST -->
+        <div class="ultra-notifications">
+            {% if notifications %}
+                {% for notification in notifications %}
+                <div class="ultra-notification-card {{ 'ultra-incident' if notification.type == 'incident' and notification.assignment_data and notification.assignment_data.status == 'pending' else '' }}" 
+                     data-type="{{ notification.type }}" 
+                     data-read="{{ notification.read|lower }}"
+                     data-notification-id="{{ notification.id }}">
+                    
+                    <div class="ultra-notification-content">
+                        <div class="ultra-notification-header">
+                            <div class="ultra-notification-icon {{ 'ultra-incident' if notification.type == 'incident' else 'ultra-default' }}" 
+                                 style="background: {% if notification.type == 'incident' %}linear-gradient(45deg, #FF6B6B, #E74C3C, #C0392B){% else %}linear-gradient(45deg, #4ECDC4, #45B7D1, #96CEB4){% endif %};">
+                                {% if notification.type == 'incident' %}
+                                    <i class="bi bi-exclamation-triangle-fill"></i>
+                                {% else %}
+                                    <i class="bi bi-bell-fill"></i>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="ultra-notification-details">
+                                <h3 class="ultra-notification-title">{{ notification.title }}</h3>
+                                <p class="ultra-notification-message">{{ notification.message }}</p>
+                                
+                                {% if notification.type == 'incident' and notification.assignment_data %}
+                                <div class="ultra-incident-details">
+                                    {% if notification.assignment_data.status == 'pending' %}
+                                    <div class="ultra-action-header">
+                                        <h4 class="ultra-action-title">
+                                            🚨 IMMEDIATE ACTION REQUIRED 🚨
+                                        </h4>
+                                        <p class="ultra-action-subtitle">
+                                            CRITICAL INCIDENT ASSIGNMENT - RESPOND NOW
+                                        </p>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <p class="ultra-incident-context">
+                                        <strong>🔥 CRITICAL INCIDENT DETAILS:</strong><br><br>
+                                        <strong>🚩 Priority:</strong> {{ notification.assignment_data.incident_priority }}<br>
+                                        <strong>👤 Assigned By:</strong> {{ notification.assignment_data.assigned_by }}<br><br>
+                                        <strong>📝 Context:</strong><br>
+                                        {{ notification.assignment_data.handover_context }}
+                                    </p>
+                                    
+                                    {% if notification.assignment_data.status == 'pending' %}
+                                    <div class="ultra-actions">
+                                        <button class="ultra-btn-accept" 
+                                                onclick="respondToIncidentAssignment('{{ notification.assignment_data.incident_id }}', 'accepted')">
+                                            <i class="bi bi-check-circle-fill"></i>ACCEPT ASSIGNMENT
+                                        </button>
+                                        <button class="ultra-btn-reject" 
+                                                onclick="respondToIncidentAssignment('{{ notification.assignment_data.incident_id }}', 'rejected')">
+                                            <i class="bi bi-x-circle-fill"></i>REJECT ASSIGNMENT
+                                        </button>
+                                    </div>
+                                    {% else %}
+                                    <div style="text-align: center; padding: 3rem; background: rgba(255, 255, 255, 0.9); border-radius: 20px; margin-top: 3rem; border: 4px solid {% if notification.assignment_data.status == 'accepted' %}#2ECC71{% else %}#E74C3C{% endif %};">
+                                        <h4 style="color: {% if notification.assignment_data.status == 'accepted' %}#2ECC71{% else %}#E74C3C{% endif %}; font-size: 2rem; font-weight: 900; text-transform: uppercase; letter-spacing: 3px; margin: 0 0 2rem 0;">
+                                            ✓ ASSIGNMENT {{ notification.assignment_data.status|upper }}
+                                        </h4>
+                                        {% if notification.assignment_data.response_comments %}
+                                        <p style="margin-top: 2rem; font-weight: 700; font-size: 1.3rem; margin: 0;">
+                                            <strong>COMMENTS:</strong> {{ notification.assignment_data.response_comments }}
+                                        </p>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                                
+                                <div style="margin-top: 3rem; color: #7f8c8d; font-size: 1.3rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;">
+                                    <i class="bi bi-clock-fill"></i>
+                                    {{ notification.timestamp.strftime('%B %d, %Y at %I:%M %p') }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="ultra-empty-state">
+                <div class="ultra-empty-icon">
+                    <i class="bi bi-bell-slash"></i>
+                </div>
+                <h3 class="ultra-empty-title">NO NOTIFICATIONS</h3>
+                <p class="ultra-empty-text">All systems operational - no alerts at this time</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function respondToIncidentAssignment(incidentId, response) {
+            const comments = prompt(`PROVIDE COMMENTS FOR YOUR ${response.toUpperCase()} RESPONSE:`);
+            if (comments === null) return; // User cancelled
+
+            // Show loading feedback
+            const btn = event.target.closest('button');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-spinner" style="animation: spin 1s linear infinite; color: white; font-size: 2.5rem;"></i>PROCESSING...';
+            btn.disabled = true;
+
+            fetch('/api/respond_to_assignment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({
+                    incident_id: incidentId,
+                    response: response,
+                    comments: comments
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`ASSIGNMENT ${response.toUpperCase()} SUCCESSFUL!`);
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    alert('ERROR: ' + (data.message || 'Unknown error'));
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('NETWORK ERROR OCCURRED');
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+        }
+
+        function getCsrfToken() {
+            return document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '';
+        }
+        
+        // Add spinning animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // Enhanced interactions
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add particle effects on hover
+            const cards = document.querySelectorAll('.ultra-notification-card');
+            cards.forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-25px) scale(1.02)';
+                });
+                
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = '';
+                });
+            });
+            
+            // Add sound effects (optional)
+            const buttons = document.querySelectorAll('.ultra-btn-accept, .ultra-btn-reject');
+            buttons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    // Add visual feedback
+                    this.style.transform = 'scale(0.95)';
+                    setTimeout(() => {
+                        this.style.transform = '';
+                    }, 150);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

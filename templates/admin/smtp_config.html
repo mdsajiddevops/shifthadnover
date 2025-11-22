@@ -1,0 +1,487 @@
+{% extends "base.html" %}
+
+{% block title %}SMTP Configuration - Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">📧 SMTP Configuration</h2>
+                    <p class="text-muted mb-0">Manage email server settings for application notifications</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('admin_secrets.secrets_dashboard') }}" class="btn btn-outline-secondary me-2">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </a>
+                    <button class="btn btn-success" onclick="testSMTPConnection()">
+                        <i class="fas fa-envelope"></i> Test Connection
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Section -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-info-circle"></i> Configuration Status
+                    </h5>
+                    <div class="d-flex align-items-center">
+                        {% if smtp_status %}
+                            <span class="badge bg-success me-2">CONFIGURED</span>
+                            <span class="text-success">SMTP is properly configured and ready to use</span>
+                        {% else %}
+                            <span class="badge bg-warning me-2">NOT CONFIGURED</span>
+                            <span class="text-warning">SMTP configuration is incomplete or disabled</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-cog"></i> Quick Actions
+                    </h5>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-outline-primary btn-sm" onclick="initializeDefaults()">
+                            <i class="fas fa-magic"></i> Initialize Defaults
+                        </button>
+                        <button class="btn btn-outline-info btn-sm" onclick="loadConfigs()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration Form -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-edit"></i> SMTP Settings
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="smtpConfigForm">
+                        {% for group_name, config_keys in config_groups.items() %}
+                        <div class="config-group mb-4">
+                            <h6 class="text-primary mb-3">
+                                <i class="fas fa-folder"></i> {{ group_name }}
+                            </h6>
+                            <div class="row">
+                                {% for config_key in config_keys %}
+                                <div class="col-md-6 mb-3">
+                                    <div class="config-item" data-key="{{ config_key }}">
+                                        <label class="form-label fw-bold">{{ config_key.replace('_', ' ').title() }}</label>
+                                        {% if config_key == 'smtp_password' %}
+                                        <div class="input-group">
+                                            <input type="password" class="form-control config-input" 
+                                                   id="{{ config_key }}" name="{{ config_key }}" 
+                                                   placeholder="Enter {{ config_key.replace('_', ' ') }}">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('{{ config_key }}')">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                        {% elif config_key in ['smtp_use_tls', 'smtp_use_ssl', 'smtp_enabled'] %}
+                                        <select class="form-select config-input" id="{{ config_key }}" name="{{ config_key }}">
+                                            <option value="true">True</option>
+                                            <option value="false">False</option>
+                                        </select>
+                                        {% elif config_key == 'smtp_port' %}
+                                        <input type="number" class="form-control config-input" 
+                                               id="{{ config_key }}" name="{{ config_key }}" 
+                                               placeholder="587" min="1" max="65535">
+                                        {% else %}
+                                        <input type="text" class="form-control config-input" 
+                                               id="{{ config_key }}" name="{{ config_key }}" 
+                                               placeholder="Enter {{ config_key.replace('_', ' ') }}">
+                                        {% endif %}
+                                        <div class="form-text config-description" id="{{ config_key }}_description"></div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                        
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-end">
+                                    <button type="button" class="btn btn-outline-secondary me-2" onclick="resetForm()">
+                                        <i class="fas fa-undo"></i> Reset
+                                    </button>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save"></i> Save Configuration
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration List -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list"></i> Current Configuration
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="configTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Configuration Key</th>
+                                    <th>Value</th>
+                                    <th>Encrypted</th>
+                                    <th>Description</th>
+                                    <th>Updated</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="configTableBody">
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="mt-2">Processing...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentConfigs = {};
+
+// Load configurations on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadConfigs();
+});
+
+// Load SMTP configurations
+function loadConfigs() {
+    fetch('/admin/secrets/api/smtp/config')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentConfigs = {};
+                data.configs.forEach(config => {
+                    currentConfigs[config.config_key] = config;
+                });
+                populateForm();
+                populateTable(data.configs);
+            } else {
+                showAlert('Error loading configurations: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showAlert('Error loading configurations: ' + error.message, 'error');
+        });
+}
+
+// Populate form with current values
+function populateForm() {
+    Object.keys(currentConfigs).forEach(key => {
+        const input = document.getElementById(key);
+        const config = currentConfigs[key];
+        
+        if (input) {
+            if (config.encrypted && config.config_value === '***ENCRYPTED***') {
+                input.placeholder = 'Current value is encrypted';
+            } else {
+                input.value = config.config_value || '';
+            }
+            
+            // Update description
+            const descElement = document.getElementById(key + '_description');
+            if (descElement) {
+                descElement.textContent = config.description || '';
+            }
+        }
+    });
+}
+
+// Populate configuration table
+function populateTable(configs) {
+    const tbody = document.getElementById('configTableBody');
+    tbody.innerHTML = '';
+    
+    configs.forEach(config => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><code>${config.config_key}</code></td>
+            <td>
+                <span class="config-value" data-encrypted="${config.encrypted}">
+                    ${config.encrypted ? '***ENCRYPTED***' : (config.config_value || '<em>Not set</em>')}
+                </span>
+            </td>
+            <td>
+                ${config.encrypted ? '<span class="badge bg-warning">Yes</span>' : '<span class="badge bg-secondary">No</span>'}
+            </td>
+            <td>${config.description || ''}</td>
+            <td>${config.updated_at ? new Date(config.updated_at).toLocaleDateString() : 'N/A'}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteConfig('${config.config_key}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Handle form submission
+document.getElementById('smtpConfigForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const configs = [];
+    
+    // Collect all form inputs
+    for (let [key, value] of formData.entries()) {
+        if (value.trim()) {
+            const isEncrypted = key === 'smtp_password';
+            configs.push({
+                config_key: key,
+                config_value: value,
+                encrypted: isEncrypted,
+                description: getConfigDescription(key)
+            });
+        }
+    }
+    
+    // Save each configuration
+    saveConfigurations(configs);
+});
+
+// Save multiple configurations
+async function saveConfigurations(configs) {
+    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    modal.show();
+    
+    try {
+        for (const config of configs) {
+            const response = await fetch('/admin/secrets/api/smtp/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(config)
+            });
+            
+            const result = await response.json();
+            if (!result.success) {
+                throw new Error(`Failed to save ${config.config_key}: ${result.error}`);
+            }
+        }
+        
+        showAlert('SMTP configuration saved successfully!', 'success');
+        loadConfigs(); // Reload to refresh the display
+        
+    } catch (error) {
+        showAlert('Error saving configuration: ' + error.message, 'error');
+    } finally {
+        modal.hide();
+    }
+}
+
+// Get configuration description
+function getConfigDescription(key) {
+    const descriptions = {
+        'smtp_server': 'SMTP server hostname (e.g., smtp.gmail.com)',
+        'smtp_port': 'SMTP server port (usually 587 for TLS or 465 for SSL)',
+        'smtp_use_tls': 'Enable TLS encryption for secure email transmission',
+        'smtp_use_ssl': 'Enable SSL encryption (use TLS instead for modern servers)',
+        'smtp_username': 'SMTP authentication username (usually your email)',
+        'smtp_password': 'SMTP authentication password (encrypted when saved)',
+        'mail_default_sender': 'Default sender email address for outgoing emails',
+        'mail_reply_to': 'Reply-to email address for email responses',
+        'team_email': 'Team email address for internal notifications',
+        'smtp_enabled': 'Enable or disable SMTP email functionality globally'
+    };
+    return descriptions[key] || `Configuration for ${key}`;
+}
+
+// Delete configuration
+function deleteConfig(configKey) {
+    if (!confirm(`Are you sure you want to delete the configuration '${configKey}'?`)) {
+        return;
+    }
+    
+    fetch(`/admin/secrets/api/smtp/config/${configKey}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            loadConfigs();
+        } else {
+            showAlert('Error: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error deleting configuration: ' + error.message, 'error');
+    });
+}
+
+// Test SMTP connection
+function testSMTPConnection() {
+    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    modal.show();
+    
+    fetch('/admin/secrets/api/smtp/test', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        modal.hide();
+        if (data.success) {
+            showAlert('✅ SMTP connection test successful: ' + data.message, 'success');
+        } else {
+            showAlert('❌ SMTP connection test failed: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        modal.hide();
+        showAlert('Error testing SMTP connection: ' + error.message, 'error');
+    });
+}
+
+// Initialize default configurations
+function initializeDefaults() {
+    if (!confirm('This will create default SMTP configurations. Continue?')) {
+        return;
+    }
+    
+    fetch('/admin/secrets/api/smtp/initialize', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            loadConfigs();
+        } else {
+            showAlert('Error: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error initializing defaults: ' + error.message, 'error');
+    });
+}
+
+// Toggle password visibility
+function togglePassword(fieldId) {
+    const input = document.getElementById(fieldId);
+    const button = input.nextElementSibling;
+    const icon = button.querySelector('i');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'fas fa-eye';
+    }
+}
+
+// Reset form
+function resetForm() {
+    document.getElementById('smtpConfigForm').reset();
+    populateForm();
+}
+
+// Show alert message
+function showAlert(message, type) {
+    // Create alert element
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Insert at top of container
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        const alert = bootstrap.Alert.getOrCreateInstance(alertDiv);
+        alert.close();
+    }, 5000);
+}
+
+// Custom CSS for better styling
+const style = document.createElement('style');
+style.textContent = `
+    .config-group {
+        border-left: 3px solid #007bff;
+        padding-left: 15px;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        padding: 15px;
+    }
+    
+    .config-item {
+        transition: all 0.3s ease;
+    }
+    
+    .config-item:hover {
+        background-color: #fff;
+        border-radius: 5px;
+        padding: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .config-value {
+        font-family: 'Courier New', monospace;
+    }
+    
+    .config-input:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+    
+    .badge {
+        font-size: 0.75em;
+    }
+    
+    .table-hover tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %}

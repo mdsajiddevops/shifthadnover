@@ -1,0 +1,623 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+.servicenow-container {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    min-height: 100vh;
+    padding: 2rem 0;
+}
+
+.servicenow-header {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 15px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+    backdrop-filter: blur(10px);
+}
+
+.snow-card {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.snow-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.incident-card {
+    border-left: 4px solid;
+    transition: all 0.3s ease;
+}
+
+.incident-card.priority-critical {
+    border-left-color: #dc3545;
+}
+
+.incident-card.priority-high {
+    border-left-color: #fd7e14;
+}
+
+.incident-card.priority-medium {
+    border-left-color: #20c997;
+}
+
+.incident-card.priority-low {
+    border-left-color: #6c757d;
+}
+
+.shift-selector {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.sync-button {
+    background: linear-gradient(45deg, #28a745, #20c997);
+    border: none;
+    color: white;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.sync-button:hover {
+    background: linear-gradient(45deg, #218838, #1ea97c);
+    transform: translateY(-1px);
+}
+
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.loading-spinner {
+    background: white;
+    padding: 2rem;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 10px;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    color: #6c757d;
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+}
+</style>
+
+<div class="servicenow-container">
+    <div class="container">
+        <!-- Authentication Status Alert -->
+        <div id="authAlert" class="alert alert-info alert-dismissible fade show" style="display: none;">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Authentication Required:</strong> Please ensure you are logged in to test ServiceNow connections and fetch incident data.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <!-- Header -->
+        <div class="servicenow-header">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1 class="mb-2">
+                        <i class="bi bi-cloud-arrow-down text-primary me-3"></i>
+                        ServiceNow Integration
+                    </h1>
+                    <p class="text-muted mb-0">Monitor and manage incidents from ServiceNow during your shift</p>
+                    {% if current_user.is_authenticated %}
+                        <div class="mt-2">
+                            <span class="badge bg-success">
+                                <i class="bi bi-person-check me-1"></i>
+                                Logged in as {{ current_user.username }}
+                            </span>
+                        </div>
+                    {% else %}
+                        <div class="mt-2">
+                            <span class="badge bg-warning">
+                                <i class="bi bi-person-x me-1"></i>
+                                Not logged in
+                            </span>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="col-md-4 text-end">
+                    <button class="btn sync-button btn-lg px-4" onclick="testConnection()">
+                        <i class="bi bi-wifi me-2"></i>Test Connection
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shift Selector -->
+        <div class="snow-card">
+            <div class="shift-selector">
+                <h5 class="mb-3">
+                    <i class="bi bi-calendar-event text-info me-2"></i>
+                    Select Shift Period
+                </h5>
+                <form id="shiftForm" class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label for="shiftDate" class="form-label">Shift Date</label>
+                        <input type="date" class="form-control" id="shiftDate" value="{{ datetime.now().strftime('%Y-%m-%d') }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="shiftType" class="form-label">Shift Type</label>
+                        <select class="form-select" id="shiftType">
+                            <option value="day" {% if current_shift and current_shift.type == 'day' %}selected{% endif %}>Day (6 AM - 2 PM)</option>
+                            <option value="evening" {% if current_shift and current_shift.type == 'evening' %}selected{% endif %}>Evening (2 PM - 10 PM)</option>
+                            <option value="night" {% if current_shift and current_shift.type == 'night' %}selected{% endif %}>Night (10 PM - 6 AM)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="forceRefresh">
+                            <label class="form-check-label" for="forceRefresh">
+                                Force Refresh
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="button" class="btn btn-primary w-100" onclick="fetchShiftIncidents()">
+                            <i class="bi bi-download me-2"></i>Fetch Incidents
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div id="incidentStats" class="stats-grid" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-number text-danger" id="criticalCount">0</div>
+                <div class="stat-label">Critical</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number text-warning" id="highCount">0</div>
+                <div class="stat-label">High Priority</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number text-success" id="openCount">0</div>
+                <div class="stat-label">Open</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number text-info" id="closedCount">0</div>
+                <div class="stat-label">Closed</div>
+            </div>
+        </div>
+
+        <!-- Incidents Display -->
+        <div class="row">
+            <!-- Open Incidents -->
+            <div class="col-lg-6">
+                <div class="snow-card">
+                    <h5 class="mb-3">
+                        <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                        Open Incidents
+                        <span id="openBadge" class="badge bg-warning ms-2" style="display: none;">0</span>
+                    </h5>
+                    <div id="openIncidentsList">
+                        <div class="text-center py-4 text-muted">
+                            <i class="bi bi-cloud-download" style="font-size: 3rem;"></i>
+                            <p class="mt-3">Click "Fetch Incidents" to load ServiceNow data</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Closed Incidents -->
+            <div class="col-lg-6">
+                <div class="snow-card">
+                    <h5 class="mb-3">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        Closed Incidents
+                        <span id="closedBadge" class="badge bg-success ms-2" style="display: none;">0</span>
+                    </h5>
+                    <div id="closedIncidentsList">
+                        <div class="text-center py-4 text-muted">
+                            <i class="bi bi-cloud-download" style="font-size: 3rem;"></i>
+                            <p class="mt-3">Click "Fetch Incidents" to load ServiceNow data</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Cached Incidents -->
+        {% if recent_incidents %}
+        <div class="snow-card">
+            <h5 class="mb-3">
+                <i class="bi bi-clock-history text-info me-2"></i>
+                Recently Cached Incidents
+            </h5>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Number</th>
+                            <th>Title</th>
+                            <th>Priority</th>
+                            <th>State</th>
+                            <th>Assignment Group</th>
+                            <th>Last Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for incident in recent_incidents %}
+                        <tr>
+                            <td>
+                                <strong>{{ incident.number }}</strong>
+                            </td>
+                            <td>{{ incident.title[:60] }}{% if incident.title|length > 60 %}...{% endif %}</td>
+                            <td>
+                                <span class="badge 
+                                    {% if incident.priority == 'Critical' %}bg-danger
+                                    {% elif incident.priority == 'High' %}bg-warning
+                                    {% elif incident.priority == 'Medium' %}bg-info
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ incident.priority }}
+                                </span>
+                            </td>
+                            <td>{{ incident.state }}</td>
+                            <td>{{ incident.assignment_group }}</td>
+                            <td>{{ incident.updated_on.strftime('%Y-%m-%d %H:%M') if incident.updated_on else '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner">
+        <div class="spinner-border text-primary mb-3" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mb-0">Fetching incidents from ServiceNow...</p>
+    </div>
+</div>
+
+<!-- Incident Detail Modal -->
+<div class="modal fade" id="incidentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="incidentModalTitle">Incident Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="incidentModalBody">
+                <!-- Content will be loaded dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Global variables
+let currentIncidents = {
+    open: [],
+    closed: []
+};
+
+// Test ServiceNow connection
+function testConnection() {
+    const btn = event.target.closest('button');
+    const originalText = btn.innerHTML;
+    
+    btn.innerHTML = '<i class="bi bi-spinner-border spinner-border-sm me-2"></i>Testing...';
+    btn.disabled = true;
+    
+    fetch('/api/servicenow/test-connection', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+        .then(response => {
+            if (response.status === 401) {
+                // Show authentication alert
+                const authAlert = document.getElementById('authAlert');
+                if (authAlert) {
+                    authAlert.style.display = 'block';
+                }
+                throw new Error('Please log in to test the ServiceNow connection');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                showAlert('success', 'ServiceNow connection successful!');
+            } else {
+                showAlert('error', `Connection failed: ${data.message || 'Unknown error'}`);
+            }
+        })
+        .catch(error => {
+            console.error('Connection test error:', error);
+            showAlert('error', error.message || 'Error testing connection');
+        })
+        .finally(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+}
+
+// Fetch incidents for selected shift
+function fetchShiftIncidents() {
+    const shiftDate = document.getElementById('shiftDate').value;
+    const shiftType = document.getElementById('shiftType').value;
+    const forceRefresh = document.getElementById('forceRefresh').checked;
+    
+    if (!shiftDate) {
+        showAlert('warning', 'Please select a shift date');
+        return;
+    }
+    
+    showLoading(true);
+    
+    const params = new URLSearchParams({
+        shift_date: shiftDate,
+        shift_type: shiftType,
+        refresh: forceRefresh
+    });
+    
+    fetch(`/servicenow/fetch-shift-incidents?${params}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentIncidents.open = data.open_incidents || [];
+                currentIncidents.closed = data.closed_incidents || [];
+                
+                displayIncidents();
+                updateStatistics(data.summary);
+                
+                showAlert('success', `Fetched ${data.summary.total_count} incidents from ServiceNow`);
+            } else {
+                showAlert('error', `Failed to fetch incidents: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            showAlert('error', 'Error fetching incidents from ServiceNow');
+        })
+        .finally(() => {
+            showLoading(false);
+        });
+}
+
+// Display incidents in the UI
+function displayIncidents() {
+    displayIncidentList('openIncidentsList', currentIncidents.open, 'open');
+    displayIncidentList('closedIncidentsList', currentIncidents.closed, 'closed');
+    
+    // Update badges
+    document.getElementById('openBadge').textContent = currentIncidents.open.length;
+    document.getElementById('openBadge').style.display = currentIncidents.open.length > 0 ? 'inline' : 'none';
+    
+    document.getElementById('closedBadge').textContent = currentIncidents.closed.length;
+    document.getElementById('closedBadge').style.display = currentIncidents.closed.length > 0 ? 'inline' : 'none';
+}
+
+// Display incident list
+function displayIncidentList(containerId, incidents, type) {
+    const container = document.getElementById(containerId);
+    
+    if (incidents.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-${type === 'open' ? 'check-all' : 'archive'}" style="font-size: 3rem;"></i>
+                <p class="mt-3">No ${type} incidents found for this shift</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    incidents.forEach(incident => {
+        html += createIncidentCard(incident);
+    });
+    
+    container.innerHTML = html;
+}
+
+// Create incident card HTML
+function createIncidentCard(incident) {
+    const priorityClass = getPriorityClass(incident.priority_label);
+    
+    return `
+        <div class="incident-card ${priorityClass} mb-3 p-3 border rounded cursor-pointer" 
+             onclick="showIncidentDetails('${incident.number}')">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                    <h6 class="mb-1">
+                        <strong>${incident.number}</strong>
+                        <span class="badge bg-${incident.priority_class} ms-2">${incident.priority_label}</span>
+                    </h6>
+                    <p class="mb-2">${incident.short_description}</p>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <small class="text-muted">
+                                <i class="bi bi-people me-1"></i>
+                                ${incident.assignment_group || 'Unassigned'}
+                            </small>
+                        </div>
+                        <div class="col-sm-6">
+                            <small class="text-muted">
+                                <i class="bi bi-person me-1"></i>
+                                ${incident.assigned_to || 'Unassigned'}
+                            </small>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            <i class="bi bi-clock me-1"></i>
+                            ${formatDateTime(incident.opened_at)}
+                        </small>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <span class="badge bg-light text-dark border">${incident.state_label}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Get priority CSS class
+function getPriorityClass(priority) {
+    switch(priority?.toLowerCase()) {
+        case 'critical': return 'priority-critical';
+        case 'high': return 'priority-high';
+        case 'medium': return 'priority-medium';
+        case 'low': return 'priority-low';
+        default: return 'priority-low';
+    }
+}
+
+// Update statistics
+function updateStatistics(summary) {
+    if (!summary) return;
+    
+    // Count by priority
+    let criticalCount = 0;
+    let highCount = 0;
+    
+    [...currentIncidents.open, ...currentIncidents.closed].forEach(incident => {
+        if (incident.priority_label === 'Critical') criticalCount++;
+        else if (incident.priority_label === 'High') highCount++;
+    });
+    
+    document.getElementById('criticalCount').textContent = criticalCount;
+    document.getElementById('highCount').textContent = highCount;
+    document.getElementById('openCount').textContent = summary.open_count || 0;
+    document.getElementById('closedCount').textContent = summary.closed_count || 0;
+    
+    document.getElementById('incidentStats').style.display = 'grid';
+}
+
+// Show incident details
+function showIncidentDetails(incidentNumber) {
+    // This would fetch detailed incident information
+    // For now, just show basic info from current data
+    const incident = [...currentIncidents.open, ...currentIncidents.closed]
+        .find(inc => inc.number === incidentNumber);
+    
+    if (incident) {
+        document.getElementById('incidentModalTitle').textContent = incident.number;
+        document.getElementById('incidentModalBody').innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <strong>Title:</strong><br>
+                    ${incident.short_description}
+                </div>
+                <div class="col-md-6">
+                    <strong>Priority:</strong><br>
+                    <span class="badge bg-${incident.priority_class}">${incident.priority_label}</span>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <strong>State:</strong><br>
+                    ${incident.state_label}
+                </div>
+                <div class="col-md-6">
+                    <strong>Assignment Group:</strong><br>
+                    ${incident.assignment_group || 'Unassigned'}
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-12">
+                    <strong>Description:</strong><br>
+                    ${incident.description || 'No description available'}
+                </div>
+            </div>
+        `;
+        
+        new bootstrap.Modal(document.getElementById('incidentModal')).show();
+    }
+}
+
+// Utility functions
+function showLoading(show) {
+    document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+}
+
+function showAlert(type, message) {
+    // Create and show Bootstrap alert
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Insert at top of container
+    const container = document.querySelector('.container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
+function formatDateTime(dateTimeStr) {
+    if (!dateTimeStr) return 'Unknown';
+    
+    try {
+        const date = new Date(dateTimeStr);
+        return date.toLocaleString();
+    } catch (e) {
+        return dateTimeStr;
+    }
+}
+
+// Set current date on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('shiftDate').value = today;
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Change Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2>Change Management</h2>
+            <p><strong>Assignment Group:</strong> Supply Chain - L2</p>
+            
+            <!-- Status and Controls -->
+            <div class="alert alert-info" id="status-alert">
+                <i class="fas fa-info-circle"></i> <span id="status-text">Initializing...</span>
+            </div>
+            
+            <div class="mb-3">
+                <button onclick="forceLoadData()" class="btn btn-primary">🔄 Force Load Data</button>
+                <button onclick="testConnection()" class="btn btn-secondary">🔗 Test Connection</button>
+            </div>
+            
+            <!-- Change Requests -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Change Requests</h4>
+                    <span class="badge bg-primary" id="cr-badge">0</span>
+                </div>
+                <div class="card-body">
+                    <div id="cr-content">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-spinner fa-spin"></i> Loading change requests...
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Change Tasks -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Change Tasks</h4>
+                    <span class="badge bg-success" id="ct-badge">0</span>
+                </div>
+                <div class="card-body">
+                    <div id="ct-content">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-spinner fa-spin"></i> Loading change tasks...
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Debug Info -->
+            <div class="mt-4">
+                <details>
+                    <summary>Debug Information</summary>
+                    <pre id="debug-info">Waiting for data...</pre>
+                </details>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Update status
+function updateStatus(message, type = 'info') {
+    const statusAlert = document.getElementById('status-alert');
+    const statusText = document.getElementById('status-text');
+    
+    statusAlert.className = `alert alert-${type}`;
+    statusText.textContent = message;
+}
+
+// Test connection
+function testConnection() {
+    updateStatus('Testing connection...', 'warning');
+    
+    fetch('/api/get_change_requests', {
+        method: 'GET',
+        credentials: 'include'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.text();
+    })
+    .then(text => {
+        updateStatus('✅ Connection successful!', 'success');
+        document.getElementById('debug-info').textContent = `Raw response: ${text.substring(0, 500)}...`;
+        
+        // Try to parse as JSON
+        try {
+            const data = JSON.parse(text);
+            processData(data);
+        } catch (e) {
+            updateStatus('❌ Invalid JSON response', 'danger');
+        }
+    })
+    .catch(error => {
+        updateStatus(`❌ Connection failed: ${error.message}`, 'danger');
+        console.error('Connection test failed:', error);
+    });
+}
+
+// Process the API data
+function processData(data) {
+    console.log('Processing data:', data);
+    
+    if (data.error) {
+        updateStatus(`❌ API Error: ${data.error}`, 'danger');
+        return;
+    }
+    
+    // Update counts
+    const crCount = data.total_crs || 0;
+    const ctCount = data.total_tasks || 0;
+    
+    document.getElementById('cr-badge').textContent = crCount;
+    document.getElementById('ct-badge').textContent = ctCount;
+    
+    // Update Change Requests
+    const crContent = document.getElementById('cr-content');
+    if (data.change_requests && data.change_requests.length > 0) {
+        let html = '<div class="row">';
+        data.change_requests.slice(0, 10).forEach((cr, index) => {
+            html += `
+                <div class="col-md-6 mb-3">
+                    <div class="card border-left-primary">
+                        <div class="card-body">
+                            <h6 class="card-title text-primary">${cr.number || 'No Number'}</h6>
+                            <p class="card-text">${cr.short_description || 'No description available'}</p>
+                            <small class="text-muted">
+                                State: ${cr.state || 'Unknown'} | 
+                                Priority: ${cr.priority || 'Not set'} |
+                                Assignment: ${cr.assignment_group || 'Unassigned'}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        
+        if (data.change_requests.length > 10) {
+            html += `<div class="alert alert-info">Showing first 10 of ${data.change_requests.length} change requests</div>`;
+        }
+        
+        crContent.innerHTML = html;
+    } else {
+        crContent.innerHTML = '<div class="alert alert-warning">No change requests found for your assignment group.</div>';
+    }
+    
+    // Update Change Tasks
+    const ctContent = document.getElementById('ct-content');
+    if (data.change_tasks && data.change_tasks.length > 0) {
+        let html = '<div class="row">';
+        data.change_tasks.slice(0, 10).forEach((ct, index) => {
+            html += `
+                <div class="col-md-6 mb-3">
+                    <div class="card border-left-success">
+                        <div class="card-body">
+                            <h6 class="card-title text-success">${ct.number || 'No Number'}</h6>
+                            <p class="card-text">${ct.short_description || 'No description available'}</p>
+                            <small class="text-muted">
+                                State: ${ct.state || 'Unknown'} | 
+                                Change Request: ${ct.change_request || 'Not linked'} |
+                                Assignment: ${ct.assignment_group || 'Unassigned'}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        
+        if (data.change_tasks.length > 10) {
+            html += `<div class="alert alert-info">Showing first 10 of ${data.change_tasks.length} change tasks</div>`;
+        }
+        
+        ctContent.innerHTML = html;
+    } else {
+        ctContent.innerHTML = '<div class="alert alert-warning">No change tasks found for your assignment group.</div>';
+    }
+    
+    updateStatus(`✅ Loaded ${crCount} change requests and ${ctCount} change tasks`, 'success');
+    
+    // Update debug info
+    document.getElementById('debug-info').textContent = JSON.stringify(data, null, 2);
+}
+
+// Force load data
+function forceLoadData() {
+    updateStatus('Force loading data...', 'warning');
+    testConnection();
+}
+
+// Auto-load on page ready
+document.addEventListener('DOMContentLoaded', function() {
+    updateStatus('Page loaded, testing connection...', 'info');
+    
+    // Auto-load after a short delay
+    setTimeout(function() {
+        testConnection();
+    }, 1000);
+});
+
+// Add some CSS for better visuals
+const style = document.createElement('style');
+style.textContent = `
+    .border-left-primary {
+        border-left: 4px solid #007bff !important;
+    }
+    .border-left-success {
+        border-left: 4px solid #28a745 !important;
+    }
+    .card-body {
+        padding: 1rem;
+    }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %}

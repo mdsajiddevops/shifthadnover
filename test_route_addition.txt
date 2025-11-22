@@ -1,0 +1,6 @@
+
+
+# Add this route to your main routes or app.py for testing
+@app.route('/test-approval')
+def test_approval_page():
+    return render_template('approval_test.html')

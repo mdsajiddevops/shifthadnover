@@ -1,0 +1,1 @@
+SELECT id, username, password, role, is_active, status, account_id, team_id FROM user WHERE username = 'superadmin';

@@ -1,0 +1,64 @@
+{% extends "layout_enhanced.html" %}
+
+{% block title %}JavaScript Test{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>JavaScript Test Page</h2>
+    <div id="test-output">Loading...</div>
+    <select id="test-dropdown">
+        <option value="">Original dropdown</option>
+    </select>
+    
+    <!-- Inline JavaScript test -->
+    <script>
+        console.log('=== INLINE SCRIPT LOADED ===');
+        
+        // Test immediate execution
+        document.getElementById('test-output').innerHTML = '<p style="color: green;">✅ Inline JavaScript is working!</p>';
+        document.getElementById('test-dropdown').innerHTML = '<option value="">Select option</option><option value="1">Inline Test Option 1</option><option value="2">Inline Test Option 2</option>';
+        
+        console.log('=== INLINE SCRIPT COMPLETED ===');
+    </script>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+console.log('=== TEST SCRIPT LOADED ===');
+
+function testFunction() {
+    console.log('=== TEST FUNCTION CALLED ===');
+    
+    const output = document.getElementById('test-output');
+    const dropdown = document.getElementById('test-dropdown');
+    
+    if (output) {
+        output.innerHTML = '<p style="color: green;">✅ JavaScript is working!</p>';
+        console.log('Updated output element');
+    } else {
+        console.error('Could not find output element');
+    }
+    
+    if (dropdown) {
+        dropdown.innerHTML = '<option value="">Select option</option>' +
+                           '<option value="1">Test Option 1</option>' +
+                           '<option value="2">Test Option 2</option>';
+        console.log('Updated dropdown element');
+    } else {
+        console.error('Could not find dropdown element');
+    }
+}
+
+// Execute immediately
+testFunction();
+
+// Execute on DOM ready
+document.addEventListener('DOMContentLoaded', testFunction);
+
+// Execute on window load
+window.addEventListener('load', testFunction);
+
+console.log('=== TEST SCRIPT COMPLETED ===');
+</script>
+{% endblock %}

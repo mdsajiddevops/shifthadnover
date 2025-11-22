@@ -1,0 +1,492 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block head %}
+<style>
+/* Enhanced table styling for incident response logs - v2.0 */
+.incident-response-table {
+    font-size: 0.9rem;
+}
+
+.incident-response-table th {
+    font-weight: 600;
+    background-color: #f8f9fa !important;
+    border-bottom: 2px solid #dee2e6;
+    white-space: nowrap;
+}
+
+.incident-response-table td {
+    vertical-align: middle;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.incident-response-table .badge {
+    font-size: 0.75rem;
+    padding: 0.375rem 0.75rem;
+}
+
+.shift-badge {
+    min-width: 70px;
+    display: inline-block;
+    text-align: center;
+}
+
+.assignment-info {
+    min-width: 120px;
+}
+
+/* Filter section styling */
+.filter-section {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 0.5rem;
+    border: 1px solid #e9ecef;
+}
+
+.filter-section .form-label {
+    font-weight: 500;
+    color: #495057;
+    margin-bottom: 0.25rem;
+}
+
+.filter-section .form-control,
+.filter-section .form-select {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+}
+
+.filter-section .form-control:focus,
+.filter-section .form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.filter-actions .btn {
+    border-radius: 0.375rem;
+}
+
+/* Responsive table adjustments */
+@media (max-width: 1200px) {
+    .incident-response-table {
+        font-size: 0.8rem;
+    }
+    
+    .incident-response-table .text-truncate {
+        max-width: 150px !important;
+    }
+}
+
+@media (max-width: 992px) {
+    .incident-response-table .text-truncate {
+        max-width: 120px !important;
+    }
+}
+
+/* Priority badges - Force black text on white background - v3.0 */
+.priority-badge,
+.badge.priority-badge,
+span.priority-badge,
+table td .priority-badge,
+table.incident-response-table tbody td .priority-badge { 
+    background-color: #ffffff !important; 
+    color: #000000 !important; 
+    border: 1px solid #dee2e6 !important;
+    font-weight: 500 !important;
+    display: inline-block !important;
+    padding: 0.375rem 0.75rem !important;
+    border-radius: 0.375rem !important;
+}
+
+.priority-badge i,
+.badge.priority-badge i,
+span.priority-badge i,
+table td .priority-badge i,
+table.incident-response-table tbody td .priority-badge i {
+    color: #000000 !important;
+}
+
+/* Status indicators - Force specific colors - v3.0 */
+.status-accepted,
+.badge.status-accepted,
+span.status-accepted,
+table td .status-accepted,
+table.incident-response-table tbody td .status-accepted { 
+    background-color: #28a745 !important; 
+    color: #ffffff !important; 
+    border: none !important;
+    padding: 0.375rem 0.75rem !important;
+    border-radius: 0.375rem !important;
+}
+
+.status-rejected,
+.badge.status-rejected,
+span.status-rejected,
+table td .status-rejected,
+table.incident-response-table tbody td .status-rejected { 
+    background-color: #dc3545 !important; 
+    color: #ffffff !important; 
+    border: none !important;
+    padding: 0.375rem 0.75rem !important;
+    border-radius: 0.375rem !important;
+}
+
+.status-accepted i,
+.badge.status-accepted i,
+span.status-accepted i,
+table td .status-accepted i,
+table.incident-response-table tbody td .status-accepted i {
+    color: #ffffff !important;
+}
+
+.status-rejected i,
+.badge.status-rejected i,
+span.status-rejected i,
+table td .status-rejected i,
+table.incident-response-table tbody td .status-rejected i {
+    color: #ffffff !important;
+}
+
+.shift-text {
+    color: black !important;
+    font-weight: 500;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header Section -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="text-primary mb-1">
+                        <i class="bi bi-clipboard-data me-2"></i>{{ title }}
+                    </h2>
+                    <p class="text-muted mb-0">Comprehensive tracking of handover incident assignments and responses</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <span class="badge bg-primary fs-6">Admin Only</span>
+                </div>
+            </div>
+
+            <!-- Filter Options -->
+            <div class="card border-0 shadow-sm mb-4 filter-section">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-funnel me-2 text-primary"></i>Filter Options
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="GET" id="filterForm">
+                        <div class="row g-3">
+                            <!-- Date From -->
+                            <div class="col-md-3">
+                                <label for="date_from" class="form-label">
+                                    <i class="bi bi-calendar-event me-1"></i>Date From
+                                </label>
+                                <input type="date" class="form-control" id="date_from" name="date_from" 
+                                       value="{{ request.args.get('date_from', '') }}">
+                            </div>
+                            
+                            <!-- Date To -->
+                            <div class="col-md-3">
+                                <label for="date_to" class="form-label">
+                                    <i class="bi bi-calendar-check me-1"></i>Date To
+                                </label>
+                                <input type="date" class="form-control" id="date_to" name="date_to" 
+                                       value="{{ request.args.get('date_to', '') }}">
+                            </div>
+                            
+                            <!-- Status Filter -->
+                            <div class="col-md-2">
+                                <label for="status_filter" class="form-label">
+                                    <i class="bi bi-flag me-1"></i>Status
+                                </label>
+                                <select class="form-select" id="status_filter" name="status_filter">
+                                    <option value="">All Statuses</option>
+                                    <option value="pending" {{ 'selected' if request.args.get('status_filter') == 'pending' else '' }}>Pending</option>
+                                    <option value="accepted" {{ 'selected' if request.args.get('status_filter') == 'accepted' else '' }}>Accepted</option>
+                                    <option value="rejected" {{ 'selected' if request.args.get('status_filter') == 'rejected' else '' }}>Rejected</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Incident Search -->
+                            <div class="col-md-3">
+                                <label for="incident_search" class="form-label">
+                                    <i class="bi bi-search me-1"></i>Incident Number/Title
+                                </label>
+                                <input type="text" class="form-control" id="incident_search" name="incident_search" 
+                                       value="{{ request.args.get('incident_search', '') }}" 
+                                       placeholder="Search incidents...">
+                            </div>
+                            
+                            <!-- Filter Actions -->
+                            <div class="col-md-1 d-flex align-items-end">
+                                <div class="btn-group w-100 filter-actions">
+                                    <button type="submit" class="btn btn-primary btn-sm" title="Apply Filters">
+                                        <i class="bi bi-search"></i>
+                                    </button>
+                                    <a href="{{ url_for('user_profile.admin_incident_response_logs') }}" class="btn btn-outline-secondary btn-sm" title="Clear Filters">
+                                        <i class="bi bi-x-lg"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Logs Table -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom-0 py-3">
+                    <h5 class="card-title mb-0">Incident Response History</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if logs.items %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 incident-response-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="px-4 py-3">Date/Time</th>
+                                    <th class="py-3">Incident</th>
+                                    <th class="py-3">Priority</th>
+                                    <th class="py-3">Assigned By</th>
+                                    <th class="py-3">From Shift</th>
+                                    <th class="py-3">Assigned To</th>
+                                    <th class="py-3">To Shift</th>
+                                    <th class="py-3">Status</th>
+                                    <th class="py-3">Comments</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in logs.items %}
+                                <tr>
+                                    <td class="px-4 py-3">
+                                        <div class="small text-muted">{{ log.response_datetime.strftime('%Y-%m-%d') if log.response_datetime }}</div>
+                                        <div>{{ log.response_datetime.strftime('%H:%M') if log.response_datetime }}</div>
+                                    </td>
+                                    <td class="py-3">
+                                        <div class="fw-medium">{{ log.incident_number }}</div>
+                                        <div class="small text-muted text-truncate" style="max-width: 180px;">{{ log.incident_title }}</div>
+                                    </td>
+                                    <td class="py-3">
+                                        {% if log.incident_priority == 'Critical' %}
+                                            <span class="badge priority-badge" style="background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dee2e6 !important;">
+                                                <i class="bi bi-exclamation-triangle me-1" style="color: #000000 !important;"></i>Critical
+                                            </span>
+                                        {% elif log.incident_priority == 'High' %}
+                                            <span class="badge priority-badge" style="background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dee2e6 !important;">
+                                                <i class="bi bi-arrow-up me-1" style="color: #000000 !important;"></i>High
+                                            </span>
+                                        {% elif log.incident_priority == 'Medium' %}
+                                            <span class="badge priority-badge" style="background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dee2e6 !important;">
+                                                <i class="bi bi-dash me-1" style="color: #000000 !important;"></i>Medium
+                                            </span>
+                                        {% elif log.incident_priority == 'Low' %}
+                                            <span class="badge priority-badge" style="background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dee2e6 !important;">
+                                                <i class="bi bi-arrow-down me-1" style="color: #000000 !important;"></i>Low
+                                            </span>
+                                        {% else %}
+                                            <span class="badge priority-badge" style="background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dee2e6 !important;">
+                                                <i class="bi bi-question-circle me-1" style="color: #000000 !important;"></i>{{ log.incident_priority or 'Low' }}
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="py-3 assignment-info">
+                                        <div class="fw-medium">{{ log.assigned_by_name or 'N/A' }}</div>
+                                        <div class="small text-muted">
+                                            <i class="bi bi-person-badge me-1"></i>Gave Assignment
+                                        </div>
+                                    </td>
+                                    <td class="py-3">
+                                        {% if log.from_shift_type %}
+                                            <div class="shift-text">
+                                                <i class="bi bi-clock me-1"></i>{{ log.from_shift_type }}
+                                            </div>
+                                        {% else %}
+                                            <div class="shift-text">N/A</div>
+                                        {% endif %}
+                                    </td>
+                                    <td class="py-3 assignment-info">
+                                        <div class="fw-medium">{{ log.accepted_by_name }}</div>
+                                        <div class="small text-muted">
+                                            <i class="bi bi-person-check me-1"></i>Received Assignment
+                                        </div>
+                                    </td>
+                                    <td class="py-3">
+                                        {% if log.to_shift_type %}
+                                            <div class="shift-text">
+                                                <i class="bi bi-clock me-1"></i>{{ log.to_shift_type }}
+                                            </div>
+                                        {% else %}
+                                            <div class="shift-text">N/A</div>
+                                        {% endif %}
+                                    </td>
+                                    <td class="py-3">
+                                        {% if log.assignment_status == 'accepted' %}
+                                            <span class="badge status-accepted" style="background-color: #28a745 !important; color: #ffffff !important; border: none !important;">
+                                                <i class="bi bi-check-circle me-1" style="color: #ffffff !important;"></i>Accepted
+                                            </span>
+                                        {% elif log.assignment_status == 'rejected' %}
+                                            <span class="badge status-rejected" style="background-color: #dc3545 !important; color: #ffffff !important; border: none !important;">
+                                                <i class="bi bi-x-circle me-1" style="color: #ffffff !important;"></i>Rejected
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ log.assignment_status|title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="py-3">
+                                        {% if log.response_comments %}
+                                            <div class="text-truncate" style="max-width: 150px;" title="{{ log.response_comments }}">
+                                                <i class="bi bi-chat-text me-1 text-muted"></i>{{ log.response_comments }}
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">
+                                                <i class="bi bi-dash-circle me-1"></i>No comments
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if logs.pages > 1 %}
+                    <div class="d-flex justify-content-between align-items-center p-4 border-top">
+                        <div class="text-muted small">
+                            Showing {{ logs.page }} of {{ logs.pages }} pages ({{ logs.total }} total records)
+                        </div>
+                        <nav aria-label="Page navigation">
+                            <ul class="pagination pagination-sm mb-0">
+                                {% if logs.has_prev %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ url_for('admin.incident_response_logs', page=logs.prev_num) }}">Previous</a>
+                                    </li>
+                                {% endif %}
+                                
+                                {% for page_num in logs.iter_pages() %}
+                                    {% if page_num %}
+                                        {% if page_num != logs.page %}
+                                            <li class="page-item">
+                                                <a class="page-link" href="{{ url_for('admin.incident_response_logs', page=page_num) }}">{{ page_num }}</a>
+                                            </li>
+                                        {% else %}
+                                            <li class="page-item active">
+                                                <span class="page-link">{{ page_num }}</span>
+                                            </li>
+                                        {% endif %}
+                                    {% else %}
+                                        <li class="page-item disabled">
+                                            <span class="page-link">...</span>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+                                
+                                {% if logs.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ url_for('admin.incident_response_logs', page=logs.next_num) }}">Next</a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                    {% endif %}
+                    
+                    {% else %}
+                    <div class="text-center py-5">
+                        <div class="mb-3">
+                            <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                        </div>
+                        <h5 class="text-muted">No Response Logs Found</h5>
+                        <p class="text-muted">No handover incident response logs are available yet.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.table td, .table th {
+    vertical-align: middle;
+}
+
+.badge {
+    font-size: 0.75rem;
+}
+
+.card {
+    transition: all 0.2s ease-in-out;
+}
+
+.table-responsive {
+    border-radius: 0.5rem;
+}
+
+.pagination-sm .page-link {
+    padding: 0.375rem 0.75rem;
+}
+
+.text-truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+</style>
+
+<script>
+// Force styling for priority and status badges - v4.0
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Applying forced styling for badges...');
+    
+    // Force priority badge styling
+    const priorityBadges = document.querySelectorAll('.priority-badge');
+    priorityBadges.forEach(badge => {
+        badge.style.backgroundColor = '#ffffff';
+        badge.style.color = '#000000';
+        badge.style.border = '1px solid #dee2e6';
+        badge.style.fontWeight = '500';
+        
+        // Style icons within priority badges
+        const icons = badge.querySelectorAll('i');
+        icons.forEach(icon => {
+            icon.style.color = '#000000';
+        });
+    });
+    
+    // Force status badge styling
+    const acceptedBadges = document.querySelectorAll('.status-accepted');
+    acceptedBadges.forEach(badge => {
+        badge.style.backgroundColor = '#28a745';
+        badge.style.color = '#ffffff';
+        badge.style.border = 'none';
+        
+        // Style icons within accepted badges
+        const icons = badge.querySelectorAll('i');
+        icons.forEach(icon => {
+            icon.style.color = '#ffffff';
+        });
+    });
+    
+    const rejectedBadges = document.querySelectorAll('.status-rejected');
+    rejectedBadges.forEach(badge => {
+        badge.style.backgroundColor = '#dc3545';
+        badge.style.color = '#ffffff';
+        badge.style.border = 'none';
+        
+        // Style icons within rejected badges
+        const icons = badge.querySelectorAll('i');
+        icons.forEach(icon => {
+            icon.style.color = '#ffffff';
+        });
+    });
+    
+    console.log('Forced styling applied to', priorityBadges.length, 'priority badges and', 
+                acceptedBadges.length + rejectedBadges.length, 'status badges');
+});
+</script>
+{% endblock %}

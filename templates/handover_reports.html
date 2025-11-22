@@ -1,0 +1,664 @@
+{% extends "base.html" %}
+
+{% block title %}Handover Reports{% endblock %}
+
+{% block extra_css %}
+<style>
+    .reports-table {
+        border-collapse: separate;
+        border-spacing: 0;
+        border: 1px solid #f0f8ff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    }
+    
+    .reports-table th {
+        font-weight: 600;
+        color: #495057;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-bottom: 1px solid #f0f8ff;
+        border-right: 1px solid #f0f8ff;
+        padding: 16px 12px;
+        font-size: 0.95rem;
+    }
+    
+    .reports-table th:last-child {
+        border-right: none;
+    }
+    
+    .reports-table td {
+        vertical-align: middle;
+        border-bottom: 1px solid #f0f8ff;
+        border-right: 1px solid #f0f8ff;
+        padding: 16px 12px;
+        background-color: #ffffff;
+        transition: background-color 0.2s ease;
+    }
+    
+    .reports-table td:last-child {
+        border-right: none;
+    }
+    
+    .reports-table tbody tr:hover td {
+        background-color: #f8f9ff;
+    }
+    
+    .reports-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+    
+    .incident-col, .keypoints-col {
+        min-width: 320px;
+        max-width: 450px;
+        background-color: #fdfdff !important;
+    }
+    
+    .incident-accordion .accordion-item {
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid #f0f8ff;
+        margin-bottom: 8px;
+    }
+    
+    .incident-accordion .accordion-button {
+        border-radius: 8px;
+        font-size: 0.85rem;
+        background: linear-gradient(135deg, #ffffff, #f8f9fa);
+        border: 1px solid #e9ecef;
+        padding: 12px 15px;
+        transition: all 0.3s ease;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    
+    .incident-accordion .accordion-button:hover {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        transform: translateY(-1px);
+        box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+    }
+    
+    .incident-accordion .accordion-button:not(.collapsed) {
+        background: linear-gradient(135deg, #e3f2fd, #f0f8ff);
+        color: #1976d2;
+        border-color: #2196f3;
+        box-shadow: 0 2px 6px rgba(33, 150, 243, 0.15);
+    }
+    
+    .incident-accordion .accordion-body {
+        padding: 12px;
+        background-color: #fafbff;
+        border-top: 1px solid #f0f8ff;
+    }
+    
+    .keypoint-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
+        border: 1px solid #f0f8ff;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        transition: all 0.2s ease;
+    }
+    
+    .keypoint-card:hover {
+        border-color: #e3f2fd;
+        box-shadow: 0 2px 8px rgba(33, 150, 243, 0.08);
+    }
+    
+    .keypoint-card .card-body {
+        padding: 12px;
+    }
+    
+    .empty-state {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px dashed #f0f8ff;
+        border-radius: 8px;
+        padding: 24px;
+        text-align: center;
+        color: #6c757d;
+    }
+    
+    .empty-state i {
+        font-size: 1.5rem;
+        opacity: 0.6;
+        margin-bottom: 8px;
+    }
+    
+    .table-responsive {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+    }
+    
+    .sticky-top {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    
+    .card {
+        border-radius: 12px;
+        transition: all 0.3s ease;
+    }
+    
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1) !important;
+    }
+    
+    .btn {
+        border-radius: 8px;
+        font-weight: 500;
+    }
+    
+    .badge {
+        border-radius: 6px;
+        font-weight: 500;
+    }
+    
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 1px solid #e0e0e0;
+        transition: all 0.3s ease;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: #4285f4;
+        box-shadow: 0 0 0 0.2rem rgba(66, 133, 244, 0.25);
+    }
+    
+    @media (max-width: 768px) {
+        .incident-col, .keypoints-col {
+            min-width: 250px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <!-- Header Section -->
+    <div class="mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h3 mb-1 text-primary">Shift Handover Reports</h1>
+                <p class="text-muted mb-0">View and export detailed shift handover reports with incidents and key points</p>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                {% if shift_data %}
+                <span class="badge bg-primary fs-6 px-3 py-2">
+                    <i class="bi bi-file-earmark-text me-2"></i>{{ shift_data|length }} Reports
+                </span>
+                {% endif %}
+                {% if date_filter %}
+                <span class="badge bg-info fs-6 px-3 py-2">
+                    <i class="bi bi-calendar-date me-2"></i>{{ date_filter }}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-header bg-light border-0 py-3">
+            <h5 class="mb-0 text-secondary">
+                <i class="bi bi-funnel me-2"></i>Filter Reports
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                {% if current_user.role == 'super_admin' %}
+                <div class="col-md-3">
+                    <label for="account_id" class="form-label fw-semibold text-secondary">
+                        <i class="bi bi-building me-1"></i>Account
+                    </label>
+                    <select name="account_id" id="account_id" class="form-select" onchange="updateTeamsDropdown(this.value)">
+                        <option value="">All Accounts</option>
+                        {% for account in accounts %}
+                        <option value="{{ account.id }}" {% if selected_account_id == account.id %}selected{% endif %}>
+                            {{ account.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div class="col-md-3">
+                    <label for="team_id" class="form-label fw-semibold text-secondary">
+                        <i class="bi bi-people me-1"></i>Team
+                    </label>
+                    <select name="team_id" id="team_id" class="form-select">
+                        <option value="">All Teams</option>
+                        {% for team in teams %}
+                        <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>
+                            {{ team.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="date" class="form-label fw-semibold text-secondary">
+                        <i class="bi bi-calendar3 me-1"></i>Date
+                    </label>
+                    <input type="date" name="date" id="date" class="form-control" value="{{ date_filter }}">
+                </div>
+                <div class="col-md-2">
+                    <label for="shift_type" class="form-label fw-semibold text-secondary">
+                        <i class="bi bi-clock me-1"></i>Shift
+                    </label>
+                    <select name="shift_type" id="shift_type" class="form-select">
+                        <option value="">All Shifts</option>
+                        <option value="Morning" {% if shift_type_filter=='Morning' %}selected{% endif %}>Morning</option>
+                        <option value="Evening" {% if shift_type_filter=='Evening' %}selected{% endif %}>Evening</option>
+                        <option value="Night" {% if shift_type_filter=='Night' %}selected{% endif %}>Night</option>
+                        <option value="OnShore" {% if shift_type_filter=='OnShore' %}selected{% endif %}>OnShore</option>
+                        <option value="OffShore" {% if shift_type_filter=='OffShore' %}selected{% endif %}>OffShore</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search me-1"></i>Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Export Section -->
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-header bg-light border-0 py-3">
+            <h5 class="mb-0 text-secondary">
+                <i class="bi bi-download me-2"></i>Export Reports
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{{ url_for('reports.export_handover_bulk') }}" class="row g-3 align-items-end">
+                <input type="hidden" name="account_id" value="{{ selected_account_id }}">
+                <input type="hidden" name="team_id" value="{{ selected_team_id }}">
+                <input type="hidden" name="date" value="{{ date_filter }}">
+                <input type="hidden" name="shift_type" value="{{ shift_type_filter }}">
+                <div class="col-md-4">
+                    <label for="format" class="form-label fw-semibold text-secondary">
+                        <i class="bi bi-file-earmark me-1"></i>Export Format
+                    </label>
+                    <select name="format" id="format" class="form-select">
+                        <option value="csv">
+                            <i class="bi bi-file-earmark-excel"></i> Excel/CSV Format
+                        </option>
+                        <option value="pdf">
+                            <i class="bi bi-file-earmark-pdf"></i> PDF Format
+                        </option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="bi bi-download me-1"></i>Download
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Export includes all filtered reports with incidents and key points
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Reports Section -->
+    {% if shift_data %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 py-3">
+            <h5 class="mb-0 text-secondary">
+                <i class="bi bi-table me-2"></i>Detailed Shift Reports
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 reports-table">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th class="border-0 fw-semibold py-3 px-4" style="width: 120px;">
+                                <i class="bi bi-calendar3 me-1"></i>Date
+                            </th>
+                            <th class="border-0 fw-semibold py-3" style="width: 120px;">
+                                <i class="bi bi-clock me-1"></i>Shift
+                            </th>
+                            <th class="border-0 fw-semibold py-3" style="width: 100px;">
+                                <i class="bi bi-flag me-1"></i>Status
+                            </th>
+                            <th class="border-0 fw-semibold py-3" style="width: 150px;">
+                                <i class="bi bi-person me-1"></i>Submitted By
+                            </th>
+                            <th class="border-0 fw-semibold py-3 incident-col">
+                                <i class="bi bi-shield-exclamation me-1 text-danger"></i>
+                                <span style="color: #dc3545; font-weight: 600;">Incident Reports</span>
+                            </th>
+                            <th class="border-0 fw-semibold py-3 keypoints-col">
+                                <i class="bi bi-key me-1" style="color: #ffc107;"></i>
+                                <span style="color: #17a2b8; font-weight: 600;">Key Points</span>
+                            </th>
+                            <th class="border-0 fw-semibold py-3" style="width: 120px;">
+                                <i class="bi bi-gear me-1"></i>Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for entry in shift_data %}
+                        <tr class="border-bottom">
+                            <td class="py-3 px-4">
+                                <div class="d-flex align-items-center">
+                                    <span class="fw-semibold">{{ entry.shift.date }}</span>
+                                </div>
+                            </td>
+                            <td class="py-3">
+                                <span class="badge text-dark fs-6 px-3 py-2" style="
+                                    {% if entry.shift.current_shift_type == 'Morning' %}background-color: #fff3cd; border: 1px solid #ffeaa7;{% elif entry.shift.current_shift_type == 'Evening' %}background-color: #cfe2ff; border: 1px solid #a6c8ff;{% elif entry.shift.current_shift_type == 'Night' %}background-color: #e2e3e5; border: 1px solid #c6c8ca;{% else %}background-color: #f8f9fa; border: 1px solid #dee2e6;{% endif %}">
+                                    {% if entry.shift.current_shift_type == 'Morning' %}<i class="bi bi-sun me-1"></i>{% elif entry.shift.current_shift_type == 'Evening' %}<i class="bi bi-sunset me-1"></i>{% elif entry.shift.current_shift_type == 'Night' %}<i class="bi bi-moon me-1"></i>{% else %}<i class="bi bi-clock me-1"></i>{% endif %}
+                                    {{ entry.shift.current_shift_type }}
+                                </span>
+                            </td>
+                            <td class="py-3">
+                                {% if entry.shift.status == 'draft' %}
+                                    <span class="badge text-dark fs-6 px-3 py-2" style="background-color: #fff3cd; border: 1px solid #ffeaa7;">
+                                        <i class="bi bi-pencil me-1"></i>Draft
+                                    </span>
+                                {% else %}
+                                    <span class="badge text-dark fs-6 px-3 py-2" style="background-color: #d1edff; border: 1px solid #a6d5f7;">
+                                        <i class="bi bi-check-circle me-1"></i>Sent
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="py-3">
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-person-circle text-info me-2"></i>
+                                    <span class="fw-semibold">{{ entry.submitted_by }}</span>
+                                </div>
+                            </td>
+                            <td class="incident-col py-3">
+                                {% if entry.incidents %}
+                                    <div class="accordion incident-accordion" id="incidentsAccordion{{ entry.shift.id }}">
+                                        {% for inc in entry.incidents %}
+                                        <div class="accordion-item mb-2 border-0 shadow-sm">
+                                            <h6 class="accordion-header" id="incident{{ loop.index }}{{ entry.shift.id }}">
+                                                <button class="accordion-button collapsed border-0 py-2 px-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseIncident{{ loop.index }}{{ entry.shift.id }}" aria-expanded="false">
+                                                    <span class="badge me-2 px-2 py-1 fw-semibold" style="
+                                                        {% if inc.type == 'Open' %}background: linear-gradient(45deg, #ff6b6b, #ee5a52); color: white; border: 1px solid #dc3545;
+                                                        {% elif inc.type == 'Closed' %}background: linear-gradient(45deg, #51cf66, #40c057); color: white; border: 1px solid #198754;
+                                                        {% elif inc.type == 'Priority' %}background: linear-gradient(45deg, #ffd43b, #fab005); color: #333; border: 1px solid #fd7e14;
+                                                        {% elif inc.type == 'Handover' %}background: linear-gradient(45deg, #74c0fc, #339af0); color: white; border: 1px solid #0d6efd;
+                                                        {% else %}background: linear-gradient(45deg, #868e96, #495057); color: white; border: 1px solid #6c757d;{% endif %}
+                                                        box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-size: 0.75rem;">
+                                                        {% if inc.type == 'Open' %}<i class="bi bi-exclamation-circle me-1"></i>🔴 Active
+                                                        {% elif inc.type == 'Closed' %}<i class="bi bi-check-circle me-1"></i>✅ Resolved
+                                                        {% elif inc.type == 'Priority' %}<i class="bi bi-star-fill me-1"></i>⭐ Priority
+                                                        {% elif inc.type == 'Handover' %}<i class="bi bi-arrow-right me-1"></i>📋 Handover
+                                                        {% else %}<i class="bi bi-circle me-1"></i>⚫ Escalated{% endif %}
+                                                    </span>
+                                                    <span class="text-truncate fw-semibold">{{ inc.title }}</span>
+                                                </button>
+                                            </h6>
+                                            <div id="collapseIncident{{ loop.index }}{{ entry.shift.id }}" class="accordion-collapse collapse" data-bs-parent="#incidentsAccordion{{ entry.shift.id }}">
+                                                <div class="accordion-body bg-light">
+                                                    <div class="mb-2">
+                                                        <strong class="text-primary">{{ inc.title }}</strong>
+                                                    </div>
+                                                    {% if inc.status %}
+                                                    <div class="mb-2">
+                                                        <small class="text-secondary">
+                                                            <i class="bi bi-flag me-1"></i><strong>Status:</strong> {{ inc.status }}
+                                                        </small>
+                                                    </div>
+                                                    {% endif %}
+                                                    {% if inc.priority %}
+                                                    <div class="mb-2">
+                                                        <small class="text-secondary">
+                                                            <i class="bi bi-exclamation-triangle me-1"></i><strong>Priority:</strong> {{ inc.priority }}
+                                                        </small>
+                                                    </div>
+                                                    {% endif %}
+                                                    {% if inc.handover %}
+                                                    <div class="mb-0">
+                                                        <small class="text-secondary">
+                                                            <i class="bi bi-info-circle me-1"></i><strong>Details:</strong> {{ inc.handover }}
+                                                        </small>
+                                                    </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <div class="empty-state text-center py-4" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-radius: 8px; border: 2px dashed #dee2e6;">
+                                        <i class="bi bi-shield-check text-success mb-2" style="font-size: 2rem;"></i>
+                                        <div class="fw-medium text-success mb-1">All Clear! 🎉</div>
+                                        <small class="text-muted">No incidents reported for this shift</small>
+                                    </div>
+                                {% endif %}
+                            </td>
+                            <td class="keypoints-col py-3">
+                                {% if entry.key_points %}
+                                    {% for kp in entry.key_points %}
+                                        <div class="card mb-2 border-0 shadow-sm">
+                                            <div class="card-body p-3">
+                                                <div class="text-dark mb-2" style="font-size: 0.85rem; color: black !important;">{{ kp.description }}</div>
+                                                <div class="d-flex flex-wrap gap-2 align-items-center">
+                                                    <span class="badge bg-{{ 'success' if kp.status == 'Closed' else 'warning' if kp.status == 'In Progress' else 'secondary' }}" style="font-size: 0.7rem;">
+                                                        {% if kp.status == 'Closed' %}<i class="bi bi-check-circle me-1"></i>{% elif kp.status == 'In Progress' %}<i class="bi bi-clock me-1"></i>{% else %}<i class="bi bi-pause-circle me-1"></i>{% endif %}
+                                                        {{ kp.status }}
+                                                    </span>
+                                                </div>
+                                                <div class="mt-2">
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-person me-1"></i>{{ kp.responsible }}
+                                                    </small>
+                                                    {% if kp.jira_id %}
+                                                    <br><small class="text-primary">
+                                                        <i class="bi bi-link-45deg me-1"></i>JIRA: {{ kp.jira_id }}
+                                                    </small>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="empty-state">
+                                        <i class="bi bi-list-check"></i>
+                                        <div class="fw-medium" style="color: #198754;">
+                                            <i class="bi bi-check-circle-fill me-2" style="color: #28a745;"></i>
+                                            <span style="background: linear-gradient(45deg, #28a745, #20c997); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 600;">All Good! 📝</span>
+                                        </div>
+                                        <small class="text-muted">No specific key points documented for this shift</small>
+                                    </div>
+                                {% endif %}
+                            </td>
+                            <td class="py-3">
+                                {% if entry.shift.status == 'draft' %}
+                                <a href="{{ url_for('handover.edit_handover', shift_id=entry.shift.id) }}" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-pencil me-1"></i>Edit
+                                </a>
+                                {% else %}
+                                <span class="badge bg-light text-dark border">
+                                    <i class="bi bi-lock me-1"></i>Final
+                                </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- Empty State -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+            <div class="mb-3">
+                <i class="bi bi-file-earmark-text" style="font-size: 3rem; color: #6c757d;"></i>
+            </div>
+            <h5 class="text-muted">No Reports Found</h5>
+            <p class="text-muted mb-0">No shift handover reports match your current filters. Try adjusting your search criteria.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Enhanced JavaScript for Modern Interactions -->
+<script>
+function updateTeamsDropdown(accountId) {
+    const teamSelect = document.getElementById('team_id');
+    
+    if (!accountId) {
+        teamSelect.innerHTML = '<option value="">All Teams</option>';
+        return;
+    }
+    
+    // Show modern loading state
+    teamSelect.innerHTML = '<option value="">🔄 Loading teams...</option>';
+    teamSelect.disabled = true;
+    teamSelect.style.opacity = '0.6';
+    
+    fetch('/get_teams?account_id=' + accountId)
+        .then(response => response.json())
+        .then(data => {
+            teamSelect.innerHTML = '<option value="">All Teams</option>';
+            data.teams.forEach(team => {
+                teamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
+            });
+        })
+        .catch(error => {
+            console.error('Error loading teams:', error);
+            teamSelect.innerHTML = '<option value="">⚠️ Error loading teams</option>';
+        })
+        .finally(() => {
+            teamSelect.disabled = false;
+            teamSelect.style.opacity = '1';
+        });
+}
+
+// Enhanced modern interactions
+document.addEventListener('DOMContentLoaded', function() {
+    // Add staggered fade-in animations
+    const elements = document.querySelectorAll('.fade-in-up');
+    elements.forEach((el, index) => {
+        el.style.animationDelay = `${index * 0.1}s`;
+    });
+
+    // Enhanced hover effects for interactive rows
+    const tableRows = document.querySelectorAll('.interactive-row');
+    tableRows.forEach(row => {
+        row.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-2px) scale(1.005)';
+            this.style.zIndex = '5';
+        });
+        
+        row.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0) scale(1)';
+            this.style.zIndex = '1';
+        });
+    });
+
+    // Smooth accordion transitions
+    const accordionButtons = document.querySelectorAll('.modern-accordion-button');
+    accordionButtons.forEach(button => {
+        button.addEventListener('click', function(event) {
+            // Add ripple effect
+            const ripple = document.createElement('span');
+            ripple.style.cssText = `
+                position: absolute;
+                border-radius: 50%;
+                background: rgba(255, 255, 255, 0.3);
+                transform: scale(0);
+                animation: ripple 0.6s linear;
+                width: 20px;
+                height: 20px;
+                left: ${event.offsetX - 10}px;
+                top: ${event.offsetY - 10}px;
+                pointer-events: none;
+            `;
+            
+            this.style.position = 'relative';
+            this.appendChild(ripple);
+            
+            setTimeout(() => {
+                ripple.remove();
+            }, 600);
+        });
+    });
+
+    // Modern form enhancements
+    const modernInputs = document.querySelectorAll('.modern-input, .modern-select');
+    modernInputs.forEach(input => {
+        // Add focus animations
+        input.addEventListener('focus', function() {
+            this.style.transform = 'scale(1.02)';
+            this.style.background = 'rgba(255, 255, 255, 0.15)';
+        });
+        
+        input.addEventListener('blur', function() {
+            this.style.transform = 'scale(1)';
+            this.style.background = 'rgba(255, 255, 255, 0.1)';
+        });
+    });
+
+    // Enhanced button interactions
+    const modernButtons = document.querySelectorAll('.btn-modern');
+    modernButtons.forEach(btn => {
+        btn.addEventListener('mousedown', function() {
+            this.style.transform = 'translateY(-2px) scale(0.98)';
+        });
+        
+        btn.addEventListener('mouseup', function() {
+            this.style.transform = 'translateY(-2px) scale(1)';
+        });
+        
+        btn.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0) scale(1)';
+        });
+    });
+
+    // Keypoint card animations
+    const keypointCards = document.querySelectorAll('.keypoint-card');
+    keypointCards.forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-3px) scale(1.02)';
+        });
+        
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0) scale(1)';
+        });
+    });
+
+    // Add loading states for export buttons
+    const exportForms = document.querySelectorAll('form[action*="export"]');
+    exportForms.forEach(form => {
+        form.addEventListener('submit', function() {
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                const originalHTML = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<span class="loading-spinner me-2"></span>Exporting...';
+                submitBtn.disabled = true;
+                
+                setTimeout(() => {
+                    submitBtn.innerHTML = originalHTML;
+                    submitBtn.disabled = false;
+                }, 3000);
+            }
+        });
+    });
+});
+
+// Add CSS animations dynamically
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes ripple {
+        to {
+            transform: scale(4);
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(style);
+</script>
+
+{% endblock %}

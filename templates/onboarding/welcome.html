@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome - Setup Your Account</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .onboarding-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .welcome-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+        
+        .welcome-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .card-header {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border: none;
+        }
+        
+        .card-header h2 {
+            margin: 0;
+            font-weight: 300;
+            font-size: 2.5rem;
+        }
+        
+        .card-header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        
+        .card-body {
+            padding: 40px;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        .form-label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            display: block;
+        }
+        
+        .form-select {
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 8px;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-primary:disabled {
+            background: #ccc;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .progress-bar {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            transition: width 0.3s ease;
+        }
+        
+        .step-indicator {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .step {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e9ecef;
+            line-height: 40px;
+            margin: 0 10px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .step.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .step.completed {
+            background: #28a745;
+            color: white;
+        }
+        
+        .welcome-message {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .alert-info {
+            background-color: #e3f2fd;
+            border: 1px solid #bbdefb;
+            color: #1976d2;
+        }
+        
+        .spinner-border-sm {
+            width: 1rem;
+            height: 1rem;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="onboarding-container">
+        <div class="welcome-card fade-in">
+            <div class="card-header">
+                <h2><i class="fas fa-user-plus me-3"></i>Welcome!</h2>
+                <p>Let's set up your account to get started</p>
+            </div>
+            
+            <div class="card-body">
+                <!-- Welcome Message -->
+                <div class="welcome-message">
+                    <h5><i class="fas fa-hand-wave me-2"></i>Hello, {{ user.display_name }}!</h5>
+                    <p class="mb-0">To get started, please select your account and team. This will personalize your experience and ensure you see the right information.</p>
+                </div>
+
+                <!-- Progress Indicator -->
+                <div class="step-indicator">
+                    <span class="step active" id="step1">1</span>
+                    <span class="step" id="step2">2</span>
+                    <span class="step" id="step3">✓</span>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="progress mb-4">
+                    <div class="progress-bar" role="progressbar" style="width: 33%" aria-valuenow="33" aria-valuemax="100" id="progressBar"></div>
+                </div>
+
+                <!-- Onboarding Form -->
+                <form id="onboardingForm">
+                    <!-- Account Selection -->
+                    <div class="form-group">
+                        <label for="accountSelect" class="form-label">
+                            <i class="fas fa-building me-2"></i>Select Your Account
+                        </label>
+                        <select class="form-select" id="accountSelect" required>
+                            <option value="">-- Choose Account --</option>
+                            {% for account in accounts %}
+                            <option value="{{ account.id }}">{{ account.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Choose the account/organization you belong to</div>
+                    </div>
+
+                    <!-- Team Selection -->
+                    <div class="form-group">
+                        <label for="teamSelect" class="form-label">
+                            <i class="fas fa-users me-2"></i>Select Your Team
+                        </label>
+                        <select class="form-select" id="teamSelect" required disabled>
+                            <option value="">-- First select an account --</option>
+                        </select>
+                        <div class="form-text">Choose your primary team within the selected account</div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+                            <span id="submitSpinner" class="spinner-border spinner-border-sm me-2" style="display: none;"></span>
+                            <i class="fas fa-rocket me-2" id="submitIcon"></i>
+                            <span id="submitText">Complete Setup</span>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Info Alert -->
+                <div class="alert alert-info mt-4">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Note:</strong> You can change these settings later in your profile if needed.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const accountSelect = document.getElementById('accountSelect');
+            const teamSelect = document.getElementById('teamSelect');
+            const submitBtn = document.getElementById('submitBtn');
+            const onboardingForm = document.getElementById('onboardingForm');
+            
+            // Handle account selection
+            accountSelect.addEventListener('change', function() {
+                const accountId = this.value;
+                
+                if (accountId) {
+                    // Update progress
+                    updateProgress(1);
+                    
+                    // Enable team select and fetch teams
+                    teamSelect.disabled = false;
+                    teamSelect.innerHTML = '<option value="">Loading teams...</option>';
+                    
+                    // Fetch teams for selected account
+                    fetch(`/onboarding/api/teams/${accountId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                teamSelect.innerHTML = '<option value="">-- Choose Team --</option>';
+                                data.teams.forEach(team => {
+                                    teamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
+                                });
+                            } else {
+                                teamSelect.innerHTML = '<option value="">Error loading teams</option>';
+                                console.error('Error loading teams:', data.error);
+                            }
+                        })
+                        .catch(error => {
+                            teamSelect.innerHTML = '<option value="">Error loading teams</option>';
+                            console.error('Error:', error);
+                        });
+                } else {
+                    // Reset team selection
+                    teamSelect.disabled = true;
+                    teamSelect.innerHTML = '<option value="">-- First select an account --</option>';
+                    submitBtn.disabled = true;
+                    updateProgress(0);
+                }
+            });
+            
+            // Handle team selection
+            teamSelect.addEventListener('change', function() {
+                const teamId = this.value;
+                
+                if (teamId && accountSelect.value) {
+                    submitBtn.disabled = false;
+                    updateProgress(2);
+                } else {
+                    submitBtn.disabled = true;
+                    updateProgress(1);
+                }
+            });
+            
+            // Handle form submission
+            onboardingForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const accountId = accountSelect.value;
+                const teamId = teamSelect.value;
+                
+                if (!accountId || !teamId) {
+                    alert('Please select both account and team');
+                    return;
+                }
+                
+                // Show loading state
+                const submitSpinner = document.getElementById('submitSpinner');
+                const submitIcon = document.getElementById('submitIcon');
+                const submitText = document.getElementById('submitText');
+                
+                submitBtn.disabled = true;
+                submitSpinner.style.display = 'inline-block';
+                submitIcon.style.display = 'none';
+                submitText.textContent = 'Setting up...';
+                
+                // Submit onboarding
+                fetch('/onboarding/complete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        account_id: parseInt(accountId),
+                        team_id: parseInt(teamId)
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Complete the progress
+                        updateProgress(3);
+                        
+                        // Show success message
+                        submitText.textContent = 'Setup Complete!';
+                        submitIcon.style.display = 'inline-block';
+                        submitIcon.className = 'fas fa-check me-2';
+                        submitSpinner.style.display = 'none';
+                        
+                        // Redirect to dashboard
+                        setTimeout(() => {
+                            window.location.href = data.redirect_url;
+                        }, 1500);
+                    } else {
+                        // Handle error
+                        submitBtn.disabled = false;
+                        submitSpinner.style.display = 'none';
+                        submitIcon.style.display = 'inline-block';
+                        submitText.textContent = 'Complete Setup';
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    submitBtn.disabled = false;
+                    submitSpinner.style.display = 'none';
+                    submitIcon.style.display = 'inline-block';
+                    submitText.textContent = 'Complete Setup';
+                    alert('An error occurred. Please try again.');
+                });
+            });
+            
+            function updateProgress(step) {
+                const progressBar = document.getElementById('progressBar');
+                const step1 = document.getElementById('step1');
+                const step2 = document.getElementById('step2');
+                const step3 = document.getElementById('step3');
+                
+                // Reset all steps
+                [step1, step2, step3].forEach(s => {
+                    s.classList.remove('active', 'completed');
+                });
+                
+                switch(step) {
+                    case 0:
+                        progressBar.style.width = '33%';
+                        step1.classList.add('active');
+                        break;
+                    case 1:
+                        progressBar.style.width = '66%';
+                        step1.classList.add('completed');
+                        step2.classList.add('active');
+                        break;
+                    case 2:
+                        progressBar.style.width = '90%';
+                        step1.classList.add('completed');
+                        step2.classList.add('completed');
+                        step3.classList.add('active');
+                        break;
+                    case 3:
+                        progressBar.style.width = '100%';
+                        step1.classList.add('completed');
+                        step2.classList.add('completed');
+                        step3.classList.add('completed');
+                        break;
+                }
+            }
+        });
+    </script>
+</body>
+</html>

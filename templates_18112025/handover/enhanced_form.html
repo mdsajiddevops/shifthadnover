@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+
+{% block title %}Enhanced Shift Handover{% endblock %}
+
+{% block head %}
+<style>
+    .handover-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .handover-card {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        padding: 30px;
+        margin-bottom: 20px;
+    }
+    
+    .form-section {
+        margin-bottom: 30px;
+        padding: 20px;
+        border: 1px solid #e1e5e9;
+        border-radius: 6px;
+        background: #f8f9fa;
+    }
+    
+    .form-section h3 {
+        margin: 0 0 20px 0;
+        color: #495057;
+        font-size: 1.2em;
+        font-weight: 600;
+    }
+    
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: #495057;
+    }
+    
+    .form-control {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 14px;
+        transition: border-color 0.15s ease-in-out;
+    }
+    
+    .form-control:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+    }
+    
+    .incident-item {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        padding: 20px;
+        margin-bottom: 15px;
+        position: relative;
+    }
+    
+    .incident-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    
+    .incident-priority {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
+    .priority-high {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
+    .priority-medium {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .priority-low {
+        background: #d1ecf1;
+        color: #0c5460;
+    }
+    
+    .remove-incident {
+        background: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 6px 12px;
+        cursor: pointer;
+        font-size: 12px;
+    }
+    
+    .assignment-section {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #e9ecef;
+    }
+    
+    .team-member-select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        background: white;
+    }
+    
+    .btn {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        text-decoration: none;
+        display: inline-block;
+        text-align: center;
+    }
+    
+    .btn-primary {
+        background: #007bff;
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        background: #0056b3;
+    }
+    
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+    
+    .btn-success {
+        background: #28a745;
+        color: white;
+    }
+    
+    .btn-outline {
+        background: transparent;
+        border: 1px solid #007bff;
+        color: #007bff;
+    }
+    
+    .btn-outline:hover {
+        background: #007bff;
+        color: white;
+    }
+    
+    .loading {
+        opacity: 0.6;
+        pointer-events: none;
+    }
+    
+    .alert {
+        padding: 12px 16px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    
+    .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+    
+    .alert-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .form-row {
+        display: flex;
+        gap: 20px;
+    }
+    
+    .form-col {
+        flex: 1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="handover-container">
+    <div class="handover-card">
+        <h1>Enhanced Shift Handover</h1>
+        <p class="text-muted">Create a comprehensive handover with incident assignments for the next shift team.</p>
+        
+        <div id="alert-container"></div>
+        
+        <form id="handover-form">
+            <!-- Basic Information Section -->
+            <div class="form-section">
+                <h3>📋 Handover Information</h3>
+                
+                <div class="form-row">
+                    <div class="form-col">
+                        <div class="form-group">
+                            <label for="summary">Handover Summary *</label>
+                            <input type="text" id="summary" name="summary" class="form-control" 
+                                   placeholder="Brief summary of the shift handover" required>
+                        </div>
+                    </div>
+                    <div class="form-col">
+                        <div class="form-group">
+                            <label for="priority">Overall Priority</label>
+                            <select id="priority" name="priority" class="form-control">
+                                <option value="low">Low</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="high">High</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="shift_end_time">Shift End Time *</label>
+                    <input type="datetime-local" id="shift_end_time" name="shift_end_time" 
+                           class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="detailed_notes">Detailed Notes *</label>
+                    <textarea id="detailed_notes" name="detailed_notes" class="form-control" 
+                              rows="4" placeholder="Provide detailed information about the shift activities, issues, and important notes..." required></textarea>
+                </div>
+            </div>
+            
+            <!-- Incidents Section -->
+            <div class="form-section">
+                <h3>🚨 Active Incidents</h3>
+                <p class="text-muted">Add any open or active incidents that need to be handed over to the next shift.</p>
+                
+                <div id="incidents-container">
+                    <!-- Incidents will be added here dynamically -->
+                </div>
+                
+                <button type="button" id="add-incident" class="btn btn-outline">
+                    + Add Incident
+                </button>
+            </div>
+            
+            <!-- Submit Section -->
+            <div class="form-section">
+                <h3>📤 Submit Handover</h3>
+                <p class="text-muted">Review your handover information and submit to create incident assignments.</p>
+                
+                <div style="display: flex; gap: 15px; justify-content: flex-end;">
+                    <button type="button" id="save-draft" class="btn btn-secondary">
+                        Save as Draft
+                    </button>
+                    <button type="submit" id="submit-handover" class="btn btn-primary">
+                        Submit Handover
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Incident Template -->
+<template id="incident-template">
+    <div class="incident-item">
+        <div class="incident-header">
+            <h4>Incident #<span class="incident-number"></span></h4>
+            <button type="button" class="remove-incident">Remove</button>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-col">
+                <div class="form-group">
+                    <label>Incident Description *</label>
+                    <textarea class="form-control incident-description" rows="3" 
+                              placeholder="Describe the incident in detail..." required></textarea>
+                </div>
+            </div>
+            <div class="form-col" style="flex: 0 0 200px;">
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select class="form-control incident-priority-select">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>Additional Notes</label>
+            <textarea class="form-control incident-notes" rows="2" 
+                      placeholder="Any additional notes or context..."></textarea>
+        </div>
+        
+        <div class="assignment-section">
+            <label>Assign to Team Member</label>
+            <select class="form-control team-member-select">
+                <option value="">Select team member...</option>
+                {% for member in team_members %}
+                <option value="{{ member.id }}">{{ member.name }} ({{ member.team }})</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+</template>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let incidentCounter = 0;
+    const form = document.getElementById('handover-form');
+    const incidentsContainer = document.getElementById('incidents-container');
+    const addIncidentBtn = document.getElementById('add-incident');
+    const alertContainer = document.getElementById('alert-container');
+    
+    // Set default shift end time to current time
+    const now = new Date();
+    const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    document.getElementById('shift_end_time').value = localDateTime.toISOString().slice(0, 16);
+    
+    // Add incident functionality
+    addIncidentBtn.addEventListener('click', function() {
+        addIncident();
+    });
+    
+    function addIncident() {
+        incidentCounter++;
+        const template = document.getElementById('incident-template');
+        const incidentElement = template.content.cloneNode(true);
+        
+        // Set incident number
+        incidentElement.querySelector('.incident-number').textContent = incidentCounter;
+        
+        // Add remove functionality
+        incidentElement.querySelector('.remove-incident').addEventListener('click', function() {
+            this.closest('.incident-item').remove();
+        });
+        
+        incidentsContainer.appendChild(incidentElement);
+    }
+    
+    // Form submission
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        submitHandover();
+    });
+    
+    // Save draft functionality
+    document.getElementById('save-draft').addEventListener('click', function() {
+        saveDraft();
+    });
+    
+    function collectFormData() {
+        const incidents = [];
+        const incidentItems = document.querySelectorAll('.incident-item');
+        
+        incidentItems.forEach(function(item) {
+            const description = item.querySelector('.incident-description').value;
+            const priority = item.querySelector('.incident-priority-select').value;
+            const notes = item.querySelector('.incident-notes').value;
+            const assignedTo = item.querySelector('.team-member-select').value;
+            
+            if (description.trim()) {
+                incidents.push({
+                    description: description,
+                    priority: priority,
+                    notes: notes,
+                    assigned_to_id: assignedTo || null
+                });
+            }
+        });
+        
+        return {
+            summary: document.getElementById('summary').value,
+            detailed_notes: document.getElementById('detailed_notes').value,
+            shift_end_time: document.getElementById('shift_end_time').value,
+            priority: document.getElementById('priority').value,
+            incidents: incidents
+        };
+    }
+    
+    function showAlert(message, type) {
+        const alertElement = document.createElement('div');
+        alertElement.className = `alert alert-${type}`;
+        alertElement.textContent = message;
+        alertContainer.appendChild(alertElement);
+        
+        setTimeout(function() {
+            alertElement.remove();
+        }, 5000);
+    }
+    
+    function setFormLoading(loading) {
+        const form = document.getElementById('handover-form');
+        if (loading) {
+            form.classList.add('loading');
+        } else {
+            form.classList.remove('loading');
+        }
+    }
+    
+    async function saveDraft() {
+        const formData = collectFormData();
+        
+        try {
+            setFormLoading(true);
+            
+            const response = await fetch('/handover/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert('Draft saved successfully', 'success');
+                // Store handover ID for later submission
+                form.dataset.handoverId = result.handover_id;
+            } else {
+                showAlert('Error saving draft: ' + result.error, 'error');
+            }
+        } catch (error) {
+            showAlert('Error saving draft: ' + error.message, 'error');
+        } finally {
+            setFormLoading(false);
+        }
+    }
+    
+    async function submitHandover() {
+        const formData = collectFormData();
+        
+        console.log('Form data collected:', formData);
+        
+        // Validate form
+        if (!formData.summary || !formData.detailed_notes || !formData.shift_end_time) {
+            showAlert('Please fill in all required fields', 'error');
+            return;
+        }
+        
+        try {
+            setFormLoading(true);
+            
+            // First create or update the handover
+            let handoverId = form.dataset.handoverId;
+            
+            console.log('Current handover ID:', handoverId);
+            
+            if (!handoverId) {
+                console.log('Creating new handover...');
+                const createResponse = await fetch('/handover/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                console.log('Create response status:', createResponse.status);
+                const createResult = await createResponse.json();
+                console.log('Create result:', createResult);
+                
+                if (!createResult.success) {
+                    showAlert('Error creating handover: ' + createResult.error, 'error');
+                    return;
+                }
+                
+                handoverId = createResult.handover_id;
+            }
+            
+            console.log('Using handover ID:', handoverId);
+            
+            // Prepare incident assignments
+            const incidentAssignments = formData.incidents.map(incident => ({
+                incident_description: incident.description,
+                priority: incident.priority,
+                notes: incident.notes,
+                assigned_to_id: incident.assigned_to_id
+            }));
+            
+            console.log('Incident assignments:', incidentAssignments);
+            
+            // Submit the handover
+            console.log('Submitting handover...');
+            const submitResponse = await fetch(`/handover/submit/${handoverId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    incident_assignments: incidentAssignments
+                })
+            });
+            
+            console.log('Submit response status:', submitResponse.status);
+            const submitResult = await submitResponse.json();
+            console.log('Submit result:', submitResult);
+            
+            if (submitResult.success) {
+                showAlert('Handover submitted successfully! Incident assignments have been created.', 'success');
+                
+                // Redirect to history page after a delay
+                setTimeout(function() {
+                    window.location.href = '/handover/history';
+                }, 2000);
+            } else {
+                showAlert('Error submitting handover: ' + submitResult.error, 'error');
+            }
+        } catch (error) {
+            console.error('Submit error:', error);
+            showAlert('Error submitting handover: ' + error.message, 'error');
+        } finally {
+            setFormLoading(false);
+        }
+    }
+    
+    // Add first incident by default
+    addIncident();
+});
+</script>
+{% endblock %}

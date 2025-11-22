@@ -1,0 +1,86 @@
+
+<!-- Add this JavaScript to your user_management.html template to fix form issues -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('User management page loaded');
+    
+    // Find the add user form
+    const addUserForm = document.querySelector('form[action="/user-management"] input[name="action"][value="add"]');
+    if (addUserForm) {
+        const form = addUserForm.closest('form');
+        console.log('Add user form found:', form);
+        
+        // Add form submission handler
+        form.addEventListener('submit', function(e) {
+            console.log('Add user form submitted');
+            
+            // Get form data
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData);
+            console.log('Form data:', data);
+            
+            // Basic validation
+            if (!data.username || !data.password || !data.role || !data.account_id) {
+                e.preventDefault();
+                alert('Please fill in all required fields');
+                return false;
+            }
+            
+            // Show loading state
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Adding...';
+            }
+            
+            console.log('Form validation passed, submitting...');
+        });
+        
+        // Add click handler to submit button as backup
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.addEventListener('click', function(e) {
+                console.log('Submit button clicked');
+            });
+        }
+    } else {
+        console.error('Add user form not found');
+    }
+    
+    // Debug: List all forms on the page
+    const allForms = document.querySelectorAll('form');
+    console.log('All forms on page:', allForms.length);
+    allForms.forEach((form, index) => {
+        const action = form.getAttribute('action') || 'no action';
+        const method = form.getAttribute('method') || 'GET';
+        console.log(`Form ${index + 1}: ${method} ${action}`);
+    });
+});
+
+// Global form debugging function
+function debugAddUserForm() {
+    const forms = document.querySelectorAll('form');
+    const addUserForm = Array.from(forms).find(form => {
+        const actionInput = form.querySelector('input[name="action"][value="add"]');
+        return actionInput !== null;
+    });
+    
+    if (addUserForm) {
+        console.log('Add user form found');
+        const formData = new FormData(addUserForm);
+        console.log('Current form data:');
+        for (let [key, value] of formData.entries()) {
+            console.log(`  ${key}: ${value}`);
+        }
+        
+        // Test form submission
+        console.log('Testing form submission...');
+        addUserForm.submit();
+    } else {
+        console.error('Add user form not found');
+    }
+}
+
+// Call this function from browser console to debug
+console.log('To debug: call debugAddUserForm() in console');
+</script>

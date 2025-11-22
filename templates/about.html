@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}About{% endblock %}
+
+{% block extra_css %}
+<style>
+    .about-card {
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+    
+    .about-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+    
+    .hero-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 40px;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    
+    .feature-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: white;
+        margin: 0 auto 15px;
+    }
+    
+    .feature-icon-blue { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+    .feature-icon-green { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+    .feature-icon-orange { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+    .feature-icon-purple { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
+    .feature-icon-red { background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); }
+    .feature-icon-teal { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
+    
+    .stats-card {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 30px;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    
+    .tech-badge {
+        display: inline-block;
+        background-color: #e9ecef;
+        color: #495057;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        margin: 5px;
+        font-weight: 500;
+    }
+    
+    .version-info {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0 text-primary">
+                    <i class="bi bi-info-circle me-2"></i>About
+                </h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+                        <li class="breadcrumb-item active">About</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hero Section -->
+    <div class="row">
+        <div class="col-12">
+            <div class="hero-section">
+                <h2 class="mb-3">{{ app_info.name }}</h2>
+                <p class="lead mb-4">{{ app_info.description }}</p>
+                <div class="d-flex justify-content-center align-items-center gap-4">
+                    <div>
+                        <h4 class="mb-1">Version {{ app_info.version }}</h4>
+                        <small>Current Release</small>
+                    </div>
+                    <div class="vr" style="height: 40px;"></div>
+                    <div>
+                        <h4 class="mb-1">2025</h4>
+                        <small>© All Rights Reserved</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Version Information -->
+    <div class="row">
+        <div class="col-12">
+            <div class="version-info">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5 class="text-primary mb-3">
+                            <i class="bi bi-info-circle me-2"></i>Application Information
+                        </h5>
+                        <table class="table table-borderless">
+                            <tr>
+                                <td><strong>Application Name:</strong></td>
+                                <td>{{ app_info.name }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Version:</strong></td>
+                                <td>{{ app_info.version }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Release Date:</strong></td>
+                                <td>October 2025</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Environment:</strong></td>
+                                <td>Production</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h5 class="text-primary mb-3">
+                            <i class="bi bi-gear me-2"></i>System Information
+                        </h5>
+                        <table class="table table-borderless">
+                            <tr>
+                                <td><strong>Framework:</strong></td>
+                                <td>Flask (Python)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Database:</strong></td>
+                                <td>MySQL 8.0</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Deployment:</strong></td>
+                                <td>Docker & GCP</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Last Updated:</strong></td>
+                                <td>October 22, 2025</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Grid -->
+    <div class="row mb-5">
+        <div class="col-12 mb-4">
+            <h3 class="text-center text-primary">Key Features</h3>
+            <p class="text-center text-muted">Comprehensive tools for efficient shift management</p>
+        </div>
+        {% for feature in app_info.features %}
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card about-card text-center">
+                <div class="card-body">
+                    <div class="feature-icon 
+                        {% if loop.index == 1 %}feature-icon-blue
+                        {% elif loop.index == 2 %}feature-icon-green
+                        {% elif loop.index == 3 %}feature-icon-orange
+                        {% elif loop.index == 4 %}feature-icon-purple
+                        {% elif loop.index == 5 %}feature-icon-red
+                        {% else %}feature-icon-teal{% endif %}">
+                        {% if 'scheduling' in feature.lower() %}
+                            <i class="bi bi-calendar-check"></i>
+                        {% elif 'incident' in feature.lower() %}
+                            <i class="bi bi-exclamation-triangle"></i>
+                        {% elif 'servicenow' in feature.lower() %}
+                            <i class="bi bi-cloud-arrow-down"></i>
+                        {% elif 'user' in feature.lower() %}
+                            <i class="bi bi-people"></i>
+                        {% elif 'audit' in feature.lower() %}
+                            <i class="bi bi-clipboard-data"></i>
+                        {% else %}
+                            <i class="bi bi-shield-check"></i>
+                        {% endif %}
+                    </div>
+                    <h6 class="card-title">{{ feature }}</h6>
+                    <p class="card-text text-muted small">
+                        {% if 'scheduling' in feature.lower() %}
+                            Manage team rosters and shift assignments with ease
+                        {% elif 'incident' in feature.lower() %}
+                            Track and handover incidents between shifts
+                        {% elif 'servicenow' in feature.lower() %}
+                            Seamless integration with ServiceNow platform
+                        {% elif 'user' in feature.lower() %}
+                            Comprehensive user and team management tools
+                        {% elif 'audit' in feature.lower() %}
+                            Complete audit trails and reporting capabilities
+                        {% else %}
+                            Secure authentication with SSO support
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Technology Stack -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card about-card">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="mb-0">
+                        <i class="bi bi-stack me-2 text-primary"></i>Technology Stack
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-primary mb-3">Backend Technologies</h6>
+                            <div class="mb-3">
+                                <span class="tech-badge">Python 3.11</span>
+                                <span class="tech-badge">Flask</span>
+                                <span class="tech-badge">SQLAlchemy</span>
+                                <span class="tech-badge">MySQL</span>
+                                <span class="tech-badge">Redis</span>
+                            </div>
+                            
+                            <h6 class="text-primary mb-3">Infrastructure</h6>
+                            <div class="mb-3">
+                                <span class="tech-badge">Docker</span>
+                                <span class="tech-badge">Google Cloud Platform</span>
+                                <span class="tech-badge">Docker Compose</span>
+                                <span class="tech-badge">Linux</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-primary mb-3">Frontend Technologies</h6>
+                            <div class="mb-3">
+                                <span class="tech-badge">HTML5</span>
+                                <span class="tech-badge">CSS3</span>
+                                <span class="tech-badge">JavaScript ES6</span>
+                                <span class="tech-badge">Bootstrap 5</span>
+                                <span class="tech-badge">Bootstrap Icons</span>
+                            </div>
+                            
+                            <h6 class="text-primary mb-3">Integration & Security</h6>
+                            <div class="mb-3">
+                                <span class="tech-badge">OAuth 2.0</span>
+                                <span class="tech-badge">Google SSO</span>
+                                <span class="tech-badge">ServiceNow API</span>
+                                <span class="tech-badge">RESTful APIs</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contact & Support -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="stats-card">
+                <h4 class="mb-3">Need Help or Have Questions?</h4>
+                <p class="mb-4">Our development and support team is here to assist you</p>
+                <div class="row">
+                    <div class="col-md-4">
+                        <i class="bi bi-github" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                        <h6>Documentation</h6>
+                        <p>View source code and documentation</p>
+                    </div>
+                    <div class="col-md-4">
+                        <i class="bi bi-envelope-fill" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                        <h6>Support Email</h6>
+                        <p>support@shifthandover.com</p>
+                    </div>
+                    <div class="col-md-4">
+                        <i class="bi bi-question-circle-fill" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                        <h6>Help Center</h6>
+                        <p><a href="/help" class="text-white">Visit Help & Support</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

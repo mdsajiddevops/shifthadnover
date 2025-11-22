@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Handover History - {{ incident.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2>
+                        <i class="bi bi-clock-history text-primary me-2"></i>
+                        Handover History
+                    </h2>
+                    <p class="text-muted">Complete handover timeline for incident: <strong>{{ incident.title }}</strong></p>
+                </div>
+                <a href="{{ url_for('handover_management.pending_handovers') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-2"></i>Back to Pending
+                </a>
+            </div>
+
+            <!-- Incident Summary -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Incident Details
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Title:</strong> {{ incident.title }}</p>
+                            <p><strong>Priority:</strong> 
+                                <span class="badge priority-{{ incident.priority.lower() }}">{{ incident.priority }}</span>
+                            </p>
+                            <p><strong>Status:</strong> {{ incident.status }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Current Assignment:</strong> {{ incident.assigned_to or 'Unassigned' }}</p>
+                            <p><strong>Handover Status:</strong> 
+                                <span class="badge bg-{{ 'success' if incident.handover_status == 'Accepted' else 'danger' if incident.handover_status == 'Rejected' else 'warning' }}">
+                                    {{ incident.handover_status or 'N/A' }}
+                                </span>
+                            </p>
+                            <p><strong>Type:</strong> {{ incident.type }}</p>
+                        </div>
+                    </div>
+                    {% if incident.description %}
+                    <div class="mt-3">
+                        <strong>Description:</strong>
+                        <div class="bg-light p-3 rounded mt-2">{{ incident.description }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Handover Timeline -->
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="bi bi-clock me-2"></i>
+                        Handover Timeline
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if history %}
+                    <div class="timeline">
+                        {% for action in history %}
+                        <div class="timeline-item">
+                            <div class="timeline-marker">
+                                {% if action.action_type == 'initiated' %}
+                                    <i class="bi bi-play-circle text-primary"></i>
+                                {% elif action.action_type == 'accepted' %}
+                                    <i class="bi bi-check-circle text-success"></i>
+                                {% elif action.action_type == 'rejected' %}
+                                    <i class="bi bi-x-circle text-danger"></i>
+                                {% elif action.action_type == 'reassigned' %}
+                                    <i class="bi bi-arrow-repeat text-info"></i>
+                                {% else %}
+                                    <i class="bi bi-circle text-secondary"></i>
+                                {% endif %}
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-header">
+                                    <h6 class="timeline-title">
+                                        {% if action.action_type == 'initiated' %}
+                                            Handover Initiated
+                                        {% elif action.action_type == 'accepted' %}
+                                            Handover Accepted
+                                        {% elif action.action_type == 'rejected' %}
+                                            Handover Rejected
+                                        {% elif action.action_type == 'reassigned' %}
+                                            Handover Reassigned
+                                        {% else %}
+                                            {{ action.action_type.title() }}
+                                        {% endif %}
+                                    </h6>
+                                    <small class="text-muted">{{ action.action_at.strftime('%Y-%m-%d %H:%M:%S') }}</small>
+                                </div>
+                                <div class="timeline-body">
+                                    <p><strong>Action by:</strong> {{ action.action_by }}</p>
+                                    {% if action.from_engineer and action.to_engineer %}
+                                    <p><strong>Transfer:</strong> {{ action.from_engineer }} → {{ action.to_engineer }}</p>
+                                    {% elif action.to_engineer %}
+                                    <p><strong>Assigned to:</strong> {{ action.to_engineer }}</p>
+                                    {% endif %}
+                                    {% if action.notes %}
+                                    <div class="notes-section">
+                                        <strong>Notes:</strong>
+                                        <div class="bg-light p-2 rounded mt-1">{{ action.notes }}</div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-clock text-muted display-4"></i>
+                        <h5 class="text-muted mt-3">No Handover History</h5>
+                        <p class="text-muted">This incident has no recorded handover actions.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Timeline Styles */
+.timeline {
+    position: relative;
+    padding-left: 3rem;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 1.25rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 2rem;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -2.5rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    background: white;
+    border: 2px solid #dee2e6;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    z-index: 1;
+}
+
+.timeline-content {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-left: 1rem;
+}
+
+.timeline-header {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 0.5rem;
+}
+
+.timeline-title {
+    margin-bottom: 0;
+    color: #495057;
+    font-weight: 600;
+}
+
+.timeline-body p {
+    margin-bottom: 0.5rem;
+}
+
+.notes-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #dee2e6;
+}
+
+/* Priority Badges */
+.priority-critical {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+    color: white;
+}
+
+.priority-high {
+    background: linear-gradient(135deg, #fd7e14, #e8680d);
+    color: white;
+}
+
+.priority-medium {
+    background: linear-gradient(135deg, #ffc107, #e0a800);
+    color: #212529;
+}
+
+.priority-low {
+    background: linear-gradient(135deg, #28a745, #1e7e34);
+    color: white;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .timeline {
+        padding-left: 2rem;
+    }
+    
+    .timeline-marker {
+        left: -1.75rem;
+        width: 2rem;
+        height: 2rem;
+        font-size: 0.9rem;
+    }
+    
+    .timeline-content {
+        margin-left: 0.5rem;
+    }
+    
+    .timeline-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+</style>
+{% endblock %}

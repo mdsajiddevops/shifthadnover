@@ -1,0 +1,1594 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/handover_enhanced.css">
+<style>
+/* Fix dropdown alignment issues */
+.form-select {
+    height: 38px;
+    padding: 6px 12px;
+    font-size: 14px;
+    line-height: 1.42857143;
+    border-radius: 4px;
+    vertical-align: middle;
+}
+
+.form-control {
+    height: 38px;
+    padding: 6px 12px;
+    font-size: 14px;
+    line-height: 1.42857143;
+    border-radius: 4px;
+}
+
+/* Ensure consistent alignment for incident form elements */
+.incident-entry .col-md-3, .incident-entry .col-md-6 {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
+.incident-entry .form-label {
+    margin-bottom: 5px;
+    font-weight: 500;
+    font-size: 13px;
+}
+
+.incident-entry .form-select,
+.incident-entry .form-control {
+    margin-bottom: 10px;
+}
+
+/* Priority dropdown specific styling */
+.incident-entry select[name*="priority"] {
+    background-color: #fff;
+    border: 1px solid #ced4da;
+}
+
+/* Consistent button alignment */
+.incident-entry .col-1 {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 10px;
+}
+
+.incident-entry .btn-outline-danger {
+    height: 32px;
+    width: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Ensure sidebar styles are not affected by form styles */
+.modern-sidebar * {
+    font-family: inherit;
+}
+
+.modern-sidebar .section-title {
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    line-height: 1.2 !important;
+}
+
+.modern-sidebar .section-title span {
+    font-size: inherit !important;
+    font-weight: inherit !important;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header" style="background: linear-gradient(135deg, #4a90e2 0%, #2c5aa0 100%); color: white;">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <h3 class="card-title mb-1" style="color: white !important;">
+                                <i class="fas fa-exchange-alt me-2"></i>
+                                Shift Handover Form
+                            </h3>
+                            <div class="small" style="color: rgba(255,255,255,0.8);">
+                                <i class="fas fa-clock me-1"></i>
+                                {{ current_time.strftime('%B %d, %Y at %I:%M %p') }}
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-3">
+                            <!-- Form Mode Toggle -->
+                            <div class="d-flex align-items-center bg-white bg-opacity-10 rounded px-3 py-2">
+                                <div class="form-check form-switch me-2">
+                                    <input class="form-check-input" type="checkbox" id="formModeToggle" onchange="toggleFormMode()" style="transform: scale(1.2);">
+                                </div>
+                                <div class="text-white">
+                                    <label class="form-check-label fw-bold mb-0" for="formModeToggle" style="color: white !important; font-size: 0.9rem;">
+                                        <i class="fas fa-toggle-off me-1" id="toggleIcon"></i>
+                                        <span id="formModeLabel">Simplified</span>
+                                    </label>
+                                </div>
+                                <div class="ms-2">
+                                    <span class="badge bg-light text-dark" id="currentModeDisplay" style="font-size: 0.7rem;">OFF</span>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-light text-dark px-3 py-2">
+                                    <i class="fas fa-clipboard-check me-1"></i>
+                                    Handover Documentation
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Global Progress Indicator -->
+                    <div id="global-progress" class="d-none position-fixed top-0 start-0 w-100 h-100" style="z-index: 9999; background: rgba(0,0,0,0.5);">
+                        <div class="d-flex justify-content-center align-items-center h-100">
+                            <div class="card text-center p-4" style="min-width: 300px;">
+                                <div class="card-body">
+                                    <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <h5 class="card-title" id="progress-title">Processing Handover</h5>
+                                    <p class="card-text text-muted" id="progress-message">Please wait while we save your handover information...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Flash Message Container -->
+                    <div id="flash-messages" class="mb-3" style="display: none;">
+                        <!-- Flash messages will be inserted here -->
+                    </div>
+                    
+                    <!-- Display Flask Flash Messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' if category == 'success' else 'info' }} alert-dismissible fade show" role="alert">
+                                    {% if category == 'error' %}
+                                        <i class="fas fa-exclamation-circle me-2"></i>
+                                    {% elif category == 'success' %}
+                                        <i class="fas fa-check-circle me-2"></i>
+                                    {% else %}
+                                        <i class="fas fa-info-circle me-2"></i>
+                                    {% endif %}
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    
+                    <form method="POST" action="/handover" id="handover-form">
+                        <!-- Basic Information -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label for="handover_date" class="form-label">Handover Date</label>
+                                <input type="date" class="form-control" id="handover_date" name="handover_date" 
+                                       value="{{ today if today else '' }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="team_id" class="form-label">Team</label>
+                                {% if current_user.role in ['user', 'team_admin'] %}
+                                    <!-- For regular users and team admins, auto-select their team and make readonly -->
+                                    <select class="form-select" id="team_id" name="team_id" required readonly style="background-color: #f8f9fa;">
+                                        {% for team in teams %}
+                                            <option value="{{ team.id }}" selected>{{ team.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <small class="form-text text-muted">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Your team is automatically selected based on your account assignment.
+                                    </small>
+                                {% elif current_user.role == 'account_admin' %}
+                                    <!-- For account admins, show teams from their account -->
+                                    <select class="form-select" id="team_id" name="team_id" required>
+                                        <option value="">Select Team from {{ current_user.account.name if current_user.account else 'Your Account' }}</option>
+                                        {% for team in teams %}
+                                            <option value="{{ team.id }}" {% if default_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <small class="form-text text-muted">
+                                        <i class="fas fa-users me-1"></i>
+                                        Select the team for this handover from your account.
+                                    </small>
+                                {% else %}
+                                    <!-- For super admins, show all teams grouped by account -->
+                                    <select class="form-select" id="team_id" name="team_id" required>
+                                        <option value="">Select Team</option>
+                                        {% set current_account = None %}
+                                        {% for team in teams %}
+                                            {% if team.account_id != current_account %}
+                                                {% set current_account = team.account_id %}
+                                                {% if not loop.first %}</optgroup>{% endif %}
+                                                <optgroup label="{{ team.account.name }}">
+                                            {% endif %}
+                                            <option value="{{ team.id }}" {% if default_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+                                            {% if loop.last %}</optgroup>{% endif %}
+                                        {% endfor %}
+                                    </select>
+                                    <small class="form-text text-muted">
+                                        <i class="fas fa-globe me-1"></i>
+                                        Teams are grouped by account. Select the appropriate team for this handover.
+                                    </small>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label for="current_shift_type" class="form-label">Current Shift</label>
+                                <select class="form-select" id="current_shift_type" name="current_shift_type" required>
+                                    <option value="">Select Shift</option>
+                                    <option value="Morning" {{ 'selected' if current_shift_type == 'Morning' else '' }}>Morning</option>
+                                    <option value="Evening" {{ 'selected' if current_shift_type == 'Evening' else '' }}>Evening</option>
+                                    <option value="Night" {{ 'selected' if current_shift_type == 'Night' else '' }}>Night</option>
+                                    <option value="OnShore" {{ 'selected' if current_shift_type == 'OnShore' else '' }}>OnShore</option>
+                                    <option value="OffShore" {{ 'selected' if current_shift_type == 'OffShore' else '' }}>OffShore</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="next_shift_type" class="form-label">Next Shift</label>
+                                <select class="form-select" id="next_shift_type" name="next_shift_type" required>
+                                    <option value="">Select Shift</option>
+                                    <option value="Morning" {{ 'selected' if next_shift_type == 'Morning' else '' }}>Morning</option>
+                                    <option value="Evening" {{ 'selected' if next_shift_type == 'Evening' else '' }}>Evening</option>
+                                    <option value="Night" {{ 'selected' if next_shift_type == 'Night' else '' }}>Night</option>
+                                    <option value="OnShore" {{ 'selected' if next_shift_type == 'OnShore' else '' }}>OnShore</option>
+                                    <option value="OffShore" {{ 'selected' if next_shift_type == 'OffShore' else '' }}>OffShore</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label">Current Shift Engineers</label>
+                                <div class="border rounded p-3 bg-light" id="current_engineers_display">
+                                    <div id="current_engineers_list">
+                                        <span class="text-muted"><i class="fas fa-sync fa-spin me-1"></i>Loading engineers...</span>
+                                    </div>
+                                </div>
+                                <!-- Manual fallback if API fails -->
+                                <div class="mt-2" id="current_engineers_manual" style="display: none;">
+                                    <small class="text-muted">If engineers don't load automatically, you can enter them manually:</small>
+                                    <input type="text" class="form-control form-control-sm mt-1" placeholder="Enter current shift engineers (comma-separated)" id="current_engineers_fallback">
+                                </div>
+                                <!-- Hidden input to store current engineers for form submission -->
+                                <input type="hidden" id="current_engineers" name="current_engineers" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Next Shift Engineers</label>
+                                <div class="border rounded p-3 bg-light" id="next_engineers_display">
+                                    <div id="next_engineers_list">
+                                        <span class="text-muted"><i class="fas fa-sync fa-spin me-1"></i>Loading engineers...</span>
+                                    </div>
+                                </div>
+                                <!-- Manual fallback if API fails -->
+                                <div class="mt-2" id="next_engineers_manual" style="display: none;">
+                                    <small class="text-muted">If engineers don't load automatically, you can enter them manually:</small>
+                                    <input type="text" class="form-control form-control-sm mt-1" placeholder="Enter next shift engineers (comma-separated)" id="next_engineers_fallback">
+                                </div>
+                                <!-- Hidden input to store next engineers for form submission -->
+                                <input type="hidden" id="next_engineers" name="next_engineers" />
+                            </div>
+                        </div>
+
+                        <!-- Incidents Section -->
+                        <div class="mb-4" id="incidentsSection">
+                            <h5 class="mb-4"><i class="fas fa-exclamation-triangle me-2"></i>Incidents Management</h5>
+                            
+                            <!-- Open / Active Incidents -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-warning bg-opacity-10 border-warning">
+                                    <h6 class="mb-0"><i class="fas fa-folder-open me-2"></i>Open / Active Incidents</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="open-incidents-container">
+                                        <div class="incident-entry mb-3 border p-3 rounded">
+                                            <div class="row">
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Application Name</label>
+                                                    <input type="text" class="form-control" name="open_incident_app[]" placeholder="Application Name">
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Incident ID</label>
+                                                    <input type="text" class="form-control" name="open_incident_id[]" placeholder="INC0001234">
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Priority</label>
+                                                    <select class="form-select" name="open_incident_priority[]">
+                                                        <option value="Low">Low</option>
+                                                        <option value="Medium">Medium</option>
+                                                        <option value="High">High</option>
+                                                        <option value="Critical">Critical</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Assigned To</label>
+                                                    <select class="form-select next-engineers-select" name="open_incident_assigned[]">
+                                                        <option value="">Select Next Shift Engineer</option>
+                                                        <!-- Will be populated by JavaScript -->
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-2">
+                                                <div class="col-11">
+                                                    <label class="form-label">Description</label>
+                                                    <textarea class="form-control" name="open_incident_description[]" rows="2" placeholder="Brief description of the open incident"></textarea>
+                                                </div>
+                                                <div class="col-1 d-flex align-items-end">
+                                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-outline-warning" onclick="addIncident('open')">
+                                        <i class="fas fa-plus"></i> Add Open Incident
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Closed Incidents -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-success bg-opacity-10 border-success">
+                                    <h6 class="mb-0"><i class="fas fa-check-circle me-2"></i>Closed Incidents</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="closed-incidents-container">
+                                        <div class="incident-entry mb-3 border p-3 rounded">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Application Name</label>
+                                                    <input type="text" class="form-control" name="closed_incident_app[]" placeholder="Application Name">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Incident ID</label>
+                                                    <input type="text" class="form-control" name="closed_incident_id[]" placeholder="INC0001234">
+                                                </div>
+                                            </div>
+                                            <div class="row mt-2">
+                                                <div class="col-11">
+                                                    <label class="form-label">Resolution Summary</label>
+                                                    <textarea class="form-control" name="closed_incident_resolution[]" rows="2" placeholder="Brief summary of how the incident was resolved"></textarea>
+                                                </div>
+                                                <div class="col-1 d-flex align-items-end">
+                                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-outline-success" onclick="addIncident('closed')">
+                                        <i class="fas fa-plus"></i> Add Closed Incident
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Priority Incidents -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-danger bg-opacity-10 border-danger">
+                                    <h6 class="mb-0"><i class="fas fa-star me-2"></i>Priority Incidents</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="priority-incidents-container">
+                                        <div class="incident-entry mb-3 border p-3 rounded">
+                                            <div class="row">
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Application Name</label>
+                                                    <input type="text" class="form-control" name="priority_incident_app[]" placeholder="Application Name">
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Incident ID</label>
+                                                    <input type="text" class="form-control" name="priority_incident_id[]" placeholder="INC0001234">
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Priority Level</label>
+                                                    <select class="form-select" name="priority_incident_level[]">
+                                                        <option value="High">High</option>
+                                                        <option value="Critical">Critical</option>
+                                                        <option value="Emergency">Emergency</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Escalated To</label>
+                                                    <input type="text" class="form-control" name="priority_incident_escalated[]" placeholder="Manager/Team">
+                                                </div>
+                                            </div>
+                                            <div class="row mt-2">
+                                                <div class="col-11">
+                                                    <label class="form-label">Impact & Actions Taken</label>
+                                                    <textarea class="form-control" name="priority_incident_impact[]" rows="2" placeholder="Business impact and actions taken"></textarea>
+                                                </div>
+                                                <div class="col-1 d-flex align-items-end">
+                                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-outline-danger" onclick="addIncident('priority')">
+                                        <i class="fas fa-plus"></i> Add Priority Incident
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Handover Incidents -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-info bg-opacity-10 border-info">
+                                    <h6 class="mb-0"><i class="fas fa-hand-paper me-2"></i>Handover Incidents</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="handover-incidents-container">
+                                        <div class="incident-entry mb-3 border p-3 rounded">
+                                            <div class="row">
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Application Name</label>
+                                                    <input type="text" class="form-control" name="handover_incident_app[]" placeholder="Application Name">
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Incident ID</label>
+                                                    <input type="text" class="form-control" name="handover_incident_id[]" placeholder="INC0001234">
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Current Status</label>
+                                                    <select class="form-select" name="handover_incident_status[]">
+                                                        <option value="Monitoring">Monitoring</option>
+                                                        <option value="Pending Vendor">Pending Vendor</option>
+                                                        <option value="Pending Customer">Pending Customer</option>
+                                                        <option value="In Progress">In Progress</option>
+                                                        <option value="Waiting for Approval">Waiting for Approval</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Next Action By</label>
+                                                    <select class="form-select next-engineers-select" name="handover_incident_next_by[]">
+                                                        <option value="">Select Next Shift Engineer</option>
+                                                        <!-- Will be populated by JavaScript -->
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-2">
+                                                <div class="col-11">
+                                                    <label class="form-label">Handover Notes & Next Actions</label>
+                                                    <textarea class="form-control" name="handover_incident_notes[]" rows="3" placeholder="Important notes for the next shift and specific actions to be taken"></textarea>
+                                                </div>
+                                                <div class="col-1 d-flex align-items-end">
+                                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-outline-info" onclick="addIncident('handover')">
+                                        <i class="fas fa-plus"></i> Add Handover Incident
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Escalated Incidents -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-secondary bg-opacity-10 border-secondary">
+                                    <h6 class="mb-0"><i class="fas fa-level-up-alt me-2"></i>Escalated Incidents</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="escalated-incidents-container">
+                                        <div class="incident-entry mb-3 border p-3 rounded">
+                                            <div class="row">
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Application Name</label>
+                                                    <input type="text" class="form-control" name="escalated_incident_app[]" placeholder="Application Name">
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Incident ID</label>
+                                                    <input type="text" class="form-control" name="escalated_incident_id[]" placeholder="INC0001234">
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Escalated To</label>
+                                                    <input type="text" class="form-control" name="escalated_incident_to[]" placeholder="Person/Team Name">
+                                                </div>
+                                            </div>
+                                            <div class="row mt-2">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Escalation Reason</label>
+                                                    <textarea class="form-control" name="escalated_incident_reason[]" rows="2" placeholder="Why was this incident escalated?"></textarea>
+                                                </div>
+                                                <div class="col-md-5">
+                                                    <label class="form-label">Current Status & Next Steps</label>
+                                                    <textarea class="form-control" name="escalated_incident_status[]" rows="2" placeholder="Current status and expected next steps"></textarea>
+                                                </div>
+                                                <div class="col-md-1 d-flex align-items-end">
+                                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="addIncident('escalated')">
+                                        <i class="fas fa-plus"></i> Add Escalated Incident
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        </div> <!-- End of Incidents Section -->
+
+                        <!-- Key Points Section -->
+                        <div class="mb-4">
+                            <h5>Key Points</h5>
+                            <div id="keypoints-container">
+                                {% for kp in open_key_points %}
+                                <div class="keypoint-entry mb-3 border p-3 rounded">
+                                    <div class="row">
+                                        <div class="col-md-5 mb-2">
+                                            <label class="form-label">Key Point Details</label>
+                                            <textarea class="form-control" name="keypoint_description[]" style="height: 38px; resize: vertical; min-height: 38px;" placeholder="Describe the key point details">{{ kp.description if kp else '' }}</textarea>
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label">Assigned To</label>
+                                            <select class="form-select keypoint-team-member-dropdown" name="keypoint_assigned_to[]">
+                                                <option value="">Select Team Member</option>
+                                                {% for member in team_members %}
+                                                <option value="{{ member.name }}" {{ 'selected' if kp and kp.assigned_to == member.name else '' }}>{{ member.name }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label">Status</label>
+                                            <select class="form-select" name="keypoint_status[]">
+                                                <option value="Open" {{ 'selected' if kp and kp.status == 'Open' else '' }}>Open</option>
+                                                <option value="In Progress" {{ 'selected' if kp and kp.status == 'In Progress' else '' }}>In Progress</option>
+                                                <option value="Closed" {{ 'selected' if kp and kp.status == 'Closed' else '' }}>Closed</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label">JIRA ID <span class="text-muted">(Optional)</span></label>
+                                            <input type="text" class="form-control" name="keypoint_jira_id[]" value="{{ kp.jira_id if kp else '' }}" placeholder="JIRA-123">
+                                        </div>
+                                        <div class="col-md-1 mb-2 d-flex align-items-end">
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.keypoint-entry').remove()" style="height: 38px; width: 38px;">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                                <!-- Add at least one empty keypoint if none exist -->
+                                {% if not open_key_points %}
+                                <div class="keypoint-entry mb-3 border p-3 rounded">
+                                    <div class="row">
+                                        <div class="col-md-5 mb-2">
+                                            <label class="form-label">Key Point Details</label>
+                                            <textarea class="form-control" name="keypoint_description[]" style="height: 38px; resize: vertical; min-height: 38px;" placeholder="Describe the key point details"></textarea>
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label">Assigned To</label>
+                                            <select class="form-select keypoint-team-member-dropdown" name="keypoint_assigned_to[]">
+                                                <option value="">Select Team Member</option>
+                                                {% for member in team_members %}
+                                                <option value="{{ member.name }}">{{ member.name }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label">Status</label>
+                                            <select class="form-select" name="keypoint_status[]">
+                                                <option value="Open" selected>Open</option>
+                                                <option value="In Progress">In Progress</option>
+                                                <option value="Closed">Closed</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label">JIRA ID <span class="text-muted">(Optional)</span></label>
+                                            <input type="text" class="form-control" name="keypoint_jira_id[]" placeholder="JIRA-123">
+                                        </div>
+                                        <div class="col-md-1 mb-2 d-flex align-items-end">
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.keypoint-entry').remove()" style="height: 38px; width: 38px;">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-outline-primary" onclick="addKeyPoint()">
+                                <i class="fas fa-plus"></i> Add Another Key Point
+                            </button>
+                        </div>
+
+                        <!-- Additional Notes -->
+                        <div class="mb-4">
+                            <label for="additional_notes" class="form-label">Additional Notes</label>
+                            <textarea class="form-control" id="additional_notes" name="additional_notes" rows="4" placeholder="Any additional information or notes for the next shift"></textarea>
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div class="text-end">
+                            <button type="submit" name="action" value="draft" id="draft-btn" class="btn btn-secondary me-3" style="background: linear-gradient(135deg, #6c757d, #495057); border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
+                                <i class="fas fa-save me-2"></i>
+                                Save as Draft
+                            </button>
+                            <button type="submit" name="action" value="submit" id="submit-btn" class="btn btn-primary" style="background: linear-gradient(135deg, #007bff, #0056b3); border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
+                                <i class="fas fa-paper-plane me-2"></i>
+                                Submit Handover
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Page initialization
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize team member dropdowns for keypoints
+    updateKeypointTeamMembersDropdowns();
+    
+    // Initialize engineer dropdowns for incidents if date and shift are available
+    const dateElement = document.getElementById('handover_date');
+    const nextShiftElement = document.getElementById('next_shift_type');
+    
+    if (dateElement && nextShiftElement) {
+        const date = dateElement.value;
+        const nextShift = nextShiftElement.value;
+        if (date && nextShift) {
+            updateIncidentEngineersDropdowns(date, nextShift);
+        }
+    }
+});
+
+// Form Mode Toggle Function
+function toggleFormMode() {
+    const toggle = document.getElementById('formModeToggle');
+    const incidentsSection = document.getElementById('incidentsSection');
+    const formModeLabel = document.getElementById('formModeLabel');
+    const currentModeDisplay = document.getElementById('currentModeDisplay');
+    const toggleIcon = document.getElementById('toggleIcon');
+    
+    if (toggle.checked) {
+        // Basic mode ON - hide incidents, show only key points
+        incidentsSection.style.display = 'none';
+        formModeLabel.textContent = 'Basic';
+        currentModeDisplay.textContent = 'ON';
+        currentModeDisplay.className = 'badge bg-success text-dark';
+        toggleIcon.className = 'fas fa-toggle-on me-1';
+        
+        // Show notification
+        showToggleNotification('✅ Basic mode ON - Showing only key points and essential fields', 'success');
+    } else {
+        // Basic mode OFF - show all sections including incidents
+        incidentsSection.style.display = 'block';
+        formModeLabel.textContent = 'Basic';
+        currentModeDisplay.textContent = 'OFF';
+        currentModeDisplay.className = 'badge bg-light text-dark';
+        toggleIcon.className = 'fas fa-toggle-off me-1';
+        
+        // Show notification
+        showToggleNotification('ℹ️ Basic mode OFF - All sections visible including incidents', 'info');
+    }
+}
+
+// Show toggle notification
+function showToggleNotification(message, type) {
+    // Remove any existing notifications
+    const existingNotification = document.getElementById('toggleNotification');
+    if (existingNotification) {
+        existingNotification.remove();
+    }
+    
+    // Create new notification
+    const notification = document.createElement('div');
+    notification.id = 'toggleNotification';
+    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+    notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'} me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    // Add to body
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        if (notification && notification.parentNode) {
+            notification.remove();
+        }
+    }, 3000);
+}
+
+// Set smart defaults for current and next shift based on time
+function setShiftDefaults() {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const totalMinutes = hours * 60 + minutes;
+    
+    const currentShiftSelect = document.getElementById('current_shift_type');
+    const nextShiftSelect = document.getElementById('next_shift_type');
+    
+    let currentShift, nextShift;
+    
+    // Shift timings (IST): Morning: 6:30-15:30, Evening: 14:45-23:45, Night: 21:45-6:45
+    if (totalMinutes >= 390 && totalMinutes < 930) { // 6:30 - 15:30
+        currentShift = 'morning';
+        nextShift = 'evening';
+    } else if (totalMinutes >= 885 && totalMinutes < 1425) { // 14:45 - 23:45
+        currentShift = 'evening';
+        nextShift = 'night';
+    } else { // Night shift
+        currentShift = 'night';
+        nextShift = 'morning';
+    }
+    
+    // Set the values if not already set
+    if (!currentShiftSelect.value) {
+        currentShiftSelect.value = currentShift;
+    }
+    if (!nextShiftSelect.value) {
+        nextShiftSelect.value = nextShift;
+    }
+}
+
+// Update engineers when date or shift changes
+function updateEngineers() {
+    const date = document.getElementById('handover_date').value;
+    const currentShift = document.getElementById('current_shift_type').value;
+    const nextShift = document.getElementById('next_shift_type').value;
+    
+    if (date && currentShift) {
+        fetchEngineers(date, currentShift, 'current_engineers');
+    }
+    if (date && nextShift) {
+        fetchEngineers(date, nextShift, 'next_engineers');
+        // Also update all next-engineers-select dropdowns in incidents
+        updateIncidentEngineersDropdowns(date, nextShift);
+    }
+    
+    // Update keypoint team member dropdowns (not dependent on shift)
+    updateKeypointTeamMembersDropdowns();
+}
+
+// Function to update engineer dropdowns in incident sections
+function updateIncidentEngineersDropdowns(date, shiftType) {
+    const shiftMap = {
+        'morning': 'Morning',
+        'evening': 'Evening', 
+        'night': 'Night',
+        'onshore': 'OnShore',
+        'offshore': 'OffShore'
+    };
+    
+    const properShiftType = shiftMap[shiftType] || shiftType;
+    
+    // Get selected team ID for filtering
+    const teamId = document.getElementById('team_id').value;
+    
+    // Build API URL with team parameter if available
+    let apiUrl = `/api/get_engineers?date=${date}&shift_type=${properShiftType}`;
+    if (teamId) {
+        apiUrl += `&team_id=${teamId}`;
+    }
+    
+    fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+            // Update all engineer dropdowns for incidents
+            const engineerSelects = document.querySelectorAll('.next-engineers-select');
+            
+            engineerSelects.forEach(select => {
+                // Store current value
+                const currentValue = select.value;
+                
+                // Clear and populate options
+                select.innerHTML = '<option value="">Select Next Shift Engineer</option>';
+                
+                if (data.engineers && data.engineers.length > 0) {
+                    data.engineers.forEach(engineer => {
+                        const option = document.createElement('option');
+                        // Handle both old format (string) and new format (object)
+                        if (typeof engineer === 'string') {
+                            option.value = engineer;
+                            option.textContent = engineer;
+                        } else {
+                            option.value = engineer.id;
+                            option.textContent = engineer.name;
+                        }
+                        select.appendChild(option);
+                    });
+                    
+                    // Restore previous selection if it still exists
+                    const engineerValues = data.engineers.map(eng => typeof eng === 'string' ? eng : eng.id);
+                    if (currentValue && engineerValues.includes(currentValue)) {
+                        select.value = currentValue;
+                    }
+                } else {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = 'No engineers available';
+                    option.disabled = true;
+                    select.appendChild(option);
+                }
+            });
+        })
+        .catch(error => {
+            console.error('Error fetching engineers for incidents:', error);
+        });
+}
+
+// Function to update team member dropdowns in keypoint sections
+function updateKeypointTeamMembersDropdowns() {
+    // First check if dropdowns already have options from template
+    const teamMemberSelects = document.querySelectorAll('.keypoint-team-member-dropdown');
+    
+    // Check if any dropdown already has team members loaded from template
+    let hasTemplateData = false;
+    teamMemberSelects.forEach(select => {
+        if (select.options.length > 1) { // More than just the "Select Team Member" option
+            hasTemplateData = true;
+        }
+    });
+    
+    // If template data exists, don't override it unless we get fresh API data
+    if (hasTemplateData) {
+        return;
+    }
+    
+    fetch('/api/get_all_team_members')
+        .then(response => response.json())
+        .then(data => {
+            teamMemberSelects.forEach(select => {
+                // Store current value
+                const currentValue = select.value;
+                
+                // Clear and populate options
+                select.innerHTML = '<option value="">Select Team Member</option>';
+                
+                if (data.team_members && data.team_members.length > 0) {
+                    data.team_members.forEach(member => {
+                        const option = document.createElement('option');
+                        option.value = member.id || member.name; // Use ID if available, fallback to name
+                        option.textContent = member.name;
+                        select.appendChild(option);
+                    });
+                    
+                    // Restore previous selection if it still exists
+                    if (currentValue && data.team_members.some(member => (member.id || member.name) === currentValue)) {
+                        select.value = currentValue;
+                    }
+                } else {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = 'No team members available';
+                    option.disabled = true;
+                    select.appendChild(option);
+                }
+            });
+        })
+        .catch(error => {
+            console.error('Error fetching team members for keypoints:', error);
+        });
+}
+
+function fetchEngineers(date, shiftType, targetId) {
+    // Map shift types to proper case
+    const shiftMap = {
+        'morning': 'Morning',
+        'evening': 'Evening', 
+        'night': 'Night'
+    };
+    
+    const properShiftType = shiftMap[shiftType] || shiftType;
+    
+    // Get selected team ID for filtering
+    const teamId = document.getElementById('team_id').value;
+    
+    // Build API URL with team parameter if available
+    let apiUrl = `/api/get_engineers?date=${date}&shift_type=${properShiftType}`;
+    if (teamId) {
+        apiUrl += `&team_id=${teamId}`;
+    }
+    
+    // Determine if this is for current or next engineers
+    const isCurrentShift = targetId === 'current_engineers';
+    const displayListId = isCurrentShift ? 'current_engineers_list' : 'next_engineers_list';
+    const hiddenInputId = targetId; // Keep the same ID for hidden input
+    
+    fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+            const displayList = document.getElementById(displayListId);
+            const hiddenInput = document.getElementById(hiddenInputId);
+            
+            if (data.engineers && data.engineers.length > 0) {
+                // Display engineers as badges/chips
+                const engineerBadges = data.engineers.map(engineer => {
+                    // Handle both old format (string) and new format (object)
+                    const engineerName = typeof engineer === 'string' ? engineer : engineer.name;
+                    return `<span class="badge bg-primary me-2 mb-1">${engineerName}</span>`;
+                }).join('');
+                
+                displayList.innerHTML = engineerBadges;
+                
+                // Store engineer names in hidden input (comma-separated)
+                const engineerNames = data.engineers.map(engineer => 
+                    typeof engineer === 'string' ? engineer : engineer.name
+                );
+                hiddenInput.value = engineerNames.join(', ');
+            } else {
+                displayList.innerHTML = '<span class="text-muted"><i class="fas fa-info-circle me-1"></i>No engineers scheduled for this shift</span>';
+                hiddenInput.value = '';
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching engineers:', error);
+            const displayList = document.getElementById(displayListId);
+            displayList.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>Error loading engineers - use manual input below</span>';
+            document.getElementById(hiddenInputId).value = '';
+            
+            // Show manual input fallback
+            const manualInputId = isCurrentShift ? 'current_engineers_manual' : 'next_engineers_manual';
+            const manualInput = document.getElementById(manualInputId);
+            if (manualInput) {
+                manualInput.style.display = 'block';
+                
+                // Add event listener to manual input
+                const fallbackInputId = isCurrentShift ? 'current_engineers_fallback' : 'next_engineers_fallback';
+                const fallbackInput = document.getElementById(fallbackInputId);
+                fallbackInput.addEventListener('input', function() {
+                    document.getElementById(hiddenInputId).value = this.value;
+                    // Update display with badges
+                    if (this.value.trim()) {
+                        const engineers = this.value.split(',').map(name => name.trim()).filter(name => name);
+                        const engineerBadges = engineers.map(engineer => 
+                            `<span class="badge bg-secondary me-2 mb-1">${engineer}</span>`
+                        ).join('');
+                        displayList.innerHTML = engineerBadges || '<span class="text-muted">No engineers entered</span>';
+                    } else {
+                        displayList.innerHTML = '<span class="text-muted">No engineers entered</span>';
+                    }
+                });
+            }
+        });
+}
+
+// Add event listeners when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    const dateInput = document.getElementById('handover_date');
+    const currentShiftSelect = document.getElementById('current_shift_type');
+    const nextShiftSelect = document.getElementById('next_shift_type');
+    const teamSelect = document.getElementById('team_id');
+    
+    // Set default date to today if not set
+    if (!dateInput.value) {
+        const today = new Date();
+        const dateString = today.getFullYear() + '-' + 
+                          String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                          String(today.getDate()).padStart(2, '0');
+        dateInput.value = dateString;
+    }
+    
+    // Set smart defaults for shifts based on current time
+    setShiftDefaults();
+    
+    // Add event listeners for date and shift changes
+    dateInput.addEventListener('change', updateEngineers);
+    currentShiftSelect.addEventListener('change', updateEngineers);
+    nextShiftSelect.addEventListener('change', updateEngineers);
+    teamSelect.addEventListener('change', updateEngineers);
+    
+    // Initial load to populate engineers (especially important for auto-selected teams)
+    updateEngineers();
+});
+
+function addIncident(type, incidentData = null) {
+    let container, incidentHTML;
+    
+    switch(type) {
+        case 'open':
+            container = document.getElementById('open-incidents-container');
+            incidentHTML = `
+                <div class="incident-entry mb-3 border p-3 rounded">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label">Application Name</label>
+                            <input type="text" class="form-control" name="open_incident_app[]" placeholder="Application Name">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Incident ID</label>
+                            <input type="text" class="form-control" name="open_incident_id[]" placeholder="INC0001234">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Priority</label>
+                            <select class="form-select" name="open_incident_priority[]">
+                                <option value="Low">Low</option>
+                                <option value="Medium">Medium</option>
+                                <option value="High">High</option>
+                                <option value="Critical">Critical</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Assigned To</label>
+                            <select class="form-select next-engineers-select" name="open_incident_assigned[]">
+                                <option value="">Select Next Shift Engineer</option>
+                                <!-- Will be populated by JavaScript -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-11">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" name="open_incident_description[]" rows="2" placeholder="Brief description of the open incident"></textarea>
+                        </div>
+                        <div class="col-1 d-flex align-items-end">
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'closed':
+            container = document.getElementById('closed-incidents-container');
+            incidentHTML = `
+                <div class="incident-entry mb-3 border p-3 rounded">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Application Name</label>
+                            <input type="text" class="form-control" name="closed_incident_app[]" placeholder="Application Name">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Incident ID</label>
+                            <input type="text" class="form-control" name="closed_incident_id[]" placeholder="INC0001234">
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-11">
+                            <label class="form-label">Resolution Summary</label>
+                            <textarea class="form-control" name="closed_incident_resolution[]" rows="2" placeholder="Brief summary of how the incident was resolved"></textarea>
+                        </div>
+                        <div class="col-1 d-flex align-items-end">
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'priority':
+            container = document.getElementById('priority-incidents-container');
+            incidentHTML = `
+                <div class="incident-entry mb-3 border p-3 rounded">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label">Application Name</label>
+                            <input type="text" class="form-control" name="priority_incident_app[]" placeholder="Application Name">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Incident ID</label>
+                            <input type="text" class="form-control" name="priority_incident_id[]" placeholder="INC0001234">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Priority Level</label>
+                            <select class="form-select" name="priority_incident_level[]">
+                                <option value="High">High</option>
+                                <option value="Critical">Critical</option>
+                                <option value="Emergency">Emergency</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Escalated To</label>
+                            <input type="text" class="form-control" name="priority_incident_escalated[]" placeholder="Manager/Team">
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-11">
+                            <label class="form-label">Impact & Actions Taken</label>
+                            <textarea class="form-control" name="priority_incident_impact[]" rows="2" placeholder="Business impact and actions taken"></textarea>
+                        </div>
+                        <div class="col-1 d-flex align-items-end">
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'handover':
+            container = document.getElementById('handover-incidents-container');
+            incidentHTML = `
+                <div class="incident-entry mb-3 border p-3 rounded">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label">Application Name</label>
+                            <input type="text" class="form-control" name="handover_incident_app[]" placeholder="Application Name">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Incident ID</label>
+                            <input type="text" class="form-control" name="handover_incident_id[]" placeholder="INC0001234">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Current Status</label>
+                            <select class="form-select" name="handover_incident_status[]">
+                                <option value="Monitoring">Monitoring</option>
+                                <option value="Pending Vendor">Pending Vendor</option>
+                                <option value="Pending Customer">Pending Customer</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Waiting for Approval">Waiting for Approval</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Next Action By</label>
+                            <select class="form-select next-engineers-select" name="handover_incident_next_by[]">
+                                <option value="">Select Next Shift Engineer</option>
+                                <!-- Will be populated by JavaScript -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-11">
+                            <label class="form-label">Handover Notes & Next Actions</label>
+                            <textarea class="form-control" name="handover_incident_notes[]" rows="3" placeholder="Important notes for the next shift and specific actions to be taken"></textarea>
+                        </div>
+                        <div class="col-1 d-flex align-items-end">
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'escalated':
+            container = document.getElementById('escalated-incidents-container');
+            incidentHTML = `
+                <div class="incident-entry mb-3 border p-3 rounded">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="form-label">Application Name</label>
+                            <input type="text" class="form-control" name="escalated_incident_app[]" placeholder="Application Name">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Incident ID</label>
+                            <input type="text" class="form-control" name="escalated_incident_id[]" placeholder="INC0001234">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Escalated To</label>
+                            <input type="text" class="form-control" name="escalated_incident_to[]" placeholder="Person/Team Name">
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Escalation Reason</label>
+                            <textarea class="form-control" name="escalated_incident_reason[]" rows="2" placeholder="Why was this incident escalated?"></textarea>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Current Status & Next Steps</label>
+                            <textarea class="form-control" name="escalated_incident_status[]" rows="2" placeholder="Current status and expected next steps"></textarea>
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            break;
+    }
+    
+    if (container && incidentHTML) {
+        container.insertAdjacentHTML('beforeend', incidentHTML);
+        
+        // If incident data is provided, populate the newly created entry
+        if (incidentData) {
+            const newEntry = container.lastElementChild;
+            populateIncidentEntry(newEntry, incidentData, type);
+        }
+        
+        // Populate engineer dropdowns for the newly added incident
+        const date = document.getElementById('handover_date').value;
+        const nextShift = document.getElementById('next_shift_type').value;
+        if (date && nextShift) {
+            updateIncidentEngineersDropdowns(date, nextShift);
+        }
+    }
+}
+
+function populateIncidentEntry(entryElement, incident, type) {
+    console.log('Populating entry with incident:', incident, 'Type:', type); // Debug log
+    
+    // Populate based on incident type
+    if (type === 'open') {
+        const appInput = entryElement.querySelector('input[name="open_incident_app[]"]');
+        const idInput = entryElement.querySelector('input[name="open_incident_id[]"]');
+        const prioritySelect = entryElement.querySelector('select[name="open_incident_priority[]"]');
+        const descTextarea = entryElement.querySelector('textarea[name="open_incident_description[]"]');
+        
+        if (appInput) appInput.value = incident.assignment_group || 'ServiceNow';
+        if (idInput) idInput.value = incident.number || '';
+        if (prioritySelect) prioritySelect.value = incident.priority || 'Medium';
+        if (descTextarea) descTextarea.value = incident.title || '';
+        
+    } else if (type === 'closed') {
+        const appInput = entryElement.querySelector('input[name="closed_incident_app[]"]');
+        const idInput = entryElement.querySelector('input[name="closed_incident_id[]"]');
+        const resolutionTextarea = entryElement.querySelector('textarea[name="closed_incident_resolution[]"]');
+        
+        if (appInput) appInput.value = incident.assignment_group || 'ServiceNow';
+        if (idInput) idInput.value = incident.number || '';
+        if (resolutionTextarea) {
+            const resolvedText = incident.resolved_at || incident.closed_at || 'Recently resolved';
+            resolutionTextarea.value = `${incident.title} - Resolved: ${resolvedText}`;
+        }
+        
+    } else if (type === 'priority') {
+        const appInput = entryElement.querySelector('input[name="priority_incident_app[]"]');
+        const idInput = entryElement.querySelector('input[name="priority_incident_id[]"]');
+        const levelSelect = entryElement.querySelector('select[name="priority_incident_level[]"]');
+        const descTextarea = entryElement.querySelector('textarea[name="priority_incident_impact[]"]');
+        
+        if (appInput) appInput.value = incident.assignment_group || 'ServiceNow';
+        if (idInput) idInput.value = incident.number || '';
+        if (levelSelect) levelSelect.value = incident.priority || 'High';
+        if (descTextarea) descTextarea.value = incident.title || '';
+    }
+}
+
+function addKeyPoint() {
+    const container = document.getElementById('keypoints-container');
+    const keypointHTML = `
+        <div class="keypoint-entry mb-3 border p-3 rounded">
+            <div class="row">
+                <div class="col-md-5 mb-2">
+                    <label class="form-label">Key Point Details</label>
+                    <textarea class="form-control" name="keypoint_description[]" style="height: 38px; resize: vertical; min-height: 38px;" placeholder="Describe the key point details"></textarea>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="form-label">Assigned To</label>
+                    <select class="form-select keypoint-team-member-dropdown" name="keypoint_assigned_to[]">
+                        <option value="">Select Team Member</option>
+                    </select>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" name="keypoint_status[]">
+                        <option value="Open" selected>Open</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Closed">Closed</option>
+                    </select>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="form-label">JIRA ID <span class="text-muted">(Optional)</span></label>
+                    <input type="text" class="form-control" name="keypoint_jira_id[]" placeholder="JIRA-123">
+                </div>
+                <div class="col-md-1 mb-2 d-flex align-items-end">
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.keypoint-entry').remove()" style="height: 38px; width: 38px;">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    container.insertAdjacentHTML('beforeend', keypointHTML);
+    
+    // Populate team member dropdowns for the newly added keypoint
+    const newDropdown = container.lastElementChild.querySelector('.keypoint-team-member-dropdown');
+    if (newDropdown) {
+        fetch('/api/get_all_team_members')
+            .then(response => response.json())
+            .then(data => {
+                newDropdown.innerHTML = '<option value="">Select Team Member</option>';
+                
+                if (data.team_members && data.team_members.length > 0) {
+                    data.team_members.forEach(member => {
+                        const option = document.createElement('option');
+                        option.value = member.name;
+                        option.textContent = member.name;
+                        newDropdown.appendChild(option);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error populating new keypoint dropdown:', error);
+            });
+    }
+}
+
+// ServiceNow Incident Auto-Population
+function fetchServiceNowIncidents() {
+    const shiftType = document.getElementById('current_shift_type').value;
+    const handoverDate = document.getElementById('handover_date').value;
+    
+    if (!shiftType || !handoverDate) {
+        return; // Need both values to fetch incidents
+    }
+    
+    // Show loading indicator
+    showServiceNowLoading(true);
+    
+    fetch(`/api/get_servicenow_incidents?shift_type=${shiftType}&date=${handoverDate}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                populateServiceNowIncidents(data.incidents, data.summary);
+                // Success notification removed for cleaner UI
+            } else {
+                showServiceNowNotification('warning', `⚠️ ServiceNow: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching ServiceNow incidents:', error);
+            showServiceNowNotification('error', '❌ Error connecting to ServiceNow');
+        })
+        .finally(() => {
+            showServiceNowLoading(false);
+        });
+}
+
+function populateServiceNowIncidents(incidents, summary) {
+    // Populate Open / Active Incidents
+    populateIncidentSection('open', incidents.open_incidents);
+    
+    // Populate Closed Incidents  
+    populateIncidentSection('closed', incidents.closed_incidents);
+    
+    // Populate Priority Incidents
+    populateIncidentSection('priority', incidents.priority_incidents);
+    
+    // Update summary display
+    updateIncidentSummary(summary);
+}
+
+function populateIncidentSection(type, incidents) {
+    const containerId = `${type}-incidents-container`;
+    const container = document.getElementById(containerId);
+    
+    if (!container) {
+        console.log('Container not found:', containerId);
+        return;
+    }
+    
+    console.log(`Populating ${type} incidents:`, incidents.length, 'incidents');
+    
+    // Clear existing entries except the first template
+    const entries = container.querySelectorAll('.incident-entry');
+    for (let i = 1; i < entries.length; i++) {
+        entries[i].remove();
+    }
+    
+    if (incidents.length === 0) {
+        console.log('No incidents to populate');
+        return;
+    }
+    
+    // Populate with ServiceNow incidents
+    incidents.forEach((incident, index) => {
+        console.log(`Processing incident ${index + 1}:`, incident);
+        if (index === 0) {
+            // Use the first existing entry
+            populateFirstIncidentEntry(container, incident, type);
+        } else {
+            // Add new entries with data
+            addIncident(type, incident);
+        }
+    });
+}
+
+function populateFirstIncidentEntry(container, incident, type) {
+    const firstEntry = container.querySelector('.incident-entry');
+    if (!firstEntry) return;
+    
+    console.log('Populating incident:', incident, 'Type:', type); // Debug log
+    
+    // Populate based on incident type
+    if (type === 'open') {
+        const appInput = firstEntry.querySelector('input[name="open_incident_app[]"]');
+        const idInput = firstEntry.querySelector('input[name="open_incident_id[]"]');
+        const prioritySelect = firstEntry.querySelector('select[name="open_incident_priority[]"]');
+        const descTextarea = firstEntry.querySelector('textarea[name="open_incident_description[]"]');
+        
+        if (appInput) {
+            appInput.value = incident.assignment_group || 'ServiceNow';
+            console.log('Set app:', appInput.value);
+        }
+        if (idInput) {
+            idInput.value = incident.number || '';
+            console.log('Set ID:', idInput.value);
+        }
+        if (prioritySelect) {
+            prioritySelect.value = incident.priority || 'Medium';
+            console.log('Set priority:', prioritySelect.value);
+        }
+        if (descTextarea) {
+            descTextarea.value = incident.title || '';
+            console.log('Set description:', descTextarea.value);
+        }
+        
+    } else if (type === 'closed') {
+        const appInput = firstEntry.querySelector('input[name="closed_incident_app[]"]');
+        const idInput = firstEntry.querySelector('input[name="closed_incident_id[]"]');
+        const resolutionTextarea = firstEntry.querySelector('textarea[name="closed_incident_resolution[]"]');
+        
+        if (appInput) appInput.value = incident.assignment_group || 'ServiceNow';
+        if (idInput) idInput.value = incident.number || '';
+        if (resolutionTextarea) {
+            const resolvedText = incident.resolved_at || incident.closed_at || 'Recently resolved';
+            resolutionTextarea.value = `${incident.title} - Resolved: ${resolvedText}`;
+        }
+        
+    } else if (type === 'priority') {
+        const appInput = firstEntry.querySelector('input[name="priority_incident_app[]"]');
+        const idInput = firstEntry.querySelector('input[name="priority_incident_id[]"]');
+        const levelSelect = firstEntry.querySelector('select[name="priority_incident_level[]"]');
+        const descTextarea = firstEntry.querySelector('textarea[name="priority_incident_description[]"]');
+        
+        if (appInput) appInput.value = incident.assignment_group || 'ServiceNow';
+        if (idInput) idInput.value = incident.number || '';
+        if (levelSelect) levelSelect.value = incident.priority || 'High';
+        if (descTextarea) descTextarea.value = incident.title || '';
+    }
+}
+
+function showServiceNowLoading(show) {
+    let loader = document.getElementById('servicenow-loader');
+    if (show && !loader) {
+        loader = document.createElement('div');
+        loader.id = 'servicenow-loader';
+        loader.className = 'alert alert-info';
+        loader.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching incidents from ServiceNow...';
+        document.querySelector('.card-body').insertBefore(loader, document.querySelector('.card-body').firstChild);
+    } else if (!show && loader) {
+        loader.remove();
+    }
+}
+
+function showServiceNowNotification(type, message) {
+    let notification = document.getElementById('servicenow-notification');
+    if (notification) {
+        notification.remove();
+    }
+    
+    const alertClass = type === 'success' ? 'alert-success' : type === 'warning' ? 'alert-warning' : 'alert-danger';
+    
+    notification = document.createElement('div');
+    notification.id = 'servicenow-notification';
+    notification.className = `alert ${alertClass} alert-dismissible fade show`;
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.querySelector('.card-body').insertBefore(notification, document.querySelector('.card-body').firstChild);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        if (notification) {
+            notification.remove();
+        }
+    }, 5000);
+}
+
+function updateIncidentSummary(summary) {
+    // ServiceNow summary badge display removed for cleaner UI
+    // The function is kept to avoid breaking any calls but no longer displays status
+}
+
+// Auto-fetch ServiceNow incidents when shift or date changes (removed for cleaner UI)
+document.addEventListener('DOMContentLoaded', function() {
+    const shiftSelect = document.getElementById('current_shift_type');
+    const dateInput = document.getElementById('handover_date');
+    
+    if (shiftSelect && dateInput) {
+        // Auto-fetch incidents silently in background when values change
+        shiftSelect.addEventListener('change', fetchServiceNowIncidents);
+        dateInput.addEventListener('change', fetchServiceNowIncidents);
+        
+        // Removed auto-fetch on page load to prevent unwanted ServiceNow notifications
+        // Users can manually trigger ServiceNow integration when needed
+    }
+    
+    // Add form submission handling
+    setupFormSubmissionHandling();
+});
+
+// ============ FORM SUBMISSION HANDLING ============
+
+function setupFormSubmissionHandling() {
+    console.log('Setting up SIMPLE form submission handling...');
+    
+    // Add loading state to form submission
+    const form = document.querySelector('#handover-form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            console.log('Form submission started...');
+            
+            // Show loading state on submit button
+            const submitBtn = document.querySelector('#submit-btn');
+            const draftBtn = document.querySelector('#draft-btn');
+            
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Submitting...';
+            }
+            if (draftBtn) {
+                draftBtn.disabled = true;
+            }
+            
+            // Set a fallback redirect in case server doesn't respond
+            setTimeout(() => {
+                console.log('Fallback redirect after 10 seconds...');
+                window.location.href = '/handover-reports';
+            }, 10000);
+        });
+    }
+    
+    console.log('Form submission: Enhanced with loading state and fallback redirect');
+}
+
+// SIMPLIFIED - NO VALIDATION OR COMPLEX LOGIC
+function testFormSubmission() {
+    console.log('Testing form submission directly...');
+    const form = document.querySelector('#handover-form');
+    if (form) {
+        console.log('Form found, submitting...');
+        form.submit();
+    } else {
+        console.error('Form not found');
+    }
+}
+
+function resetButton(button) {
+    if (button && button.hasAttribute('data-original-html')) {
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.innerHTML = button.getAttribute('data-original-html');
+        button.removeAttribute('data-original-html');
+    }
+}
+
+function resetAllButtons() {
+    const submitBtn = document.getElementById('submit-btn');
+    const draftBtn = document.getElementById('draft-btn');
+    resetButton(submitBtn);
+    resetButton(draftBtn);
+}
+
+function showGlobalProgress(title, message) {
+    const progressDiv = document.getElementById('global-progress');
+    const titleElement = document.getElementById('progress-title');
+    const messageElement = document.getElementById('progress-message');
+    
+    if (progressDiv && titleElement && messageElement) {
+        titleElement.textContent = title;
+        messageElement.textContent = message;
+        progressDiv.classList.remove('d-none');
+    }
+}
+
+function hideGlobalProgress() {
+    const progressDiv = document.getElementById('global-progress');
+    if (progressDiv) {
+        progressDiv.classList.add('d-none');
+    }
+}
+</script>
+{% endblock %}

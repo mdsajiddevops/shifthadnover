@@ -1,0 +1,798 @@
+{% extends "base.html" %}
+
+{% block title %}Change Management Dashboard{% endblock %}
+
+{% block content %}
+<style>
+    .dashboard-stats-compact {
+        background: white;
+        border-radius: 1rem;
+        padding: 2rem 1.5rem;
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+        transition: all 0.3s ease;
+        border: 1px solid rgba(0,0,0,0.05);
+        position: relative;
+        overflow: hidden;
+        min-height: 120px;
+    }
+
+    .dashboard-stats-compact::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .dashboard-stats-compact:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 1rem 2rem rgba(0,0,0,0.2);
+    }
+
+    .stat-icon-compact {
+        font-size: 2rem;
+        width: 50px;
+        height: 50px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        margin-right: 1rem;
+        box-shadow: 0 0.25rem 0.5rem rgba(102, 126, 234, 0.3);
+        flex-shrink: 0;
+    }
+
+    .stat-number-compact {
+        font-size: 2rem;
+        font-weight: 800;
+        color: #2c3e50;
+        line-height: 1.1;
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-label-compact {
+        font-size: 0.8rem;
+        color: #6c757d;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        line-height: 1.2;
+    }
+
+    .metric-card-compact {
+        background: white;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.1);
+        border: 1px solid rgba(0,0,0,0.05);
+        height: 100%;
+    }
+
+    .metric-card-compact h5 {
+        color: #2c3e50;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 0.75rem;
+    }
+
+    .table-modern {
+        background: white;
+        border-radius: 1rem;
+        overflow: hidden;
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.1);
+        border: 1px solid rgba(0,0,0,0.05);
+    }
+
+    .table-modern table {
+        margin-bottom: 0;
+    }
+
+    .table-modern thead th {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: none;
+        font-weight: 700;
+        color: #2c3e50;
+        padding: 1rem;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .table-modern tbody tr {
+        transition: all 0.3s ease;
+        border-bottom: 1px solid #f8f9fa;
+    }
+
+    .table-modern tbody tr:hover {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+        transform: translateX(3px);
+    }
+
+    .table-modern tbody td {
+        padding: 1rem;
+        border: none;
+        vertical-align: middle;
+        color: #495057;
+        font-weight: 500;
+    }
+
+    .table-modern tbody td:first-child {
+        font-weight: 700;
+        color: #2c3e50;
+    }
+
+    .status-badge-modern {
+        padding: 0.375rem 0.75rem;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border: 2px solid transparent;
+        transition: all 0.2s ease;
+    }
+
+    .status-badge-modern:hover {
+        transform: scale(1.05);
+    }
+
+    .status-new { 
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); 
+        color: #1565c0; 
+        border-color: #2196f3;
+    }
+    
+    .status-open { 
+        background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%); 
+        color: #2e7d32; 
+        border-color: #4caf50;
+    }
+    
+    .status-closed { 
+        background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%); 
+        color: #424242; 
+        border-color: #757575;
+    }
+    
+    .status-review { 
+        background: linear-gradient(135deg, #fce4ec 0%, #f8bbd9 100%); 
+        color: #c2185b; 
+        border-color: #e91e63;
+    }
+    
+    .status-implement { 
+        background: linear-gradient(135deg, #fff3e0 0%, #ffcc02 100%); 
+        color: #f57c00; 
+        border-color: #ff9800;
+    }
+    
+    .status-scheduled { 
+        background: linear-gradient(135deg, #f1f8e9 0%, #dcedc8 100%); 
+        color: #558b2f; 
+        border-color: #8bc34a;
+    }
+
+    .priority-high { color: #dc3545; font-weight: 700; }
+    .priority-moderate { color: #fd7e14; font-weight: 600; }
+    .priority-low { color: #198754; font-weight: 500; }
+
+    .scheduled-time {
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 0.85rem;
+        font-weight: 600;
+        min-width: 180px;
+    }
+
+    .schedule-date {
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 0.85rem;
+        font-weight: 600;
+        min-width: 120px;
+    }
+
+    .schedule-time {
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 0.85rem;
+        font-weight: 600;
+        min-width: 140px;
+    }
+
+    .time-range {
+        background: linear-gradient(135deg, #17a2b8, #138496);
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+    }
+
+    .schedule-item {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .schedule-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .schedule-start {
+        color: #28a745 !important;
+        background: rgba(40, 167, 69, 0.1);
+        padding: 0.15rem 0.4rem;
+        border-radius: 6px;
+        border-left: 3px solid #28a745;
+    }
+
+    .schedule-end {
+        color: #dc3545 !important;
+        background: rgba(220, 53, 69, 0.1);
+        padding: 0.15rem 0.4rem;
+        border-radius: 6px;
+        border-left: 3px solid #dc3545;
+    }
+
+    .assigned-badge {
+        background: linear-gradient(135deg, #17a2b8, #138496);
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .unassigned-text {
+        color: #6c757d;
+        font-style: italic;
+        font-size: 0.85rem;
+    }
+
+    .page-title {
+        color: #2c3e50;
+        font-weight: 800;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .page-subtitle {
+        color: #6c757d;
+        font-weight: 500;
+        margin-bottom: 2rem;
+    }
+
+    .assignment-info-badge {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 50px;
+        font-weight: 600;
+        box-shadow: 0 0.25rem 0.5rem rgba(102, 126, 234, 0.3);
+        display: inline-block;
+        margin-bottom: 2rem;
+    }
+
+    @media (max-width: 768px) {
+        .table-modern {
+            font-size: 0.85rem;
+        }
+        
+        .table-modern thead th,
+        .table-modern tbody td {
+            padding: 0.75rem 0.5rem;
+        }
+        
+        .stat-number-compact {
+            font-size: 1.8rem;
+        }
+        
+        .stat-icon-compact {
+            font-size: 1.5rem;
+            width: 40px;
+            height: 40px;
+        }
+        
+        .stat-label-compact {
+            font-size: 0.75rem;
+        }
+        
+        .dashboard-stats-compact {
+            margin-bottom: 1rem;
+            padding: 1.5rem 1rem;
+            min-height: 100px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .dashboard-stats-compact {
+            padding: 1.25rem 0.75rem;
+            min-height: 90px;
+        }
+        
+        .stat-number-compact {
+            font-size: 1.5rem;
+        }
+        
+        .stat-icon-compact {
+            font-size: 1.25rem;
+            width: 35px;
+            height: 35px;
+            margin-right: 0.75rem;
+        }
+        
+        .stat-label-compact {
+            font-size: 0.7rem;
+        }
+    }
+</style>
+
+<div class="container-fluid px-0">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="page-title mb-0">Change Management Dashboard</h2>
+            <p class="page-subtitle mb-0">Monitor change requests and tasks for Supply Chain operations</p>
+        </div>
+        <div class="d-flex align-items-center">
+            <span class="assignment-info-badge">
+                <i class="fas fa-users me-2"></i>Supply Chain - L2
+            </span>
+        </div>
+    </div>
+
+    <!-- Statistics Cards (matching main dashboard style) -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6 col-md-6">
+            <div class="dashboard-stats-compact">
+                <div class="d-flex align-items-center h-100">
+                    <div class="stat-icon-compact">
+                        <i class="fas fa-exchange-alt"></i>
+                    </div>
+                    <div class="flex-grow-1 d-flex flex-column justify-content-center">
+                        <div class="stat-number-compact">{{ change_requests|length }}</div>
+                        <div class="stat-label-compact">Change Requests</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6 col-md-6">
+            <div class="dashboard-stats-compact">
+                <div class="d-flex align-items-center h-100">
+                    <div class="stat-icon-compact">
+                        <i class="fas fa-tasks"></i>
+                    </div>
+                    <div class="flex-grow-1 d-flex flex-column justify-content-center">
+                        <div class="stat-number-compact">{{ change_tasks|length }}</div>
+                        <div class="stat-label-compact">Change Tasks</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Form -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="metric-card-compact filter-form">
+                <form id="filterForm" method="GET" action="{{ url_for('misc.change_management_new') }}">
+                    <div class="row g-3">
+                        <!-- State Filter -->
+                        <div class="col-lg-3 col-md-6">
+                            <label class="form-label">State</label>
+                            <select class="form-select form-select-sm" name="state" id="stateFilter">
+                                <option value="">All States</option>
+                                <option value="New" {{ 'selected' if request.args.get('state') == 'New' }}>New</option>
+                                <option value="Assessment" {{ 'selected' if request.args.get('state') == 'Assessment' }}>Assessment</option>
+                                <option value="Authorized" {{ 'selected' if request.args.get('state') == 'Authorized' }}>Authorized</option>
+                                <option value="Scheduled" {{ 'selected' if request.args.get('state') == 'Scheduled' }}>Scheduled</option>
+                                <option value="Implement" {{ 'selected' if request.args.get('state') == 'Implement' }}>Implement</option>
+                                <option value="Review" {{ 'selected' if request.args.get('state') == 'Review' }}>Review</option>
+                                <option value="Closed" {{ 'selected' if request.args.get('state') == 'Closed' }}>Closed</option>
+                                <option value="Cancelled" {{ 'selected' if request.args.get('state') == 'Cancelled' }}>Cancelled</option>
+                            </select>
+                        </div>
+
+                        <!-- Assignment Group Filter -->
+                        <div class="col-lg-3 col-md-6">
+                            <label class="form-label">Assignment Group</label>
+                            <select class="form-select form-select-sm" name="assignment_group_filter" id="assignmentGroupFilter">
+                                <option value="">All Groups</option>
+                                <option value="Supply Chain - L2" {{ 'selected' if request.args.get('assignment_group_filter') == 'Supply Chain - L2' }}>Supply Chain - L2</option>
+                                <option value="via_task_only" {{ 'selected' if request.args.get('assignment_group_filter') == 'via_task_only' }}>Via Tasks Only</option>
+                                <option value="direct_only" {{ 'selected' if request.args.get('assignment_group_filter') == 'direct_only' }}>Direct Only</option>
+                            </select>
+                        </div>
+
+                        <!-- Start Date -->
+                        <div class="col-lg-2 col-md-6">
+                            <label class="form-label">Start Date</label>
+                            <input type="date" class="form-control form-control-sm" name="start_date" 
+                                   value="{{ request.args.get('start_date', '') }}" id="startDate">
+                        </div>
+
+                        <!-- End Date -->
+                        <div class="col-lg-2 col-md-6">
+                            <label class="form-label">End Date</label>
+                            <input type="date" class="form-control form-control-sm" name="end_date" 
+                                   value="{{ request.args.get('end_date', '') }}" id="endDate">
+                        </div>
+
+                        <!-- Apply Filters Button -->
+                        <div class="col-lg-2 col-md-6 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary btn-sm w-100">
+                                <i class="fas fa-search me-1"></i>Apply Filters
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Cards (matching main dashboard style) -->
+    <div class="row g-4">
+        <!-- Change Requests Section -->
+        <div class="col-12">
+            <div class="metric-card-compact">
+                <h5 class="d-flex align-items-center">
+                    <i class="fas fa-exchange-alt text-warning me-2"></i>
+                    Change Requests
+                    <span class="badge bg-warning ms-2">{{ change_requests|length }}</span>
+                </h5>
+                
+                {% if change_requests %}
+                <div class="table-modern">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Number</th>
+                                <th>Description</th>
+                                <th>State</th>
+                                <th>Priority</th>
+                                <th>Assignment Group</th>
+                                <th>Assigned To</th>
+                                <th>Schedule Date</th>
+                                <th>Schedule Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cr in change_requests %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <strong>{{ cr.number }}</strong>
+                                        {% if cr.source == 'via_change_task' %}
+                                        <span class="badge bg-info ms-2" title="Included via Change Task">
+                                            <i class="fas fa-link"></i> Task
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                        {{ cr.short_description or 'No description' }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="status-badge-modern status-{{ cr.state|lower|replace(' ', '-') }}">
+                                        {{ cr.state }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="priority-{{ 'high' if cr.priority in ['1', '2', 'High', 'Critical'] else 'moderate' if cr.priority in ['3', 'Medium', 'Moderate'] else 'low' }}">
+                                        {{ cr.priority }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ cr.assignment_group }}</span>
+                                </td>
+                                <td>
+                                    {% if cr.assigned_to %}
+                                    <span class="assigned-badge">{{ cr.assigned_to }}</span>
+                                    {% else %}
+                                    <span class="unassigned-text">Unassigned</span>
+                                    {% endif %}
+                                </td>
+                                <td class="schedule-date">
+                                    {% if cr.start_date %}
+                                        {% set start_parts = cr.start_date.split(' ') %}
+                                        <small class="schedule-start schedule-item">
+                                            <i class="fas fa-calendar me-1"></i>{{ start_parts[0] if start_parts else cr.start_date[:10] }}
+                                        </small>
+                                    {% elif cr.end_date %}
+                                        {% set end_parts = cr.end_date.split(' ') %}
+                                        <small class="schedule-end schedule-item">
+                                            <i class="fas fa-calendar me-1"></i>{{ end_parts[0] if end_parts else cr.end_date[:10] }}
+                                        </small>
+                                    {% elif cr.planned_start_date %}
+                                        {% set start_parts = cr.planned_start_date.split(' ') %}
+                                        <small class="schedule-start schedule-item">
+                                            <i class="fas fa-calendar me-1"></i>{{ start_parts[0] if start_parts else cr.planned_start_date[:10] }}
+                                        </small>
+                                    {% elif cr.planned_end_date %}
+                                        {% set end_parts = cr.planned_end_date.split(' ') %}
+                                        <small class="schedule-end schedule-item">
+                                            <i class="fas fa-calendar me-1"></i>{{ end_parts[0] if end_parts else cr.planned_end_date[:10] }}
+                                        </small>
+                                    {% else %}
+                                        <span class="unassigned-text">
+                                            <i class="fas fa-question-circle me-1"></i>No date
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="schedule-time">
+                                    {% if cr.start_date and cr.start_date != '' and cr.end_date and cr.end_date != '' %}
+                                        {% set start_parts = cr.start_date.split(' ') %}
+                                        {% set end_parts = cr.end_date.split(' ') %}
+                                        {% if start_parts|length > 1 and end_parts|length > 1 %}
+                                        <span class="time-range">
+                                            <i class="fas fa-clock me-1"></i>{{ start_parts[1] }} - {{ end_parts[1] }}
+                                        </span>
+                                        {% endif %}
+                                    {% elif cr.start_date and cr.start_date != '' %}
+                                        {% set start_parts = cr.start_date.split(' ') %}
+                                        {% if start_parts|length > 1 %}
+                                        <small class="text-success fw-bold">
+                                            <i class="fas fa-play-circle me-1"></i>{{ start_parts[1] }}
+                                        </small>
+                                        {% endif %}
+                                    {% elif cr.end_date and cr.end_date != '' %}
+                                        {% set end_parts = cr.end_date.split(' ') %}
+                                        {% if end_parts|length > 1 %}
+                                        <small class="text-danger fw-bold">
+                                            <i class="fas fa-stop-circle me-1"></i>{{ end_parts[1] }}
+                                        </small>
+                                        {% endif %}
+                                    {% elif cr.planned_start_date and cr.planned_start_date != '' and cr.planned_end_date and cr.planned_end_date != '' %}
+                                        {% set start_parts = cr.planned_start_date.split(' ') %}
+                                        {% set end_parts = cr.planned_end_date.split(' ') %}
+                                        {% if start_parts|length > 1 and end_parts|length > 1 %}
+                                        <span class="time-range">
+                                            <i class="fas fa-clock me-1"></i>{{ start_parts[1] }} - {{ end_parts[1] }}
+                                        </span>
+                                        {% endif %}
+                                    {% elif cr.work_start and cr.work_start != '' and cr.work_end and cr.work_end != '' %}
+                                        {% set start_parts = cr.work_start.split(' ') %}
+                                        {% set end_parts = cr.work_end.split(' ') %}
+                                        {% if start_parts|length > 1 and end_parts|length > 1 %}
+                                        <span class="time-range">
+                                            <i class="fas fa-wrench me-1"></i>{{ start_parts[1] }} - {{ end_parts[1] }}
+                                        </span>
+                                        {% endif %}
+                                    {% elif cr.scheduled_start_time and cr.scheduled_start_time != '' %}
+                                        <small class="text-primary fw-bold">
+                                            <i class="fas fa-clock me-1"></i>{{ cr.scheduled_start_time }}
+                                        </small>
+                                    {% elif cr.scheduled_end_time and cr.scheduled_end_time != '' %}
+                                        <small class="text-warning fw-bold">
+                                            <i class="fas fa-clock me-1"></i>{{ cr.scheduled_end_time }}
+                                        </small>
+                                    {% else %}
+                                        <span class="unassigned-text">
+                                            <i class="fas fa-question-circle me-1"></i>No time
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No Change Requests Found</h5>
+                    <p class="text-muted">No change requests assigned to Supply Chain - L2</p>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Pagination -->
+            {% if pagination and pagination.total_pages > 1 %}
+            <div class="mt-3">
+                <div class="metric-card-compact">
+                    <nav aria-label="Change Requests pagination">
+                        <ul class="pagination pagination-sm justify-content-center mb-0">
+                            <!-- Previous button -->
+                            <li class="page-item {{ 'disabled' if pagination.current_page <= 1 }}">
+                                <a class="page-link" href="{{ url_for('misc.change_management_new', page=pagination.current_page-1, **request.args) if pagination.current_page > 1 else '#' }}">
+                                    <i class="fas fa-chevron-left"></i> Previous
+                                </a>
+                            </li>
+                            
+                            <!-- Page numbers -->
+                            {% for page in pagination.page_range %}
+                                {% if page == '...' %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">...</span>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item {{ 'active' if page == pagination.current_page }}">
+                                        <a class="page-link" href="{{ url_for('misc.change_management_new', page=page, **request.args) }}">
+                                            {{ page }}
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            <!-- Next button -->
+                            <li class="page-item {{ 'disabled' if pagination.current_page >= pagination.total_pages }}">
+                                <a class="page-link" href="{{ url_for('misc.change_management_new', page=pagination.current_page+1, **request.args) if pagination.current_page < pagination.total_pages else '#' }}">
+                                    Next <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                    
+                    <!-- Pagination info -->
+                    <div class="text-center mt-2">
+                        <small class="text-muted">
+                            Page {{ pagination.current_page }} of {{ pagination.total_pages }} 
+                            ({{ pagination.total }} total records, {{ pagination.per_page }} per page)
+                        </small>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Change Tasks Section -->
+        <div class="col-12">
+            <div class="metric-card-compact">
+                <h5 class="d-flex align-items-center">
+                    <i class="fas fa-tasks text-success me-2"></i>
+                    Change Tasks
+                    <span class="badge bg-success ms-2">{{ change_tasks|length }}</span>
+                </h5>
+                
+                {% if change_tasks %}
+                <div class="table-modern">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Number</th>
+                                <th>Description</th>
+                                <th>State</th>
+                                <th>Assignment Group</th>
+                                <th>Assigned To</th>
+                                <th>Change Request</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ct in change_tasks %}
+                            <tr>
+                                <td>
+                                    <strong>{{ ct.number }}</strong>
+                                </td>
+                                <td>
+                                    <div style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                        {{ ct.short_description or 'No description' }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="status-badge-modern status-{{ ct.state|lower|replace(' ', '-') }}">
+                                        {{ ct.state }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ ct.assignment_group }}</span>
+                                </td>
+                                <td>
+                                    {% if ct.assigned_to %}
+                                    <span class="assigned-badge">{{ ct.assigned_to }}</span>
+                                    {% else %}
+                                    <span class="unassigned-text">Unassigned</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if ct.change_request %}
+                                    <a href="#" class="text-decoration-none">
+                                        <span class="badge bg-info">{{ ct.change_request }}</span>
+                                    </a>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-tasks fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No Change Tasks Found</h5>
+                    <p class="text-muted">No change tasks assigned to Supply Chain - L2</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer with timestamp -->
+    <div class="mt-4 pt-3 border-top">
+        <div class="text-center">
+            <small class="text-muted">
+                <i class="fas fa-clock me-1"></i>
+                Last updated: {{ current_time }}
+            </small>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add fade-in animation
+        const elements = document.querySelectorAll('.dashboard-stats-compact, .metric-card-compact');
+        elements.forEach((element, index) => {
+            element.style.opacity = '0';
+            element.style.transform = 'translateY(20px)';
+            setTimeout(() => {
+                element.style.transition = 'all 0.5s ease';
+                element.style.opacity = '1';
+                element.style.transform = 'translateY(0)';
+            }, index * 100);
+        });
+
+        // Add table row hover effects
+        const tableRows = document.querySelectorAll('.table-modern tbody tr');
+        tableRows.forEach(row => {
+            row.addEventListener('mouseenter', function() {
+                this.style.backgroundColor = 'rgba(102, 126, 234, 0.05)';
+            });
+            row.addEventListener('mouseleave', function() {
+                this.style.backgroundColor = '';
+            });
+        });
+    });
+
+    // Filter Functions
+    function resetFilters() {
+        window.location.href = "{{ url_for('misc.change_management_new') }}";
+    }
+
+    function clearFilters() {
+        // Clear all form inputs
+        document.getElementById('filterForm').reset();
+        
+        // Clear URL parameters and reload
+        const url = new URL(window.location);
+        url.search = '';
+        window.location.href = url.toString();
+    }
+
+    // Auto-submit on filter change (optional)
+    function setupAutoFilter() {
+        const filterElements = document.querySelectorAll('#filterForm select, #filterForm input[type="date"]');
+        filterElements.forEach(element => {
+            element.addEventListener('change', function() {
+                // Optional: Auto-submit when filters change
+                // document.getElementById('filterForm').submit();
+            });
+        });
+    }
+
+    // Call setup function when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        setupAutoFilter();
+        
+        // Add visual feedback when filters are applied
+        {% if request.args %}
+        const filterSection = document.querySelector('.metric-card-compact');
+        if (filterSection) {
+            filterSection.style.borderLeft = '4px solid #0d6efd';
+        }
+        {% endif %}
+    });
+</script>
+
+{% endblock %}

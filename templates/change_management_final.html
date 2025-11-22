@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}Change Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Change Management</h2>
+                <button onclick="refreshData()" class="btn btn-outline-primary">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            
+            <div class="alert alert-info mb-4">
+                <strong>Assignment Group:</strong> Supply Chain - L2
+            </div>
+            
+            <!-- Status -->
+            <div id="status-message" class="mb-3"></div>
+            
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card text-white bg-primary">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title" id="cr-count">0</h4>
+                                    <p class="card-text">Change Requests</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-exchange-alt fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card text-white bg-success">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title" id="ct-count">0</h4>
+                                    <p class="card-text">Change Tasks</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-tasks fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Change Requests Table -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-exchange-alt"></i> Change Requests
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="change-requests-content">
+                        <div class="text-center">
+                            <i class="fas fa-spinner fa-spin"></i> Loading change requests...
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Change Tasks Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tasks"></i> Change Tasks
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="change-tasks-content">
+                        <div class="text-center">
+                            <i class="fas fa-spinner fa-spin"></i> Loading change tasks...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showStatus(message, type = 'info') {
+    const statusDiv = document.getElementById('status-message');
+    statusDiv.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+}
+
+function createChangeRequestsTable(changeRequests) {
+    if (!changeRequests || changeRequests.length === 0) {
+        return '<div class="alert alert-warning">No change requests found for your assignment group.</div>';
+    }
+    
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Number</th>
+                        <th>Description</th>
+                        <th>State</th>
+                        <th>Priority</th>
+                        <th>Category</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    changeRequests.slice(0, 20).forEach(cr => {
+        const stateClass = getStateClass(cr.state);
+        const priorityClass = getPriorityClass(cr.priority);
+        
+        html += `
+            <tr>
+                <td><strong class="text-primary">${cr.number || 'N/A'}</strong></td>
+                <td>${cr.short_description || cr.description || 'No description'}</td>
+                <td><span class="badge ${stateClass}">${cr.state || 'Unknown'}</span></td>
+                <td><span class="badge ${priorityClass}">${cr.priority || 'Not set'}</span></td>
+                <td>${cr.category || 'Other'}</td>
+                <td>${formatDate(cr.created_on)}</td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    if (changeRequests.length > 20) {
+        html += `<div class="alert alert-info">Showing first 20 of ${changeRequests.length} change requests</div>`;
+    }
+    
+    return html;
+}
+
+function createChangeTasksTable(changeTasks) {
+    if (!changeTasks || changeTasks.length === 0) {
+        return '<div class="alert alert-warning">No change tasks found for your assignment group.</div>';
+    }
+    
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Number</th>
+                        <th>Description</th>
+                        <th>State</th>
+                        <th>Change Request</th>
+                        <th>Assigned To</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    changeTasks.slice(0, 20).forEach(ct => {
+        const stateClass = getTaskStateClass(ct.state);
+        
+        html += `
+            <tr>
+                <td><strong class="text-success">${ct.number || 'N/A'}</strong></td>
+                <td>${ct.short_description || ct.description || 'No description'}</td>
+                <td><span class="badge ${stateClass}">${ct.state || 'Unknown'}</span></td>
+                <td>${ct.change_request || 'Not linked'}</td>
+                <td>${ct.assigned_to || 'Unassigned'}</td>
+                <td>${formatDate(ct.created_on)}</td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    if (changeTasks.length > 20) {
+        html += `<div class="alert alert-info">Showing first 20 of ${changeTasks.length} change tasks</div>`;
+    }
+    
+    return html;
+}
+
+function getStateClass(state) {
+    const stateMap = {
+        'New': 'bg-info',
+        'Assessment': 'bg-warning',
+        'Authorized': 'bg-primary',
+        'Scheduled': 'bg-secondary',
+        'Implementation': 'bg-warning',
+        'Review': 'bg-info',
+        'Closed': 'bg-success',
+        'Cancelled': 'bg-danger'
+    };
+    return stateMap[state] || 'bg-secondary';
+}
+
+function getTaskStateClass(state) {
+    const stateMap = {
+        'Pending': 'bg-secondary',
+        'Open': 'bg-primary',
+        'Work in Progress': 'bg-warning',
+        'Closed Complete': 'bg-success',
+        'Closed Incomplete': 'bg-danger',
+        'Closed Skipped': 'bg-secondary'
+    };
+    return stateMap[state] || 'bg-secondary';
+}
+
+function getPriorityClass(priority) {
+    const priorityMap = {
+        '1': 'bg-danger',
+        '2': 'bg-warning',
+        '3': 'bg-primary',
+        '4': 'bg-info',
+        '5': 'bg-secondary'
+    };
+    return priorityMap[priority] || 'bg-secondary';
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    } catch {
+        return dateString;
+    }
+}
+
+function loadChangeData() {
+    showStatus('Loading change management data...', 'info');
+    
+    fetch('/api/get_change_requests')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Change data loaded:', data);
+            
+            if (data.error) {
+                showStatus(`Error: ${data.error}`, 'danger');
+                return;
+            }
+            
+            // Update counts
+            document.getElementById('cr-count').textContent = data.total_crs || 0;
+            document.getElementById('ct-count').textContent = data.total_tasks || 0;
+            
+            // Update tables
+            document.getElementById('change-requests-content').innerHTML = createChangeRequestsTable(data.change_requests);
+            document.getElementById('change-tasks-content').innerHTML = createChangeTasksTable(data.change_tasks);
+            
+            showStatus(`✅ Successfully loaded ${data.total_crs || 0} change requests and ${data.total_tasks || 0} change tasks`, 'success');
+        })
+        .catch(error => {
+            console.error('Error loading change data:', error);
+            showStatus(`❌ Failed to load change data: ${error.message}`, 'danger');
+            document.getElementById('change-requests-content').innerHTML = '<div class="alert alert-danger">Failed to load change requests</div>';
+            document.getElementById('change-tasks-content').innerHTML = '<div class="alert alert-danger">Failed to load change tasks</div>';
+        });
+}
+
+function refreshData() {
+    loadChangeData();
+}
+
+// Auto-load data when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Change Management page loaded');
+    loadChangeData();
+});
+</script>
+{% endblock %}
