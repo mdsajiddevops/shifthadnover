@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify, redirect
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from services.audit_service import log_action
+# from services.audit_service import log_action
 
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
@@ -13,6 +13,10 @@ import time
 
 # Import secrets management system
 from models.secrets_manager import init_secrets_manager, secrets_manager
+
+# Temporary audit function
+def log_action(action, details=None):
+    print(f"AUDIT: {action} - {details}")
 
 # Initialize Flask app
 app = Flask(__name__)

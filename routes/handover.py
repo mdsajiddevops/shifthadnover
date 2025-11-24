@@ -14,76 +14,15 @@ import pytz
 
 handover_bp = Blueprint('handover', __name__)
 
-# 🚨 UNIVERSAL SHIFT REUSE INTERCEPTOR - PREVENTS ALL NEW SHIFT CREATION
-def get_or_reuse_shift(date, current_shift_type, next_shift_type, account_id, team_id, action):
+def create_new_shift(date, current_shift_type, next_shift_type, account_id, team_id, action, additional_notes=None):
     """
-    BULLETPROOF: Always reuse existing shifts instead of creating new ones.
-    This function will be called for ALL shift creation attempts.
+    Creates a new shift record for each handover submission.
+    This prevents overriding existing shifts and maintains proper data integrity.
     """
-    print(f"[INTERCEPTOR] get_or_reuse_shift called: {date} {current_shift_type}→{next_shift_type}")
+    print(f"[NEW_SHIFT] Creating new shift: {date} {current_shift_type}→{next_shift_type} (action: '{action}')")
+    print(f"[NEW_SHIFT] Action type: {type(action)}, Will set status to: {'draft' if action == 'draft' else 'sent'}")
     
-    # Step 1: Look for exact match
-    existing_shift = Shift.query.filter_by(
-        date=date,
-        current_shift_type=current_shift_type,
-        next_shift_type=next_shift_type,
-        account_id=account_id,
-        team_id=team_id
-    ).first()
-    
-    if existing_shift:
-        print(f"[INTERCEPTOR] ✅ REUSING exact match shift ID: {existing_shift.id}")
-        # Update status
-        if action == 'submit' and existing_shift.status == 'draft':
-            existing_shift.status = 'sent'
-            existing_shift.submitted_at = datetime.now()
-            db.session.commit()
-        elif action == 'draft':
-            existing_shift.status = 'draft'
-            existing_shift.submitted_at = None
-            db.session.commit()
-        return existing_shift
-        
-    # Step 2: Look for any shift on same date
-    fallback_shift = Shift.query.filter_by(
-        date=date,
-        account_id=account_id,
-        team_id=team_id
-    ).first()
-    
-    if fallback_shift:
-        print(f"[INTERCEPTOR] ✅ REUSING fallback shift ID: {fallback_shift.id}")
-        # Update to match our criteria
-        fallback_shift.current_shift_type = current_shift_type
-        fallback_shift.next_shift_type = next_shift_type
-        old_status = fallback_shift.status
-        fallback_shift.status = 'draft' if action == 'draft' else 'sent'
-        print(f"[STATUS_DEBUG] Fallback shift {fallback_shift.id}: {old_status} → {fallback_shift.status} (action: {action})")
-        fallback_shift.submitted_at = datetime.now() if action == 'submit' else None
-        db.session.commit()
-        return fallback_shift
-        
-    # Step 3: Look for ANY shift we can reuse (regardless of date)
-    any_shift = Shift.query.filter_by(
-        account_id=account_id,
-        team_id=team_id
-    ).first()
-    
-    if any_shift:
-        print(f"[INTERCEPTOR] ✅ REUSING any available shift ID: {any_shift.id}")
-        # Update to match our criteria
-        any_shift.date = date
-        any_shift.current_shift_type = current_shift_type
-        any_shift.next_shift_type = next_shift_type
-        old_status = any_shift.status
-        any_shift.status = 'draft' if action == 'draft' else 'sent'
-        print(f"[STATUS_DEBUG] Any shift {any_shift.id}: {old_status} → {any_shift.status} (action: {action})")
-        any_shift.submitted_at = datetime.now() if action == 'submit' else None
-        db.session.commit()
-        return any_shift
-        
-    # Step 4: Last resort - create new shift (should rarely happen)
-    print(f"[INTERCEPTOR] ⚠️ Creating new shift as last resort")
+    # Always create a new shift for each handover submission
     new_shift = Shift(
         date=date,
         current_shift_type=current_shift_type,
@@ -91,38 +30,22 @@ def get_or_reuse_shift(date, current_shift_type, next_shift_type, account_id, te
         status='draft' if action == 'draft' else 'sent',
         submitted_at=datetime.now() if action == 'submit' else None,
         account_id=account_id,
-        team_id=team_id
+        team_id=team_id,
+        created_at=datetime.now(),
+        additional_notes=additional_notes
     )
-    db.session.add(new_shift)
-    db.session.flush()  # Get the ID
     
-    # 🔧 CRITICAL FIX: Commit the shift immediately so it exists in database
-    # This prevents foreign key constraint failures when creating related records
+    db.session.add(new_shift)
+    
+    # Commit immediately to get the ID and ensure it exists
     try:
         db.session.commit()
-        print(f"[INTERCEPTOR] ✅ Committed new shift ID: {new_shift.id} to database")
+        print(f"[NEW_SHIFT] ✅ Created new shift ID: {new_shift.id} with status: {new_shift.status}")
     except Exception as commit_error:
-        print(f"[INTERCEPTOR] ❌ Failed to commit new shift: {commit_error}")
+        print(f"[NEW_SHIFT] ❌ Failed to commit new shift: {commit_error}")
         db.session.rollback()
         raise commit_error
     
-    # Verify the shift exists in database
-    verification = Shift.query.filter_by(id=new_shift.id).first()
-    if not verification:
-        print(f"[INTERCEPTOR] 🚨 Creating emergency backup for shift {new_shift.id}")
-        emergency_shift = Shift(
-            id=new_shift.id,
-            date=date,
-            current_shift_type=current_shift_type,
-            next_shift_type=next_shift_type,
-            status='draft' if action == 'draft' else 'sent',
-            account_id=account_id,
-            team_id=team_id,
-            created_at=datetime.now()
-        )
-        db.session.merge(emergency_shift)
-        db.session.commit()
-        
     return new_shift
 
 def create_enhanced_incident_assignment(incident_title, incident_description, incident_priority, 
@@ -638,11 +561,141 @@ def edit_handover(shift_id):
     else:
         teams = Team.query.filter_by(account_id=current_user.account_id, id=current_user.team_id, status='active').all()
     
-    # Fetch incidents by type for prepopulation
-    open_incidents = [i.title for i in Incident.query.filter_by(shift_id=shift.id, type='Active').all()]
-    closed_incidents = [i.title for i in Incident.query.filter_by(shift_id=shift.id, type='Closed').all()]
-    priority_incidents = [i.title for i in Incident.query.filter_by(shift_id=shift.id, type='Priority').all()]
-    handover_incidents = [i.title for i in Incident.query.filter_by(shift_id=shift.id, type='Handover').all()]
+    # Fetch incidents by type for prepopulation - FIXED: Return full incident objects for edit form
+    def serialize_incident(incident):
+        """Convert incident object to dictionary for template"""
+        # Extract app name from title if it exists
+        title = incident.title
+        app_name = ""
+        incident_id = ""
+        
+        # Handle format: [AppName] IncidentID
+        if title.startswith('[') and ']' in title:
+            end_bracket = title.index(']')
+            app_name = title[1:end_bracket]
+            incident_id = title[end_bracket+1:].strip()
+        # Handle format: AppName - IncidentID or AppNameNumber - IncidentID
+        elif ' - ' in title:
+            parts = title.split(' - ', 1)
+            app_name = parts[0].strip()
+            incident_id = parts[1].strip()
+        # Handle single title without separation
+        else:
+            app_name = ""
+            incident_id = title
+        
+        # The assigned_to field might be stored as an ID or name, need to handle both
+        assigned_to_value = getattr(incident, 'assigned_to', '')
+        assigned_to_name = assigned_to_value
+        
+        # If assigned_to looks like an ID (numeric), convert to name
+        if assigned_to_value and str(assigned_to_value).isdigit():
+            try:
+                # TeamMember is already imported at the top of the file
+                engineer = TeamMember.query.get(int(assigned_to_value))
+                if engineer:
+                    assigned_to_name = engineer.name
+                    print(f"🔧 SERIALIZE: Converted ID {assigned_to_value} to name '{assigned_to_name}'")
+                else:
+                    print(f"🔧 SERIALIZE: ID {assigned_to_value} not found, using as-is")
+                    assigned_to_name = assigned_to_value
+            except Exception as e:
+                print(f"🔧 SERIALIZE: Error converting ID {assigned_to_value}: {e}")
+                assigned_to_name = assigned_to_value
+        
+        # 🔧 DEBUG: Log assignment data during serialization
+        if assigned_to_name:
+            print(f"🔧 SERIALIZE: Incident '{incident.title}' final assignment: '{assigned_to_name}'") 
+        else:
+            print(f"🔧 SERIALIZE: Incident '{incident.title}' has NO assignment")
+        
+        # Create the incident dictionary with all available fields
+        # 🔧 FIX: Check both handover and description fields for description content
+        description_content = getattr(incident, 'handover', '') or getattr(incident, 'description', '')
+        
+        # 🔧 ENHANCED FIX: Handle all incident types with proper field mapping
+        incident_status = getattr(incident, 'status', '')
+        incident_type = getattr(incident, 'type', '')
+        
+        # Initialize default values
+        resolution_content = ''
+        impact_content = ''
+        notes_content = ''
+        escalated_to_content = ''
+        next_action_by_content = ''
+        
+        if incident_type == 'Closed':
+            # Closed incidents: resolution stored in handover field
+            resolution_content = description_content
+        elif incident_type == 'Priority':
+            # Priority incidents: impact stored in handover field  
+            impact_content = description_content
+            # ✅ FIX: Map escalated_to field for Priority incidents
+            escalated_to_content = getattr(incident, 'escalated_to', '') or ''
+        elif incident_type == 'Handover':
+            # Handover incidents: notes stored in handover field, next_action_by in assigned_to
+            notes_content = description_content
+            # ✅ FIX: Get next_action_by from the proper field instead of assigned_to
+            next_action_by_field = getattr(incident, 'next_action_by', '')
+            if next_action_by_field and str(next_action_by_field).isdigit():
+                try:
+                    next_action_member = TeamMember.query.get(int(next_action_by_field))
+                    next_action_by_content = next_action_member.name if next_action_member else assigned_to_name
+                except:
+                    next_action_by_content = assigned_to_name
+            else:
+                next_action_by_content = next_action_by_field or assigned_to_name
+        elif incident_type == 'Escalated':
+            # ✅ FIX: Map Escalated incident fields properly from database
+            escalated_to_content = getattr(incident, 'escalated_to', '') or ''
+            escalation_reason = getattr(incident, 'escalation_reason', '') or ''
+            current_status = getattr(incident, 'current_status', '') or ''
+            
+            # Use escalation_reason for notes if available
+            if escalation_reason:
+                notes_content = escalation_reason
+        elif incident_type == 'Open':
+            # Open incidents: description in handover field (already handled correctly)
+            pass
+        
+        result = {
+            'id': incident_id,
+            'title': title,
+            'app_name': app_name,
+            'priority': getattr(incident, 'priority', 'Medium'),
+            'description': description_content,  # Use handover field primarily, fallback to description
+            'assigned_to': assigned_to_name,
+            'status': incident_status,
+            'resolution': resolution_content,  # For closed incidents
+            'escalated_to': escalated_to_content,  # For escalated incidents
+            'impact': impact_content,  # For priority incidents
+            'next_action_by': next_action_by_content,  # For handover incidents
+            'notes': notes_content  # For handover incidents
+        }
+        
+        # ✅ FIX: Add additional fields for Escalated incidents
+        if incident_type == 'Escalated':
+            result['escalation_reason'] = getattr(incident, 'escalation_reason', '') or ''
+            result['current_status'] = getattr(incident, 'current_status', '') or ''
+        
+        # 🔧 DEBUG: Log each serialized incident
+        print(f"[SERIALIZE_DEBUG] Incident {incident.id}: {result}")
+        
+        return result
+    
+    # Get full incident objects for each type - FIXED: Use correct type values from database
+    open_incidents_raw = Incident.query.filter_by(shift_id=shift.id, type='Open').all()
+    closed_incidents_raw = Incident.query.filter_by(shift_id=shift.id, type='Closed').all()
+    priority_incidents_raw = Incident.query.filter_by(shift_id=shift.id, type='Priority').all()
+    handover_incidents_raw = Incident.query.filter_by(shift_id=shift.id, type='Handover').all()
+    escalated_incidents_raw = Incident.query.filter_by(shift_id=shift.id, type='Escalated').all()
+    
+    # Convert to dictionaries for the template
+    open_incidents = [serialize_incident(i) for i in open_incidents_raw]
+    closed_incidents = [serialize_incident(i) for i in closed_incidents_raw]
+    priority_incidents = [serialize_incident(i) for i in priority_incidents_raw]
+    handover_incidents = [serialize_incident(i) for i in handover_incidents_raw]
+    escalated_incidents = [serialize_incident(i) for i in escalated_incidents_raw]
 
     if request.method == 'POST':
         # Audit log: editing handover
@@ -655,9 +708,10 @@ def edit_handover(shift_id):
         shift.date = datetime.strptime(request.form['handover_date'], '%Y-%m-%d').date()
         shift.current_shift_type = request.form['current_shift_type']
         shift.next_shift_type = request.form['next_shift_type']
+        shift.additional_notes = request.form.get('additional_notes', '')
         action = request.form.get('action', 'send')
         old_status = shift.status
-        shift.status = 'draft' if action == 'save' else 'sent'
+        shift.status = 'draft' if action in ['save', 'draft'] else 'sent'
         
         # Set submitted_at timestamp if changing from draft to sent
         if old_status == 'draft' and shift.status == 'sent':
@@ -691,12 +745,28 @@ def edit_handover(shift_id):
             shift.current_engineers.append(member)
         for member in next_engineers_objs:
             shift.next_engineers.append(member)
-        # Remove and re-add incidents/keypoints
-        Incident.query.filter_by(shift_id=shift.id).delete()
-        log_action('Delete Incidents', f'Shift ID: {shift.id}')
-        ShiftKeyPoint.query.filter_by(shift_id=shift.id).delete()
-        log_action('Delete KeyPoints', f'Shift ID: {shift.id}')
-        db.session.commit()
+        # 🔧 CRITICAL FIX: Update incidents and key points instead of deleting all
+        # Get existing data for comparison
+        existing_incidents = Incident.query.filter_by(shift_id=shift.id).all()
+        existing_keypoints = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
+        
+        print(f"🔧 EDIT MODE: Found {len(existing_incidents)} existing incidents, {len(existing_keypoints)} existing key points")
+        
+        # 🔧 IMPROVED EDIT MODE: Only clear data if this is a 'submit' action, not 'draft'
+        # This prevents data loss during draft-edit cycles
+        if action == 'submit' or len(existing_incidents) == 0:
+            # Clear existing items - we'll recreate from form data
+            for inc in existing_incidents:
+                db.session.delete(inc)
+            for kp in existing_keypoints:
+                db.session.delete(kp)
+            
+            db.session.commit()
+            print(f"🔧 EDIT MODE: Cleared existing data for final submission, rebuilding from form")
+        else:
+            # For draft mode, update existing items instead of deleting
+            print(f"🔧 EDIT MODE: Draft mode - updating existing data instead of clearing")
+            # We'll update existing items and only add new ones if needed
         # Audit log: after commit, log send/save
         db.session.add(AuditLog(
             user_id=current_user.id,
@@ -708,6 +778,9 @@ def edit_handover(shift_id):
         def add_incident(field_prefix, inc_type):
             # Handle different incident types with their specific fields
             incident_ids = request.form.getlist(f'{field_prefix}_incident_id[]')
+            
+            print(f"\n🔧 PROCESSING {inc_type} INCIDENTS:")
+            print(f"   Found {len(incident_ids)} incident IDs for type '{inc_type}'")
             
             for i, incident_id in enumerate(incident_ids):
                 if incident_id.strip():
@@ -721,28 +794,43 @@ def edit_handover(shift_id):
                     }
                     
                     # Add type-specific fields (using existing model fields)
-                    if inc_type == 'Active':  # Open incidents
+                    if inc_type == 'Open':  # Open incidents
                         priorities = request.form.getlist('open_incident_priority[]')
                         descriptions = request.form.getlist('open_incident_description[]')
                         assigned_tos = request.form.getlist('open_incident_assigned[]')
                         app_names = request.form.getlist('open_incident_app[]')
+                        
+                        print(f"   🔧 OPEN INCIDENT {i+1}: assigned_to form data = '{assigned_tos[i] if i < len(assigned_tos) else 'MISSING'}'")
                         
                         # Include application name in title
                         app_name = app_names[i] if i < len(app_names) and app_names[i].strip() else ''
                         full_title = f"[{app_name}] {incident_id}" if app_name else incident_id
                         incident_data['title'] = full_title
                         
+                        # Send notification if engineer is assigned
+                        assigned_engineer = assigned_tos[i] if i < len(assigned_tos) and assigned_tos[i].strip() else None
+                        
                         incident_data.update({
                             'priority': priorities[i] if i < len(priorities) else 'Medium',
                             'status': 'Open',
-                            'handover': descriptions[i] if i < len(descriptions) else ''
+                            'handover': descriptions[i] if i < len(descriptions) else '',
+                            'assigned_to': assigned_engineer  # 🔧 FIX: Store assigned engineer name
                         })
-                        
-                        # Send notification if engineer is assigned
-                        assigned_engineer = assigned_tos[i] if i < len(assigned_tos) and assigned_tos[i].strip() else None
                         if assigned_engineer:
                             try:
                                 # Create enhanced incident assignment
+                                # Create or get HandoverRequest for edit mode
+                                handover_request = HandoverRequest.query.filter_by(shift_id=shift.id).first()
+                                if not handover_request:
+                                    handover_request = HandoverRequest(
+                                        shift_id=shift.id,
+                                        account_id=shift.account_id,
+                                        team_id=shift.team_id,
+                                        created_at=datetime.now()
+                                    )
+                                    db.session.add(handover_request)
+                                    db.session.flush()  # Get ID without full commit
+                                
                                 create_enhanced_incident_assignment(
                                     incident_title=full_title,
                                     incident_description=descriptions[i] if i < len(descriptions) else '',
@@ -751,7 +839,7 @@ def edit_handover(shift_id):
                                     account_id=shift.account_id,
                                     team_id=shift.team_id,
                                     handover_context=f"Assigned during {shift.current_shift_type} to {shift.next_shift_type} handover on {shift.date}",
-                                    handover_request_id=None  # Edit mode: HandoverRequest not created in edit flow
+                                    handover_request_id=handover_request.id
                                 )
                                 
                                 # Send incident assignment notification 
@@ -813,16 +901,30 @@ def edit_handover(shift_id):
                         full_title = f"[{app_name}] {incident_id}" if app_name else incident_id
                         incident_data['title'] = full_title
                         
+                        # Send notification if next action engineer is assigned
+                        next_action_by = next_action_bys[i] if i < len(next_action_bys) and next_action_bys[i].strip() else None
+                        
                         incident_data.update({
                             'status': statuses[i] if i < len(statuses) else 'Monitoring',
                             'priority': 'Medium',
-                            'handover': notes[i] if i < len(notes) else ''
+                            'handover': notes[i] if i < len(notes) else '',
+                            'assigned_to': next_action_by,  # Store assigned engineer name
+                            'next_action_by': next_action_by  # ✅ FIX: Store in next_action_by field
                         })
-                        
-                        # Send notification if next action engineer is assigned
-                        next_action_by = next_action_bys[i] if i < len(next_action_bys) and next_action_bys[i].strip() else None
                         if next_action_by:
                             try:
+                                # Create or get HandoverRequest for edit mode
+                                handover_request = HandoverRequest.query.filter_by(shift_id=shift.id).first()
+                                if not handover_request:
+                                    handover_request = HandoverRequest(
+                                        shift_id=shift.id,
+                                        account_id=shift.account_id,
+                                        team_id=shift.team_id,
+                                        created_at=datetime.now()
+                                    )
+                                    db.session.add(handover_request)
+                                    db.session.flush()  # Get ID without full commit
+                                
                                 # Create enhanced incident assignment
                                 create_enhanced_incident_assignment(
                                     incident_title=full_title,
@@ -832,7 +934,7 @@ def edit_handover(shift_id):
                                     account_id=shift.account_id,
                                     team_id=shift.team_id,
                                     handover_context=f"Handover incident from {shift.current_shift_type} to {shift.next_shift_type} shift on {shift.date}",
-                                    handover_request_id=None  # Fixed: Don't reference shift.id for handover_request foreign key
+                                    handover_request_id=handover_request.id
                                 )
                                 
                                 # Send handover incident notification
@@ -870,17 +972,23 @@ def edit_handover(shift_id):
                         escalation_details += f"Reason: {reasons[i] if i < len(reasons) else ''}\n"
                         escalation_details += f"Status: {statuses[i] if i < len(statuses) else ''}"
                         
+                        escalated_to_person = escalated_tos[i] if i < len(escalated_tos) and escalated_tos[i].strip() else None
+                        
                         incident_data.update({
                             'status': 'Escalated',
                             'priority': 'High',
-                            'handover': escalation_details
+                            'handover': escalation_details,
+                            'assigned_to': escalated_to_person,  # Store escalated to person
+                            'escalated_to': escalated_tos[i] if i < len(escalated_tos) else '',  # ✅ FIX: Store in escalated_to field
+                            'escalation_reason': reasons[i] if i < len(reasons) else '',  # ✅ FIX: Store in escalation_reason field
+                            'current_status': statuses[i] if i < len(statuses) else ''  # ✅ FIX: Store in current_status field
                         })
                     
                     incident = Incident(**incident_data)
                     db.session.add(incident)
                     log_action('Add Incident', f'ID: {incident_id}, Type: {inc_type}, Shift ID: {shift.id}')
         
-        add_incident('open', 'Active')
+        add_incident('open', 'Open')
         add_incident('closed', 'Closed')
         add_incident('priority', 'Priority')
         add_incident('handover', 'Handover')
@@ -890,6 +998,26 @@ def edit_handover(shift_id):
         keypoint_assigned_tos = request.form.getlist('keypoint_assigned_to[]')
         keypoint_statuses = request.form.getlist('keypoint_status[]')
         keypoint_jira_ids = request.form.getlist('keypoint_jira_id[]')
+        
+        # 🔧 CRITICAL DEBUG: Log all form data to diagnose missing key points
+        print(f"\n🔧 EDIT MODE FORM DATA ANALYSIS:")
+        print(f"   Total form fields: {len(request.form)}")
+        print(f"   Key point descriptions received: {len(key_point_descriptions)} items")
+        print(f"   Key point assigned_tos received: {len(keypoint_assigned_tos)} items")
+        print(f"   Key point statuses received: {len(keypoint_statuses)} items")
+        print(f"   Key point JIRA IDs received: {len(keypoint_jira_ids)} items")
+        
+        # Show first few for debugging
+        for i in range(min(5, len(key_point_descriptions))):
+            desc = key_point_descriptions[i] if i < len(key_point_descriptions) else 'MISSING'
+            assigned = keypoint_assigned_tos[i] if i < len(keypoint_assigned_tos) else 'MISSING'
+            status = keypoint_statuses[i] if i < len(keypoint_statuses) else 'MISSING'
+            jira = keypoint_jira_ids[i] if i < len(keypoint_jira_ids) else 'MISSING'
+            print(f"   KP {i+1}: desc='{desc[:30]}...' assigned='{assigned}' status='{status}' jira='{jira}'")
+        
+        if len(key_point_descriptions) == 0:
+            print(f"   ⚠️  CRITICAL: NO KEY POINTS RECEIVED FROM FORM!")
+            print(f"   This will cause all key points to be deleted!")
         
         # ========== ENHANCED DEBUG LOGGING FOR USER ISSUE ==========
         print(f"\n🔍 ENHANCED KEY POINT FORM SUBMISSION DEBUG - Shift ID: {shift.id}")
@@ -901,6 +1029,12 @@ def edit_handover(shift_id):
         print(f"      - Statuses: {keypoint_statuses}")
         print(f"      - JIRA IDs: {keypoint_jira_ids}")
         print(f"   🔹 Total key points being processed: {len(key_point_descriptions)}")
+        
+        # Log the complete form data for diagnosis
+        print(f"   🔹 ALL FORM DATA:")
+        for key, values in request.form.lists():
+            if 'keypoint' in key or 'incident' in key:
+                print(f"      - {key}: {values}")
         
         # Count how many are marked as closed
         closed_count = keypoint_statuses.count('Closed')
@@ -928,197 +1062,62 @@ def edit_handover(shift_id):
         print(f"   Total key points to process: {len(key_point_descriptions)}")
         print(f"🚨 ENHANCED KEY POINT PROCESSING - VERSION 2.0 🚨")
         
+        print(f"\n🔧 STARTING KEY POINT PROCESSING LOOP:")
+        key_points_created = 0
+        key_points_skipped = 0
+        
         for i in range(len(key_point_descriptions)):
             details = key_point_descriptions[i].strip() if i < len(key_point_descriptions) else ''
             jira_id = keypoint_jira_ids[i].strip() if i < len(keypoint_jira_ids) else ''
             responsible_id = keypoint_assigned_tos[i] if i < len(keypoint_assigned_tos) else ''
             status = keypoint_statuses[i] if i < len(keypoint_statuses) else 'Open'
             
+            print(f"\n🔧 Processing key point {i+1}/{len(key_point_descriptions)}:")
+            print(f"   Details: '{details}'")
+            print(f"   JIRA ID: '{jira_id}'")
+            print(f"   Responsible: '{responsible_id}'")
+            print(f"   Status: '{status}'")
+            
             print(f"Processing key point {i+1}: desc='{details}', jira='{jira_id}', responsible='{responsible_id}', status='{status}'")
             
             if details:
-                # If status is being set to Closed, find and close the specific key point
-                if status == 'Closed':
-                    # Parse responsible engineer ID for matching
-                    responsible_engineer_id = None
-                    if responsible_id:
-                        if responsible_id.isdigit():
-                            responsible_engineer_id = int(responsible_id)
-                        else:
-                            # Try to find user by name
-                            user = TeamMember.query.filter_by(name=responsible_id).first()
-                            if user:
-                                responsible_engineer_id = user.id
-                    
-                    # Find the specific key point to close by matching description, jira_id, and responsible engineer
-                    query = ShiftKeyPoint.query.filter(
-                        ShiftKeyPoint.description == details,
-                        ShiftKeyPoint.jira_id == (jira_id if jira_id else None),
-                        ShiftKeyPoint.status.in_(['Open', 'In Progress'])
-                    )
-                    
-                    # If we have a responsible engineer, try to match it specifically
-                    if responsible_engineer_id is not None:
-                        specific_kp = query.filter(ShiftKeyPoint.responsible_engineer_id == responsible_engineer_id).first()
-                        if specific_kp:
-                            specific_kp.status = 'Closed'
-                            db.session.add(specific_kp)
-                            print(f"Closed specific key point: {specific_kp.id} (matched engineer {responsible_engineer_id})")
-                            log_action('Close KeyPoint', f'Description: {details}, ID: {specific_kp.id}, Shift ID: {shift.id}')
-                            continue
-                    
-                    # If no specific match, close the most recent one with this description
-                    most_recent_kp = query.order_by(ShiftKeyPoint.id.desc()).first()
-                    if most_recent_kp:
-                        most_recent_kp.status = 'Closed'
-                        db.session.add(most_recent_kp)
-                        print(f"Closed existing key point: {most_recent_kp.id}")
-                        log_action('Close KeyPoint', f'Description: {details}, ID: {most_recent_kp.id}, Shift ID: {shift.id}')
+                print(f"   🔧 Details not empty - will create key point")
+                key_points_created += 1
+                
+                # Parse responsible engineer ID for assignment
+                responsible_engineer_id = None
+                if responsible_id:
+                    if responsible_id.isdigit():
+                        responsible_engineer_id = int(responsible_id)
+                        print(f"🔧 Using engineer ID: {responsible_engineer_id}")
                     else:
-                        print(f"No open key point found to close for: {details}")
-                        # 🔧 ENHANCED FIX: Try broader matching if exact match fails
-                        print(f"   🔧 FALLBACK: Searching for key points with similar description...")
-                        fallback_kps = ShiftKeyPoint.query.filter(
-                            ShiftKeyPoint.description.like(f'%{details[:20]}%'),
-                            ShiftKeyPoint.status.in_(['Open', 'In Progress'])
-                        ).all()
-                        
-                        if fallback_kps:
-                            print(f"   🔧 FALLBACK: Found {len(fallback_kps)} potential matches:")
-                            for fallback_kp in fallback_kps:
-                                print(f"      - ID {fallback_kp.id}: '{fallback_kp.description[:50]}...'")
-                            
-                            # Close the most recent one
-                            latest_fallback = max(fallback_kps, key=lambda x: x.id)
-                            latest_fallback.status = 'Closed'
-                            db.session.add(latest_fallback)
-                            print(f"   🔧 FALLBACK: Closed key point ID {latest_fallback.id} as best match")
-                            log_action('Close KeyPoint (Fallback)', f'Description: {details}, ID: {latest_fallback.id}, Shift ID: {shift.id}')
+                        # Try to find user by name
+                        user = TeamMember.query.filter_by(name=responsible_id).first()
+                        if user:
+                            responsible_engineer_id = user.id
+                            print(f"🔧 Found engineer '{responsible_id}' with ID: {responsible_engineer_id}")
                         else:
-                            print(f"   🔧 FALLBACK: No similar key points found either")
-                    
-                    # Do not add a new key point for closed status
-                    continue
+                            print(f"🔧 WARNING: Engineer '{responsible_id}' not found")
                 
-                # Find the most recent existing open/in-progress key point with the same description and jira_id
-                existing_kp = ShiftKeyPoint.query.filter(
-                    ShiftKeyPoint.description == details,
-                    ShiftKeyPoint.jira_id == (jira_id if jira_id else None),
-                    ShiftKeyPoint.status.in_(['Open', 'In Progress'])
-                ).order_by(ShiftKeyPoint.id.desc()).first()
-                
-                print(f"🔧 KEY POINT PROCESSING: '{details[:50]}...' - Found existing KP: {existing_kp.id if existing_kp else 'None'}")
-                
-                if existing_kp:
-                    # Parse responsible engineer ID
-                    responsible_engineer_id = None
-                    if responsible_id:
-                        if responsible_id.isdigit():
-                            responsible_engineer_id = int(responsible_id)
-                        else:
-                            # Try to find user by name
-                            user = TeamMember.query.filter_by(name=responsible_id).first()
-                            if user:
-                                responsible_engineer_id = user.id
-                    
-                    # 🔧 FIX: Always update the existing key point instead of creating duplicates
-                    # Update the key point with any new information
-                    updated = False
-                    
-                    if existing_kp.status != status:
-                        existing_kp.status = status
-                        updated = True
-                        print(f"🔧 UPDATED STATUS: KP {existing_kp.id} status {existing_kp.status} → {status}")
-                    
-                    if responsible_engineer_id is not None and existing_kp.responsible_engineer_id != responsible_engineer_id:
-                        existing_kp.responsible_engineer_id = responsible_engineer_id
-                        updated = True
-                        print(f"🔧 UPDATED ASSIGNMENT: KP {existing_kp.id} engineer {existing_kp.responsible_engineer_id} → {responsible_engineer_id}")
-                    
-                    if updated:
-                        db.session.add(existing_kp)
-                        log_action('Update KeyPoint', f'ID: {existing_kp.id}, Status: {status}, Shift: {shift.id}')
-                        print(f"🔧 UPDATED EXISTING KEY POINT: ID {existing_kp.id}")
-                    else:
-                        print(f"🔧 REFERENCED EXISTING KEY POINT: ID {existing_kp.id} (no changes needed)")
-                        log_action('Reference KeyPoint', f'Description: {details}, Existing ID: {existing_kp.id}, Shift: {shift.id}')
-                    
-                    # 🔧 CRITICAL: Do NOT create a new key point - just reference the existing one
-                    continue
-                        
-                else:
-                    # 🔧 ENHANCED FIX: Before creating a new key point, check for global duplicates
-                    print(f"🔧 CREATING NEW KEY POINT: Checking for global duplicates first...")
-                    
-                    # Check for any existing key points with similar description (global search)
-                    global_existing_kps = ShiftKeyPoint.query.filter(
-                        ShiftKeyPoint.account_id == shift.account_id,
-                        ShiftKeyPoint.team_id == shift.team_id,
-                        ShiftKeyPoint.status.in_(['Open', 'In Progress']),
-                        ShiftKeyPoint.description == details
-                    ).all()
-                    
-                    if global_existing_kps:
-                        print(f"🔧 GLOBAL DUPLICATE PREVENTION: Found {len(global_existing_kps)} existing key points with same description")
-                        for existing in global_existing_kps:
-                            print(f"   - ID {existing.id}: '{existing.description[:40]}...' Status: {existing.status} (Shift {existing.shift_id})")
-                        
-                        # Instead of creating a new key point, update the most recent existing one
-                        latest_existing = max(global_existing_kps, key=lambda x: x.id)
-                        print(f"🔧 PREVENTING DUPLICATE: Updating existing key point ID {latest_existing.id} instead of creating new")
-                        
-                        # Parse responsible engineer ID
-                        responsible_engineer_id = None
-                        if responsible_id:
-                            if responsible_id.isdigit():
-                                responsible_engineer_id = int(responsible_id)
-                            else:
-                                # Try to find user by name
-                                user = TeamMember.query.filter_by(name=responsible_id).first()
-                                if user:
-                                    responsible_engineer_id = user.id
-                        
-                        # Update the existing key point
-                        if latest_existing.status != status:
-                            latest_existing.status = status
-                            print(f"🔧 UPDATED STATUS: KP {latest_existing.id} status → {status}")
-                        
-                        if responsible_engineer_id and latest_existing.responsible_engineer_id != responsible_engineer_id:
-                            latest_existing.responsible_engineer_id = responsible_engineer_id
-                            print(f"🔧 UPDATED ENGINEER: KP {latest_existing.id} engineer → {responsible_engineer_id}")
-                        
-                        if jira_id and latest_existing.jira_id != jira_id:
-                            latest_existing.jira_id = jira_id
-                            print(f"🔧 UPDATED JIRA: KP {latest_existing.id} jira → {jira_id}")
-                        
-                        db.session.add(latest_existing)
-                        log_action('Update KeyPoint (Prevent Duplicate)', f'ID: {latest_existing.id}, Description: {details}, Status: {status}, Shift ID: {shift.id}')
-                        
-                        continue  # Skip creating new key point
-                    
-                    # This is a completely new key point
-                    print(f"🔧 CREATING BRAND NEW KEY POINT: '{details[:50]}...' - No existing key point found globally")
-                    responsible_engineer_id = None
-                    if responsible_id:
-                        if responsible_id.isdigit():
-                            responsible_engineer_id = int(responsible_id)
-                        else:
-                            # Try to find user by name
-                            user = TeamMember.query.filter_by(name=responsible_id).first()
-                            if user:
-                                responsible_engineer_id = user.id
-                    
-                    new_kp = ShiftKeyPoint(
-                        description=details,
-                        status=status,
-                        responsible_engineer_id=responsible_engineer_id,
-                        shift_id=shift.id,
-                        jira_id=jira_id if jira_id else None,
-                        account_id=shift.account_id,
-                        team_id=shift.team_id
-                    )
-                    db.session.add(new_kp)
-                    log_action('Add KeyPoint', f'Description: {details}, Status: {status}, Shift ID: {shift.id}')
+                # Create new key point
+                new_kp = ShiftKeyPoint(
+                    description=details,
+                    status=status,
+                    responsible_engineer_id=responsible_engineer_id,
+                    shift_id=shift.id,
+                    jira_id=jira_id if jira_id else None,
+                    account_id=shift.account_id,
+                    team_id=shift.team_id
+                )
+                db.session.add(new_kp)
+                log_action('Add KeyPoint', f'Desc: {details[:50]}, Status: {status}, Shift ID: {shift.id}')
+                print(f"🔧 CREATED KEY POINT: ID will be assigned, desc='{details[:30]}...', status='{status}', engineer_id={responsible_engineer_id}")
+            else:
+                print(f"   ⚠️  Details empty - skipping key point {i+1}")
+                key_points_skipped += 1
+                continue
+
+        print(f"🔧 Finished processing key points: {key_points_created} created, {key_points_skipped} skipped")
         db.session.commit()
         if action == 'send':
             import logging
@@ -1142,25 +1141,36 @@ def edit_handover(shift_id):
     current_engineers = [m.name for m in shift.current_engineers]
     next_engineers = [m.name for m in shift.next_engineers]
     
-    # 🔧 FIX: Load ALL open key points globally (like dashboard), not just for this shift
-    # This prevents duplication when key points are created in one shift but referenced in another
-    all_kps = ShiftKeyPoint.query.filter(
-        ShiftKeyPoint.account_id == shift.account_id,
-        ShiftKeyPoint.team_id == shift.team_id,
-        ShiftKeyPoint.status.in_(['Open', 'In Progress'])
-    ).all()
+    # 🔧 FIX: In EDIT mode, load ALL key points for this specific shift (including closed ones)
+    # 🔧 CRITICAL FIX: In edit mode, ONLY load key points for this specific shift
+    if shift_id:  # Edit mode - load ONLY key points for this specific shift
+        all_kps = ShiftKeyPoint.query.filter(
+            ShiftKeyPoint.shift_id == shift.id
+        ).all()
+        print(f"🔧 EDIT MODE: Found {len(all_kps)} key points for shift {shift.id} (ONLY from this shift)")
+        print(f"🔧 EDIT MODE: Key points for shift {shift.id}:")
+        for kp in all_kps:
+            print(f"   - ID {kp.id}: '{kp.description[:40]}...' status={kp.status}")
+    else:  # New handover mode - load RECENT open key points to prevent overwhelming duplicates
+        all_kps = ShiftKeyPoint.query.filter(
+            ShiftKeyPoint.account_id == shift.account_id,
+            ShiftKeyPoint.team_id == shift.team_id,
+            ShiftKeyPoint.status.in_(['Open', 'In Progress'])
+        ).order_by(ShiftKeyPoint.id.desc()).limit(8).all()  # Limit to 8 most recent
+        print(f"🔧 NEW HANDOVER: Found {len(all_kps)} recent open key points for account {shift.account_id}, team {shift.team_id}")
     
-    print(f"🔧 LOADING KEY POINTS: Found {len(all_kps)} open key points globally for account {shift.account_id}, team {shift.team_id}")
-    
-    # Deduplicate by (description, jira_id) and keep the most recent
-    kp_map = {}
-    for kp in all_kps:
-        key = (kp.description, kp.jira_id)
-        if key not in kp_map or kp.id > kp_map[key].id:
-            kp_map[key] = kp
-    open_key_points = list(kp_map.values())
-    
-    print(f"🔧 DEDUPLICATION: After deduplication, showing {len(open_key_points)} unique key points")
+    # 🔧 CRITICAL FIX: In edit mode, don't deduplicate - show actual shift key points
+    if shift_id:  # Edit mode - no deduplication, show actual key points from this shift
+        open_key_points = all_kps
+        print(f"🔧 EDIT MODE: Showing {len(open_key_points)} actual key points from shift {shift.id}")
+    else:  # New handover mode - deduplicate global key points
+        kp_map = {}
+        for kp in all_kps:
+            key = (kp.description, kp.jira_id)
+            if key not in kp_map or kp.id > kp_map[key].id:
+                kp_map[key] = kp
+        open_key_points = list(kp_map.values())
+        print(f"🔧 NEW HANDOVER: After deduplication, showing {len(open_key_points)} unique key points")
     
     # Enhance key points with assigned engineer names for template display
     for kp in open_key_points:
@@ -1172,6 +1182,21 @@ def edit_handover(shift_id):
                 kp.assigned_to = engineer.name
             else:
                 print(f"[DEBUG] Edit handover - Key point has invalid engineer ID: {kp.responsible_engineer_id}")
+    
+    # 🔧 DEBUG: Log edit mode data being sent to template
+    print(f"[EDIT_DEBUG] 📋 Edit mode for shift {shift.id} - passing data to template:")
+    print(f"[EDIT_DEBUG]   Open incidents: {len(open_incidents)} items")
+    if open_incidents:
+        print(f"[EDIT_DEBUG]     First open incident: {open_incidents[0]}")
+    print(f"[EDIT_DEBUG]   Closed incidents: {len(closed_incidents)} items") 
+    print(f"[EDIT_DEBUG]   Priority incidents: {len(priority_incidents)} items")
+    print(f"[EDIT_DEBUG]   Handover incidents: {len(handover_incidents)} items")
+    print(f"[EDIT_DEBUG]   Escalated incidents: {len(escalated_incidents)} items")
+    print(f"[EDIT_DEBUG]   Key points: {len(open_key_points)} items")
+    for i, kp in enumerate(open_key_points):
+        print(f"[EDIT_DEBUG]     KP {i+1}: ID {kp.id}, '{kp.description[:30]}...', status={kp.status}, engineer_id={kp.responsible_engineer_id}")
+    print(f"[EDIT_DEBUG]   is_edit_mode flag: True")
+    
     return render_template('handover_form.html',
         team_members=team_members,
         teams=teams,
@@ -1186,8 +1211,10 @@ def edit_handover(shift_id):
         closed_incidents=closed_incidents,
         priority_incidents=priority_incidents,
         handover_incidents=handover_incidents,
+        escalated_incidents=escalated_incidents,
         today=shift.date.strftime('%Y-%m-%d'),
-        show_team_error=False
+        show_team_error=False,
+        is_edit_mode=True  # Flag to indicate this is edit mode
     )
 
 
@@ -1373,6 +1400,8 @@ def handover():
             return redirect(url_for('handover.handover'))
             
         action = request.form.get('action', 'submit')
+        print(f"[DEBUG_ACTION] Action received from form: '{action}' (default: 'submit')")
+        print(f"[DEBUG_ACTION] All form keys: {list(request.form.keys())[:10]}...")  # First 10 keys
         
         # COMMENTED OUT FAST PATH - it was preventing full incident/keypoint processing
         # # FAST PATH: Create minimal handover immediately
@@ -1439,8 +1468,9 @@ def handover():
         # FULL PROCESSING PATH: Create shift with complete incident and keypoint processing
         print(f"[FULL_PATH] Creating handover with complete processing - Action: {action}")
         
-        # � UNIVERSAL INTERCEPTOR: Use bulletproof shift reuse function
-        shift = get_or_reuse_shift(date, current_shift_type, next_shift_type, account_id, team_id, action)
+        # ✅ FIXED: Create new shift for each handover to prevent overriding existing data
+        additional_notes = request.form.get('additional_notes', '')
+        shift = create_new_shift(date, current_shift_type, next_shift_type, account_id, team_id, action, additional_notes)
         
         # Clear existing data for this shift to ensure clean state
         print(f"[INTERCEPTOR] Clearing existing data for shift {shift.id}")
@@ -1677,6 +1707,7 @@ def handover():
                             status=statuses[i] if i < len(statuses) else 'Active',
                             priority='Medium',  # Default priority for handover incidents
                             assigned_to=next_by[i] if i < len(next_by) else '',
+                            next_action_by=next_by[i] if i < len(next_by) else '',  # ✅ FIX: Store in next_action_by field
                             description=notes[i] if i < len(notes) else '',
                             handover=notes[i] if i < len(notes) else '',
                             shift_id=shift_id_to_use,
@@ -1711,8 +1742,10 @@ def handover():
                         
             elif inc_type == 'Escalated':
                 escalated_to = request.form.getlist(f'{field_prefix}_to[]')
+                escalation_reasons = request.form.getlist(f'{field_prefix}_reason[]')
+                current_statuses = request.form.getlist(f'{field_prefix}_status[]')
                 
-                print(f"Escalated incident fields - escalated_to: {escalated_to}")
+                print(f"Escalated incident fields - escalated_to: {escalated_to}, escalation_reasons: {escalation_reasons}, current_statuses: {current_statuses}")
                 
                 for i in range(len(app_names)):
                     if i < len(incident_ids) and (app_names[i].strip() or incident_ids[i].strip()):
@@ -1722,6 +1755,8 @@ def handover():
                             status='Escalated',
                             priority='High',  # Default priority for escalated incidents
                             escalated_to=escalated_to[i] if i < len(escalated_to) else '',
+                            escalation_reason=escalation_reasons[i] if i < len(escalation_reasons) else '',  # ✅ FIX: Store escalation_reason
+                            current_status=current_statuses[i] if i < len(current_statuses) else '',  # ✅ FIX: Store current_status
                             shift_id=shift_id_to_use,
                             type='Escalated',
                             account_id=account_id,
@@ -1814,35 +1849,14 @@ def handover():
                         db.session.add(most_recent_kp)
                         print(f"🔒 SUCCESSFULLY CLOSED KEY POINT: {most_recent_kp.id} - Status changed to 'Closed'")
                         log_action('Close KeyPoint', f'ID: {most_recent_kp.id}, Description: {description}, Shift: {shift.id}')
+                        
+                        # 🔧 CRITICAL FIX: Do NOT create a new 'Closed' key point - just update existing one
+                        print(f"🔒 SKIPPING NEW KEY POINT CREATION - Updated existing key point to 'Closed' status")
+                        continue  # Skip to next key point without creating duplicate
                     else:
                         print(f"🔒 NO OPEN KEY POINT FOUND to close with description='{description}', jira_id='{jira_id}'")
-                        
-                        # 🔧 FALLBACK: Try broader matching if exact match fails
-                        print(f"🔒 FALLBACK: Searching for key points with similar description...")
-                        fallback_kps = ShiftKeyPoint.query.filter(
-                            ShiftKeyPoint.description.like(f'%{description[:20]}%'),
-                            ShiftKeyPoint.status.in_(['Open', 'In Progress'])
-                        ).all()
-                        
-                        if fallback_kps:
-                            print(f"🔒 FALLBACK: Found {len(fallback_kps)} potential matches:")
-                            for fallback_kp in fallback_kps:
-                                print(f"      - ID {fallback_kp.id}: '{fallback_kp.description[:50]}...' (JIRA: {fallback_kp.jira_id})")
-                            
-                            # Close the most recent one
-                            latest_fallback = max(fallback_kps, key=lambda x: x.id)
-                            latest_fallback.status = 'Closed'
-                            db.session.add(latest_fallback)
-                            print(f"🔒 FALLBACK: Closed key point ID {latest_fallback.id} as best match")
-                            log_action('Close KeyPoint (Fallback)', f'ID: {latest_fallback.id}, Description: {description}, Shift: {shift.id}')
-                        else:
-                            print(f"🔒 FALLBACK: No similar key points found either")
-                    
-                    # 🔧 CRITICAL FIX: Always create new key points regardless of status
-                    # The 'Closed' status indicates the task is completed, but we still need to record it
-                    # The old logic incorrectly skipped creating new 'Closed' key points
-                    print(f"🔒 PROCEEDING TO CREATE NEW 'Closed' KEY POINT: '{description}'")
-                    # Continue to the creation logic below instead of skipping
+                        print(f"🔒 CREATING NEW 'Closed' KEY POINT since no existing one found to close")
+                        # Will proceed to create new closed key point below
                 
                 # 🚨 FIXED: Each handover should have its own key points
                 # Only reference existing key points for the SAME handover (editing scenario)
@@ -2143,23 +2157,65 @@ def handover():
     # Don't filter by specific shifts - key points should persist until closed
     print(f"[DEBUG] Loading all open key points globally for account {current_user.account_id}, team {current_user.team_id}")
     
-    all_prev_kps = ShiftKeyPoint.query.filter(
+    # 🔧 ENHANCED KEY POINT FILTERING: Exclude key points from submitted handovers that were closed
+    # Get all key points, then filter more intelligently
+    all_kps_query = ShiftKeyPoint.query.filter(
         ShiftKeyPoint.account_id == current_user.account_id,
-        ShiftKeyPoint.team_id == current_user.team_id,
+        ShiftKeyPoint.team_id == current_user.team_id
+    ).order_by(ShiftKeyPoint.id.desc())
+    
+    print(f"[DEBUG] Total key points in database: {all_kps_query.count()}")
+    
+    # Filter to only Open/In Progress status
+    all_prev_kps = all_kps_query.filter(
         ShiftKeyPoint.status.in_(['Open', 'In Progress'])
-    ).all()
+    ).limit(8).all()  # Limit to 8 most recent
+    
+    print(f"[DEBUG] Open/In Progress key points: {len(all_prev_kps)}")
+    
+    # Additional check: exclude key points from shifts that have been submitted with 'Closed' status
+    filtered_kps = []
+    for kp in all_prev_kps:
+        # Check if this key point's shift was submitted and this key point was marked closed
+        shift = Shift.query.get(kp.shift_id)
+        if shift and shift.status == 'sent':
+            # This is from a submitted handover - check if there's a newer version that closed this key point
+            newer_closed = ShiftKeyPoint.query.filter(
+                ShiftKeyPoint.description == kp.description,
+                ShiftKeyPoint.jira_id == kp.jira_id,
+                ShiftKeyPoint.status == 'Closed',
+                ShiftKeyPoint.id > kp.id
+            ).first()
+            if newer_closed:
+                print(f"[DEBUG] Excluding key point ID {kp.id} - found newer closed version ID {newer_closed.id}")
+                continue
+        filtered_kps.append(kp)
+    
+    all_prev_kps = filtered_kps
+    print(f"[DEBUG] After submission filtering: {len(all_prev_kps)} key points remain")
     
     print(f"[DEBUG] Found {len(all_prev_kps)} total open/in-progress key points globally")
     
-    # Deduplicate: keep only the latest (by id) for each (description, jira_id) pair
+    # Debug: show what we're working with before deduplication
+    print("[DEBUG] Key points before deduplication:")
+    for kp in all_prev_kps:
+        print(f"   ID {kp.id}: '{kp.description[:40]}...' | JIRA: {repr(kp.jira_id)} | Status: {kp.status}")
+    
+    # Deduplicate: keep only the latest (by id) for each (description, normalized_jira_id) pair
     kp_map = {}
     for kp in all_prev_kps:
         if kp.status == 'Closed':
             continue
-        key = (kp.description, kp.jira_id)
+        # Normalize JIRA ID: treat None, NULL, empty string, and 'None' as equivalent
+        normalized_jira = kp.jira_id if kp.jira_id and kp.jira_id.lower() not in ['none', 'null', ''] else None
+        key = (kp.description, normalized_jira)
         if key not in kp_map or kp.id > kp_map[key].id:
             kp_map[key] = kp
     open_key_points = list(kp_map.values())
+    
+    print(f"[DEBUG] After deduplication: {len(open_key_points)} unique key points")
+    for kp in open_key_points:
+        print(f"   ID {kp.id}: '{kp.description[:40]}...' | JIRA: {repr(kp.jira_id)} | Status: {kp.status}")
     
     # Enhance key points with assigned engineer names for template display
     for kp in open_key_points:

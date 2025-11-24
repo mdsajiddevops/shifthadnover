@@ -463,44 +463,81 @@ def dashboard():
         team_name = engineer.team.name if engineer.team else 'Unknown'
         print(f"[DEBUG] Engineer {i+1}: {engineer.name} (Team: {team_name}, Account: {engineer.account_id})")
     if filter_account_id and filter_team_id:
-        # 🔧 FIXED: Get ALL key points first, then deduplicate, then filter by status
-        # This ensures we find the latest key point even if it's closed
-        all_key_points = ShiftKeyPoint.query.filter_by(account_id=filter_account_id, team_id=filter_team_id).all()
+        # 🔧 ENHANCED KEY POINT FILTERING: Use same logic as new handover form for consistency
+        # Get all key points, then apply intelligent filtering
+        all_kps_query = ShiftKeyPoint.query.filter(
+            ShiftKeyPoint.account_id == filter_account_id,
+            ShiftKeyPoint.team_id == filter_team_id
+        ).order_by(ShiftKeyPoint.id.desc())
         
-        # Apply deduplication logic: keep only the latest (by id) for each (description, jira_id) pair
+        print(f"[DASHBOARD DEBUG] Total key points for team: {all_kps_query.count()}")
+        
+        # Filter to only Open/In Progress status
+        all_prev_kps = all_kps_query.filter(
+            ShiftKeyPoint.status.in_(['Open', 'In Progress'])
+        ).all()
+        
+        print(f"[DASHBOARD DEBUG] Open/In Progress key points: {len(all_prev_kps)}")
+        
+        # Additional check: exclude key points from shifts that have been submitted with 'Closed' status
+        filtered_kps = []
+        for kp in all_prev_kps:
+            # Check if this key point's shift was submitted and this key point was marked closed
+            shift = Shift.query.get(kp.shift_id)
+            if shift and shift.status == 'sent':
+                # This is from a submitted handover - check if there's a newer version that closed this key point
+                newer_closed = ShiftKeyPoint.query.filter(
+                    ShiftKeyPoint.description == kp.description,
+                    ShiftKeyPoint.jira_id == kp.jira_id,
+                    ShiftKeyPoint.status == 'Closed',
+                    ShiftKeyPoint.id > kp.id
+                ).first()
+                if newer_closed:
+                    print(f"[DASHBOARD DEBUG] Excluding key point ID {kp.id} - found newer closed version ID {newer_closed.id}")
+                    continue
+            filtered_kps.append(kp)
+        
+        all_prev_kps = filtered_kps
+        print(f"[DASHBOARD DEBUG] After submission filtering: {len(all_prev_kps)} key points remain")
+        
+        # Deduplicate: keep only the latest (by id) for each (description, normalized_jira_id) pair
         kp_map = {}
-        for kp in all_key_points:
-            key = (kp.description, kp.jira_id)
+        for kp in all_prev_kps:
+            if kp.status == 'Closed':
+                continue
+            # Normalize JIRA ID: treat None, NULL, empty string, and 'None' as equivalent
+            normalized_jira = kp.jira_id if kp.jira_id and kp.jira_id.lower() not in ['none', 'null', ''] else None
+            key = (kp.description, normalized_jira)
             if key not in kp_map or kp.id > kp_map[key].id:
                 kp_map[key] = kp
         
-        # Filter to only show Open and In Progress after deduplication
+        print(f"[DASHBOARD DEBUG] After deduplication: {len(kp_map)} unique key points")
+        
         # Attach assigned user info to each key point
         open_key_points = []
         from models.models import TeamMember, User
         for kp in kp_map.values():
-            if kp.status in ['Open', 'In Progress']:
-                assigned_user = None
-                print(f"[DEBUG] Processing key point ID {kp.id}: {kp.description[:30]}...")
-                print(f"[DEBUG] responsible_engineer_id: {kp.responsible_engineer_id}")
+            assigned_user = None
+            print(f"[DASHBOARD DEBUG] Processing key point ID {kp.id}: {kp.description[:30]}...")
+            print(f"[DASHBOARD DEBUG] responsible_engineer_id: {kp.responsible_engineer_id}")
+            
+            if kp.responsible_engineer_id:
+                team_member = TeamMember.query.get(kp.responsible_engineer_id)
+                print(f"[DASHBOARD DEBUG] Team member found: {team_member.name if team_member else 'None'}")
                 
-                if kp.responsible_engineer_id:
-                    team_member = TeamMember.query.get(kp.responsible_engineer_id)
-                    print(f"[DEBUG] Team member found: {team_member.name if team_member else 'None'}")
-                    
-                    if team_member:
-                        # Prefer linked user if available, else fallback to team member name
-                        if team_member.user_id:
-                            user = User.query.get(team_member.user_id)
-                            assigned_user = user.username if user else team_member.name
-                            print(f"[DEBUG] Using user: {assigned_user}")
-                        else:
-                            assigned_user = team_member.name
-                            print(f"[DEBUG] Using team member name: {assigned_user}")
-                
-                kp.assigned_to_display = assigned_user or "Unassigned"
-                print(f"[DEBUG] Final assigned_to_display: {kp.assigned_to_display}")
-                open_key_points.append(kp)
+                if team_member:
+                    # Prefer linked user if available, else fallback to team member name
+                    if team_member.user_id:
+                        user = User.query.get(team_member.user_id)
+                        assigned_user = user.username if user else team_member.name
+                        print(f"[DASHBOARD DEBUG] Using user: {assigned_user}")
+                    else:
+                        assigned_user = team_member.name
+                        print(f"[DASHBOARD DEBUG] Using team member name: {assigned_user}")
+            
+            kp.assigned_to_display = assigned_user or "Unassigned"
+            print(f"[DASHBOARD DEBUG] Final assigned_to_display: {kp.assigned_to_display}")
+            open_key_points.append(kp)
         
         # Get priority incidents ONLY Priority type from the target handover
         # 🔧 FIXED: Only show Priority incidents in "Priority Incidents" section

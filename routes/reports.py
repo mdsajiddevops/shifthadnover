@@ -233,9 +233,21 @@ def handover_reports():
         shift_data = []
         for shift in shifts:
             incidents = Incident.query.filter_by(shift_id=shift.id).all()
+            # ✨ REPORTS FIX: Get ALL key points without any filtering for historical tracking
             key_points = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
             
-            print(f"🔍 Shift {shift.id}: Found {len(incidents)} incidents, {len(key_points)} key points", flush=True)
+            print(f"🔍 REPORTS SHIFT {shift.id}: Found {len(incidents)} incidents, {len(key_points)} key points", flush=True)
+            
+            # Debug key points details with status breakdown
+            status_counts = {'Open': 0, 'In Progress': 0, 'Closed': 0}
+            for kp in key_points:
+                status_counts[kp.status] = status_counts.get(kp.status, 0) + 1
+                print(f"  📋 REPORTS KP {kp.id}: '{kp.description[:30]}...' - Status: {kp.status} - Responsible: {kp.responsible_engineer_id}")
+            
+            print(f"  📊 REPORTS Status breakdown for shift {shift.id}: {status_counts}")
+            
+            if len(key_points) == 0:
+                print(f"  ⚠️  REPORTS WARNING: No key points found for shift {shift.id}")
             
             # Get detailed incident information
             incidents_data = []
@@ -245,22 +257,46 @@ def handover_reports():
                     'title': inc.title,
                     'status': inc.status,
                     'priority': inc.priority,
-                    'handover': inc.handover
+                    'handover': inc.handover,
+                    'assigned_to': inc.assigned_to,
+                    'description': inc.description,
+                    'escalated_to': inc.escalated_to
                 }
+                # Debug logging for incident assignment tracking
+                if inc.assigned_to:
+                    print(f"🔍 Incident {inc.id} has assignment: '{inc.assigned_to}'")
                 incidents_data.append(incident_details)
             
-            # Get detailed key points information
+            # Get detailed key points information - INCLUDING ALL STATUSES for reports
             key_points_data = []
             for kp in key_points:
-                engineer = None
-                if kp.responsible_engineer_id:
-                    engineer = TeamMember.query.get(kp.responsible_engineer_id)
-                key_points_data.append({
-                    'description': kp.description,
-                    'status': kp.status,
-                    'responsible': engineer.name if engineer else 'N/A',
-                    'jira_id': kp.jira_id
-                })
+                try:
+                    engineer = None
+                    if kp.responsible_engineer_id:
+                        engineer = TeamMember.query.get(kp.responsible_engineer_id)
+                    
+                    kp_data = {
+                        'description': kp.description,
+                        'status': kp.status,
+                        'responsible': engineer.name if engineer else 'N/A',
+                        'jira_id': kp.jira_id,
+                        'id': kp.id  # Add ID for debugging
+                    }
+                    key_points_data.append(kp_data)
+                    print(f"  ✅ REPORTS Added KP {kp.id} to template data: Status={kp.status}")
+                    
+                except Exception as e:
+                    print(f"🚨 Error processing key point {kp.id}: {e}")
+                    # Add basic key point without responsible engineer
+                    kp_data = {
+                        'description': kp.description,
+                        'status': kp.status,
+                        'responsible': 'Error',
+                        'jira_id': kp.jira_id,
+                        'id': kp.id
+                    }
+                    key_points_data.append(kp_data)
+                    print(f"  ⚠️  REPORTS Added KP {kp.id} with error to template data")
             
             # Find who submitted this handover from audit log
             submitted_by = 'Unknown'
@@ -287,6 +323,11 @@ def handover_reports():
                 'key_points': key_points_data,
                 'submitted_by': submitted_by
             })
+            
+            # Debug what we're sending to template
+            print(f"  📋 REPORTS Sending {len(key_points_data)} key points to template for shift {shift.id}")
+            for kp_data in key_points_data:
+                print(f"    - KP {kp_data.get('id', 'Unknown')}: {kp_data['status']} - {kp_data['description'][:30]}...")
         
         # Calculate visualization data
         total_shifts = len(shift_data)
@@ -333,12 +374,25 @@ def handover_reports():
         
         # 🔍 DEBUG: Final data being sent to template
         print(f"🔍 REPORTS DEBUG: Sending {len(shift_data)} shifts to template")
+        print(f"🔍 REPORTS DEBUG: Key Point Status Summary: {keypoint_statuses}")
         print(f"🔍 REPORTS DEBUG: Stats = {stats}")
+        
+        # Verify that closed key points are included in the data
+        total_closed_in_data = 0
+        for data in shift_data:
+            closed_count = sum(1 for kp in data['key_points'] if kp['status'] == 'Closed')
+            total_closed_in_data += closed_count
+            if closed_count > 0:
+                print(f"🔍 REPORTS: Shift {data['shift'].id} has {closed_count} closed key points in template data")
+        
+        print(f"🔍 REPORTS FINAL: Total closed key points being sent to template: {total_closed_in_data}")
+        
         if shift_data:
             print(f"🔍 REPORTS DEBUG: First 3 shifts:")
             for i, data in enumerate(shift_data[:3]):
                 shift = data['shift']
-                print(f"🔍   Shift {i+1}: ID={shift.id}, Date={shift.date}, Type={shift.current_shift_type}, Status={shift.status}, Incidents={len(data['incidents'])}, KeyPoints={len(data['key_points'])}")
+                closed_kps = [kp for kp in data['key_points'] if kp['status'] == 'Closed']
+                print(f"🔍   Shift {i+1}: ID={shift.id}, Date={shift.date}, Type={shift.current_shift_type}, Status={shift.status}, Incidents={len(data['incidents'])}, KeyPoints={len(data['key_points'])}, Closed KPs={len(closed_kps)}")
         else:
             print(f"🔍 REPORTS DEBUG: No shift data to display!")
         

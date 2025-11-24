@@ -135,6 +135,7 @@ class Shift(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())  # When record was created
     account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
+    additional_notes = db.Column(db.Text, nullable=True)  # Additional notes for the handover
 
 class Incident(db.Model):
     id = db.Column(db.Integer, primary_key=True)

@@ -163,7 +163,7 @@
                         {% endif %}
                     {% endwith %}
                     
-                    <form method="POST" action="/handover" id="handover-form">
+                    <form method="POST" action="{% if is_edit_mode %}/handover/edit/{{ shift.id }}{% else %}/handover{% endif %}" id="handover-form">
                         <!-- Basic Information -->
                         <div class="row mb-4">
                             <div class="col-md-6">
@@ -537,7 +537,7 @@
                                             <select class="form-select keypoint-team-member-dropdown" name="keypoint_assigned_to[]">
                                                 <option value="">Select Team Member</option>
                                                 {% for member in team_members %}
-                                                <option value="{{ member.name }}" {{ 'selected' if kp and kp.assigned_to == member.name else '' }}>{{ member.name }}</option>
+                                                <option value="{{ member.id }}" {{ 'selected' if kp and kp.responsible_engineer_id == member.id else '' }}>{{ member.name }}</option>
                                                 {% endfor %}
                                             </select>
                                         </div>
@@ -607,16 +607,19 @@
                         <!-- Additional Notes -->
                         <div class="mb-4">
                             <label for="additional_notes" class="form-label">Additional Notes</label>
-                            <textarea class="form-control" id="additional_notes" name="additional_notes" rows="4" placeholder="Any additional information or notes for the next shift"></textarea>
+                            <textarea class="form-control" id="additional_notes" name="additional_notes" rows="4" placeholder="Any additional information or notes for the next shift">{% if is_edit_mode and shift.additional_notes %}{{ shift.additional_notes }}{% endif %}</textarea>
                         </div>
 
+                        <!-- Hidden field to track button clicked -->
+                        <input type="hidden" id="clicked-action" name="action" value="submit">
+                        
                         <!-- Submit Buttons -->
                         <div class="text-end">
-                            <button type="submit" name="action" value="draft" id="draft-btn" class="btn btn-secondary me-3" style="background: linear-gradient(135deg, #6c757d, #495057); border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
+                            <button type="button" id="draft-btn" class="btn btn-secondary me-3" style="background: linear-gradient(135deg, #6c757d, #495057); border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
                                 <i class="fas fa-save me-2"></i>
                                 Save as Draft
                             </button>
-                            <button type="submit" name="action" value="submit" id="submit-btn" class="btn btn-primary" style="background: linear-gradient(135deg, #007bff, #0056b3); border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
+                            <button type="button" id="submit-btn" class="btn btn-primary" style="background: linear-gradient(135deg, #007bff, #0056b3); border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
                                 <i class="fas fa-paper-plane me-2"></i>
                                 Submit Handover
                             </button>
@@ -1380,17 +1383,142 @@ function populateIncidentSection(type, incidents) {
         return;
     }
     
-    // Populate with ServiceNow incidents
+    // Check if this is ServiceNow data or edit mode data
+    const isEditMode = incidents.length > 0 && incidents[0].hasOwnProperty('app_name');
+    
+    // Populate incidents
     incidents.forEach((incident, index) => {
         console.log(`Processing incident ${index + 1}:`, incident);
         if (index === 0) {
             // Use the first existing entry
-            populateFirstIncidentEntry(container, incident, type);
+            if (isEditMode) {
+                populateFirstIncidentEntryEditMode(container, incident, type);
+            } else {
+                populateFirstIncidentEntry(container, incident, type);
+            }
         } else {
             // Add new entries with data
-            addIncident(type, incident);
+            if (isEditMode) {
+                addIncidentEditMode(type, incident);
+            } else {
+                addIncident(type, incident);
+            }
         }
     });
+}
+
+// New function for edit mode incident population
+function populateFirstIncidentEntryEditMode(container, incident, type) {
+    const firstEntry = container.querySelector('.incident-entry');
+    if (!firstEntry) return;
+    
+    console.log('🔧 Edit mode: Populating incident:', incident, 'Type:', type);
+    
+    // Populate based on incident type for edit mode
+    if (type === 'open') {
+        const appInput = firstEntry.querySelector('input[name="open_incident_app[]"]');
+        const idInput = firstEntry.querySelector('input[name="open_incident_id[]"]');
+        const prioritySelect = firstEntry.querySelector('select[name="open_incident_priority[]"]');
+        const descTextarea = firstEntry.querySelector('textarea[name="open_incident_description[]"]');
+        const assignedSelect = firstEntry.querySelector('select[name="open_incident_assigned[]"]');
+        
+        if (appInput) appInput.value = incident.app_name || '';
+        if (idInput) idInput.value = incident.id || '';
+        if (prioritySelect) prioritySelect.value = incident.priority || 'Medium';
+        if (descTextarea) descTextarea.value = incident.description || '';
+        if (assignedSelect) {
+            // Set assigned engineer if available
+            if (incident.assigned_to) {
+                console.log('🔧 ASSIGNMENT DEBUG: Looking for assigned_to:', incident.assigned_to);
+                console.log('🔧 ASSIGNMENT DEBUG: Available options:');
+                const options = assignedSelect.options;
+                for (let i = 0; i < options.length; i++) {
+                    console.log(`   ${i}: value='${options[i].value}', text='${options[i].text}'`);
+                }
+                
+                // Try exact match first, then partial match
+                let matched = false;
+                for (let i = 0; i < options.length; i++) {
+                    if (options[i].text === incident.assigned_to || 
+                        options[i].value === incident.assigned_to ||
+                        options[i].text.includes(incident.assigned_to)) {
+                        console.log(`🔧 ASSIGNMENT MATCH: Found match at index ${i}: '${options[i].text}'`);
+                        assignedSelect.selectedIndex = i;
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched) {
+                    console.log('🔧 ASSIGNMENT ERROR: No match found for:', incident.assigned_to);
+                }
+            }
+        }
+        
+    } else if (type === 'closed') {
+        const appInput = firstEntry.querySelector('input[name="closed_incident_app[]"]');
+        const idInput = firstEntry.querySelector('input[name="closed_incident_id[]"]');
+        const resolutionTextarea = firstEntry.querySelector('textarea[name="closed_incident_resolution[]"]');
+        
+        if (appInput) appInput.value = incident.app_name || '';
+        if (idInput) idInput.value = incident.id || '';
+        if (resolutionTextarea) resolutionTextarea.value = incident.resolution || '';
+        
+    } else if (type === 'priority') {
+        const appInput = firstEntry.querySelector('input[name="priority_incident_app[]"]');
+        const idInput = firstEntry.querySelector('input[name="priority_incident_id[]"]');
+        const levelSelect = firstEntry.querySelector('select[name="priority_incident_level[]"]');
+        const descTextarea = firstEntry.querySelector('textarea[name="priority_incident_description[]"]');
+        const escalatedInput = firstEntry.querySelector('input[name="priority_incident_escalated[]"]');
+        const impactTextarea = firstEntry.querySelector('textarea[name="priority_incident_impact[]"]');
+        
+        if (appInput) appInput.value = incident.app_name || '';
+        if (idInput) idInput.value = incident.id || '';
+        if (levelSelect) levelSelect.value = incident.priority || 'High';
+        if (descTextarea) descTextarea.value = incident.description || '';
+        if (escalatedInput) escalatedInput.value = incident.escalated_to || '';
+        if (impactTextarea) impactTextarea.value = incident.impact || '';
+        
+    } else if (type === 'handover') {
+        const appInput = firstEntry.querySelector('input[name="handover_incident_app[]"]');
+        const idInput = firstEntry.querySelector('input[name="handover_incident_id[]"]');
+        const statusSelect = firstEntry.querySelector('select[name="handover_incident_status[]"]');
+        const nextByInput = firstEntry.querySelector('input[name="handover_incident_next_by[]"]');
+        const notesTextarea = firstEntry.querySelector('textarea[name="handover_incident_notes[]"]');
+        
+        if (appInput) appInput.value = incident.app_name || '';
+        if (idInput) idInput.value = incident.id || '';
+        if (statusSelect) statusSelect.value = incident.status || 'Monitoring';
+        if (nextByInput) nextByInput.value = incident.next_action_by || '';
+        if (notesTextarea) notesTextarea.value = incident.notes || '';
+        
+    } else if (type === 'escalated') {
+        const appInput = firstEntry.querySelector('input[name="escalated_incident_app[]"]');
+        const idInput = firstEntry.querySelector('input[name="escalated_incident_id[]"]');
+        const escalatedToInput = firstEntry.querySelector('input[name="escalated_incident_escalated_to[]"]');
+        
+        if (appInput) appInput.value = incident.app_name || '';
+        if (idInput) idInput.value = incident.id || '';
+        if (escalatedToInput) escalatedToInput.value = incident.escalated_to || '';
+    }
+    
+    console.log('✅ Edit mode: Populated first incident entry for', type);
+}
+
+// Function to add additional incidents in edit mode
+function addIncidentEditMode(type, incidentData) {
+    // Call the existing addIncident function then populate the new entry
+    addIncident(type);
+    
+    // Get the last added incident entry
+    const container = document.getElementById(`${type}-incidents-container`);
+    const entries = container.querySelectorAll('.incident-entry');
+    const lastEntry = entries[entries.length - 1];
+    
+    if (lastEntry) {
+        // Create a temporary container to use existing populate function
+        const tempContainer = { querySelector: () => lastEntry };
+        populateFirstIncidentEntryEditMode(tempContainer, incidentData, type);
+    }
 }
 
 function populateFirstIncidentEntry(container, incident, type) {
@@ -1518,20 +1646,59 @@ function setupFormSubmissionHandling() {
     // Add loading state to form submission
     const form = document.querySelector('#handover-form');
     if (form) {
-        form.addEventListener('submit', function(e) {
-            console.log('Form submission started...');
-            
-            // Show loading state on submit button
-            const submitBtn = document.querySelector('#submit-btn');
-            const draftBtn = document.querySelector('#draft-btn');
-            
-            if (submitBtn) {
+        // Get form elements
+        const submitBtn = document.querySelector('#submit-btn');
+        const draftBtn = document.querySelector('#draft-btn');
+        const hiddenActionField = document.querySelector('#clicked-action');
+        
+        // DRAFT BUTTON - Set action to 'draft' and submit form
+        if (draftBtn) {
+            draftBtn.addEventListener('click', function(e) {
+                console.log('🟠 DRAFT BUTTON CLICKED - setting action to draft');
+                e.preventDefault();
+                
+                if (hiddenActionField) {
+                    hiddenActionField.value = 'draft';
+                    console.log('✅ Hidden field set to: draft');
+                }
+                
+                // Show loading state
+                draftBtn.disabled = true;
+                draftBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving Draft...';
+                submitBtn.disabled = true;
+                
+                // Submit the form
+                console.log('📤 Submitting form as DRAFT');
+                form.submit();
+            });
+        }
+        
+        // SUBMIT BUTTON - Set action to 'submit' and submit form
+        if (submitBtn) {
+            submitBtn.addEventListener('click', function(e) {
+                console.log('🔵 SUBMIT BUTTON CLICKED - setting action to submit');
+                e.preventDefault();
+                
+                if (hiddenActionField) {
+                    hiddenActionField.value = 'submit';
+                    console.log('✅ Hidden field set to: submit');
+                }
+                
+                // Show loading state
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Submitting...';
-            }
-            if (draftBtn) {
                 draftBtn.disabled = true;
-            }
+                
+                // Submit the form
+                console.log('📤 Submitting form as FINAL');
+                form.submit();
+            });
+        }
+        
+        // Form submission event (fallback)
+        form.addEventListener('submit', function(e) {
+            console.log('📋 Form submission event triggered');
+            console.log('📋 Hidden action field value:', hiddenActionField ? hiddenActionField.value : 'not found');
             
             // Set a fallback redirect in case server doesn't respond
             setTimeout(() => {
@@ -1590,5 +1757,35 @@ function hideGlobalProgress() {
         progressDiv.classList.add('d-none');
     }
 }
+
+// 🔧 EDIT MODE: Populate form with existing incident data when editing a draft/handover
+{% if is_edit_mode %}
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🔧 EDIT MODE: Populating form with existing data');
+    
+    // Define the incident data from backend
+    const editModeIncidents = {
+        open_incidents: {{ open_incidents | tojson | safe }},
+        closed_incidents: {{ closed_incidents | tojson | safe }},
+        priority_incidents: {{ priority_incidents | tojson | safe }},
+        handover_incidents: {{ handover_incidents | tojson | safe }},
+        escalated_incidents: {{ escalated_incidents | tojson | safe }}
+    };
+    
+    console.log('📋 Edit mode incident data:', editModeIncidents);
+    
+    // Wait a moment for DOM to be fully ready, then populate
+    setTimeout(() => {
+        // Populate each incident section
+        populateIncidentSection('open', editModeIncidents.open_incidents);
+        populateIncidentSection('closed', editModeIncidents.closed_incidents);
+        populateIncidentSection('priority', editModeIncidents.priority_incidents);
+        populateIncidentSection('handover', editModeIncidents.handover_incidents);
+        populateIncidentSection('escalated', editModeIncidents.escalated_incidents);
+        
+        console.log('✅ Edit mode form population completed');
+    }, 500);
+});
+{% endif %}
 </script>
 {% endblock %}

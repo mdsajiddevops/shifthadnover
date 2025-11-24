@@ -415,10 +415,31 @@
                                                         </small>
                                                     </div>
                                                     {% endif %}
+                                                    {% if inc.assigned_to %}
+                                                    <div class="mb-2">
+                                                        <small class="text-secondary">
+                                                            <i class="bi bi-person me-1"></i><strong>Assigned To:</strong> {{ inc.assigned_to }}
+                                                        </small>
+                                                    </div>
+                                                    {% endif %}
+                                                    {% if inc.description %}
+                                                    <div class="mb-2">
+                                                        <small class="text-secondary">
+                                                            <i class="bi bi-chat-text me-1"></i><strong>Description:</strong> {{ inc.description }}
+                                                        </small>
+                                                    </div>
+                                                    {% endif %}
+                                                    {% if inc.escalated_to %}
+                                                    <div class="mb-2">
+                                                        <small class="text-secondary">
+                                                            <i class="bi bi-arrow-up-circle me-1"></i><strong>Escalated To:</strong> {{ inc.escalated_to }}
+                                                        </small>
+                                                    </div>
+                                                    {% endif %}
                                                     {% if inc.handover %}
                                                     <div class="mb-0">
                                                         <small class="text-secondary">
-                                                            <i class="bi bi-info-circle me-1"></i><strong>Details:</strong> {{ inc.handover }}
+                                                            <i class="bi bi-info-circle me-1"></i><strong>Handover Notes:</strong> {{ inc.handover }}
                                                         </small>
                                                     </div>
                                                     {% endif %}
@@ -472,14 +493,31 @@
                                 {% endif %}
                             </td>
                             <td class="py-3">
-                                {% if entry.shift.status == 'draft' %}
-                                <a href="{{ url_for('handover.edit_handover', shift_id=entry.shift.id) }}" class="btn btn-primary btn-sm">
-                                    <i class="bi bi-pencil me-1"></i>Edit
-                                </a>
-                                {% else %}
-                                <span class="badge bg-light text-dark border">
-                                    <i class="bi bi-lock me-1"></i>Final
-                                </span>
+                                <div class="d-flex flex-column align-items-start">
+                                    {% if entry.shift.status == 'draft' %}
+                                    <a href="{{ url_for('handover.edit_handover', shift_id=entry.shift.id) }}" class="btn btn-primary btn-sm mb-2">
+                                        <i class="bi bi-pencil me-1"></i>Edit
+                                    </a>
+                                    {% else %}
+                                    <span class="badge bg-light text-dark border mb-2">
+                                        <i class="bi bi-lock me-1"></i>Final
+                                    </span>
+                                    {% endif %}
+                                    
+                                    {% if entry.shift.additional_notes and entry.shift.additional_notes.strip() %}
+                                    <button class="btn btn-outline-info btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#notes-{{ entry.shift.id }}" aria-expanded="false" title="Additional Notes">
+                                        <i class="bi bi-sticky me-1"></i>Notes
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                
+                                {% if entry.shift.additional_notes and entry.shift.additional_notes.strip() %}
+                                <div class="collapse mt-2" id="notes-{{ entry.shift.id }}">
+                                    <div class="card card-body border-info" style="font-size: 0.85rem; max-width: 300px;">
+                                        <div class="text-info mb-1"><i class="bi bi-sticky me-1"></i><strong>Additional Notes:</strong></div>
+                                        <div class="text-dark">{{ entry.shift.additional_notes }}</div>
+                                    </div>
+                                </div>
                                 {% endif %}
                             </td>
                         </tr>
