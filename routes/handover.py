@@ -633,23 +633,15 @@ def edit_handover(shift_id):
             # ✅ FIX: Map escalated_to field for Priority incidents
             escalated_to_content = getattr(incident, 'escalated_to', '') or ''
         elif incident_type == 'Handover':
-            # Handover incidents: notes stored in handover field, next_action_by in assigned_to
+            # Handover incidents: notes stored in handover field, next_action_by stored in assigned_to field
             notes_content = description_content
-            # ✅ FIX: Get next_action_by from the proper field instead of assigned_to
-            next_action_by_field = getattr(incident, 'next_action_by', '')
-            if next_action_by_field and str(next_action_by_field).isdigit():
-                try:
-                    next_action_member = TeamMember.query.get(int(next_action_by_field))
-                    next_action_by_content = next_action_member.name if next_action_member else assigned_to_name
-                except:
-                    next_action_by_content = assigned_to_name
-            else:
-                next_action_by_content = next_action_by_field or assigned_to_name
+            # ✅ FIX: Get next_action_by from assigned_to field (this is where we store it)
+            next_action_by_content = assigned_to_name  # assigned_to already contains the name
         elif incident_type == 'Escalated':
             # ✅ FIX: Map Escalated incident fields properly from database
             escalated_to_content = getattr(incident, 'escalated_to', '') or ''
-            escalation_reason = getattr(incident, 'escalation_reason', '') or ''
-            current_status = getattr(incident, 'current_status', '') or ''
+            escalation_reason = getattr(incident, 'description', '') or ''  # Stored in description field
+            current_status = getattr(incident, 'status', '') or ''  # Stored in status field
             
             # Use escalation_reason for notes if available
             if escalation_reason:
@@ -675,8 +667,8 @@ def edit_handover(shift_id):
         
         # ✅ FIX: Add additional fields for Escalated incidents
         if incident_type == 'Escalated':
-            result['escalation_reason'] = getattr(incident, 'escalation_reason', '') or ''
-            result['current_status'] = getattr(incident, 'current_status', '') or ''
+            result['escalation_reason'] = getattr(incident, 'description', '') or ''  # Stored in description field
+            result['current_status'] = getattr(incident, 'status', '') or ''  # Stored in status field
         
         # 🔧 DEBUG: Log each serialized incident
         print(f"[SERIALIZE_DEBUG] Incident {incident.id}: {result}")
@@ -711,6 +703,26 @@ def edit_handover(shift_id):
         shift.additional_notes = request.form.get('additional_notes', '')
         action = request.form.get('action', 'send')
         old_status = shift.status
+        
+        # 🔧 CRITICAL FIX: Prevent converting draft to submission if another submission already exists
+        if action not in ['save', 'draft'] and old_status == 'draft':  # Converting draft to submission
+            existing_submission = Shift.query.filter_by(
+                date=shift.date,
+                current_shift_type=shift.current_shift_type,
+                next_shift_type=shift.next_shift_type,
+                account_id=shift.account_id,
+                team_id=shift.team_id,
+                status='sent'
+            ).filter(Shift.id != shift.id).first()  # Exclude current shift being edited
+            
+            if existing_submission:
+                print(f"[EDIT_DUPLICATE_CHECK] Found existing submission: ID={existing_submission.id}")
+                flash('❌ Cannot submit this draft! A handover for this shift has already been submitted. '
+                      'Please check the Reports section to view the submitted handover.', 'error')
+                return redirect(url_for('handover.edit_handover', shift_id=shift_id))
+            else:
+                print(f"[EDIT_DUPLICATE_CHECK] ✅ No existing submission found, can convert draft to submission")
+        
         shift.status = 'draft' if action in ['save', 'draft'] else 'sent'
         
         # Set submitted_at timestamp if changing from draft to sent
@@ -745,28 +757,23 @@ def edit_handover(shift_id):
             shift.current_engineers.append(member)
         for member in next_engineers_objs:
             shift.next_engineers.append(member)
-        # 🔧 CRITICAL FIX: Update incidents and key points instead of deleting all
-        # Get existing data for comparison
+        # 🔧 CRITICAL FIX: Only clear and rebuild data if no existing incidents
+        # This prevents duplication in edit mode
         existing_incidents = Incident.query.filter_by(shift_id=shift.id).all()
         existing_keypoints = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
         
         print(f"🔧 EDIT MODE: Found {len(existing_incidents)} existing incidents, {len(existing_keypoints)} existing key points")
         
-        # 🔧 IMPROVED EDIT MODE: Only clear data if this is a 'submit' action, not 'draft'
-        # This prevents data loss during draft-edit cycles
-        if action == 'submit' or len(existing_incidents) == 0:
-            # Clear existing items - we'll recreate from form data
-            for inc in existing_incidents:
-                db.session.delete(inc)
-            for kp in existing_keypoints:
-                db.session.delete(kp)
-            
-            db.session.commit()
-            print(f"🔧 EDIT MODE: Cleared existing data for final submission, rebuilding from form")
+        # 🔧 FIXED LOGIC: Only recreate if this is the FIRST edit (no existing data)
+        # Or if explicitly requested to reset (add a flag later if needed)
+        should_recreate = len(existing_incidents) == 0 and len(existing_keypoints) == 0
+        
+        if should_recreate:
+            print(f"🔧 EDIT MODE: No existing data found - will create from form")
         else:
-            # For draft mode, update existing items instead of deleting
-            print(f"🔧 EDIT MODE: Draft mode - updating existing data instead of clearing")
-            # We'll update existing items and only add new ones if needed
+            print(f"🔧 EDIT MODE: Existing data found - will update shift properties only, not recreate incidents/keypoints")
+            # Just update shift properties, don't recreate incidents/keypoints to prevent duplication
+            # The incident/keypoint processing will be skipped below
         # Audit log: after commit, log send/save
         db.session.add(AuditLog(
             user_id=current_user.id,
@@ -908,8 +915,7 @@ def edit_handover(shift_id):
                             'status': statuses[i] if i < len(statuses) else 'Monitoring',
                             'priority': 'Medium',
                             'handover': notes[i] if i < len(notes) else '',
-                            'assigned_to': next_action_by,  # Store assigned engineer name
-                            'next_action_by': next_action_by  # ✅ FIX: Store in next_action_by field
+                            'assigned_to': next_action_by  # Store "next action by" in assigned_to field
                         })
                         if next_action_by:
                             try:
@@ -979,25 +985,37 @@ def edit_handover(shift_id):
                             'priority': 'High',
                             'handover': escalation_details,
                             'assigned_to': escalated_to_person,  # Store escalated to person
-                            'escalated_to': escalated_tos[i] if i < len(escalated_tos) else '',  # ✅ FIX: Store in escalated_to field
-                            'escalation_reason': reasons[i] if i < len(reasons) else '',  # ✅ FIX: Store in escalation_reason field
-                            'current_status': statuses[i] if i < len(statuses) else ''  # ✅ FIX: Store in current_status field
+                            'escalated_to': escalated_tos[i] if i < len(escalated_tos) else '',  # Store in escalated_to field (exists in DB)
+                            'description': reasons[i] if i < len(reasons) else '',  # Store escalation reason in description field
+                            'status': (statuses[i] if i < len(statuses) else 'Escalated')[:16]  # Store current status, truncated to 16 chars
                         })
                     
                     incident = Incident(**incident_data)
                     db.session.add(incident)
                     log_action('Add Incident', f'ID: {incident_id}, Type: {inc_type}, Shift ID: {shift.id}')
         
-        add_incident('open', 'Open')
-        add_incident('closed', 'Closed')
-        add_incident('priority', 'Priority')
-        add_incident('handover', 'Handover')
-        add_incident('escalated', 'Escalated')
+        # 🔧 FIXED: Only process incidents if we should recreate (prevent duplication)
+        if should_recreate:
+            add_incident('open', 'Open')
+            add_incident('closed', 'Closed')
+            add_incident('priority', 'Priority')
+            add_incident('handover', 'Handover')
+            add_incident('escalated', 'Escalated')
+        else:
+            print(f"🔧 EDIT MODE: Skipping incident recreation to prevent duplication")
+        # 🔧 CRITICAL FIX: Always process keypoints in edit mode (they should be updated)
         # Process key points - fix field name mismatch
         key_point_descriptions = request.form.getlist('keypoint_description[]')
         keypoint_assigned_tos = request.form.getlist('keypoint_assigned_to[]')
         keypoint_statuses = request.form.getlist('keypoint_status[]')
         keypoint_jira_ids = request.form.getlist('keypoint_jira_id[]')
+        
+        # Clear existing keypoints to prevent duplicates, then recreate
+        existing_keypoints = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
+        for kp in existing_keypoints:
+            db.session.delete(kp)
+        
+        print(f"🔧 EDIT MODE: Cleared {len(existing_keypoints)} existing keypoints, will recreate from form data")
         
         # 🔧 CRITICAL DEBUG: Log all form data to diagnose missing key points
         print(f"\n🔧 EDIT MODE FORM DATA ANALYSIS:")
@@ -1401,7 +1419,31 @@ def handover():
             
         action = request.form.get('action', 'submit')
         print(f"[DEBUG_ACTION] Action received from form: '{action}' (default: 'submit')")
-        print(f"[DEBUG_ACTION] All form keys: {list(request.form.keys())[:10]}...")  # First 10 keys
+        print(f"[DEBUG_ACTION] All form keys: {list(request.form.keys())}")  # All keys
+        print(f"🔥 KEYPOINT FORM DEBUG: Checking for keypoint fields:")
+        keypoint_fields = [key for key in request.form.keys() if 'keypoint' in key.lower()]
+        print(f"🔥 Found keypoint-related fields: {keypoint_fields}")
+        for field in keypoint_fields:
+            print(f"🔥   {field}: {request.form.getlist(field)}")
+        
+        # 🔧 CRITICAL FIX: Prevent multiple handover submissions for the same shift
+        if action == 'submit':  # Only check for actual submissions, not drafts
+            existing_handover = Shift.query.filter_by(
+                date=date,
+                current_shift_type=current_shift_type,
+                next_shift_type=next_shift_type,
+                account_id=account_id,
+                team_id=team_id,
+                status='sent'  # Only check for already submitted handovers
+            ).first()
+            
+            if existing_handover:
+                print(f"[DUPLICATE_CHECK] Found existing submitted handover: ID={existing_handover.id}")
+                flash('❌ This shift handover has already been submitted! You cannot submit the same shift handover twice. '
+                      'Please check the Reports section to view your submitted handover.', 'error')
+                return redirect(url_for('handover.handover'))
+            else:
+                print(f"[DUPLICATE_CHECK] ✅ No existing submitted handover found for {current_shift_type}→{next_shift_type} on {date}")
         
         # COMMENTED OUT FAST PATH - it was preventing full incident/keypoint processing
         # # FAST PATH: Create minimal handover immediately
@@ -1706,10 +1748,9 @@ def handover():
                             title=full_title,
                             status=statuses[i] if i < len(statuses) else 'Active',
                             priority='Medium',  # Default priority for handover incidents
-                            assigned_to=next_by[i] if i < len(next_by) else '',
-                            next_action_by=next_by[i] if i < len(next_by) else '',  # ✅ FIX: Store in next_action_by field
+                            assigned_to=next_by[i] if i < len(next_by) else '',  # Store "next action by" in assigned_to
                             description=notes[i] if i < len(notes) else '',
-                            handover=notes[i] if i < len(notes) else '',
+                            handover=notes[i] if i < len(notes) else '',  # Store notes in handover field
                             shift_id=shift_id_to_use,
                             type='Handover',
                             account_id=account_id,
@@ -1750,13 +1791,16 @@ def handover():
                 for i in range(len(app_names)):
                     if i < len(incident_ids) and (app_names[i].strip() or incident_ids[i].strip()):
                         print(f"Creating escalated incident {i+1}: {app_names[i]} - {incident_ids[i]}")
+                        # Truncate status to fit database column (VARCHAR(16))
+                        status_value = current_statuses[i] if i < len(current_statuses) else 'Escalated'
+                        status_truncated = status_value[:16] if status_value else 'Escalated'
+                        
                         incident = Incident(
                             title=f"{app_names[i]} - {incident_ids[i]}".strip(' -'),
-                            status='Escalated',
+                            status=status_truncated,  # Truncated to 16 characters
                             priority='High',  # Default priority for escalated incidents
-                            escalated_to=escalated_to[i] if i < len(escalated_to) else '',
-                            escalation_reason=escalation_reasons[i] if i < len(escalation_reasons) else '',  # ✅ FIX: Store escalation_reason
-                            current_status=current_statuses[i] if i < len(current_statuses) else '',  # ✅ FIX: Store current_status
+                            escalated_to=escalated_to[i] if i < len(escalated_to) else '',  # This field exists
+                            description=escalation_reasons[i] if i < len(escalation_reasons) else '',  # Store escalation reason in description
                             shift_id=shift_id_to_use,
                             type='Escalated',
                             account_id=account_id,
@@ -2169,7 +2213,7 @@ def handover():
     # Filter to only Open/In Progress status
     all_prev_kps = all_kps_query.filter(
         ShiftKeyPoint.status.in_(['Open', 'In Progress'])
-    ).limit(8).all()  # Limit to 8 most recent
+    ).all()  # Get all open/in-progress key points (removed arbitrary limit)
     
     print(f"[DEBUG] Open/In Progress key points: {len(all_prev_kps)}")
     

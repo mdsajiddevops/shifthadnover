@@ -266,11 +266,25 @@ def dashboard():
     
     def get_previous_shift_handover(current_shift, today_date, account_id, team_id):
         """Get the previous shift handover based on current shift and date"""
-        previous_shift_map = {
-            'Morning': ('Night', today_date - timedelta(days=1)),  # Morning comes after Night (previous day)
-            'Evening': ('Morning', today_date),                    # Evening comes after Morning (same day)
-            'Night': ('Evening', today_date)                       # Night comes after Evening (same day)
-        }
+        # 🔧 FIXED: Night shift logic to handle day boundaries correctly
+        # Night shift spans midnight, so we need to check if we're looking for yesterday's Evening handover
+        if current_shift == 'Night':
+            # Check if we're in early Night shift (00:00-06:30) looking for yesterday's Evening handover
+            ist_now = get_ist_now()
+            if ist_now.time() < dt_time(6, 30):
+                # Early night shift - look for yesterday's Evening→Night handover
+                search_date = today_date - timedelta(days=1)
+            else:
+                # Late night shift (21:45-23:59) - look for today's Evening→Night handover
+                search_date = today_date
+            previous_shift_map = {
+                'Night': ('Evening', search_date)
+            }
+        else:
+            previous_shift_map = {
+                'Morning': ('Night', today_date - timedelta(days=1)),  # Morning comes after Night (previous day)
+                'Evening': ('Morning', today_date),                    # Evening comes after Morning (same day)
+            }
         
         if current_shift not in previous_shift_map:
             return None
@@ -343,11 +357,21 @@ def dashboard():
         # Account admin logic - get previous shift handover for the account
         def get_account_previous_shift_handover(current_shift, today_date, account_id):
             """Get previous shift handover for account admin (across all teams in account)"""
-            previous_shift_map = {
-                'Morning': ('Night', today_date - timedelta(days=1)),
-                'Evening': ('Morning', today_date),
-                'Night': ('Evening', today_date)
-            }
+            # 🔧 FIXED: Night shift logic for account admin too
+            if current_shift == 'Night':
+                ist_now = get_ist_now()
+                if ist_now.time() < dt_time(6, 30):
+                    search_date = today_date - timedelta(days=1)
+                else:
+                    search_date = today_date
+                previous_shift_map = {
+                    'Night': ('Evening', search_date)
+                }
+            else:
+                previous_shift_map = {
+                    'Morning': ('Night', today_date - timedelta(days=1)),
+                    'Evening': ('Morning', today_date),
+                }
             
             if current_shift not in previous_shift_map:
                 return None
@@ -395,11 +419,21 @@ def dashboard():
         # For super admin, get previous shift handovers from all accounts/teams (not old handovers)
         def get_super_admin_previous_shift_handovers(current_shift, today_date):
             """Get previous shift handovers for super admin"""
-            previous_shift_map = {
-                'Morning': ('Night', today_date - timedelta(days=1)),
-                'Evening': ('Morning', today_date),
-                'Night': ('Evening', today_date)
-            }
+            # 🔧 FIXED: Night shift logic for super admin too
+            if current_shift == 'Night':
+                ist_now = get_ist_now()
+                if ist_now.time() < dt_time(6, 30):
+                    search_date = today_date - timedelta(days=1)
+                else:
+                    search_date = today_date
+                previous_shift_map = {
+                    'Night': ('Evening', search_date)
+                }
+            else:
+                previous_shift_map = {
+                    'Morning': ('Night', today_date - timedelta(days=1)),
+                    'Evening': ('Morning', today_date),
+                }
             
             if current_shift not in previous_shift_map:
                 return []
