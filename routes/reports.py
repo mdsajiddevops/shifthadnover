@@ -186,11 +186,22 @@ def handover_reports():
         if current_user.role == 'super_admin':
             accounts = Account.query.filter_by(is_active=True).all()
             account_id = request.args.get('account_id') or session.get('selected_account_id')
+            print(f"🔍 SUPER_ADMIN: account_id from params/session: {account_id}", flush=True)
             teams = Team.query.filter_by(is_active=True)
             if account_id:
                 teams = teams.filter_by(account_id=account_id)
+                print(f"🔍 SUPER_ADMIN: Filtering teams by account_id: {account_id}", flush=True)
+            else:
+                print(f"🔍 SUPER_ADMIN: No account_id selected - showing ALL accounts data", flush=True)
+                # 🔧 FIX: For super_admin with no account selected, don't filter by account
+                # This allows super_admin to see ALL data from ALL accounts by default
             teams = teams.all()
             team_id = request.args.get('team_id') or session.get('selected_team_id')
+            print(f"🔍 SUPER_ADMIN: team_id from params/session: {team_id}", flush=True)
+            # 🔧 FIX: For super_admin, if no team is selected, show all teams
+            if not account_id and team_id:
+                # If specific team selected but no account, still filter by team
+                print(f"🔍 SUPER_ADMIN: Filtering by team_id only: {team_id}", flush=True)
         elif current_user.role == 'account_admin':
             account_id = current_user.account_id
             accounts = [Account.query.get(account_id)] if account_id else []
@@ -201,12 +212,27 @@ def handover_reports():
             team_id = current_user.team_id
             accounts = [Account.query.get(account_id)] if account_id else []
             teams = [Team.query.get(team_id)] if team_id else []
-        if account_id:
-            query = query.filter_by(account_id=account_id)
-            print(f"🔍 Filtering by account_id: {account_id}", flush=True)
-        if team_id:
-            query = query.filter_by(team_id=team_id)
-            print(f"🔍 Filtering by team_id: {team_id}", flush=True)
+        # 🔧 FIX: Apply filtering logic based on user role and selections
+        if current_user.role == 'super_admin':
+            # For super_admin: only filter if explicitly selected
+            if account_id:
+                query = query.filter_by(account_id=account_id)
+                print(f"🔍 SUPER_ADMIN: Filtering by account_id: {account_id}", flush=True)
+            else:
+                print(f"🔍 SUPER_ADMIN: No account filter - showing ALL accounts", flush=True)
+            if team_id:
+                query = query.filter_by(team_id=team_id)
+                print(f"🔍 SUPER_ADMIN: Filtering by team_id: {team_id}", flush=True)
+            else:
+                print(f"🔍 SUPER_ADMIN: No team filter - showing ALL teams", flush=True)
+        else:
+            # For account_admin and regular users: always filter by their assigned account/team
+            if account_id:
+                query = query.filter_by(account_id=account_id)
+                print(f"🔍 NON-SUPER: Filtering by account_id: {account_id}", flush=True)
+            if team_id:
+                query = query.filter_by(team_id=team_id)
+                print(f"🔍 NON-SUPER: Filtering by team_id: {team_id}", flush=True)
         if date_filter:
             try:
                 date_obj = datetime.strptime(date_filter, '%Y-%m-%d').date()
