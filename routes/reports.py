@@ -330,24 +330,50 @@ def handover_reports():
                     key_points_data.append(kp_data)
                     print(f"  ⚠️  REPORTS Added KP {kp.id} with error to template data")
             
-            # Find who submitted this handover from audit log
+            # 🔧 FIX: Find who submitted this handover from HandoverRequest table (more accurate)
             submitted_by = 'Unknown'
-            audit_entry = AuditLog.query.filter(
-                AuditLog.action.like('%Create Handover%'),
-                AuditLog.details.like(f'%Shift: {shift.current_shift_type}%'),
-                AuditLog.details.like(f'%Date: {shift.date}%')
-            ).first()
-            
-            if audit_entry:
-                # Try to get the actual user for better display name
-                if audit_entry.user_id:
-                    user = User.query.get(audit_entry.user_id)
+            try:
+                # Import here to avoid circular imports
+                from models.handover_enhanced import HandoverRequest
+                
+                # Find the corresponding handover request with exact matching
+                handover_req = HandoverRequest.query.filter_by(
+                    shift_date=shift.date,
+                    current_shift_type=shift.current_shift_type,
+                    account_id=shift.account_id,
+                    team_id=shift.team_id
+                ).first()
+                
+                if handover_req and handover_req.created_by_id:
+                    user = User.query.get(handover_req.created_by_id)
                     if user:
-                        submitted_by = user.display_name
+                        submitted_by = user.display_name or user.username
+                        print(f"🔍 REPORTS: Found accurate submitter: {submitted_by} (ID: {user.id}) for shift {shift.id}", flush=True)
                     else:
-                        submitted_by = audit_entry.username or 'Unknown User'
+                        submitted_by = f'User ID: {handover_req.created_by_id}'
+                        print(f"🔍 REPORTS: User not found for ID: {handover_req.created_by_id}", flush=True)
                 else:
-                    submitted_by = audit_entry.username or 'Unknown User'
+                    print(f"🔍 REPORTS: No HandoverRequest found for shift {shift.id}, trying audit log fallback...", flush=True)
+                    # Fallback to audit log with more specific matching
+                    from models.audit_log import AuditLog
+                    audit_entry = AuditLog.query.filter(
+                        AuditLog.action.like('%Create Handover%'),
+                        AuditLog.details.like(f'%Team: {shift.team_id}%'),
+                        AuditLog.details.like(f'%Account: {shift.account_id}%'),
+                        AuditLog.details.like(f'%Date: {shift.date}%')
+                    ).first()
+                    
+                    if audit_entry and audit_entry.user_id:
+                        user = User.query.get(audit_entry.user_id)
+                        if user:
+                            submitted_by = user.display_name or user.username
+                            print(f"🔍 REPORTS: Fallback audit submitter: {submitted_by} for shift {shift.id}", flush=True)
+                        else:
+                            submitted_by = audit_entry.username or 'Unknown User'
+                    
+            except Exception as e:
+                print(f"🚨 Error finding submitter for shift {shift.id}: {e}", flush=True)
+                submitted_by = 'Unknown'
             
             shift_data.append({
                 'shift': shift,
