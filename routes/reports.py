@@ -185,23 +185,29 @@ def handover_reports():
         query = Shift.query
         if current_user.role == 'super_admin':
             accounts = Account.query.filter_by(is_active=True).all()
-            account_id = request.args.get('account_id') or session.get('selected_account_id')
-            print(f"🔍 SUPER_ADMIN: account_id from params/session: {account_id}", flush=True)
+            # 🔧 FIX: For super_admin, only use filters if explicitly provided in request params
+            # Don't use session values as defaults - this was causing empty results
+            account_id = request.args.get('account_id')  # Don't use session defaults for super_admin
+            print(f"🔍 SUPER_ADMIN: account_id from params only: {account_id}", flush=True)
+            
+            # 🔧 FIX: Clear session defaults for super_admin to prevent stale selections
+            if not account_id and 'selected_account_id' in session:
+                session.pop('selected_account_id', None)
+                print(f"🔍 SUPER_ADMIN: Cleared stale selected_account_id from session", flush=True)
             teams = Team.query.filter_by(is_active=True)
             if account_id:
                 teams = teams.filter_by(account_id=account_id)
                 print(f"🔍 SUPER_ADMIN: Filtering teams by account_id: {account_id}", flush=True)
             else:
-                print(f"🔍 SUPER_ADMIN: No account_id selected - showing ALL accounts data", flush=True)
-                # 🔧 FIX: For super_admin with no account selected, don't filter by account
-                # This allows super_admin to see ALL data from ALL accounts by default
+                print(f"🔍 SUPER_ADMIN: No account_id in params - showing ALL accounts data", flush=True)
             teams = teams.all()
-            team_id = request.args.get('team_id') or session.get('selected_team_id')
-            print(f"🔍 SUPER_ADMIN: team_id from params/session: {team_id}", flush=True)
-            # 🔧 FIX: For super_admin, if no team is selected, show all teams
-            if not account_id and team_id:
-                # If specific team selected but no account, still filter by team
-                print(f"🔍 SUPER_ADMIN: Filtering by team_id only: {team_id}", flush=True)
+            team_id = request.args.get('team_id')  # Don't use session defaults for super_admin
+            print(f"🔍 SUPER_ADMIN: team_id from params only: {team_id}", flush=True)
+            
+            # 🔧 FIX: Clear session defaults for super_admin to prevent stale selections  
+            if not team_id and 'selected_team_id' in session:
+                session.pop('selected_team_id', None)
+                print(f"🔍 SUPER_ADMIN: Cleared stale selected_team_id from session", flush=True)
         elif current_user.role == 'account_admin':
             account_id = current_user.account_id
             accounts = [Account.query.get(account_id)] if account_id else []
