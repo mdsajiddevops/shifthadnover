@@ -7,7 +7,7 @@ from flask import Blueprint, request, jsonify, render_template, flash, redirect,
 from flask_login import login_required, current_user
 from datetime import datetime, date
 from services.shift_swap_leave_service import shift_swap_leave_service
-from models.models import User, ShiftRoster, TeamMember, db
+from models.models import User, ShiftRoster, TeamMember, UserTeamMembership, db
 from models.shift_swap_leave import ShiftSwapRequest, LeaveRequest
 import logging
 
@@ -155,11 +155,12 @@ def request_leave():
 def get_eligible_partners():
     """Get eligible team members for shift swapping - STRICT team and account isolation"""
     try:
-        # STRICT REQUIREMENT: Current user must have team_id and account_id
-        if not current_user.team_id or not current_user.account_id:
+        # STRICT REQUIREMENT: Current user must have teams and account_id
+        user_team_memberships = current_user.get_teams()
+        if not user_team_memberships or not current_user.account_id:
             return jsonify({
                 'success': False, 
-                'error': 'User must be assigned to a team and account to find eligible partners'
+                'error': 'User must be assigned to teams and account to find eligible partners'
             }), 403
         
         request_date_str = request.args.get('date')
@@ -173,7 +174,8 @@ def get_eligible_partners():
         except ValueError:
             return jsonify({'success': False, 'error': 'Invalid date format'}), 400
         
-        logger.info(f"Finding eligible partners for user {current_user.username} (team_id={current_user.team_id}, account_id={current_user.account_id})")
+        user_team_ids = [membership.team_id for membership in user_team_memberships]
+        logger.info(f"Finding eligible partners for user {current_user.username} (team_ids={user_team_ids}, account_id={current_user.account_id})")
         
         partners = shift_swap_leave_service.get_eligible_swap_partners(
             current_user.id, request_date, shift_code
@@ -192,24 +194,33 @@ def get_user_schedule():
     try:
         user_id = request.args.get('user_id', current_user.id, type=int)
         
-        # STRICT REQUIREMENT: Current user must have team_id and account_id
-        if not current_user.team_id or not current_user.account_id:
-            return jsonify({'success': False, 'error': 'User must be assigned to a team and account'}), 403
+        # STRICT REQUIREMENT: Current user must have teams and account_id
+        user_team_memberships = current_user.get_teams()
+        if not user_team_memberships or not current_user.account_id:
+            return jsonify({'success': False, 'error': 'User must be assigned to teams and account'}), 403
         
         # Get the requested user
         user = User.query.get(user_id)
         if not user:
             return jsonify({'success': False, 'error': 'User not found'}), 404
         
-        # STRICT ISOLATION: Can only view schedules of users in same team and account
-        if user.team_id != current_user.team_id or user.account_id != current_user.account_id:
-            logger.warning(f"User {current_user.username} attempted to access schedule of user {user.username} from different team/account")
-            return jsonify({'success': False, 'error': 'Access denied - can only view schedules within your team'}), 403
+        # STRICT ISOLATION: Can only view schedules of users in same teams and account
+        user_team_ids = [membership.team_id for membership in user_team_memberships]
+        user_in_same_teams = user.is_member_of_team_ids(user_team_ids, account_id=current_user.account_id)
         
-        team_member = TeamMember.query.filter_by(
-            name=user.username,
-            account_id=current_user.account_id,  # Use current user's account_id for extra security
-            team_id=current_user.team_id         # Use current user's team_id for extra security
+        # Fallback: check if user has old team_id that matches any of current user's teams
+        if not user_in_same_teams and hasattr(user, 'team_id') and user.team_id:
+            user_in_same_teams = user.team_id in user_team_ids
+            
+        if not user_in_same_teams or user.account_id != current_user.account_id:
+            logger.warning(f"User {current_user.username} attempted to access schedule of user {user.username} from different team/account")
+            return jsonify({'success': False, 'error': 'Access denied - can only view schedules within your teams'}), 403
+        
+        # Find team member in any of the shared teams
+        team_member = TeamMember.query.filter(
+            TeamMember.name == user.username,
+            TeamMember.account_id == current_user.account_id,
+            TeamMember.team_id.in_(user_team_ids)
         ).first()
         
         if not team_member:
@@ -225,7 +236,7 @@ def get_user_schedule():
             ShiftRoster.date >= start_date,
             ShiftRoster.date <= end_date,
             ShiftRoster.account_id == current_user.account_id,  # STRICT: Same account as current user
-            ShiftRoster.team_id == current_user.team_id         # STRICT: Same team as current user
+            ShiftRoster.team_id.in_(user_team_ids)              # STRICT: Teams that current user belongs to
         ).order_by(ShiftRoster.date).all()
         
         schedule = [{
@@ -432,30 +443,32 @@ def get_pending_approvals():
 def get_team_members():
     """Get team members for dropdowns - STRICT team and account isolation"""
     try:
-        logger.info(f"API team-members called by user: {current_user.username} (Team ID: {current_user.team_id}, Account ID: {current_user.account_id})")
+        user_team_memberships = current_user.get_teams()
+        user_team_ids = [membership.team_id for membership in user_team_memberships] if user_team_memberships else []
+        logger.info(f"API team-members called by user: {current_user.username} (Team IDs: {user_team_ids}, Account ID: {current_user.account_id})")
         
-        # STRICT REQUIREMENT: User must have both team_id and account_id assigned
-        if not current_user.team_id or not current_user.account_id:
-            logger.warning(f"User {current_user.username} missing team_id ({current_user.team_id}) or account_id ({current_user.account_id})")
+        # STRICT REQUIREMENT: User must have teams and account_id assigned
+        if not user_team_memberships or not current_user.account_id:
+            logger.warning(f"User {current_user.username} missing team memberships or account_id ({current_user.account_id})")
             return jsonify({
                 'success': False, 
-                'error': 'User must be assigned to a team and account to view team members',
+                'error': 'User must be assigned to teams and account to view team members',
                 'team_members': []
             })
         
-        # Get team members from EXACTLY the same team and account, excluding current user
-        team_members_query = User.query.filter(
+        # Get team members from user's teams and account, excluding current user
+        team_members_query = User.query.join(UserTeamMembership).filter(
             User.id != current_user.id,
             User.is_active == True,
             User.status == 'active',
-            User.is_active == True,
-            User.team_id == current_user.team_id,     # STRICT: Same team only
-            User.account_id == current_user.account_id  # STRICT: Same account only
-        )
+            UserTeamMembership.team_id.in_(user_team_ids),  # Teams that current user belongs to
+            User.account_id == current_user.account_id,     # STRICT: Same account only
+            UserTeamMembership.is_active == True
+        ).distinct()
         
         # Also get from TeamMember table for additional members (STRICT filtering)
         team_members_from_table = TeamMember.query.filter(
-            TeamMember.team_id == current_user.team_id,
+            TeamMember.team_id.in_(user_team_ids),
             TeamMember.account_id == current_user.account_id
         ).all()
         
@@ -501,10 +514,10 @@ def get_team_members():
         # NO FALLBACK TO ACCOUNT LEVEL - Strict team isolation only
         # Users can only see their exact team members, no exceptions
         if not members_data:
-            logger.info(f"No team members found for team_id={current_user.team_id}, account_id={current_user.account_id}")
+            logger.info(f"No team members found for team_ids={user_team_ids}, account_id={current_user.account_id}")
             logger.info("STRICT ISOLATION: Not falling back to account level - team members only")
         
-        logger.info(f"Returning {len(members_data)} team members from team_id={current_user.team_id}, account_id={current_user.account_id}")
+        logger.info(f"Returning {len(members_data)} team members from team_ids={user_team_ids}, account_id={current_user.account_id}")
         return jsonify({'success': True, 'team_members': members_data})
     
     except Exception as e:
@@ -516,30 +529,73 @@ def get_team_members():
 def get_shift_codes():
     """Get available shift codes - STRICT team and account isolation"""
     try:
-        logger.info(f"API shift-codes called by user: {current_user.username} (Team ID: {current_user.team_id}, Account ID: {current_user.account_id})")
+        user_team_memberships = current_user.get_teams()
+        user_team_ids = [membership.team_id for membership in user_team_memberships] if user_team_memberships else []
+        logger.info(f"API shift-codes called by user: {current_user.username} (Team IDs: {user_team_ids}, Account ID: {current_user.account_id})")
         
-        # STRICT REQUIREMENT: User must have both team_id and account_id assigned
-        if not current_user.team_id or not current_user.account_id:
-            logger.warning(f"User {current_user.username} missing team_id ({current_user.team_id}) or account_id ({current_user.account_id})")
+        # STRICT REQUIREMENT: User must have teams and account_id assigned
+        if not user_team_memberships or not current_user.account_id:
+            logger.warning(f"User {current_user.username} missing team memberships or account_id ({current_user.account_id})")
             return jsonify({
                 'success': False, 
-                'error': 'User must be assigned to a team and account to view shift codes',
+                'error': 'User must be assigned to teams and account to view shift codes',
                 'shift_codes': []
             })
         
-        # Get shift codes ONLY from the user's specific team and account
+        # Get shift codes ONLY from the user's teams and account
         from sqlalchemy import text
+        team_ids_str = ','.join(map(str, user_team_ids))
         result = db.session.execute(
-            text("SELECT DISTINCT shift_code FROM shift_roster WHERE shift_code IS NOT NULL AND team_id = :team_id AND account_id = :account_id"),
-            {'team_id': current_user.team_id, 'account_id': current_user.account_id}
+            text(f"SELECT DISTINCT shift_code FROM shift_roster WHERE shift_code IS NOT NULL AND team_id IN ({team_ids_str}) AND account_id = :account_id"),
+            {'account_id': current_user.account_id}
         )
         codes = [row[0] for row in result.fetchall() if row[0] not in ['LE', 'OFF', 'VL', 'HL']]  # Exclude leave codes
         
-        logger.info(f"Returning {len(codes)} shift codes for team_id={current_user.team_id}, account_id={current_user.account_id}: {codes}")
+        logger.info(f"Returning {len(codes)} shift codes for team_ids={user_team_ids}, account_id={current_user.account_id}: {codes}")
         return jsonify({'success': True, 'shift_codes': codes})
     
     except Exception as e:
         logger.error(f"Error getting shift codes: {str(e)}")
+        return jsonify({'success': False, 'error': 'An error occurred'}), 500
+
+@shift_swap_leave_bp.route('/api/user-teams')
+@login_required
+def get_user_teams():
+    """Get list of teams the current user belongs to"""
+    try:
+        from models.models import Team
+        
+        user_team_memberships = current_user.get_teams()
+        
+        if not user_team_memberships:
+            return jsonify({
+                'success': True,
+                'teams': [],
+                'message': 'User is not assigned to any teams'
+            })
+        
+        teams_data = []
+        for membership in user_team_memberships:
+            team = Team.query.get(membership.team_id)
+            if team:
+                teams_data.append({
+                    'id': team.id,
+                    'name': team.name,
+                    'is_primary': membership.is_primary,
+                    'role': membership.role
+                })
+        
+        # Sort with primary team first
+        teams_data.sort(key=lambda x: (not x['is_primary'], x['name']))
+        
+        logger.info(f"Returning {len(teams_data)} teams for user {current_user.username}")
+        return jsonify({
+            'success': True,
+            'teams': teams_data
+        })
+    
+    except Exception as e:
+        logger.error(f"Error getting user teams: {str(e)}")
         return jsonify({'success': False, 'error': 'An error occurred'}), 500
 
 # Temporary test endpoints without login requirement
@@ -583,11 +639,12 @@ def test_get_team_members():
 def get_user_shift_details():
     """Get specific shift details for a user on a specific date"""
     try:
-        # STRICT REQUIREMENT: Current user must have team_id and account_id
-        if not current_user.team_id or not current_user.account_id:
+        # STRICT REQUIREMENT: Current user must have teams and account_id
+        user_team_memberships = current_user.get_teams()
+        if not user_team_memberships or not current_user.account_id:
             return jsonify({
                 'success': False, 
-                'error': 'User must be assigned to a team and account'
+                'error': 'User must be assigned to teams and account'
             }), 403
         
         user_id = request.args.get('user_id')
@@ -606,30 +663,67 @@ def get_user_shift_details():
         if not user:
             return jsonify({'success': False, 'error': 'User not found'}), 404
         
-        # STRICT ISOLATION: Can only view shifts of users in same team and account
-        if user.team_id != current_user.team_id or user.account_id != current_user.account_id:
-            logger.warning(f"User {current_user.username} attempted to access shift details of user {user.username} from different team/account")
-            return jsonify({'success': False, 'error': 'Access denied - can only view shifts within your team'}), 403
+        # STRICT ISOLATION: Can only view shifts of users in same teams and account
+        user_team_ids = [membership.team_id for membership in user_team_memberships]
+        user_in_same_teams = user.is_member_of_team_ids(user_team_ids, account_id=current_user.account_id)
         
-        team_member = TeamMember.query.filter_by(
-            name=user.username,
-            account_id=current_user.account_id,
-            team_id=current_user.team_id
+        # Fallback: check if user has old team_id that matches any of current user's teams
+        if not user_in_same_teams and hasattr(user, 'team_id') and user.team_id:
+            user_in_same_teams = user.team_id in user_team_ids
+            
+        if not user_in_same_teams or user.account_id != current_user.account_id:
+            logger.warning(f"User {current_user.username} attempted to access shift details of user {user.username} from different team/account")
+            return jsonify({'success': False, 'error': 'Access denied - can only view shifts within your teams'}), 403
+        
+        # First try to find TeamMember by user_id (most reliable)
+        team_member = TeamMember.query.filter(
+            TeamMember.user_id == user.id,
+            TeamMember.account_id == current_user.account_id,
+            TeamMember.team_id.in_(user_team_ids)
         ).first()
         
+        # Fallback: try matching by name variations
         if not team_member:
+            # Try exact username match
+            team_member = TeamMember.query.filter(
+                TeamMember.name == user.username,
+                TeamMember.account_id == current_user.account_id,
+                TeamMember.team_id.in_(user_team_ids)
+            ).first()
+        
+        if not team_member:
+            # Try display name match (First Last)
+            display_name = f"{user.first_name} {user.last_name}" if user.first_name and user.last_name else None
+            if display_name:
+                team_member = TeamMember.query.filter(
+                    TeamMember.name == display_name,
+                    TeamMember.account_id == current_user.account_id,
+                    TeamMember.team_id.in_(user_team_ids)
+                ).first()
+        
+        if not team_member:
+            # Try case-insensitive partial match
+            team_member = TeamMember.query.filter(
+                TeamMember.name.ilike(f"%{user.username.replace('.', '%').replace('_', '%')}%"),
+                TeamMember.account_id == current_user.account_id,
+                TeamMember.team_id.in_(user_team_ids)
+            ).first()
+        
+        if not team_member:
+            logger.warning(f"No TeamMember found for user {user.username} (id={user.id}) in teams {user_team_ids}")
             return jsonify({
                 'success': True, 
                 'shift': None,
                 'message': 'User not found in team roster'
             })
         
-        # Get shift for the specific date
+        logger.info(f"Found TeamMember: {team_member.name} (id={team_member.id}) for user {user.username}")
+        
+        # Get shift for the specific date - check all user's teams
         shift_roster = ShiftRoster.query.filter(
             ShiftRoster.team_member_id == team_member.id,
             ShiftRoster.date == shift_date,
-            ShiftRoster.account_id == current_user.account_id,
-            ShiftRoster.team_id == current_user.team_id
+            ShiftRoster.account_id == current_user.account_id
         ).first()
         
         if shift_roster:
@@ -665,17 +759,21 @@ def get_user_shift_details():
 @shift_swap_leave_bp.route('/api/available-engineers')
 @login_required
 def get_available_engineers():
-    """Get available engineers for swap on a specific date"""
+    """Get available engineers for swap on a specific date - filtered by team"""
     try:
-        # STRICT REQUIREMENT: Current user must have team_id and account_id
-        if not current_user.team_id or not current_user.account_id:
+        # STRICT REQUIREMENT: Current user must have team memberships and account_id
+        user_team_memberships = current_user.get_teams()
+        if not user_team_memberships or not current_user.account_id:
             return jsonify({
                 'success': False, 
-                'error': 'User must be assigned to a team and account'
+                'error': 'User must be assigned to teams and account'
             }), 403
+        
+        user_team_ids = [membership.team_id for membership in user_team_memberships]
         
         shift_date_str = request.args.get('date')
         exclude_user_id = request.args.get('exclude_user_id')
+        team_id_param = request.args.get('team_id')  # Optional team filter
         
         if not shift_date_str:
             return jsonify({'success': False, 'error': 'Missing date parameter'}), 400
@@ -683,87 +781,130 @@ def get_available_engineers():
         try:
             shift_date = datetime.strptime(shift_date_str, '%Y-%m-%d').date()
             exclude_user_id = int(exclude_user_id) if exclude_user_id else None
+            team_id_filter = int(team_id_param) if team_id_param else None
         except (ValueError, TypeError):
             return jsonify({'success': False, 'error': 'Invalid date format or user_id'}), 400
         
-        # Get team members directly from team_member table
-        team_members_query = TeamMember.query.filter(
-            TeamMember.account_id == current_user.account_id,
-            TeamMember.team_id == current_user.team_id
-        )
+        # If team_id is specified, validate user belongs to that team and filter by it
+        if team_id_filter:
+            if team_id_filter not in user_team_ids:
+                return jsonify({
+                    'success': False, 
+                    'error': 'Access denied - you do not belong to this team'
+                }), 403
+            # Filter to only the specified team
+            filter_team_ids = [team_id_filter]
+        else:
+            # No filter specified, use all user's teams
+            filter_team_ids = user_team_ids
         
-        team_members = team_members_query.all()
+        # Get team members from the filtered team(s)
+        team_members = TeamMember.query.filter(
+            TeamMember.account_id == current_user.account_id,
+            TeamMember.team_id.in_(filter_team_ids)
+        ).all()
+        
+        logger.info(f"Found {len(team_members)} team members for team_ids={filter_team_ids}")
+        
+        # Also find current user's TeamMember record to exclude
+        current_user_team_member = TeamMember.query.filter(
+            TeamMember.user_id == current_user.id,
+            TeamMember.account_id == current_user.account_id
+        ).first()
+        
+        # If not found by user_id, try by name variations
+        if not current_user_team_member:
+            current_user_team_member = TeamMember.query.filter(
+                TeamMember.account_id == current_user.account_id,
+                TeamMember.team_id.in_(user_team_ids),
+                db.or_(
+                    TeamMember.name == current_user.username,
+                    TeamMember.name.ilike(f"%{current_user.username.replace('.', '%')}%"),
+                    TeamMember.name == f"{current_user.first_name} {current_user.last_name}" if current_user.first_name else False
+                )
+            ).first()
+        
+        current_user_tm_id = current_user_team_member.id if current_user_team_member else None
+        logger.info(f"Current user TeamMember ID: {current_user_tm_id}")
         
         available_engineers = []
+        seen_tm_ids = set()  # Avoid duplicates
+        
         for team_member in team_members:
-            # Find corresponding user - try exact match first, then fuzzy match
-            user = User.query.filter(
-                User.username == team_member.name,
-                User.account_id == current_user.account_id,
-                User.team_id == current_user.team_id,
-                User.is_active == True
-            ).first()
-            
-            # If no exact match, try to find by converting team member name to username format
-            if not user:
-                # Convert "John Doe" to "john.doe" format
-                username_format = team_member.name.lower().replace(' ', '.')
-                user = User.query.filter(
-                    User.username == username_format,
-                    User.account_id == current_user.account_id,
-                    User.team_id == current_user.team_id,
-                    User.is_active == True
-                ).first()
-            
-            # If still no match, try to find by first_name last_name combination
-            if not user and ' ' in team_member.name:
-                name_parts = team_member.name.split(' ', 1)
-                if len(name_parts) == 2:
-                    first_name, last_name = name_parts
-                    user = User.query.filter(
-                        User.first_name.ilike(first_name),
-                        User.last_name.ilike(last_name),
-                        User.account_id == current_user.account_id,
-                        User.team_id == current_user.team_id,
-                        User.is_active == True
-                    ).first()
-            
-            # Skip if no corresponding active user or if it's the excluded user
-            if not user or (exclude_user_id and user.id == exclude_user_id):
+            # Skip if this is the current user's team member record or already added
+            if team_member.id == current_user_tm_id or team_member.id in seen_tm_ids:
                 continue
+            
+            # Skip if exclude_user_id matches the team_member's user_id
+            if exclude_user_id and team_member.user_id == exclude_user_id:
+                continue
+            
+            seen_tm_ids.add(team_member.id)
             
             # Get their shift for the selected date
             current_shift = 'Off'
             shift_roster = ShiftRoster.query.filter(
                 ShiftRoster.team_member_id == team_member.id,
                 ShiftRoster.date == shift_date,
-                ShiftRoster.account_id == current_user.account_id,
-                ShiftRoster.team_id == current_user.team_id
+                ShiftRoster.account_id == current_user.account_id
             ).first()
             
             if shift_roster:
                 current_shift = shift_roster.shift_code
             
-            # Prioritize team member name for display, but format properly
+            # Try to find corresponding User for the ID (needed for swap submission)
+            # We need a valid user_id to create a swap request
+            user = None
+            user_id = None
+            
+            if team_member.user_id:
+                user = User.query.get(team_member.user_id)
+                if user:
+                    user_id = user.id
+            
+            # If no user_id from team_member, try to find User by name matching
+            if not user:
+                # Try various name formats
+                possible_names = [
+                    team_member.name,
+                    team_member.name.lower().replace('-', '.'),  # Infrauser-3 -> infrauser.3
+                    team_member.name.lower().replace('-', ''),   # Infrauser-3 -> infrauser3
+                ]
+                for name in possible_names:
+                    user = User.query.filter(
+                        User.account_id == current_user.account_id,
+                        db.or_(
+                            User.username == name,
+                            User.username.ilike(name)
+                        )
+                    ).first()
+                    if user:
+                        user_id = user.id
+                        break
+            
+            # Skip team members without a linked user account (can't do swap request)
+            if not user_id:
+                logger.debug(f"Skipping team member {team_member.name} - no linked user account found")
+                continue
+            
+            # Use team member's name for display (from roster)
             display_name = team_member.name
+            username = team_member.name
             
-            # If team member name looks like a username (has dots or underscores), use user's proper name
-            if ('.' in team_member.name or '_' in team_member.name) and not ' ' in team_member.name:
-                if user.first_name and user.last_name:
-                    display_name = f"{user.first_name} {user.last_name}"
-                elif user.first_name:
-                    display_name = user.first_name
-            
-            # If team member name is in proper format (First Last), keep it as is
-            # This ensures team member names like "John Doe" are displayed correctly
+            if user:
+                username = user.username
+                # If team member name looks like ID, use user's proper name
+                if ' ' not in team_member.name and (user.first_name or user.last_name):
+                    display_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
             
             available_engineers.append({
-                'id': user.id,
-                'username': user.username,
+                'id': user_id,
+                'username': username,
                 'full_name': display_name,
                 'current_shift': current_shift
             })
         
+        logger.info(f"Returning {len(available_engineers)} available engineers for shift swap")
         return jsonify({
             'success': True,
             'engineers': available_engineers
@@ -785,9 +926,20 @@ def simple_swap_request():
             original_shift_code = request.form.get('original_shift_code')
             swap_with_engineer_id = request.form.get('swap_with_engineer_id')
             
+            # Log form data for debugging
+            logger.info(f"Form data received - date: {swap_date_str}, from: {from_engineer_id}, shift: {original_shift_code}, swap_with: {swap_with_engineer_id}")
+            
             # Validate required fields
-            if not all([swap_date_str, from_engineer_id, swap_with_engineer_id]):
-                flash('All fields are required.', 'error')
+            missing_fields = []
+            if not swap_date_str:
+                missing_fields.append('date')
+            if not from_engineer_id:
+                missing_fields.append('from_engineer')
+            if not swap_with_engineer_id:
+                missing_fields.append('swap_with_engineer')
+            
+            if missing_fields:
+                flash(f'Missing required fields: {", ".join(missing_fields)}. Please ensure all fields are filled.', 'error')
                 return redirect(url_for('shift_swap_leave.simple_swap_request'))
             
             # Parse date
@@ -809,20 +961,44 @@ def simple_swap_request():
                 flash('Selected engineer not found.', 'error')
                 return redirect(url_for('shift_swap_leave.simple_swap_request'))
             
+            # Get user's team memberships
+            user_team_memberships = current_user.get_teams()
+            user_team_ids = [m.team_id for m in user_team_memberships] if user_team_memberships else []
+            
             # Get swap partner's shift for the same date
-            swap_with_team_member = TeamMember.query.filter_by(
-                name=swap_with_user.username,
-                account_id=current_user.account_id,
-                team_id=current_user.team_id
-            ).first()
+            # First try by user_id (most reliable)
+            swap_with_team_member = None
+            if user_team_ids:
+                swap_with_team_member = TeamMember.query.filter(
+                    TeamMember.user_id == swap_with_user.id,
+                    TeamMember.account_id == current_user.account_id,
+                    TeamMember.team_id.in_(user_team_ids)
+                ).first()
+            
+            # If not found by user_id, try name matching as fallback
+            if not swap_with_team_member and user_team_ids:
+                # Try various name formats
+                possible_names = [
+                    swap_with_user.username,
+                    swap_with_user.username.replace('.', '-'),
+                    swap_with_user.username.replace('.', '-').title(),
+                    f"{swap_with_user.first_name}-{swap_with_user.last_name}" if swap_with_user.first_name and swap_with_user.last_name else None,
+                    f"{swap_with_user.first_name} {swap_with_user.last_name}" if swap_with_user.first_name and swap_with_user.last_name else None
+                ]
+                possible_names = [n for n in possible_names if n]
+                
+                swap_with_team_member = TeamMember.query.filter(
+                    TeamMember.name.in_(possible_names),
+                    TeamMember.account_id == current_user.account_id,
+                    TeamMember.team_id.in_(user_team_ids)
+                ).first()
             
             swap_partner_shift = 'OFF'
             if swap_with_team_member:
                 partner_roster = ShiftRoster.query.filter(
                     ShiftRoster.team_member_id == swap_with_team_member.id,
                     ShiftRoster.date == swap_date,
-                    ShiftRoster.account_id == current_user.account_id,
-                    ShiftRoster.team_id == current_user.team_id
+                    ShiftRoster.account_id == current_user.account_id
                 ).first()
                 
                 if partner_roster:
@@ -860,17 +1036,31 @@ def simple_swap_request():
     # Get team members for admin dropdown
     team_members = []
     if current_user.role in ['super_admin', 'account_admin', 'team_admin']:
-        team_members = User.query.filter(
-            User.account_id == current_user.account_id,
-            User.team_id == current_user.team_id,
-            User.is_active == True,
-            User.role.in_(['user', 'engineer', 'team_admin'])
-        ).all()
+        # Get users from user's teams
+        user_team_memberships = current_user.get_teams()
+        user_team_ids = [m.team_id for m in user_team_memberships] if user_team_memberships else []
+        
+        if user_team_ids:
+            team_members_query = User.query.join(UserTeamMembership).filter(
+                User.account_id == current_user.account_id,
+                User.is_active == True,
+                User.role.in_(['user', 'engineer', 'team_admin']),
+                UserTeamMembership.team_id.in_(user_team_ids),
+                UserTeamMembership.is_active == True
+            ).distinct().all()
+        else:
+            # Fallback to legacy team_id
+            team_members_query = User.query.filter(
+                User.account_id == current_user.account_id,
+                User.team_id == current_user.team_id,
+                User.is_active == True,
+                User.role.in_(['user', 'engineer', 'team_admin'])
+            ).all()
         
         team_members = [{
             'id': user.id,
             'full_name': f"{user.first_name} {user.last_name}"
-        } for user in team_members]
+        } for user in team_members_query]
     
     return render_template('shift_management/simple_swap_request.html', 
                          current_user=current_user,
@@ -901,12 +1091,45 @@ def get_user_shift_for_date(date):
         except ValueError:
             return jsonify({"success": False, "error": "Invalid date format"}), 400
         
-        # Get user's team member record
+        # Get user's team memberships to find their teams
+        user_team_memberships = current_user.get_teams()
+        user_team_ids = [m.team_id for m in user_team_memberships] if user_team_memberships else []
+        
+        # Try to find TeamMember by user_id first (most reliable)
         team_member = TeamMember.query.filter_by(user_id=current_user.id).first()
+        
+        # Fallback: try matching by name variations
+        if not team_member and current_user.account_id:
+            # Try exact username match
+            team_member = TeamMember.query.filter(
+                TeamMember.name == current_user.username,
+                TeamMember.account_id == current_user.account_id
+            ).first()
+        
+        if not team_member and current_user.account_id:
+            # Try display name match (First Last)
+            display_name = f"{current_user.first_name} {current_user.last_name}" if current_user.first_name and current_user.last_name else None
+            if display_name:
+                team_member = TeamMember.query.filter(
+                    TeamMember.name == display_name,
+                    TeamMember.account_id == current_user.account_id
+                ).first()
+        
+        if not team_member and current_user.account_id:
+            # Try case-insensitive partial match (e.g., "infrauser3" matches "Infrauser-3")
+            search_pattern = current_user.username.replace('.', '%').replace('_', '%').replace('-', '%')
+            team_member = TeamMember.query.filter(
+                TeamMember.name.ilike(f"%{search_pattern}%"),
+                TeamMember.account_id == current_user.account_id
+            ).first()
+        
         if not team_member:
+            logger.warning(f"No TeamMember found for user {current_user.username} (id={current_user.id})")
             return jsonify({"success": False, "error": "Team member record not found"}), 404
         
-        # Get scheduled shift for the date - try without account_id first, then with
+        logger.info(f"Found TeamMember: {team_member.name} (id={team_member.id}) for user {current_user.username}")
+        
+        # Get scheduled shift for the date
         roster_entry = ShiftRoster.query.filter_by(
             date=leave_date,
             team_member_id=team_member.id

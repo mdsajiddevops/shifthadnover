@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from flask_login import login_required, current_user
-from models.models import Account, Team, User, db
+from models.models import Account, Team, User, UserTeamMembership, db
 
 onboarding_bp = Blueprint('onboarding', __name__)
 
@@ -48,12 +48,25 @@ def complete_onboarding():
         flash('Selected team does not belong to the selected account.', 'danger')
         return redirect(url_for('onboarding.onboarding'))
     
-    # Update user with selections
+    # Update user with selections and create team membership
     current_user.account_id = account_id
     current_user.team_id = team_id
     current_user.role = 'user'  # Default role for new users
+    current_user.onboarding_completed = True
+    current_user.first_login = False
     
     try:
+        # Create primary team membership using the new system
+        membership = UserTeamMembership(
+            user_id=current_user.id,
+            team_id=team_id,
+            account_id=account_id,
+            is_primary=True,
+            role='member',
+            is_active=True
+        )
+        db.session.add(membership)
+        
         db.session.commit()
         flash(f'Welcome! You have been assigned to {account.name} - {team.name}', 'success')
         return redirect(url_for('main.dashboard'))
@@ -80,8 +93,21 @@ def skip_onboarding():
             current_user.account_id = techcorp_account.id
             current_user.team_id = operations_team.id
             current_user.role = 'user'
+            current_user.onboarding_completed = True
+            current_user.first_login = False
             
             try:
+                # Create primary team membership using the new system
+                membership = UserTeamMembership(
+                    user_id=current_user.id,
+                    team_id=operations_team.id,
+                    account_id=techcorp_account.id,
+                    is_primary=True,
+                    role='member',
+                    is_active=True
+                )
+                db.session.add(membership)
+                
                 db.session.commit()
                 flash('You have been assigned to the default team. You can change this later in your profile.', 'info')
                 return redirect(url_for('main.dashboard'))

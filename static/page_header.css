@@ -1,0 +1,202 @@
+/* ================================================
+   UNIFIED PAGE HEADER COMPONENT
+   Consistent styling for all page headers
+   ================================================ */
+
+/* Main Page Header Container */
+.page-header {
+    background: linear-gradient(135deg, #5a8fd8 0%, #7ba3e0 50%, #9db8e8 100%);
+    color: white;
+    padding: 1.75rem 2rem;
+    border-radius: 16px;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(90, 143, 216, 0.25);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Subtle overlay effect */
+.page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -15%;
+    width: 50%;
+    height: 200%;
+    background: radial-gradient(ellipse, rgba(255,255,255,0.1) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+/* Header Content Layout */
+.page-header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+}
+
+.page-header-left {
+    flex: 1;
+}
+
+.page-header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+/* Page Title */
+.page-header h1,
+.page-header .page-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin: 0 0 0.4rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: white;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.page-header h1 i,
+.page-header .page-title i {
+    font-size: 1.4rem;
+    opacity: 0.9;
+}
+
+/* Page Subtitle/Description */
+.page-header p,
+.page-header .page-subtitle {
+    margin: 0;
+    opacity: 0.9;
+    font-size: 0.95rem;
+    font-weight: 400;
+}
+
+/* Header Badges */
+.page-header-badge {
+    background: rgba(255,255,255,0.2);
+    backdrop-filter: blur(10px);
+    padding: 0.6rem 1.1rem;
+    border-radius: 10px;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.25);
+    min-width: 80px;
+}
+
+.page-header-badge .badge-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    display: block;
+    line-height: 1.2;
+}
+
+.page-header-badge .badge-label {
+    font-size: 0.7rem;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Header Actions/Buttons */
+.page-header .btn-header {
+    background: rgba(255,255,255,0.95);
+    color: #5a8fd8;
+    border: none;
+    padding: 0.5rem 1.25rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.page-header .btn-header:hover {
+    background: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    color: #4a7fc8;
+}
+
+.page-header .btn-header-outline {
+    background: transparent;
+    color: white;
+    border: 2px solid rgba(255,255,255,0.5);
+    padding: 0.5rem 1.25rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.page-header .btn-header-outline:hover {
+    background: rgba(255,255,255,0.15);
+    border-color: rgba(255,255,255,0.8);
+    color: white;
+}
+
+/* Note: Color variants removed for consistency - all pages use default blue */
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .page-header {
+        padding: 1.25rem 1.5rem;
+        border-radius: 12px;
+    }
+    
+    .page-header-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    
+    .page-header-right {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+    
+    .page-header h1,
+    .page-header .page-title {
+        font-size: 1.35rem;
+    }
+    
+    .page-header p,
+    .page-header .page-subtitle {
+        font-size: 0.875rem;
+    }
+}
+
+/* Simple Header (no right content) */
+.page-header.simple {
+    padding: 1.5rem 2rem;
+}
+
+.page-header.simple .page-header-content {
+    justify-content: flex-start;
+}
+
+/* Compact Header */
+.page-header.compact {
+    padding: 1.25rem 1.75rem;
+}
+
+.page-header.compact h1,
+.page-header.compact .page-title {
+    font-size: 1.4rem;
+    margin-bottom: 0.25rem;
+}
+
+.page-header.compact p,
+.page-header.compact .page-subtitle {
+    font-size: 0.875rem;
+}
+

@@ -1,0 +1,729 @@
+{% extends "base.html" %}
+
+{% block title %}Team Email Configuration - Admin Panel{% endblock %}
+
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<style>
+    .config-card {
+        background: #ffffff;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+    }
+    
+    .config-card:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        transform: translateY(-2px);
+    }
+    
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .form-group {
+        position: relative;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .form-control, .form-select {
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+        transform: translateY(-1px);
+    }
+    
+    .btn {
+        border-radius: 8px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.15s ease;
+        text-decoration: none;
+    }
+    
+    .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        text-decoration: none;
+    }
+    
+    .btn-primary { background: #0d6efd; color: white; }
+    .btn-success { background: #198754; color: white; }
+    .btn-outline-secondary { 
+        background: transparent; 
+        color: #6c757d; 
+        border: 1px solid #6c757d; 
+    }
+    
+    .team-card {
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .team-card:hover {
+        border-color: #0d6efd;
+        background: #f8f9ff;
+    }
+    
+    .team-card.active {
+        border-color: #198754;
+        background: #f0f9f4;
+    }
+    
+    .email-list {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    
+    .email-tag {
+        display: inline-block;
+        background: #e9ecef;
+        border-radius: 20px;
+        padding: 0.25rem 0.75rem;
+        margin: 0.25rem;
+        font-size: 0.875rem;
+    }
+    
+    .status-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+    
+    .status-active {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+    
+    .status-inactive {
+        background: #f8d7da;
+        color: #842029;
+    }
+    
+    @media (max-width: 768px) {
+        .form-row {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        
+        .btn-group {
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">👥 Team Email Configuration</h2>
+                    <p class="text-muted mb-0">Manage team email distribution lists and member assignments</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('admin_secrets.config_menu') }}" class="btn btn-outline-secondary me-2">
+                        <i class="fas fa-arrow-left"></i> Back to Menu
+                    </a>
+                    <button class="btn btn-success" onclick="testTeamEmail()">
+                        <i class="fas fa-envelope"></i> Test Email
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Overview -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Active Teams</h5>
+                    <h2 class="text-primary mb-0" id="activeTeamsCount">-</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Total Members</h5>
+                    <h2 class="text-info mb-0" id="totalMembersCount">-</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Email Lists</h5>
+                    <h2 class="text-success mb-0" id="emailListsCount">-</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Team Selection -->
+    <div class="config-card">
+        <h4 class="mb-3">
+            <i class="fas fa-users"></i> Team Selection
+        </h4>
+        <div class="row">
+            <div class="col-md-6">
+                <label class="form-label">Select Team</label>
+                <select class="form-select" id="teamSelect" onchange="loadTeamDetails()">
+                    <option value="">-- Select Team --</option>
+                    <!-- Populated by JavaScript -->
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Team Status</label>
+                <div class="d-flex align-items-center mt-2">
+                    <span class="status-badge status-inactive" id="teamStatus">No team selected</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Team Email Configuration -->
+    <div class="config-card" id="teamConfigSection" style="display: none;">
+        <h4 class="mb-3">
+            <i class="fas fa-cog"></i> Email Configuration
+        </h4>
+        <form id="teamEmailForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Team Email Address</label>
+                    <input type="email" class="form-control" id="teamEmailAddress" 
+                           placeholder="team@company.com" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Display Name</label>
+                    <input type="text" class="form-control" id="teamDisplayName" 
+                           placeholder="Team Display Name" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Email Distribution Type</label>
+                    <select class="form-select" id="distributionType">
+                        <option value="all">Send to All Members</option>
+                        <option value="leads">Send to Team Leads Only</option>
+                        <option value="custom">Custom Distribution List</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email Template</label>
+                    <select class="form-select" id="emailTemplate">
+                        <option value="standard">Standard Notification</option>
+                        <option value="urgent">Urgent Alert</option>
+                        <option value="daily_summary">Daily Summary</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-outline-secondary me-2" onclick="resetTeamForm()">
+                            <i class="fas fa-undo"></i> Reset
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Configuration
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Team Members -->
+    <div class="config-card" id="teamMembersSection" style="display: none;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0">
+                <i class="fas fa-users"></i> Team Members
+            </h4>
+            <button class="btn btn-outline-primary" onclick="addTeamMember()">
+                <i class="fas fa-plus"></i> Add Member
+            </button>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-hover" id="membersTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Receive Emails</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="membersTableBody">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Email Distribution List -->
+    <div class="config-card" id="distributionListSection" style="display: none;">
+        <h4 class="mb-3">
+            <i class="fas fa-envelope-open"></i> Email Distribution List
+        </h4>
+        <div class="row">
+            <div class="col-md-8">
+                <div class="email-list" id="emailList">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h6>Distribution Summary</h6>
+                        <p class="mb-1">Total Recipients: <span class="fw-bold" id="totalRecipients">0</span></p>
+                        <p class="mb-1">Active Members: <span class="fw-bold" id="activeMembers">0</span></p>
+                        <p class="mb-0">Email Lists: <span class="fw-bold" id="customLists">0</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Member Modal -->
+<div class="modal fade" id="addMemberModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Team Member</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addMemberForm">
+                    <div class="mb-3">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" class="form-control" id="memberName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="memberEmail" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Role</label>
+                        <select class="form-select" id="memberRole">
+                            <option value="member">Team Member</option>
+                            <option value="lead">Team Lead</option>
+                            <option value="admin">Administrator</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="receiveEmails" checked>
+                            <label class="form-check-label" for="receiveEmails">
+                                Receive team emails
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveMember()">Add Member</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="mt-2">Processing...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+let currentTeam = null;
+let teamMembers = [];
+let teamConfig = {};
+
+// Load data on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadTeams();
+    updateStats();
+});
+
+// Load available teams
+function loadTeams() {
+    fetch('/admin/secrets/api/teams')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const select = document.getElementById('teamSelect');
+                select.innerHTML = '<option value="">-- Select Team --</option>';
+                
+                data.teams.forEach(team => {
+                    const option = document.createElement('option');
+                    option.value = team.id;
+                    option.textContent = team.name;
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            showAlert('Error loading teams: ' + error.message, 'error');
+        });
+}
+
+// Load team details when team is selected
+function loadTeamDetails() {
+    const teamId = document.getElementById('teamSelect').value;
+    
+    if (!teamId) {
+        hideTeamSections();
+        return;
+    }
+    
+    currentTeam = teamId;
+    
+    // Load team configuration
+    Promise.all([
+        fetch(`/admin/secrets/api/teams/${teamId}/config`),
+        fetch(`/admin/secrets/api/teams/${teamId}/members`)
+    ])
+    .then(responses => Promise.all(responses.map(r => r.json())))
+    .then(([configData, membersData]) => {
+        if (configData.success && membersData.success) {
+            teamConfig = configData.config;
+            teamMembers = membersData.members;
+            
+            populateTeamForm();
+            populateMembers();
+            updateDistributionList();
+            showTeamSections();
+        }
+    })
+    .catch(error => {
+        showAlert('Error loading team details: ' + error.message, 'error');
+    });
+}
+
+// Populate team configuration form
+function populateTeamForm() {
+    document.getElementById('teamEmailAddress').value = teamConfig.email || '';
+    document.getElementById('teamDisplayName').value = teamConfig.display_name || '';
+    document.getElementById('distributionType').value = teamConfig.distribution_type || 'all';
+    document.getElementById('emailTemplate').value = teamConfig.email_template || 'standard';
+    
+    // Update status
+    const statusElement = document.getElementById('teamStatus');
+    if (teamConfig.active) {
+        statusElement.className = 'status-badge status-active';
+        statusElement.textContent = 'Active';
+    } else {
+        statusElement.className = 'status-badge status-inactive';
+        statusElement.textContent = 'Inactive';
+    }
+}
+
+// Populate team members table
+function populateMembers() {
+    const tbody = document.getElementById('membersTableBody');
+    tbody.innerHTML = '';
+    
+    teamMembers.forEach(member => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${member.name}</td>
+            <td>${member.email}</td>
+            <td>
+                <span class="badge bg-${member.role === 'lead' ? 'primary' : 'secondary'}">
+                    ${member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                </span>
+            </td>
+            <td>
+                <span class="badge bg-${member.active ? 'success' : 'danger'}">
+                    ${member.active ? 'Active' : 'Inactive'}
+                </span>
+            </td>
+            <td>
+                <input type="checkbox" class="form-check-input" 
+                       ${member.receive_emails ? 'checked' : ''} 
+                       onchange="updateMemberEmailStatus(${member.id}, this.checked)">
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="editMember(${member.id})">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="removeMember(${member.id})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Update email distribution list
+function updateDistributionList() {
+    const emailList = document.getElementById('emailList');
+    const distributionType = document.getElementById('distributionType').value;
+    
+    let recipients = [];
+    
+    switch (distributionType) {
+        case 'all':
+            recipients = teamMembers.filter(m => m.active && m.receive_emails);
+            break;
+        case 'leads':
+            recipients = teamMembers.filter(m => m.active && m.receive_emails && m.role === 'lead');
+            break;
+        case 'custom':
+            recipients = teamMembers.filter(m => m.active && m.receive_emails && m.custom_list);
+            break;
+    }
+    
+    emailList.innerHTML = recipients.map(member => 
+        `<span class="email-tag">${member.email}</span>`
+    ).join('');
+    
+    // Update summary
+    document.getElementById('totalRecipients').textContent = recipients.length;
+    document.getElementById('activeMembers').textContent = teamMembers.filter(m => m.active).length;
+    document.getElementById('customLists').textContent = teamMembers.filter(m => m.custom_list).length;
+}
+
+// Show team configuration sections
+function showTeamSections() {
+    document.getElementById('teamConfigSection').style.display = 'block';
+    document.getElementById('teamMembersSection').style.display = 'block';
+    document.getElementById('distributionListSection').style.display = 'block';
+}
+
+// Hide team configuration sections
+function hideTeamSections() {
+    document.getElementById('teamConfigSection').style.display = 'none';
+    document.getElementById('teamMembersSection').style.display = 'none';
+    document.getElementById('distributionListSection').style.display = 'none';
+    document.getElementById('teamStatus').className = 'status-badge status-inactive';
+    document.getElementById('teamStatus').textContent = 'No team selected';
+}
+
+// Handle team email form submission
+document.getElementById('teamEmailForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const config = {
+        team_id: currentTeam,
+        email: document.getElementById('teamEmailAddress').value,
+        display_name: document.getElementById('teamDisplayName').value,
+        distribution_type: document.getElementById('distributionType').value,
+        email_template: document.getElementById('emailTemplate').value
+    };
+    
+    fetch(`/admin/secrets/api/teams/${currentTeam}/config`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(config)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('Team email configuration saved successfully!', 'success');
+            loadTeamDetails(); // Refresh data
+        } else {
+            showAlert('Error saving configuration: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error saving configuration: ' + error.message, 'error');
+    });
+});
+
+// Add team member
+function addTeamMember() {
+    const modal = new bootstrap.Modal(document.getElementById('addMemberModal'));
+    modal.show();
+}
+
+// Save new member
+function saveMember() {
+    const member = {
+        team_id: currentTeam,
+        name: document.getElementById('memberName').value,
+        email: document.getElementById('memberEmail').value,
+        role: document.getElementById('memberRole').value,
+        receive_emails: document.getElementById('receiveEmails').checked
+    };
+    
+    fetch(`/admin/secrets/api/teams/${currentTeam}/members`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(member)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('Team member added successfully!', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('addMemberModal')).hide();
+            loadTeamDetails(); // Refresh data
+        } else {
+            showAlert('Error adding member: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error adding member: ' + error.message, 'error');
+    });
+}
+
+// Update member email status
+function updateMemberEmailStatus(memberId, receiveEmails) {
+    fetch(`/admin/secrets/api/teams/${currentTeam}/members/${memberId}`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ receive_emails: receiveEmails })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateDistributionList();
+        } else {
+            showAlert('Error updating member: ' + data.error, 'error');
+        }
+    });
+}
+
+// Remove team member
+function removeMember(memberId) {
+    if (confirm('Are you sure you want to remove this team member?')) {
+        fetch(`/admin/secrets/api/teams/${currentTeam}/members/${memberId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Team member removed successfully!', 'success');
+                loadTeamDetails(); // Refresh data
+            } else {
+                showAlert('Error removing member: ' + data.error, 'error');
+            }
+        });
+    }
+}
+
+// Test team email
+function testTeamEmail() {
+    if (!currentTeam) {
+        showAlert('Please select a team first', 'warning');
+        return;
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    modal.show();
+    
+    fetch(`/admin/secrets/api/teams/${currentTeam}/test-email`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('Test email sent successfully!', 'success');
+        } else {
+            showAlert('Error sending test email: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error sending test email: ' + error.message, 'error');
+    })
+    .finally(() => {
+        modal.hide();
+    });
+}
+
+// Reset team form
+function resetTeamForm() {
+    populateTeamForm();
+    showAlert('Form reset to saved values', 'info');
+}
+
+// Update statistics
+function updateStats() {
+    fetch('/admin/secrets/api/teams/stats')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('activeTeamsCount').textContent = data.stats.active_teams;
+                document.getElementById('totalMembersCount').textContent = data.stats.total_members;
+                document.getElementById('emailListsCount').textContent = data.stats.email_lists;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading stats:', error);
+        });
+}
+
+// Show alert messages
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}

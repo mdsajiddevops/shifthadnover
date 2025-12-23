@@ -2,6 +2,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from flask import session
 from models.models import TeamMember, ShiftRoster, Team, Account, db
+from services.multi_team_service import MultiTeamService, apply_team_filtering
+from services.team_access_service import TeamAccessService
 from datetime import datetime
 
 roster_bp = Blueprint('roster', __name__)
@@ -31,6 +33,9 @@ def roster():
     if not year:
         year = now.year
     filter_date = request.args.get('filter_date')
+    # Default to today's date if no filter is provided
+    if not filter_date:
+        filter_date = now.strftime('%Y-%m-%d')
     filter_shift = request.args.get('filter_shift')
 
     query = db.session.query(ShiftRoster)
@@ -102,25 +107,47 @@ def roster():
             else:
                 query = query.filter(ShiftRoster.team_id.in_([-1]))  # No teams = no results
     else:
-        # SECURITY FIX: Regular users (team_admin, user) see ONLY their own team data
-        if not current_user.team_id:
-            flash('Access denied: No team assigned to your account.', 'error')
+        # Regular users: Show all teams from their account (not just their own team)
+        account_id = current_user.account_id
+        accounts = [Account.query.get(account_id)] if account_id else []
+        
+        # Get ALL teams from the user's account (not just user's teams)
+        if account_id:
+            teams = Team.query.filter_by(account_id=account_id, is_active=True).all()
+        else:
+            teams = []
+        
+        # Check if account has any teams
+        if not teams:
+            flash('No teams found in your account.', 'info')
             return redirect(url_for('main.dashboard'))
         
-        account_id = current_user.account_id
-        team_id = current_user.team_id
+        # Handle team selection
+        team_id = request.args.get('team_id')
+        if team_id:
+            try:
+                team_id = int(team_id)
+                # Validate team belongs to user's account
+                team_exists = Team.query.filter_by(id=team_id, account_id=account_id).first()
+                if not team_exists:
+                    team_id = None
+            except (TypeError, ValueError):
+                team_id = None
         
-        # Strict validation: ensure user can only access their own team
-        accounts = []  # No account dropdown for regular users
-        teams = []     # No team dropdown for regular users
+        # Filter by account
+        query = query.filter(ShiftRoster.account_id == account_id)
         
-        # Filter strictly by user's team only
-        query = query.filter(ShiftRoster.account_id==account_id)
-        query = query.filter(ShiftRoster.team_id==team_id)
+        # Filter by specific team if selected, otherwise show all account teams
+        if team_id:
+            query = query.filter(ShiftRoster.team_id == team_id)
+        else:
+            team_ids = [t.id for t in teams]
+            if team_ids:
+                query = query.filter(ShiftRoster.team_id.in_(team_ids))
         
         # Log access for security monitoring
         from flask import current_app
-        current_app.logger.info(f"User {current_user.username} (role: {current_user.role}) accessed roster - restricted to team {team_id}")
+        current_app.logger.info(f"User {current_user.username} (role: {current_user.role}) accessed roster - account: {account_id}, teams visible: {len(teams)}")
     # Removed debug flash
     if month:
         query = query.filter(db.extract('month', ShiftRoster.date) == month)
@@ -163,12 +190,26 @@ def roster():
             else:
                 tm_query = tm_query.filter(TeamMember.team_id.in_([-1]))  # No teams = no results
     else:
-        # SECURITY FIX: Regular users see only their team members
-        if not current_user.team_id:
-            # This should already be caught above, but double-check for security
-            tm_query = tm_query.filter_by(id=-1)  # Return no results
+        # Regular users: show all team members from their account
+        account_id = current_user.account_id
+        team_id = request.args.get('team_id')
+        if team_id:
+            try:
+                team_id = int(team_id)
+            except (TypeError, ValueError):
+                team_id = None
+        
+        tm_query = tm_query.filter_by(account_id=account_id)
+        if team_id:
+            tm_query = tm_query.filter_by(team_id=team_id)
         else:
-            tm_query = tm_query.filter_by(account_id=current_user.account_id, team_id=current_user.team_id)
+            # If no team selected, show all team members for account
+            account_teams = Team.query.filter_by(account_id=account_id, is_active=True).all()
+            team_ids = [t.id for t in account_teams]
+            if team_ids:
+                tm_query = tm_query.filter(TeamMember.team_id.in_(team_ids))
+            else:
+                tm_query = tm_query.filter(TeamMember.team_id.in_([-1]))
     all_members_all = tm_query.all()
     # Only include members with at least one shift entry
     member_ids_with_shifts = {entry.team_member_id for entry in roster_entries}
@@ -214,16 +255,26 @@ def roster():
                 base_roster_query = base_roster_query.filter(ShiftRoster.team_id == team_id)
                 
         else:
-            # Regular users and team admins - ONLY their own team
-            if not current_user.team_id:
-                # No team assigned = no results
+            # Regular users - show all teams from their account
+            user_account_id = current_user.account_id
+            if not user_account_id:
+                # No account assigned = no results
                 base_roster_query = ShiftRoster.query.filter(ShiftRoster.id == -1)
             else:
+                # Get all teams from user's account
+                user_account_teams = Team.query.filter_by(account_id=user_account_id, is_active=True).all()
+                user_account_team_ids = [t.id for t in user_account_teams]
+                
                 base_roster_query = ShiftRoster.query.filter(
                     ShiftRoster.date == date_obj,
-                    ShiftRoster.account_id == current_user.account_id,
-                    ShiftRoster.team_id == current_user.team_id
+                    ShiftRoster.account_id == user_account_id
                 )
+                
+                # Filter by specific team if selected, otherwise show all account teams
+                if team_id and team_id in user_account_team_ids:
+                    base_roster_query = base_roster_query.filter(ShiftRoster.team_id == team_id)
+                elif user_account_team_ids:
+                    base_roster_query = base_roster_query.filter(ShiftRoster.team_id.in_(user_account_team_ids))
         
         if filter_shift is not None and filter_shift != '':
             # Single shift filter with security
@@ -238,7 +289,9 @@ def roster():
                 elif current_user.role == 'account_admin':
                     allowed_team_ids = [t.id for t in teams]
                 else:
-                    allowed_team_ids = [current_user.team_id] if current_user.team_id else []
+                    # Regular users: all teams from their account
+                    user_acc_teams = Team.query.filter_by(account_id=current_user.account_id, is_active=True).all()
+                    allowed_team_ids = [t.id for t in user_acc_teams]
                 
                 present_members = TeamMember.query.filter(
                     TeamMember.id.in_(present_member_ids),
@@ -261,7 +314,9 @@ def roster():
                     elif current_user.role == 'account_admin':
                         allowed_team_ids = [t.id for t in teams]
                     else:
-                        allowed_team_ids = [current_user.team_id] if current_user.team_id else []
+                        # Regular users: all teams from their account
+                        user_acc_teams = Team.query.filter_by(account_id=current_user.account_id, is_active=True).all()
+                        allowed_team_ids = [t.id for t in user_acc_teams]
                     
                     members = TeamMember.query.filter(
                         TeamMember.id.in_(member_ids),
@@ -285,6 +340,12 @@ def roster():
             total_members = sum(len(members) for members in present_members_by_shift.values())
             current_app.logger.info(f"User {current_user.username} (role: {current_user.role}) viewed team availability - Date: {filter_date}, All shifts, Results: {total_members} members")
 
+    # Set team filter context for template
+    if current_user.role not in ['super_admin', 'account_admin']:
+        team_filter_context = TeamAccessService.get_team_filter_context()
+    else:
+        team_filter_context = None
+    
     return render_template(
         'shift_roster.html',
         all_dates=all_dates,
@@ -299,6 +360,9 @@ def roster():
         present_members=present_members,
         present_members_by_shift=present_members_by_shift if 'present_members_by_shift' in locals() else {},
         accounts=accounts,
-        teams=teams
+        teams=teams,
+        selected_account_id=account_id,
+        selected_team_id=team_id,
+        team_filter_context=team_filter_context
     )
 

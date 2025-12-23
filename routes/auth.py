@@ -4,7 +4,35 @@ from flask_login import login_user, logout_user, login_required, current_user
 from models.models import User, Account, Team, db
 from models.password_reset import PasswordResetToken
 from services.password_reset_service import PasswordResetService
+from services.team_access_service import TeamAccessService
 from werkzeug.security import check_password_hash, generate_password_hash
+
+
+def initialize_user_team_session(user):
+    """Initialize user's team session on login - set primary team as default"""
+    try:
+        # Get user's primary team and set it in session
+        primary_team_id = TeamAccessService.get_primary_team_id(user=user, account_id=user.account_id)
+        if primary_team_id:
+            session['selected_team_id'] = primary_team_id
+            print(f"✅ [AUTH] Initialized session with primary team {primary_team_id} for user {user.username}")
+        else:
+            # If no primary team, get first available team
+            user_teams = user.get_teams(account_id=user.account_id, active_only=True)
+            if user_teams:
+                session['selected_team_id'] = user_teams[0].team_id
+                print(f"✅ [AUTH] Initialized session with first team {user_teams[0].team_id} for user {user.username}")
+            else:
+                # Fallback to legacy team_id
+                if user.team_id:
+                    session['selected_team_id'] = user.team_id
+                    print(f"✅ [AUTH] Initialized session with legacy team_id {user.team_id} for user {user.username}")
+        
+        # Set account in session too
+        if user.account_id:
+            session['selected_account_id'] = user.account_id
+    except Exception as e:
+        print(f"⚠️ [AUTH] Error initializing team session: {e}")
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -23,9 +51,46 @@ def set_selection():
     # Team admin/user: do not allow changing
     return redirect(request.referrer or url_for('dashboard.dashboard'))
 
+# Route for multi-team filtering
+@auth_bp.route('/set_team_filter', methods=['POST'])
+@auth_bp.route('/auth/set_team_filter', methods=['POST'])  # Add prefixed route for frontend compatibility
+@login_required
+def set_team_filter():
+    """Set the active team filter for multi-team users"""
+    from services.team_access_service import TeamAccessService
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return {'success': False, 'message': 'No data provided'}, 400
+            
+        team_id = data.get('team_id')
+        
+        print(f"🔄 [AUTH] Team filter change request: {team_id}")
+        
+        # Convert 'all' to None for all teams
+        if team_id == 'all':
+            team_id = None
+        else:
+            team_id = int(team_id) if team_id and str(team_id).isdigit() else None
+        
+        # Validate and set the team filter
+        if TeamAccessService.set_selected_team(team_id):
+            print(f"✅ [AUTH] Team filter updated to: {team_id}")
+            return {'success': True, 'message': 'Team filter updated', 'team_id': team_id}
+        else:
+            print(f"❌ [AUTH] Invalid team selection: {team_id}")
+            return {'success': False, 'message': 'Invalid team selection'}, 400
+            
+    except Exception as e:
+        print(f"❌ [AUTH] Error setting team filter: {e}")
+        return {'success': False, 'message': f'Error: {str(e)}'}, 500
+
 # Make accounts/teams available in all templates
 @auth_bp.app_context_processor
 def inject_accounts_teams():
+    from services.team_access_service import TeamAccessService
+    
     try:
         # Check if current_user is available and authenticated
         if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated and current_user.role in ['super_admin', 'account_admin']:
@@ -42,7 +107,15 @@ def inject_accounts_teams():
     except:
         teams = []
     
-    return dict(accounts=accounts, teams=teams)
+    # Add team filter context for multi-team users
+    team_filter_context = {}
+    try:
+        if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+            team_filter_context = TeamAccessService.get_team_filter_context()
+    except:
+        pass
+    
+    return dict(accounts=accounts, teams=teams, team_filter_context=team_filter_context)
 
 from flask import jsonify
 
@@ -86,6 +159,7 @@ def login():
                 db.session.commit()
                 
                 login_user(user)
+                initialize_user_team_session(user)
                 return redirect(url_for('dashboard.dashboard'))
             else:
                 flash('Invalid credentials')
@@ -111,6 +185,7 @@ def login():
                         db.session.commit()
                         
                         login_user(user)
+                        initialize_user_team_session(user)
                         return redirect(url_for('dashboard.dashboard'))
                     else:
                         flash('Invalid credentials or account mismatch')
@@ -124,6 +199,7 @@ def login():
                         db.session.commit()
                         
                         login_user(user)
+                        initialize_user_team_session(user)
                         return redirect(url_for('dashboard.dashboard'))
                     else:
                         flash('Invalid credentials or team/account mismatch')
@@ -137,6 +213,7 @@ def login():
                         db.session.commit()
                         
                         login_user(user)
+                        initialize_user_team_session(user)
                         return redirect(url_for('dashboard.dashboard'))
                     else:
                         flash('Invalid credentials or team/account mismatch')

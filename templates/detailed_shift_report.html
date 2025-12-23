@@ -1,0 +1,771 @@
+{% extends "base.html" %}
+
+{% block title %}Detailed Shift Report - {{ shift.date.strftime('%B %d, %Y') }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-header {
+        background: linear-gradient(135deg, #4a90e2 0%, #2c5aa0 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 15px rgba(74, 144, 226, 0.3);
+    }
+    
+    .report-section {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        margin-bottom: 2rem;
+        border: 1px solid #f0f8ff;
+        overflow: hidden;
+    }
+    
+    .section-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 1.5rem;
+        border-bottom: 1px solid #f0f8ff;
+        position: relative;
+    }
+    
+    .section-header h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .section-header .section-count {
+        position: absolute;
+        right: 1.5rem;
+        top: 50%;
+        transform: translateY(-50%);
+        background: linear-gradient(135deg, #4a90e2, #2c5aa0);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+    
+    .section-body {
+        padding: 1.5rem;
+    }
+    
+    .item-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
+        border: 1px solid #e3f2fd;
+        border-radius: 8px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+    
+    .item-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        border-color: #4a90e2;
+    }
+    
+    .item-card:last-child {
+        margin-bottom: 0;
+    }
+    
+    .incident-card {
+        border-left: 4px solid #dc3545;
+    }
+    
+    .incident-card.priority {
+        border-left-color: #fd7e14;
+    }
+    
+    .incident-card.closed {
+        border-left-color: #198754;
+    }
+    
+    .incident-card.handover {
+        border-left-color: #0d6efd;
+    }
+    
+    .incident-card.escalated {
+        border-left-color: #6c757d;
+    }
+    
+    .keypoint-card {
+        border-left: 4px solid #6f42c1;
+    }
+    
+    .keypoint-card.open {
+        border-left-color: #dc3545;
+    }
+    
+    .keypoint-card.in_progress {
+        border-left-color: #fd7e14;
+    }
+    
+    .keypoint-card.closed {
+        border-left-color: #198754;
+    }
+    
+    .change-card {
+        border-left: 4px solid #0dcaf0;
+    }
+    
+    .kb-card {
+        border-left: 4px solid #198754;
+    }
+    
+    .empty-section {
+        text-align: center;
+        padding: 3rem 2rem;
+        color: #6c757d;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 2px dashed #dee2e6;
+        border-radius: 8px;
+    }
+    
+    .empty-section i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.6;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 0.375rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .status-open {
+        background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+        color: white;
+    }
+    
+    .status-in-progress {
+        background: linear-gradient(135deg, #ffd43b, #fab005);
+        color: #333;
+    }
+    
+    .status-closed {
+        background: linear-gradient(135deg, #51cf66, #40c057);
+        color: white;
+    }
+    
+    .status-high {
+        background: linear-gradient(135deg, #ff8a80, #ff5722);
+        color: white;
+    }
+    
+    .status-medium {
+        background: linear-gradient(135deg, #ffb74d, #ff9800);
+        color: white;
+    }
+    
+    .status-low {
+        background: linear-gradient(135deg, #81c784, #4caf50);
+        color: white;
+    }
+    
+    .meta-info {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #f0f8ff;
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    
+    .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .header-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+    
+    .stat-card {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+    }
+    
+    .stat-number {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+    
+    .stat-label {
+        font-size: 0.875rem;
+        opacity: 0.9;
+    }
+    
+    .breadcrumb {
+        background: transparent;
+        padding: 0;
+        margin-bottom: 1rem;
+    }
+    
+    .breadcrumb-item + .breadcrumb-item::before {
+        content: "›";
+        color: #6c757d;
+    }
+    
+    /* Ensure all sections stack vertically */
+    .container-fluid {
+        display: block !important;
+    }
+    
+    .report-section {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-bottom: 2rem !important;
+        display: block !important;
+        float: none !important;
+        clear: both !important;
+        position: relative !important;
+    }
+    
+    /* Force vertical stacking - override any flex or grid */
+    .report-section + .report-section {
+        margin-top: 2rem !important;
+    }
+    
+    /* Override any Bootstrap grid system that might cause horizontal layout */
+    .container-fluid > .report-section {
+        display: block !important;
+        width: 100% !important;
+        clear: both !important;
+        margin-bottom: 2rem !important;
+    }
+    
+    @media (max-width: 768px) {
+        .report-header {
+            padding: 1.5rem;
+        }
+        
+        .section-header {
+            padding: 1rem;
+        }
+        
+        .section-body {
+            padding: 1rem;
+        }
+        
+        .item-card {
+            padding: 1rem;
+        }
+        
+        .header-stats {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    
+    /* Ensure sections stack vertically */
+    /* Debug borders to identify layout issues */
+    .report-section {
+        border: 3px solid red !important;
+        margin: 10px 0 !important;
+    }
+    
+    /* ULTRA-AGGRESSIVE: Force single column layout */
+    body, html, .container-fluid, .main-content {
+        display: block !important;
+        flex-direction: column !important;
+    }
+    
+    .container-fluid {
+        display: block !important;
+        width: 100% !important;
+        flex-wrap: nowrap !important;
+    }
+    
+    /* Nuclear option: Override ANY layout that makes sections side-by-side */
+    .container-fluid > .report-section,
+    .report-section {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        float: none !important;
+        flex: none !important;
+        flex-basis: 100% !important;
+        flex-grow: 0 !important;
+        flex-shrink: 0 !important;
+        position: relative !important;
+        clear: both !important;
+    }
+    
+    /* Specific fix: Force each section to be on its own line */
+    .report-section:nth-child(2),
+    .report-section:nth-child(3), 
+    .report-section:nth-child(4),
+    .report-section:nth-child(5) {
+        clear: both !important;
+        display: block !important;
+        width: 100% !important;
+        margin-top: 2rem !important;
+    }
+    
+    /* Override any Bootstrap grid or flex that might affect sections */
+    .container-fluid {
+        display: block !important;
+        flex-direction: column !important;
+        flex-wrap: nowrap !important;
+    }
+    
+    .container-fluid::after {
+        content: '';
+        display: table;
+        clear: both;
+    }
+    
+    .container-fluid > * {
+        display: block !important;
+        width: 100% !important;
+        float: none !important;
+        clear: both !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    .report-section {
+        width: 100% !important;
+        max-width: 100% !important;
+        display: block !important;
+        clear: both !important;
+        float: none !important;
+        margin-bottom: 2rem !important;
+        position: relative !important;
+    }
+    
+    .section-body {
+        width: 100% !important;
+        display: block !important;
+        clear: both !important;
+    }
+    
+    /* Override any potential Bootstrap or CSS frameworks */
+    .report-section + .report-section {
+        clear: both !important;
+        display: block !important;
+    }
+    
+    /* Emergency override for any grid/flex layouts */
+    .report-section,
+    .report-section * {
+        box-sizing: border-box !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('reports.handover_reports') }}">Reports</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Shift Details</li>
+        </ol>
+    </nav>
+
+    <!-- Report Header -->
+    <div class="report-header">
+        <div>
+            <div>
+                <h1 class="h2 mb-2">
+                    <i class="bi bi-file-earmark-text me-2"></i>
+                    Shift Handover Report
+                </h1>
+                <p class="mb-0 opacity-75">
+                    Detailed view of shift handover from {{ shift.date.strftime('%B %d, %Y') }}
+                </p>
+            </div>
+            <div class="mt-3">
+                <div class="d-inline-block me-3">
+                    <div class="stat-card">
+                        <div class="stat-number">{{ shift.current_shift_type }}</div>
+                        <div class="stat-label">From Shift</div>
+                    </div>
+                </div>
+                <div class="d-inline-block">
+                    <div class="stat-card">
+                        <div class="stat-number">{{ shift.next_shift_type }}</div>
+                        <div class="stat-label">To Shift</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Header Statistics -->
+        <div class="mt-4">
+            <div class="stat-card d-inline-block me-2 mb-2">
+                <div class="stat-number">{{ incidents|length }}</div>
+                <div class="stat-label">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    Total Incidents
+                </div>
+            </div>
+            <div class="stat-card d-inline-block me-2 mb-2">
+                <div class="stat-number">{{ key_points|length }}</div>
+                <div class="stat-label">
+                    <i class="bi bi-key me-1"></i>
+                    Key Points
+                </div>
+            </div>
+            <div class="stat-card d-inline-block me-2 mb-2">
+                <div class="stat-number">{{ change_infos|length }}</div>
+                <div class="stat-label">
+                    <i class="bi bi-arrow-repeat me-1"></i>
+                    Changes
+                </div>
+            </div>
+            <div class="stat-card d-inline-block me-2 mb-2">
+                <div class="stat-number">{{ kb_updates|length }}</div>
+                <div class="stat-label">
+                    <i class="bi bi-journal-text me-1"></i>
+                    KB Updates
+                </div>
+            </div>
+            <div class="stat-card d-inline-block me-2 mb-2">
+                <div class="stat-number">
+                    {% if shift.status == 'draft' %}
+                        <span class="badge bg-warning">Draft</span>
+                    {% else %}
+                        <span class="badge bg-success">Sent</span>
+                    {% endif %}
+                </div>
+                <div class="stat-label">Status</div>
+            </div>
+            <div class="stat-card d-inline-block me-2 mb-2">
+                <div class="stat-number">{{ submitted_by }}</div>
+                <div class="stat-label">
+                    <i class="bi bi-person me-1"></i>
+                    Submitted By
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Incident Details Section -->
+    <div class="section-wrapper" style="width: 100%; display: block; clear: both;">
+    <div class="report-section">
+        <div class="section-header">
+            <h3>
+                <i class="bi bi-exclamation-triangle me-2 text-danger"></i>
+                Incident Details
+            </h3>
+            <div class="section-count">{{ incidents|length }}</div>
+        </div>
+        <div class="section-body">
+            {% if incidents %}
+                {% for incident_type, type_incidents in incidents_by_type.items() %}
+                    {% if type_incidents %}
+                        <div class="mb-4">
+                            <h5 class="mb-3 text-capitalize">
+                                {% if incident_type == 'open' %}
+                                    <i class="bi bi-exclamation-circle text-danger me-2"></i>Open/Active Incidents
+                                {% elif incident_type == 'closed' %}
+                                    <i class="bi bi-check-circle text-success me-2"></i>Closed/Resolved Incidents
+                                {% elif incident_type == 'priority' %}
+                                    <i class="bi bi-star-fill text-warning me-2"></i>Priority Incidents
+                                {% elif incident_type == 'handover' %}
+                                    <i class="bi bi-arrow-right text-primary me-2"></i>Handover Incidents
+                                {% elif incident_type == 'escalated' %}
+                                    <i class="bi bi-arrow-up-circle text-secondary me-2"></i>Escalated Incidents
+                                {% endif %}
+                                <span class="badge bg-secondary ms-2">{{ type_incidents|length }}</span>
+                            </h5>
+                            
+                            {% for incident in type_incidents %}
+                                <div class="item-card incident-card {{ incident_type }}">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h6 class="mb-1 fw-bold">{{ incident.title or 'Incident #' + incident.id|string }}</h6>
+                                        {% if incident.priority %}
+                                            <span class="status-badge status-{{ incident.priority.lower() }}">
+                                                {{ incident.priority }}
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    {% if incident.description %}
+                                        <p class="mb-2 text-muted">{{ incident.description }}</p>
+                                    {% endif %}
+                                    
+                                    <div class="meta-info">
+                                        {% if incident.assignment_group %}
+                                            <div class="meta-item">
+                                                <i class="bi bi-building"></i>
+                                                <span>{{ incident.assignment_group }}</span>
+                                            </div>
+                                        {% endif %}
+                                        {% if incident.number %}
+                                            <div class="meta-item">
+                                                <i class="bi bi-hash"></i>
+                                                <span>{{ incident.number }}</span>
+                                            </div>
+                                        {% endif %}
+                                        {% if incident.assigned_to %}
+                                            <div class="meta-item">
+                                                <i class="bi bi-person"></i>
+                                                <span>{{ incident.assigned_to }}</span>
+                                            </div>
+                                        {% endif %}
+                                        {% if incident.status %}
+                                            <div class="meta-item">
+                                                <i class="bi bi-flag"></i>
+                                                <span>{{ incident.status }}</span>
+                                            </div>
+                                        {% endif %}
+                                        {% if incident.escalated_to %}
+                                            <div class="meta-item">
+                                                <i class="bi bi-arrow-up-circle"></i>
+                                                <span>Escalated to: {{ incident.escalated_to }}</span>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            {% else %}
+                <div class="empty-section">
+                    <i class="bi bi-shield-check text-success"></i>
+                    <h5 class="text-success">All Clear!</h5>
+                    <p class="mb-0">No incidents were reported for this shift.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    </div>
+
+    <!-- Change Details Section -->
+    <div class="section-wrapper" style="width: 100%; display: block; clear: both;">
+    <div class="report-section">
+        <div class="section-header">
+            <h3>
+                <i class="bi bi-arrow-repeat me-2 text-info"></i>
+                Change Details
+            </h3>
+            <div class="section-count">{{ change_infos|length }}</div>
+        </div>
+        <div class="section-body">
+            {% if change_infos %}
+                {% for change in change_infos %}
+                    <div class="item-card change-card">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="mb-1 fw-bold">{{ change.app_name }}</h6>
+                            {% if change.change_number %}
+                                <code class="bg-light px-2 py-1 rounded">{{ change.change_number }}</code>
+                            {% endif %}
+                        </div>
+                        
+                        {% if change.description %}
+                            <p class="mb-2 text-muted">{{ change.description }}</p>
+                        {% endif %}
+                        
+                        <div class="meta-info">
+                            {% if change.responsible %}
+                                <div class="meta-item">
+                                    <i class="bi bi-person"></i>
+                                    <span>{{ change.responsible }}</span>
+                                </div>
+                            {% endif %}
+                            {% if change.change_datetime %}
+                                <div class="meta-item">
+                                    <i class="bi bi-calendar"></i>
+                                    <span>{{ change.change_datetime.strftime('%B %d, %Y at %I:%M %p') }}</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-section">
+                    <i class="bi bi-arrow-repeat text-muted"></i>
+                    <h5 class="text-muted">No Changes</h5>
+                    <p class="mb-0">No application changes were documented for this shift.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    </div>
+
+    <!-- Knowledge Base Updates Section -->
+    <div class="section-wrapper" style="width: 100%; display: block; clear: both;">
+    <div class="report-section">
+        <div class="section-header">
+            <h3>
+                <i class="bi bi-journal-text me-2 text-success"></i>
+                Knowledge Base Updates
+            </h3>
+            <div class="section-count">{{ kb_updates|length }}</div>
+        </div>
+        <div class="section-body">
+            {% if kb_updates %}
+                {% for kb in kb_updates %}
+                    <div class="item-card kb-card">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="mb-1 fw-bold">{{ kb.app_name }}</h6>
+                            <div class="d-flex align-items-center gap-2">
+                                {% if kb.kb_number %}
+                                    <code class="bg-light px-2 py-1 rounded">{{ kb.kb_number }}</code>
+                                {% endif %}
+                                {% if kb.status %}
+                                    <span class="status-badge status-{{ 'closed' if kb.status == 'Published' else 'in-progress' if kb.status == 'In Review' else 'open' }}">
+                                        {{ kb.status }}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        {% if kb.description %}
+                            <p class="mb-2 text-muted">{{ kb.description }}</p>
+                        {% endif %}
+                        
+                        <div class="meta-info">
+                            {% if kb.responsible %}
+                                <div class="meta-item">
+                                    <i class="bi bi-person"></i>
+                                    <span>{{ kb.responsible }}</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-section">
+                    <i class="bi bi-journal-text text-muted"></i>
+                    <h5 class="text-muted">No KB Updates</h5>
+                    <p class="mb-0">No knowledge base updates were documented for this shift.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    </div>
+
+    <!-- Key Points Section -->
+    <div class="section-wrapper" style="width: 100%; display: block; clear: both;">
+    <div class="report-section">
+        <div class="section-header">
+            <h3>
+                <i class="bi bi-key me-2 text-purple"></i>
+                Key Points
+            </h3>
+            <div class="section-count">{{ key_points|length }}</div>
+        </div>
+        <div class="section-body">
+            {% if key_points %}
+                {% for status, status_points in key_points_by_status.items() %}
+                    {% if status_points %}
+                        <div class="mb-4">
+                            <h5 class="mb-3 text-capitalize">
+                                {% if status == 'open' %}
+                                    <i class="bi bi-circle text-danger me-2"></i>Open Key Points
+                                {% elif status == 'in_progress' %}
+                                    <i class="bi bi-play-circle text-warning me-2"></i>In Progress
+                                {% elif status == 'closed' %}
+                                    <i class="bi bi-check-circle text-success me-2"></i>Completed
+                                {% endif %}
+                                <span class="badge bg-secondary ms-2">{{ status_points|length }}</span>
+                            </h5>
+                            
+                            {% for kp in status_points %}
+                                <div class="item-card keypoint-card {{ status }}">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <p class="mb-1 fw-medium">{{ kp.description }}</p>
+                                        <span class="status-badge status-{{ status.replace('_', '-') }}">
+                                            {{ kp.status or 'Open' }}
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="meta-info">
+                                        {% if kp.responsible_engineer %}
+                                            <div class="meta-item">
+                                                <i class="bi bi-person"></i>
+                                                <span>{{ kp.responsible_engineer.name }}</span>
+                                            </div>
+                                        {% endif %}
+                                        {% if kp.jira_id %}
+                                            <div class="meta-item">
+                                                <i class="bi bi-link-45deg"></i>
+                                                <span>JIRA: {{ kp.jira_id }}</span>
+                                            </div>
+                                        {% endif %}
+                                        {% if kp.created_at %}
+                                            <div class="meta-item">
+                                                <i class="bi bi-clock"></i>
+                                                <span>{{ kp.created_at.strftime('%B %d, %Y at %I:%M %p') }}</span>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            {% else %}
+                <div class="empty-section">
+                    <i class="bi bi-key text-muted"></i>
+                    <h5 class="text-muted">No Key Points</h5>
+                    <p class="mb-0">No key points were documented for this shift.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    </div>
+
+    <!-- Additional Notes Section -->
+    <div class="section-wrapper" style="width: 100%; display: block; clear: both;">
+    {% if shift.additional_notes and shift.additional_notes.strip() %}
+    <div class="report-section">
+        <div class="section-header">
+            <h3>
+                <i class="bi bi-sticky me-2 text-info"></i>
+                Additional Notes
+            </h3>
+        </div>
+        <div class="section-body">
+            <div class="item-card">
+                <div class="bg-light p-3 rounded">
+                    <pre style="white-space: pre-wrap; font-family: inherit; margin: 0;">{{ shift.additional_notes }}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+    {% endif %}
+
+    <!-- Action Buttons -->
+    <div class="mt-4 mb-4 text-center">
+        <a href="{{ url_for('reports.handover_reports') }}" class="btn btn-outline-secondary me-2 mb-2">
+            <i class="bi bi-arrow-left me-2"></i>Back to Reports
+        </a>
+        {% if shift.status == 'draft' %}
+            <a href="{{ url_for('handover.edit_handover', shift_id=shift.id) }}" class="btn btn-primary me-2 mb-2">
+                <i class="bi bi-pencil me-2"></i>Edit Handover
+            </a>
+        {% endif %}
+        <a href="{{ url_for('reports.export_handover_csv', shift_id=shift.id) }}" class="btn btn-outline-success me-2 mb-2">
+            <i class="bi bi-download me-2"></i>Export CSV
+        </a>
+        <a href="{{ url_for('reports.export_handover_pdf', shift_id=shift.id) }}" class="btn btn-outline-danger me-2 mb-2">
+            <i class="bi bi-file-earmark-pdf me-2"></i>Export PDF
+        </a>
+    </div>
+</div>
+{% endblock %}

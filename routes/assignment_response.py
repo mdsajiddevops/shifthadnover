@@ -18,31 +18,67 @@ logger = logging.getLogger(__name__)
 
 assignment_response_bp = Blueprint('assignment_response', __name__, url_prefix='/assignment')
 
+@assignment_response_bp.route('/test', methods=['GET'])
+@login_required
+def test_endpoint():
+    """Test endpoint to verify the blueprint is working"""
+    return jsonify({
+        'success': True,
+        'message': 'Assignment response blueprint is working',
+        'user': current_user.username,
+        'timestamp': datetime.utcnow().isoformat()
+    })
+
 @assignment_response_bp.route('/assignment-response', methods=['POST'])
 @login_required  
 def handle_notification_response():
     """Handle Accept/Reject actions for notification-based incident assignments"""
     try:
-        data = request.get_json()
+        # Log the incoming request
+        logger.info(f"Processing notification response from user {current_user.id} ({current_user.username})")
+        
+        # Get JSON data with proper error handling
+        try:
+            data = request.get_json(force=True)
+        except Exception as json_error:
+            logger.error(f"Failed to parse JSON data: {str(json_error)}")
+            return jsonify({'success': False, 'error': 'Invalid JSON data'}), 400
         
         notification_id = data.get('notification_id')
         action = data.get('action')  # 'accept' or 'reject'
         comments = data.get('comments', '')
         
+        logger.info(f"Request data: notification_id={notification_id}, action={action}")
+        
+        # Validate required fields
         if not notification_id or not action:
-            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+            logger.error("Missing required fields in request")
+            return jsonify({'success': False, 'error': 'Missing required fields: notification_id and action are required'}), 400
         
         if action not in ['accept', 'reject']:
-            return jsonify({'success': False, 'error': 'Invalid action'}), 400
+            logger.error(f"Invalid action: {action}")
+            return jsonify({'success': False, 'error': 'Invalid action. Must be "accept" or "reject"'}), 400
         
-        # Get the notification
-        notification = HandoverNotification.query.get(notification_id)
+        # Get the notification with error handling
+        try:
+            notification = HandoverNotification.query.get(notification_id)
+        except Exception as db_error:
+            logger.error(f"Database error fetching notification {notification_id}: {str(db_error)}")
+            return jsonify({'success': False, 'error': 'Database error occurred'}), 500
+        
         if not notification:
-            return jsonify({'success': False, 'error': 'Notification not found'}), 404
+            logger.error(f"Notification {notification_id} not found")
+            return jsonify({'success': False, 'error': f'Notification {notification_id} not found'}), 404
         
         # Verify the notification belongs to the current user
         if notification.recipient_id != current_user.id:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+            logger.error(f"Unauthorized access: notification {notification_id} belongs to user {notification.recipient_id}, not {current_user.id}")
+            return jsonify({'success': False, 'error': 'Unauthorized: This notification does not belong to you'}), 403
+        
+        # Check if notification is already processed
+        if notification.is_read:
+            logger.warning(f"Notification {notification_id} already processed")
+            return jsonify({'success': False, 'error': 'This notification has already been processed'}), 409
         
         # Find existing log entry based on notification data
         # Extract incident number from notification title
@@ -70,8 +106,8 @@ def handle_notification_response():
                     incident_description=notification.message or 'Assignment from notification',
                     accepted_by_id=current_user.id,
                     accepted_by_name=current_user.username,
-                    assigned_by_id=1,  # Default system user
-                    assigned_by_name='System',
+                    assigned_by_id=current_user.id,  # Use current user as fallback for system assignments
+                    assigned_by_name=current_user.username or 'System',
                     assigned_at=notification.created_at,
                     responded_at=datetime.utcnow(),  # Set initial value to avoid null constraint
                     handover_request_id=notification.handover_request_id,
@@ -109,33 +145,60 @@ def handle_notification_response():
             else:
                 log_entry.assignment_notes = f"Response time: {response_time} minutes"
         
-        # Mark notification as read
+        # Mark notification as read and commit all changes
         try:
             logger.info(f"Updating notification {notification_id} status")
             notification.is_read = True
             notification.read_at = datetime.utcnow()
-            # Note: action_taken and action_taken_at fields don't exist in model
-            logger.info(f"Notification updated, committing to database")
+            
+            logger.info(f"Committing all changes to database")
             db.session.commit()
             logger.info(f"Database commit successful")
+            
         except Exception as commit_error:
             logger.error(f"Error during database commit: {str(commit_error)}")
-            raise commit_error
+            db.session.rollback()
+            
+            # Handle specific foreign key constraint errors
+            if 'foreign key constraint fails' in str(commit_error).lower():
+                error_msg = 'Database constraint error: Invalid user reference. Please contact administrator.'
+            elif 'duplicate entry' in str(commit_error).lower():
+                error_msg = 'This notification has already been processed.'
+            else:
+                error_msg = f'Database error: {str(commit_error)}'
+                
+            return jsonify({'success': False, 'error': error_msg}), 500
         
-        logger.info(f"Notification {notification_id} {action}ed by user {current_user.id} ({current_user.username})")
+        logger.info(f"Notification {notification_id} {action}ed successfully by user {current_user.id} ({current_user.username})")
         logger.info(f"Created/Updated log entry ID: {log_entry.id} for incident: {log_entry.incident_number}")
         
+        # Send success response
         return jsonify({
             'success': True,
             'message': f'Assignment {action}ed successfully',
             'action': action,
-            'log_id': log_entry.id
+            'log_id': log_entry.id,
+            'notification_id': notification_id
         })
         
     except Exception as e:
-        logger.error(f"Error handling notification response: {str(e)}")
-        db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"Unexpected error handling notification response: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
+        # Ensure rollback
+        try:
+            db.session.rollback()
+        except:
+            pass
+            
+        # Return detailed error for debugging (consider removing in production)
+        return jsonify({
+            'success': False, 
+            'error': f'Server error: {str(e)}',
+            'error_type': type(e).__name__
+        }), 500
 
 @assignment_response_bp.route('/respond', methods=['POST'])
 @login_required

@@ -4,11 +4,11 @@
 
 {% block content %}
 <style>
-/* Enhanced Modern Styling */
-body {
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%) !important;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-    color: #2c3e50 !important;
+/* Enhanced Modern Styling - Shift Management Dashboard */
+.shift-mgmt-page {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    min-height: 100%;
+    padding: 1rem;
 }
 
 .dashboard-header {
@@ -274,17 +274,18 @@ body {
 }
 </style>
 
-<div class="dashboard-header">
-    <h1 style="margin: 0; font-size: 2.5rem;">
-        <i class="fas fa-calendar-alt"></i>
-        Shift Management Dashboard
-    </h1>
-    <p style="margin: 10px 0 0 0; font-size: 1.1rem; opacity: 0.9;">
-        Manage your shift swaps and leave requests with ease
-    </p>
-</div>
+<div class="shift-mgmt-page">
+    <div class="dashboard-header">
+        <h1 style="margin: 0; font-size: 2rem;">
+            <i class="fas fa-calendar-alt"></i>
+            Shift Management Dashboard
+        </h1>
+        <p style="margin: 10px 0 0 0; font-size: 1rem; opacity: 0.9;">
+            Manage your shift swaps and leave requests with ease
+        </p>
+    </div>
 
-<div class="container-fluid">
+    <div class="container-fluid px-3">
     <div class="row">
         <div class="col-md-6">
             <div class="modern-card">
@@ -586,6 +587,7 @@ body {
         </div>
     </div>
     {% endif %}
+    </div>
 </div>
 
 <script>

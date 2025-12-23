@@ -1,0 +1,95 @@
+<!-- Team Filter Component -->
+{% if team_filter_context and team_filter_context.show_team_filter %}
+<div class="team-filter-container mb-3">
+    <div class="row">
+        <div class="col-md-6">
+            <label for="team-filter" class="form-label">
+                <i class="fas fa-filter me-1"></i>Filter by Team:
+            </label>
+            <select id="team-filter" class="form-select" onchange="updateTeamFilter()">
+                <option value="all" {% if not team_filter_context.selected_team_id %}selected{% endif %}>
+                    All My Teams ({{ team_filter_context.user_teams|length }})
+                </option>
+                {% for team in team_filter_context.user_teams %}
+                <option value="{{ team.id }}" 
+                        {% if team_filter_context.selected_team_id == team.id %}selected{% endif %}>
+                    {{ team.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6">
+            <div class="d-flex align-items-end h-100">
+                <small class="text-muted">
+                    Showing data for: 
+                    <strong>
+                        {% if team_filter_context.selected_team_id %}
+                            {% for team in team_filter_context.user_teams %}
+                                {% if team.id == team_filter_context.selected_team_id %}
+                                    {{ team.name }}
+                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            All Teams
+                        {% endif %}
+                    </strong>
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.team-filter-container {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.team-filter-container .form-select {
+    max-width: 300px;
+}
+
+.team-filter-container .form-label {
+    color: #495057;
+    font-weight: 500;
+}
+</style>
+
+<script>
+function updateTeamFilter() {
+    const teamSelect = document.getElementById('team-filter');
+    const teamId = teamSelect.value;
+    
+    // Show loading state
+    teamSelect.disabled = true;
+    
+    fetch('/auth/set_team_filter', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            team_id: teamId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Reload the page to refresh data with new filter
+            window.location.reload();
+        } else {
+            alert('Error updating team filter: ' + data.message);
+            teamSelect.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Network error updating team filter');
+        teamSelect.disabled = false;
+    });
+}
+</script>
+{% endif %}

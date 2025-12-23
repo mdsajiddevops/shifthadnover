@@ -1,4 +1,4 @@
-from flask import Blueprint, request, render_template, redirect, url_for, flash, jsonify, current_app
+from flask import Blueprint, request, render_template, redirect, url_for, flash, jsonify, current_app, session
 from flask_login import login_required, current_user
 from models.models import Shift, Incident, KeyPoint, TeamMember, Team, AuditLog, ShiftRoster
 from models.incident_assignment import IncidentAssignment
@@ -6,8 +6,56 @@ from models.database import db
 from datetime import datetime, date, timedelta, time as dt_time
 import pytz
 from services.servicenow_service import ServiceNowService
+from services.team_access_service import TeamAccessService
 
 handover_bp = Blueprint('handover', __name__)
+
+@handover_bp.route('/api/team-members/<int:team_id>', methods=['GET'])
+@login_required
+def get_team_members_api(team_id):
+    """API endpoint to fetch team members for a specific team"""
+    try:
+        # Verify user has access to this team
+        if current_user.role == 'super_admin':
+            # Super admin can access any team
+            pass
+        elif current_user.role == 'account_admin':
+            # Account admin can access teams in their account
+            team = Team.query.get(team_id)
+            if not team or team.account_id != current_user.account_id:
+                return jsonify({'error': 'Access denied'}), 403
+        else:
+            # Regular users can only access their assigned teams
+            user_teams = current_user.get_teams()
+            user_team_ids = [team.id for team in user_teams]
+            if team_id not in user_team_ids:
+                return jsonify({'error': 'Access denied'}), 403
+        
+        # Fetch team members
+        team_members = TeamMember.query.filter_by(
+            team_id=team_id, 
+            is_active=True
+        ).all()
+        
+        # Format response
+        members_data = [
+            {
+                'id': member.id,
+                'name': member.name,
+                'user_id': member.user_id
+            }
+            for member in team_members
+        ]
+        
+        return jsonify({
+            'success': True,
+            'members': members_data,
+            'team_id': team_id
+        })
+        
+    except Exception as e:
+        print(f"❌ Error fetching team members: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @handover_bp.route('/handover', methods=['GET', 'POST'])
 @login_required  
@@ -33,29 +81,61 @@ def handover():
         return redirect(url_for('dashboard.dashboard'))
         
     if current_user.role in ['super_admin', 'account_admin']:
-        team_id_raw = request.form.get('team_id') if request.method == 'POST' else current_user.team_id
+        team_id_raw = request.form.get('team_id') if request.method == 'POST' else None
+        # If no team specified, use user's primary team
+        if not team_id_raw:
+            primary_team_membership = current_user.get_primary_team_membership()
+            team_id_raw = primary_team_membership.team_id if primary_team_membership else None
     else:
-        team_id_raw = current_user.team_id
+        # Regular users: use selected team from form (POST) or session/request (GET)
+        if request.method == 'POST':
+            team_id_raw = request.form.get('team_id')
+        else:
+            team_id_raw = request.args.get('team_id') or session.get('filter_team_id')
+        
+        # If no team selected, use team filter context
+        if not team_id_raw:
+            team_filter_context = TeamAccessService.get_team_filter_context()
+            team_id_raw = team_filter_context['selected_team_id']
+            
+            # Fallback to first team if still no selection
+            if not team_id_raw and team_filter_context['user_teams']:
+                team_id_raw = team_filter_context['user_teams'][0].id
         
     try:
         team_id = int(team_id_raw) if team_id_raw not in (None, '', 'None') else None
     except (TypeError, ValueError):
         team_id = None
     
-    # Get teams for the dropdown
+    # Use same team handling logic as dashboard for consistency
     if current_user.role == 'super_admin':
         teams = Team.query.filter_by(status='active').all()
+        default_team_id = team_id
     elif current_user.role == 'account_admin':
         teams = Team.query.filter_by(account_id=current_user.account_id, status='active').all()
-    else:
-        teams = Team.query.filter_by(account_id=current_user.account_id, id=current_user.team_id, status='active').all()
-    
-    # Set default team selection
-    default_team_id = None
-    if current_user.role in ['user', 'team_admin'] and current_user.team_id:
-        default_team_id = current_user.team_id
-    elif team_id:
         default_team_id = team_id
+    else:
+        # Regular users: Use TeamAccessService (SAME AS DASHBOARD)
+        team_filter_context = TeamAccessService.get_team_filter_context()
+        teams = team_filter_context['user_teams']
+        
+        # Debug logging
+        app.logger.info(f"[HANDOVER] User {current_user.username} (role: {current_user.role})")
+        app.logger.info(f"[HANDOVER] Teams from TeamAccessService: {[t.name for t in teams]} (count: {len(teams)})")
+        app.logger.info(f"[HANDOVER] show_team_filter: {team_filter_context.get('show_team_filter', False)}")
+        
+        # Use selected team from session/request or default to context selected team
+        selected_team_id = request.args.get('team_id') or session.get('filter_team_id')
+        if selected_team_id:
+            default_team_id = int(selected_team_id)
+        else:
+            default_team_id = team_filter_context['selected_team_id']
+        
+        app.logger.info(f"[HANDOVER] Default team ID selected: {default_team_id}")
+        
+        # If still no default and user has teams, use first team
+        if not default_team_id and teams:
+            default_team_id = teams[0].id
     
     # Get team members
     tm_query = TeamMember.query
@@ -69,7 +149,17 @@ def handover():
         if team_id:
             tm_query = tm_query.filter_by(team_id=team_id)
     else:
-        tm_query = tm_query.filter_by(account_id=current_user.account_id, team_id=current_user.team_id)
+        # Regular users: filter by their teams
+        user_teams = current_user.get_teams()
+        if user_teams:
+            user_team_ids = [team.id for team in user_teams]
+            tm_query = tm_query.filter(
+                TeamMember.account_id == current_user.account_id,
+                TeamMember.team_id.in_(user_team_ids)
+            )
+        else:
+            # No teams = no members
+            tm_query = tm_query.filter(False)
     
     team_members = tm_query.all()
     
@@ -166,6 +256,22 @@ def handover():
         current_shift_type = 'Night'
         next_shift_type = 'Morning'
     
+    # Get team filter context for template (convert dict to object-like for compatibility)
+    if current_user.role not in ['super_admin', 'account_admin']:
+        ctx = TeamAccessService.get_team_filter_context()
+        # Create a simple object that works with both dict and dot notation
+        class TeamFilterContext:
+            def __init__(self, data):
+                self.show_team_filter = data.get('show_team_filter', False)
+                self.has_multiple_teams = data.get('show_team_filter', False)  # Alias for compatibility
+                self.user_teams = data.get('user_teams', [])
+                self.selected_team_id = data.get('selected_team_id')
+                self.accounts = data.get('accounts', [])
+                self.selected_account_id = data.get('selected_account_id')
+        team_filter_context = TeamFilterContext(ctx)
+    else:
+        team_filter_context = None
+    
     return render_template('handover_form.html',
         team_members=team_members,
         teams=teams,
@@ -184,5 +290,6 @@ def handover():
         today=default_date.strftime('%Y-%m-%d'),
         show_team_error=show_team_error,
         assignment_groups_filter=[],
-        assignment_groups_filtered=False
+        assignment_groups_filtered=False,
+        team_filter_context=team_filter_context
     )

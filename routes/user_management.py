@@ -1,11 +1,186 @@
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
-from models.models import db, User, Account, Team
+from models.models import db, User, Account, Team, UserTeamMembership
 from werkzeug.security import generate_password_hash
 from services.audit_service import log_action
 
 user_mgmt_bp = Blueprint('user_mgmt', __name__)
+
+@user_mgmt_bp.route('/api/user/<int:user_id>/teams')
+@login_required
+def get_user_teams(user_id):
+    """API endpoint to get user's team memberships"""
+    # Allow super_admin and account_admin to manage teams
+    if current_user.role not in ['super_admin', 'account_admin']:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    user = User.query.get_or_404(user_id)
+    
+    try:
+        # Use direct UserTeamMembership query instead of user.get_teams() which may be failing
+        memberships = UserTeamMembership.query.filter_by(
+            user_id=user_id, 
+            is_active=True
+        ).all()
+        teams_data = []
+        
+        for membership in memberships:
+            team = db.session.get(Team, membership.team_id)
+            account = db.session.get(Account, membership.account_id)
+            
+            if team and account:
+                teams_data.append({
+                    'membership_id': membership.id,
+                    'team_id': membership.team_id,
+                    'team_name': team.name,
+                    'account_id': membership.account_id,
+                    'account_name': account.name,
+                    'is_primary': membership.is_primary,
+                    'role': membership.role or '',
+                    'created_at': membership.created_at.strftime('%Y-%m-%d %H:%M:%S') if membership.created_at else ''
+                })
+        
+        return jsonify({
+            'success': True,
+            'user_id': user_id,
+            'username': user.username,
+            'teams': teams_data
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@user_mgmt_bp.route('/api/teams-not-assigned/<int:user_id>')
+@login_required 
+def get_teams_not_assigned_to_user(user_id):
+    """API endpoint to get teams that user is not a member of"""
+    # Allow super_admin and account_admin to manage teams
+    if current_user.role not in ['super_admin', 'account_admin']:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    user = User.query.get_or_404(user_id)
+    
+    try:
+        # Get user's current team IDs
+        current_team_ids = []
+        if hasattr(user, 'get_teams'):
+            memberships = user.get_teams()
+            current_team_ids = [m.team_id for m in memberships]
+        
+        # Get teams user is not a member of (within same account for account admins)
+        query = Team.query.filter(
+            ~Team.id.in_(current_team_ids),
+            Team.is_active == True,
+            Team.status == 'active'
+        )
+        
+        # Account admins can only add users to teams in their account
+        if current_user.role == 'account_admin':
+            query = query.filter(Team.account_id == current_user.account_id)
+            
+        available_teams = query.all()
+        
+        teams_data = []
+        for team in available_teams:
+            account = Account.query.get(team.account_id)
+            teams_data.append({
+                'team_id': team.id,
+                'team_name': team.name,
+                'account_id': team.account_id,
+                'account_name': account.name if account else 'Unknown'
+            })
+        
+        return jsonify({
+            'success': True,
+            'available_teams': teams_data
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@user_mgmt_bp.route('/api/user/<int:user_id>/add-team', methods=['POST'])
+@login_required
+def add_user_to_team_api(user_id):
+    """API endpoint to add a user to a team"""
+    if current_user.role not in ['super_admin', 'account_admin']:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    
+    try:
+        data = request.get_json()
+        team_id = data.get('team_id')
+        role = data.get('role', 'member')
+        is_primary = data.get('is_primary', False)
+        
+        user = User.query.get_or_404(user_id)
+        team = Team.query.get_or_404(team_id)
+        
+        # Check permission
+        if current_user.role == 'account_admin' and team.account_id != current_user.account_id:
+            return jsonify({'success': False, 'error': 'You can only assign users to teams in your account'}), 403
+        
+        # Add team membership
+        membership = user.add_team_membership(
+            team_id=team_id,
+            account_id=team.account_id,
+            is_primary=is_primary,
+            role=role,
+            added_by=current_user
+        )
+        
+        if is_primary:
+            # Update user's primary team_id for backward compatibility
+            user.team_id = team_id
+        
+        db.session.commit()
+        log_action('Add User to Team (API)', f'User: {user.username}, Team: {team.name}, Role: {role}, Primary: {is_primary}')
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully added {user.username} to {team.name}',
+            'membership_id': membership.id
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"[ERROR] add_user_to_team_api: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@user_mgmt_bp.route('/api/user/<int:user_id>/remove-team/<int:team_id>', methods=['DELETE'])
+@login_required
+def remove_user_from_team_api(user_id, team_id):
+    """API endpoint to remove a user from a team"""
+    if current_user.role not in ['super_admin', 'account_admin']:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    
+    try:
+        user = User.query.get_or_404(user_id)
+        team = Team.query.get_or_404(team_id)
+        
+        # Check permission
+        if current_user.role == 'account_admin' and team.account_id != current_user.account_id:
+            return jsonify({'success': False, 'error': 'You can only manage teams in your account'}), 403
+        
+        # Remove team membership
+        success = user.remove_team_membership(team_id, team.account_id)
+        
+        if success:
+            db.session.commit()
+            log_action('Remove User from Team (API)', f'User: {user.username}, Team: {team.name}')
+            return jsonify({
+                'success': True,
+                'message': f'Successfully removed {user.username} from {team.name}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'{user.username} is not a member of {team.name}'
+            }), 400
+            
+    except Exception as e:
+        db.session.rollback()
+        print(f"[ERROR] remove_user_from_team_api: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @user_mgmt_bp.route('/user-management', methods=['GET', 'POST'])
 @login_required
@@ -217,7 +392,51 @@ def user_management():
                             user.email = new_email
                         user.role = new_role
                         user.account_id = new_account_id
-                        user.team_id = new_team_id
+                        
+                        # Handle team assignment properly through UserTeamMembership
+                        if new_team_id and new_team_id != user.team_id:
+                            # Get the team to validate account
+                            team = Team.query.get(new_team_id)
+                            if team and team.account_id == new_account_id:
+                                # Check if user already has membership to this team
+                                existing_membership = UserTeamMembership.query.filter_by(
+                                    user_id=user.id,
+                                    team_id=new_team_id,
+                                    account_id=new_account_id
+                                ).first()
+                                
+                                if existing_membership:
+                                    # Reactivate existing membership and make it primary
+                                    existing_membership.is_active = True
+                                    existing_membership.is_primary = True
+                                    # Remove primary from other teams in same account
+                                    UserTeamMembership.query.filter_by(
+                                        user_id=user.id,
+                                        account_id=new_account_id,
+                                        is_primary=True
+                                    ).filter(UserTeamMembership.id != existing_membership.id).update({'is_primary': False})
+                                else:
+                                    # Create new team membership
+                                    user.add_team_membership(
+                                        team_id=new_team_id,
+                                        account_id=new_account_id,
+                                        is_primary=True,
+                                        role='member',
+                                        added_by=current_user
+                                    )
+                                
+                                # Update user's primary team_id (for backward compatibility)
+                                user.team_id = new_team_id
+                            else:
+                                flash('Invalid team selection for the specified account.')
+                                return redirect(url_for('user_mgmt.user_management'))
+                        elif new_team_id is None:
+                            # If no team selected, keep existing primary team
+                            pass
+                        else:
+                            # Update team_id for backward compatibility
+                            user.team_id = new_team_id
+                        
                         user.first_name = new_first_name if new_first_name else None
                         user.last_name = new_last_name if new_last_name else None
                         
@@ -289,8 +508,20 @@ def user_management():
                                 last_name=last_name if last_name else None
                             )
                             db.session.add(user)
-                            db.session.flush()
+                            db.session.flush()  # Get the user ID
                             debug_msgs.append(f"[DEBUG] User (before commit): id={user.id}, username={user.username}, email={user.email}")
+                            
+                            # Create team membership if team is assigned
+                            if team_id:
+                                user.add_team_membership(
+                                    team_id=team_id,
+                                    account_id=account_id,
+                                    is_primary=True,
+                                    role='member',
+                                    added_by=current_user
+                                )
+                                debug_msgs.append(f"[DEBUG] Created team membership: user_id={user.id}, team_id={team_id}")
+                            
                             db.session.commit()
                             log_action('Add User', f'User: {username}, Email: {email}, Role: {role}, Account: {account_id}, Team: {team_id}')
                             debug_msgs.append(f"[DEBUG] User created: {user}")
@@ -393,9 +624,152 @@ def user_management():
                     accounts = [acc] if acc else []
                     t = Team.query.get(current_user.team_id)
                     teams = [t] if t else []
+        
+        # Handle multiple team management actions
+        elif action == 'add_user_to_team':
+            if current_user.role not in ['super_admin', 'account_admin']:
+                flash('You do not have permission to manage team memberships.')
+                return redirect(url_for('user_mgmt.user_management'))
+            
+            user_id = request.form.get('user_id', type=int)
+            team_id = request.form.get('new_team_id', type=int)
+            role = request.form.get('team_role', 'member')
+            is_primary = request.form.get('is_primary') == 'on'
+            
+            user = User.query.get(user_id)
+            team = Team.query.get(team_id)
+            
+            if user and team:
+                try:
+                    membership = user.add_team_membership(
+                        team_id=team_id,
+                        account_id=team.account_id,
+                        is_primary=is_primary,
+                        role=role,
+                        added_by=current_user
+                    )
+                    db.session.commit()
+                    
+                    primary_text = " as primary team" if is_primary else ""
+                    flash(f'Successfully added {user.username} to {team.name}{primary_text}.')
+                    log_action('Add User to Team', f'User: {user.username}, Team: {team.name}, Role: {role}, Primary: {is_primary}')
+                    
+                except Exception as e:
+                    db.session.rollback()
+                    flash(f'Error adding user to team: {str(e)}')
+            else:
+                flash('Invalid user or team selection.')
+            
+            return redirect(url_for('user_mgmt.user_management'))
+        
+        elif action == 'remove_user_from_team':
+            if current_user.role not in ['super_admin', 'account_admin']:
+                flash('You do not have permission to manage team memberships.')
+                return redirect(url_for('user_mgmt.user_management'))
+            
+            user_id = request.form.get('user_id', type=int)
+            team_id = request.form.get('team_id', type=int)
+            
+            user = User.query.get(user_id)
+            team = Team.query.get(team_id)
+            
+            if user and team:
+                try:
+                    success = user.remove_team_membership(team_id, team.account_id)
+                    if success:
+                        db.session.commit()
+                        flash(f'Successfully removed {user.username} from {team.name}.')
+                        log_action('Remove User from Team', f'User: {user.username}, Team: {team.name}')
+                    else:
+                        flash(f'{user.username} is not a member of {team.name}.')
+                        
+                except Exception as e:
+                    db.session.rollback()
+                    flash(f'Error removing user from team: {str(e)}')
+            else:
+                flash('Invalid user or team selection.')
+            
+            return redirect(url_for('user_mgmt.user_management'))
+        
+        elif action == 'set_primary_team':
+            if current_user.role != 'super_admin':
+                flash('Only super admins can manage primary team assignments.')
+                return redirect(url_for('user_mgmt.user_management'))
+            
+            user_id = request.form.get('user_id', type=int)
+            team_id = request.form.get('team_id', type=int)
+            
+            user = User.query.get(user_id)
+            team = Team.query.get(team_id)
+            
+            if user and team:
+                try:
+                    # Check if user is member of this team
+                    membership = UserTeamMembership.query.filter_by(
+                        user_id=user_id,
+                        team_id=team_id,
+                        account_id=team.account_id,
+                        is_active=True
+                    ).first()
+                    
+                    if membership:
+                        # Remove primary from other teams in same account
+                        UserTeamMembership.query.filter_by(
+                            user_id=user_id,
+                            account_id=team.account_id,
+                            is_primary=True
+                        ).update({'is_primary': False})
+                        
+                        # Set this team as primary
+                        membership.is_primary = True
+                        user.team_id = team_id  # Update user's primary team reference
+                        
+                        db.session.commit()
+                        flash(f'Successfully set {team.name} as primary team for {user.username}.')
+                        log_action('Set Primary Team', f'User: {user.username}, Team: {team.name}')
+                        
+                    else:
+                        flash(f'{user.username} is not a member of {team.name}.')
+                        
+                except Exception as e:
+                    db.session.rollback()
+                    flash(f'Error setting primary team: {str(e)}')
+            else:
+                flash('Invalid user or team selection.')
+            
+            return redirect(url_for('user_mgmt.user_management'))
+    
+    # Enhanced user data with team memberships for display
+    users_with_teams = []
+    for user in users:
+        # Use direct UserTeamMembership query instead of problematic user.get_teams()
+        team_memberships = UserTeamMembership.query.filter_by(
+            user_id=user.id, 
+            is_active=True
+        ).all()
+        
+        # Build display string manually since all_teams_display might also be broken
+        teams_display_list = []
+        for membership in team_memberships:
+            team = db.session.get(Team, membership.team_id)
+            if team:
+                team_str = team.name
+                if membership.is_primary:
+                    team_str += " (Primary)"
+                teams_display_list.append(team_str)
+        
+        teams_display = "; ".join(teams_display_list) if teams_display_list else "No Teams"
+        
+        user_data = {
+            'user': user,
+            'team_memberships': team_memberships,
+            'all_teams_display': teams_display
+        }
+        users_with_teams.append(user_data)
     
     return render_template('user_management.html', 
-                         users=users, 
+                         users=users,
+                         users_with_teams=users_with_teams, 
                          accounts=accounts, 
                          teams=teams,
                          current_engineers=[],

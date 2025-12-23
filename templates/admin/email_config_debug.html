@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Email Configuration Management{% endblock %}
+
+{% block content %}
+<div style="padding: 20px;">
+    <h2>Email Configuration Management - Debug Version</h2>
+    
+    <button class="btn btn-primary" onclick="testFunction()">Test JavaScript</button>
+    <button class="btn btn-secondary" onclick="showCreateModal()">Test Create Modal</button>
+    <button class="btn btn-info" onclick="resetFilters()">Test Reset Filters</button>
+    
+    <div id="debug-output" style="margin-top: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px;"></div>
+    
+    <!-- Simple Test Modal -->
+    <div class="modal fade" id="testModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Test Modal</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p>This is a test modal to verify JavaScript functionality.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+console.log('Email Configuration Debug Script Loading...');
+
+function debug(message) {
+    console.log('DEBUG:', message);
+    var output = document.getElementById('debug-output');
+    if (output) {
+        output.innerHTML += '<div>' + new Date().toLocaleTimeString() + ': ' + message + '</div>';
+    }
+}
+
+function testFunction() {
+    debug('testFunction called successfully!');
+    alert('JavaScript is working!');
+}
+
+function showCreateModal() {
+    debug('showCreateModal called');
+    $('#testModal').modal('show');
+}
+
+function resetFilters() {
+    debug('resetFilters called');
+    alert('Reset Filters function is working!');
+}
+
+function testAPI() {
+    debug('Testing API endpoints...');
+    
+    fetch('/api/email-config/accounts')
+        .then(function(response) {
+            debug('API Response Status: ' + response.status);
+            return response.json();
+        })
+        .then(function(data) {
+            debug('API Response Data: ' + JSON.stringify(data));
+        })
+        .catch(function(error) {
+            debug('API Error: ' + error.message);
+        });
+}
+
+// Initialize when document is ready
+document.addEventListener('DOMContentLoaded', function() {
+    debug('Document ready!');
+    debug('jQuery available: ' + (typeof $ !== 'undefined'));
+    debug('Bootstrap modal available: ' + (typeof $.fn.modal !== 'undefined'));
+    
+    // Test API after a short delay
+    setTimeout(testAPI, 1000);
+});
+
+console.log('Email Configuration Debug Script Loaded');
+</script>
+{% endblock %}

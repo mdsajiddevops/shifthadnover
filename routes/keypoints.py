@@ -82,6 +82,8 @@ def update_keypoint_status(key_point_id):
 @login_required
 def keypoints():
     from models.models import Account, Team
+    from services.team_access_service import TeamAccessService
+    
     status_filter = request.args.get('status', 'all')
     date_filter = request.args.get('date')
     account_id = None
@@ -89,41 +91,103 @@ def keypoints():
     accounts = []
     teams = []
     
-    # Role-based filter logic
+    # Initialize variables that will be used later
+    filter_account_id = None
+    filter_team_id = None
+    selected_team_id = None
+    selected_account_id = None
+    team_filter_context = None
+
     if current_user.role == 'super_admin':
         accounts = Account.query.filter_by(is_active=True).all()
-        account_id = request.args.get('account_id') or (session.get('selected_account_id') if hasattr(session, 'get') else None)
+        account_id = request.args.get('account_id') or session.get('selected_account_id')
+        selected_team_id = request.args.get('team_id') or session.get('selected_team_id')
         teams = Team.query.filter_by(is_active=True)
         if account_id:
             teams = teams.filter_by(account_id=account_id)
         teams = teams.all()
-        team_id = request.args.get('team_id')
-        # If team_id is empty string or None, treat as 'All Teams'
-        if not team_id:
-            selected_team_id = None
-        else:
-            selected_team_id = team_id
+        filter_account_id = account_id
+        filter_team_id = int(selected_team_id) if selected_team_id else None
+        selected_account_id = account_id
+        # Create team_filter_context for template
+        team_filter_context = {
+            'user_teams': teams,
+            'show_team_filter': len(teams) > 1,
+            'selected_team_id': filter_team_id
+        }
     elif current_user.role == 'account_admin':
         account_id = current_user.account_id
+        filter_account_id = account_id
+        selected_account_id = account_id
         accounts = [Account.query.get(account_id)] if account_id else []
         teams = Team.query.filter_by(account_id=account_id, is_active=True).all()
-        team_id = request.args.get('team_id') or (session.get('selected_team_id') if hasattr(session, 'get') else None)
+        selected_team_id = request.args.get('team_id') or session.get('selected_team_id')
+        filter_team_id = int(selected_team_id) if selected_team_id else None
+        # Create team_filter_context for template
+        team_filter_context = {
+            'user_teams': teams,
+            'show_team_filter': len(teams) > 1,
+            'selected_team_id': filter_team_id
+        }
     else:
-        account_id = current_user.account_id
-        team_id = current_user.team_id
-        accounts = [Account.query.get(account_id)] if account_id else []
-        teams = [Team.query.get(team_id)] if team_id else []
+        # Regular users and team admins: Use team access service (SAME AS DASHBOARD)
+        filter_account_id = current_user.account_id
+        accounts = [Account.query.get(filter_account_id)] if filter_account_id else []
+        
+        # Get team filter context using team access service (SAME AS DASHBOARD)
+        team_filter_context = TeamAccessService.get_team_filter_context()
+        
+        teams = team_filter_context['user_teams']
+        selected_account_id = filter_account_id
+        
+        # Check for team_id in request args FIRST (from form submission), then fall back to session
+        selected_team_id = request.args.get('team_id')
+        if selected_team_id:
+            selected_team_id = int(selected_team_id)
+            # Update the team_filter_context with the selected team
+            team_filter_context['selected_team_id'] = selected_team_id
+        else:
+            selected_team_id = team_filter_context['selected_team_id']
+        
+        # Set filter team ID - None means show all user's teams (SAME AS DASHBOARD)
+        filter_team_id = selected_team_id
+        
+    # Set template variables
+    team_id = filter_team_id  # For template compatibility
     
+    # Build query with proper filtering like dashboard
     query = ShiftKeyPoint.query
-    if account_id:
-        query = query.filter_by(account_id=account_id)
-    # Only filter by team_id if it is set and not empty string
-    if team_id:
-        query = query.filter_by(team_id=team_id)
+    
+    if filter_account_id:
+        query = query.filter_by(account_id=filter_account_id)
+        
+    # Apply team filtering based on role and selection (SAME AS DASHBOARD)
+    if filter_team_id:
+        # Specific team selected
+        query = query.filter_by(team_id=filter_team_id)
+    elif current_user.role not in ['super_admin', 'account_admin']:
+        # Regular users: filter by their accessible teams (SAME AS DASHBOARD)
+        if team_filter_context and team_filter_context['show_team_filter']:
+            user_team_ids = [team.id for team in team_filter_context['user_teams']]
+            query = query.filter(ShiftKeyPoint.team_id.in_(user_team_ids))
+        elif current_user.team_id:
+            query = query.filter_by(team_id=current_user.team_id)
     if status_filter != 'all':
         query = query.filter_by(status=status_filter)
     
-    key_points = query.all()
+    # Get all key points and deduplicate by description to prevent showing duplicates
+    all_key_points = query.all()
+    
+    # Deduplicate key points by description, keeping the most recent one
+    kp_map = {}
+    for kp in all_key_points:
+        key = kp.description.strip().lower() if kp.description else ''
+        if key not in kp_map or kp.id > kp_map[key].id:
+            kp_map[key] = kp
+    
+    key_points = list(kp_map.values())
+    print(f"🔧 KEYPOINTS: Deduplication reduced {len(all_key_points)} to {len(key_points)} unique key points")
+    
     updates_by_kp = {}
     for kp in key_points:
         updates_query = ShiftKeyPointUpdate.query.filter_by(key_point_id=kp.id)
@@ -138,8 +202,10 @@ def keypoints():
                          date_filter=date_filter, 
                          accounts=accounts, 
                          teams=teams, 
-                         selected_account_id=account_id, 
-                         selected_team_id=(selected_team_id if current_user.role == 'super_admin' else team_id))
+                         selected_account_id=filter_account_id, 
+                         selected_team_id=selected_team_id,
+                         team_filter_context=team_filter_context,
+                         date=date)
 
 @keypoints_bp.route('/keypoints/update/<int:key_point_id>', methods=['POST'])
 @login_required

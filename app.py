@@ -65,6 +65,8 @@ def log_page_visit():
 # Initialize extensions
 from models.models import db
 from models.servicenow_config import ServiceNowConfig  # Import ServiceNow config model
+from models.team_shift_timing_config import TeamShiftTimingConfig  # Import team shift timing config model
+from models.escalation_matrix import EscalationMatrixEntry  # Import escalation matrix model
 db.init_app(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'auth.login'  # Redirect to login page for unauthenticated users
@@ -115,6 +117,14 @@ with app.app_context():
         from services.flask_uns_email import init_uns_email
         init_uns_email(app)
         
+        # Create email configuration tables if they don't exist
+        try:
+            from models.email_config import TeamEmailConfig, EmailConfigAuditLog
+            db.create_all()
+            print("✅ Email configuration tables verified/created")
+        except Exception as e:
+            print(f"⚠️ Could not create email configuration tables: {e}")
+        
         print("✅ Configuration loaded from database successfully")
         print("✅ UNS Email Service initialized")
         
@@ -143,10 +153,11 @@ routes.auth.logout_user = patched_logout_user
 from routes.handover import handover_bp
 from routes.dashboard import dashboard_bp
 from routes.roster import roster_bp
-
-from routes.team import team_bp
+from routes.team_simple import team_bp
 from routes.roster_upload import roster_upload_bp
 from routes.reports import reports_bp
+from routes.team_roster import team_roster_bp
+from routes.team_utils import team_utils_bp
 
 
 
@@ -159,6 +170,8 @@ app.register_blueprint(roster_bp)
 app.register_blueprint(team_bp)
 app.register_blueprint(roster_upload_bp)
 app.register_blueprint(reports_bp)
+app.register_blueprint(team_roster_bp)
+app.register_blueprint(team_utils_bp)
 # Register admin blueprints
 from routes.admin import admin_bp
 app.register_blueprint(admin_bp, url_prefix='/admin')
@@ -193,6 +206,14 @@ app.register_blueprint(handover_enhanced_bp)
 from routes.debug_form import debug_bp
 app.register_blueprint(debug_bp)
 
+# Register email configuration blueprint
+from routes.email_config_routes import email_config_bp
+app.register_blueprint(email_config_bp)
+
+# Register shift configuration blueprint
+from routes.shift_config import shift_config_bp
+app.register_blueprint(shift_config_bp)
+
 # Register incident assignment blueprint
 from routes.incident_assignment import incident_assignment_bp
 app.register_blueprint(incident_assignment_bp)
@@ -208,6 +229,10 @@ app.register_blueprint(shift_swap_leave_bp)
 # Register audit logs blueprint
 from routes.logs import logs_bp
 app.register_blueprint(logs_bp)
+
+# Register check-in blueprint for team member status tracking
+from routes.checkin import checkin_bp
+app.register_blueprint(checkin_bp)
 
 # Register test blueprint
 from routes.test_routes import test_bp
@@ -239,6 +264,10 @@ app.register_blueprint(onboarding_bp)
 # Register secrets management admin blueprint
 from routes.admin_secrets import admin_secrets_bp
 app.register_blueprint(admin_secrets_bp)
+
+# Register vendor details blueprint
+from routes.vendor_details import bp as vendor_details_bp
+app.register_blueprint(vendor_details_bp)
 
 # Add template global functions
 @app.template_global()
@@ -440,34 +469,25 @@ def initialize_services():
                 print(f"⚠️ Warning: Could not initialize configurations: {e}")
         
         # Check if CTask assignment feature is enabled
-        from models.app_config import AppConfig
-        if AppConfig.is_enabled('feature_ctask_assignment'):
-            # Start the CTask assignment scheduler automatically
-            from services.ctask_scheduler import start_ctask_scheduler, get_scheduler_status
-            
-            # Check if scheduler is already running
-            status = get_scheduler_status()
-            if not status['running']:
-                print("🚀 Auto-starting CTask assignment scheduler...")
-                start_ctask_scheduler()
-                
-                # Configure ServiceNow connection using new configuration system
-                try:
-                    from services.servicenow_service import ServiceNowService
-                    service = ServiceNowService()
+        # Only initialize CTask scheduler in production and not during worker preload
+        import os
+        if os.environ.get('FLASK_ENV') == 'production' and not os.environ.get('GUNICORN_PRELOAD'):
+            try:
+                from models.app_config import AppConfig
+                if AppConfig.is_enabled('feature_ctask_assignment'):
+                    # Start the CTask assignment scheduler automatically (non-blocking)
+                    from services.ctask_scheduler import start_ctask_scheduler, get_scheduler_status
                     
-                    # Initialize the service with app context so it can use secrets manager fallback
-                    service.initialize(app)
-                    
-                    if service.instance_url and service.username and service.password:
-                        print("✅ CTask assignment service started with ServiceNow connection")
-                    else:
+                    # Quick check if scheduler is already running
+                    status = get_scheduler_status()
+                    if not status['running']:
+                        print("🚀 Auto-starting CTask assignment scheduler...")
+                        start_ctask_scheduler()
                         print("⚠️ CTask assignment service started but ServiceNow not configured")
-                        
-                except Exception as e:
-                    print(f"⚠️ CTask assignment service started but ServiceNow configuration failed: {e}")
-            else:
-                print("✅ CTask assignment scheduler already running")
+                    else:
+                        print("✅ CTask assignment scheduler already running")
+            except Exception as e:
+                print(f"⚠️ CTask scheduler initialization skipped: {e}")
                 
         _services_initialized = True  # Mark as initialized
                 

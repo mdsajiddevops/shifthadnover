@@ -9,7 +9,7 @@
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-.page-header {
+.user-mgmt-header-old {
     background: rgba(255, 255, 255, 0.98);
     border-radius: 12px;
     padding: 1.8rem;
@@ -18,7 +18,7 @@
     border: 1px solid rgba(230, 240, 250, 0.8);
 }
 
-.page-header h1 {
+.user-mgmt-header-old h1 {
     color: #2c3e50;
     font-size: clamp(1.8rem, 4vw, 2.5rem);
     font-weight: 600;
@@ -26,7 +26,7 @@
     letter-spacing: -0.5px;
 }
 
-.page-header p {
+.user-mgmt-header-old p {
     color: #6c757d;
     font-size: clamp(0.9rem, 2vw, 1.1rem);
     margin: 0.5rem 0 0 0;
@@ -353,7 +353,7 @@
         padding: 1rem 0;
     }
     
-    .page-header {
+    .user-mgmt-header-old {
         padding: 1.2rem;
         margin-bottom: 1rem;
     }
@@ -405,7 +405,7 @@
         padding: 0.5rem 0;
     }
     
-    .page-header h1 {
+    .user-mgmt-header-old h1 {
         font-size: 1.5rem;
     }
     
@@ -827,29 +827,24 @@
         {% endwith %}
 
         <!-- Page Header -->
-        <div class="page-header fade-in">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h1 class="mb-2">
-                        <i class="bi bi-people-fill text-primary me-3"></i>
-                        User Management
-                    </h1>
-                    <p class="text-muted mb-0">Manage users, teams, and accounts across your organization</p>
+        <div class="page-header">
+            <div class="page-header-content">
+                <div class="page-header-left">
+                    <h1><i class="bi bi-people-fill"></i>User Management</h1>
+                    <p>Manage users, teams, and accounts across your organization</p>
                 </div>
-                <div class="col-md-4">
-                    <div class="stats-cards">
-                        <div class="stat-card">
-                            <div class="stat-number">{{ users|length }}</div>
-                            <div class="stat-label">Total Users</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">{{ teams|length }}</div>
-                            <div class="stat-label">Teams</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">{{ accounts|length }}</div>
-                            <div class="stat-label">Accounts</div>
-                        </div>
+                <div class="page-header-right">
+                    <div class="page-header-badge">
+                        <span class="badge-value">{{ users|length }}</span>
+                        <span class="badge-label">Users</span>
+                    </div>
+                    <div class="page-header-badge">
+                        <span class="badge-value">{{ teams|length }}</span>
+                        <span class="badge-label">Teams</span>
+                    </div>
+                    <div class="page-header-badge">
+                        <span class="badge-value">{{ accounts|length }}</span>
+                        <span class="badge-label">Accounts</span>
                     </div>
                 </div>
             </div>
@@ -1025,7 +1020,7 @@
 
                     <!-- Users Grouped by Role -->
                     <!-- Group users by role using Jinja2 groupby filter -->
-                    {% set user_groups = users | groupby('role') %}
+                    {% set user_groups = users_with_teams | groupby('user.role') %}
                     
                     {% set group_config = {
                         'super_admin': {'title': 'Super Administrators', 'icon': 'bi-shield-fill-exclamation', 'color': 'super-admin'},
@@ -1063,7 +1058,8 @@
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {% for user in role_users %}
+                                                {% for user_data in role_users %}
+                                                {% set user = user_data.user %}
                                                 <tr class="user-row" 
                                                     data-username="{{ user.username|lower }}" 
                                                     data-email="{{ user.email|lower if user.email else '' }}" 
@@ -1100,13 +1096,27 @@
                                                         {% endfor %}
                                                     </td>
                                                     <td>
-                                                        {% for team in teams %}
-                                                            {% if team.id == user.team_id %}
-                                                                <span class="team-name">{{ team.name }}</span>
-                                                            {% endif %}
+                                                        {% if user_data.all_teams_display and user_data.all_teams_display != 'No Teams' %}
+                                                            <div class="team-info">
+                                                                {{ user_data.all_teams_display }}
+                                                                {% if current_user.role in ['super_admin', 'account_admin'] %}
+                                                                <br><small class="text-muted">
+                                                                    <a href="#" class="manage-teams-link" data-user-id="{{ user.id }}" data-username="{{ user.username }}" data-bs-toggle="modal" data-bs-target="#manageTeamsModal">
+                                                                        <i class="bi bi-gear"></i> Manage Teams
+                                                                    </a>
+                                                                </small>
+                                                                {% endif %}
+                                                            </div>
                                                         {% else %}
-                                                            <span class="text-muted">-</span>
-                                                        {% endfor %}
+                                                            <span class="text-muted">No Teams</span>
+                                                            {% if current_user.role in ['super_admin', 'account_admin'] %}
+                                                            <br><small class="text-muted">
+                                                                <a href="#" class="manage-teams-link" data-user-id="{{ user.id }}" data-username="{{ user.username }}" data-bs-toggle="modal" data-bs-target="#manageTeamsModal">
+                                                                    <i class="bi bi-plus"></i> Add Teams
+                                                                </a>
+                                                            </small>
+                                                            {% endif %}
+                                                        {% endif %}
                                                     </td>
                                                     <td>
                                                         {% if user.status == 'active' %}
@@ -1178,7 +1188,8 @@
                     {% endif %}
                     
                     <!-- Edit User Modals -->
-                    {% for user in users %}
+                    {% for user_data in users_with_teams %}
+                    {% set user = user_data.user %}
                     <div class="modal fade" id="editUserModal{{ user.id }}" tabindex="-1" aria-labelledby="editUserModalLabel{{ user.id }}" aria-hidden="true">
                         <div class="modal-dialog modal-lg">
                             <div class="modal-content">
@@ -1264,16 +1275,21 @@
                                                 </div>
                                             </div>
                                             <div class="col-md-6" id="edit_team_group{{ user.id }}">
-                                                <div class="form-floating">
-                                                    <select name="team_id" class="form-select" id="edit_team_id{{ user.id }}">
-                                                        <option value="">Select Team</option>
-                                                        {% for team in teams %}
-                                                            <option value="{{ team.id }}" data-account="{{ team.account_id }}" {{ 'selected' if user.team_id == team.id else '' }}>{{ team.name }}</option>
-                                                        {% endfor %}
-                                                    </select>
-                                                    <label for="edit_team_id{{ user.id }}">
-                                                        <i class="bi bi-people me-1"></i>Team
+                                                <div class="form-group">
+                                                    <label class="form-label">
+                                                        <i class="bi bi-people me-1"></i>Current Teams
                                                     </label>
+                                                    <div class="form-control" style="min-height: 58px; background-color: #f8f9fa; border-color: #ced4da;">
+                                                        {% if user_data.all_teams_display and user_data.all_teams_display != 'No Teams' %}
+                                                            <strong>{{ user_data.all_teams_display }}</strong>
+                                                        {% else %}
+                                                            <em class="text-muted">No teams assigned</em>
+                                                        {% endif %}
+                                                    </div>
+                                                    <small class="form-text text-muted">
+                                                        <i class="bi bi-info-circle me-1"></i>
+                                                        Use <strong>"Manage Teams"</strong> button to add/remove teams
+                                                    </small>
                                                 </div>
                                             </div>
                                             <div class="col-12">
@@ -1940,7 +1956,343 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize search on page load
     performSearch();
+    
+    // Multi-Team Management Modal JavaScript
+    const manageTeamsModal = document.getElementById('manageTeamsModal');
+
+    if (manageTeamsModal) {
+        console.log('manageTeamsModal found successfully');
+        manageTeamsModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            currentUserId = button.getAttribute('data-user-id');
+            const username = button.getAttribute('data-username');
+            
+            console.log('Manage Teams modal opening for user:', username, 'ID:', currentUserId);
+            
+            // Update modal title
+            document.getElementById('manageTeamsModalLabel').textContent = `Manage Teams for ${username}`;
+            
+            // Load user's current teams
+            loadUserTeams();
+        });
+    } else {
+        console.error('manageTeamsModal element not found');
+    }
 });
+
+// Global variables for team management modal
+let currentUserId = null;
+let currentUserTeams = [];
+
+function loadUserTeams() {
+    console.log('loadUserTeams called, currentUserId:', currentUserId);
+    if (!currentUserId) {
+        console.error('No currentUserId set in loadUserTeams');
+        return;
+    }
+    
+    const loadingDiv = document.getElementById('currentTeamsLoading');
+    const teamsDiv = document.getElementById('currentTeamsList');
+    
+    console.log('DOM elements found:', {loadingDiv: !!loadingDiv, teamsDiv: !!teamsDiv});
+    
+    if (loadingDiv) loadingDiv.style.display = 'block';
+    if (teamsDiv) teamsDiv.innerHTML = '';
+    
+    const apiUrl = `/api/user/${currentUserId}/teams`;
+    console.log('Calling API:', apiUrl);
+    
+    fetch(apiUrl)
+        .then(response => {
+            console.log('API Response status:', response.status, response.statusText);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('API Response data:', data);
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            
+            if (data.success) {
+                currentUserTeams = data.teams;
+                console.log('Teams to display:', data.teams);
+                displayCurrentTeams(data.teams);
+                loadAvailableTeams();
+            } else {
+                console.error('API error response:', data);
+                if (teamsDiv) teamsDiv.innerHTML = '<div class="alert alert-danger">Error loading teams: ' + (data.error || 'Unknown error') + '</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            if (teamsDiv) teamsDiv.innerHTML = '<div class="alert alert-danger">Error loading teams: ' + error.message + '</div>';
+        });
+}
+
+function displayCurrentTeams(teams) {
+    console.log('displayCurrentTeams called with:', teams);
+    const teamsDiv = document.getElementById('currentTeamsList');
+    console.log('teamsDiv found:', !!teamsDiv);
+    if (!teamsDiv) return;
+    
+    if (teams.length === 0) {
+        console.log('No teams to display, showing message');
+        teamsDiv.innerHTML = '<p class="text-muted">User is not a member of any teams.</p>';
+        return;
+    }
+    
+    let html = '<div class="row">';
+    teams.forEach(team => {
+        const primaryBadge = team.is_primary ? '<span class="badge bg-primary ms-2">Primary</span>' : '';
+        html += `
+            <div class="col-md-6 mb-2">
+                <div class="team-card">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${team.team_name}</strong>
+                            <br><small class="text-muted">${team.account_name}</small>
+                            ${primaryBadge}
+                        </div>
+                        <div class="btn-group">
+                            ${!team.is_primary ? `<button type="button" class="btn btn-sm btn-outline-primary" onclick="setPrimaryTeam(${team.team_id})">Set Primary</button>` : ''}
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFromTeam(${team.team_id})">Remove</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    
+    teamsDiv.innerHTML = html;
+}
+
+function loadAvailableTeams() {
+    const loadingDiv = document.getElementById('availableTeamsLoading');
+    const selectDiv = document.getElementById('newTeamSelect');
+    
+    if (loadingDiv) loadingDiv.style.display = 'block';
+    
+    fetch(`/api/teams-not-assigned/${currentUserId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            
+            if (data.success) {
+                displayAvailableTeams(data.available_teams);
+            } else {
+                if (selectDiv) selectDiv.innerHTML = '<div class="alert alert-danger">Error loading available teams: ' + (data.error || 'Unknown error') + '</div>';
+            }
+        })
+        .catch(error => {
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            if (selectDiv) selectDiv.innerHTML = '<div class="alert alert-danger">Error loading available teams: ' + error.message + '</div>';
+            console.error('Error loading available teams:', error);
+        });
+}
+
+function displayAvailableTeams(teams) {
+    const selectDiv = document.getElementById('newTeamSelect');
+    if (!selectDiv) return;
+    
+    if (teams.length === 0) {
+        selectDiv.innerHTML = '<p class="text-muted">No additional teams available.</p>';
+        return;
+    }
+    
+    let html = `
+        <div class="form-group mb-3">
+            <label for="teamToAdd" class="form-label">Select Team to Add:</label>
+            <select class="form-select" id="teamToAdd">
+                <option value="">Choose a team...</option>
+    `;
+    
+    teams.forEach(team => {
+        html += `<option value="${team.team_id}" data-account-id="${team.account_id}">${team.team_name} (${team.account_name})</option>`;
+    });
+    
+    html += `
+            </select>
+        </div>
+        <div class="form-group mb-3">
+            <label for="teamRole" class="form-label">Role in Team:</label>
+            <select class="form-select" id="teamRole">
+                <option value="member">Member</option>
+                <option value="lead">Team Lead</option>
+                <option value="admin">Team Admin</option>
+            </select>
+        </div>
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="makePrimary">
+            <label class="form-check-label" for="makePrimary">
+                Make this the primary team
+            </label>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="addToTeam()">
+            <i class="bi bi-plus-circle"></i> Add to Team
+        </button>
+    `;
+    
+    selectDiv.innerHTML = html;
+}
+
+function addToTeam() {
+    const teamSelect = document.getElementById('teamToAdd');
+    const roleSelect = document.getElementById('teamRole');
+    const primaryCheck = document.getElementById('makePrimary');
+    
+    if (!teamSelect.value) {
+        alert('Please select a team to add.');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('action', 'add_user_to_team');
+    formData.append('user_id', currentUserId);
+    formData.append('new_team_id', teamSelect.value);
+    formData.append('team_role', roleSelect.value);
+    if (primaryCheck.checked) {
+        formData.append('is_primary', 'on');
+    }
+    
+    fetch('/user-management', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(data => {
+        // Reload the modal content
+        loadUserTeams();
+        // Show success message or reload page
+        location.reload();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error adding user to team');
+    });
+}
+
+function removeFromTeam(teamId) {
+    if (!confirm('Are you sure you want to remove this user from the team?')) {
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('action', 'remove_user_from_team');
+    formData.append('user_id', currentUserId);
+    formData.append('team_id', teamId);
+    
+    fetch('/user-management', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(data => {
+        // Reload the modal content
+        loadUserTeams();
+        // Show success message or reload page
+        location.reload();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error removing user from team');
+    });
+}
+
+function setPrimaryTeam(teamId) {
+    const formData = new FormData();
+    formData.append('action', 'set_primary_team');
+    formData.append('user_id', currentUserId);
+    formData.append('team_id', teamId);
+    
+    fetch('/user-management', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(data => {
+        // Reload the modal content
+        loadUserTeams();
+        // Show success message or reload page
+        location.reload();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error setting primary team');
+    });
+}
 </script>
+
+<!-- Manage Teams Modal -->
+<div class="modal fade" id="manageTeamsModal" tabindex="-1" aria-labelledby="manageTeamsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="manageTeamsModalLabel">Manage Teams</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Current Teams Section -->
+                <div class="mb-4">
+                    <h6><i class="bi bi-people-fill"></i> Current Teams</h6>
+                    <div id="currentTeamsLoading" class="text-center" style="display:none;">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        Loading teams...
+                    </div>
+                    <div id="currentTeamsList"></div>
+                </div>
+                
+                <hr>
+                
+                <!-- Add Team Section -->
+                <div>
+                    <h6><i class="bi bi-plus-circle"></i> Add to New Team</h6>
+                    <div id="availableTeamsLoading" class="text-center" style="display:none;">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        Loading available teams...
+                    </div>
+                    <div id="newTeamSelect"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.team-card {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    background-color: #f8f9fa;
+}
+
+.team-info {
+    font-size: 0.9rem;
+}
+
+.manage-teams-link {
+    text-decoration: none;
+    color: #6c757d;
+}
+
+.manage-teams-link:hover {
+    color: #495057;
+    text-decoration: underline;
+}
+</style>
 
 {% endblock %}

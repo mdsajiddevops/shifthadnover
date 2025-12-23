@@ -77,6 +77,55 @@
     font-size: inherit !important;
     font-weight: inherit !important;
 }
+
+/* Accordion styling for handover sections */
+.handover-accordion {
+    margin-bottom: 1rem;
+}
+
+.handover-accordion .accordion-button {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 1px solid #dee2e6;
+    font-weight: 600;
+    font-size: 1.1rem;
+    padding: 1rem 1.25rem;
+    color: #495057;
+    box-shadow: none;
+}
+
+.handover-accordion .accordion-button:not(.collapsed) {
+    background: linear-gradient(135deg, #4a90e2 0%, #2c5aa0 100%);
+    color: white;
+    border-color: #2c5aa0;
+}
+
+.handover-accordion .accordion-button:focus {
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 0.2rem rgba(74, 144, 226, 0.25);
+}
+
+.handover-accordion .accordion-button::after {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23495057'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
+}
+
+.handover-accordion .accordion-button:not(.collapsed)::after {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23ffffff'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
+}
+
+.handover-accordion .accordion-body {
+    padding: 1.5rem;
+    background-color: #ffffff;
+}
+
+.handover-accordion .accordion-item {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.handover-accordion .accordion-header {
+    margin-bottom: 0;
+}
 </style>
 {% endblock %}
 
@@ -174,16 +223,30 @@
                             <div class="col-md-6">
                                 <label for="team_id" class="form-label">Team</label>
                                 {% if current_user.role in ['user', 'team_admin'] %}
-                                    <!-- For regular users and team admins, auto-select their team and make readonly -->
-                                    <select class="form-select" id="team_id" name="team_id" required readonly style="background-color: #f8f9fa;">
-                                        {% for team in teams %}
-                                            <option value="{{ team.id }}" selected>{{ team.name }}</option>
-                                        {% endfor %}
-                                    </select>
-                                    <small class="form-text text-muted">
-                                        <i class="fas fa-info-circle me-1"></i>
-                                        Your team is automatically selected based on your account assignment.
-                                    </small>
+                                    {% if teams|length == 1 %}
+                                        <!-- Single team users - auto-select and make readonly -->
+                                        <select class="form-select" id="team_id" name="team_id" required readonly style="background-color: #f8f9fa;">
+                                            {% for team in teams %}
+                                                <option value="{{ team.id }}" selected>{{ team.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <small class="form-text text-muted">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            Your team is automatically selected based on your account assignment.
+                                        </small>
+                                    {% else %}
+                                        <!-- Multi-team users - allow selection from all assigned teams -->
+                                        <select class="form-select" id="team_id" name="team_id" required onchange="handleTeamChange(this.value)">
+                                            <option value="">Select Team</option>
+                                            {% for team in teams %}
+                                                <option value="{{ team.id }}" {% if default_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <small class="form-text text-muted">
+                                            <i class="fas fa-users me-1"></i>
+                                            You are assigned to multiple teams. Select the team for this handover.
+                                        </small>
+                                    {% endif %}
                                 {% elif current_user.role == 'account_admin' %}
                                     <!-- For account admins, show teams from their account -->
                                     <select class="form-select" id="team_id" name="team_id" required>
@@ -277,9 +340,19 @@
                             </div>
                         </div>
 
-                        <!-- Incidents Section -->
-                        <div class="mb-4" id="incidentsSection">
-                            <h5 class="mb-4"><i class="fas fa-exclamation-triangle me-2"></i>Incidents Management</h5>
+                        <!-- Handover Form Sections Accordion -->
+                        <div class="accordion handover-accordion" id="handoverAccordion">
+                            
+                            <!-- Incidents Management Section -->
+                            <div class="accordion-item" id="incidentsSection">
+                                <h2 class="accordion-header" id="incidentsHeading">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#incidentsCollapse" aria-expanded="true" aria-controls="incidentsCollapse">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        Incidents Management
+                                    </button>
+                                </h2>
+                                <div id="incidentsCollapse" class="accordion-collapse collapse show" aria-labelledby="incidentsHeading" data-bs-parent="#handoverAccordion">
+                                    <div class="accordion-body">
                             
                             <!-- Open / Active Incidents -->
                             <div class="card mb-3">
@@ -517,18 +590,160 @@
                                         <i class="fas fa-plus"></i> Add Escalated Incident
                                     </button>
                                 </div>
-                            </div>
-                        </div>
-                        </div> <!-- End of Incidents Section -->
+                                    </div>
+                                </div>
+                            </div> <!-- End of Incidents Section -->
 
-                        <!-- Key Points Section -->
-                        <div class="mb-4">
-                            <h5>Key Points</h5>
+                            <!-- Change Related Information Section -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="changeInfoHeading">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#changeInfoCollapse" aria-expanded="false" aria-controls="changeInfoCollapse">
+                                        <i class="fas fa-sync-alt me-2"></i>
+                                        Change Related Information
+                                    </button>
+                                </h2>
+                                <div id="changeInfoCollapse" class="accordion-collapse collapse" aria-labelledby="changeInfoHeading" data-bs-parent="#handoverAccordion">
+                                    <div class="accordion-body">
+                            <div id="changeinfo-container">
+                                <!-- Existing change info entries will be populated here by backend -->
+                                {% for change_info in change_infos %}
+                                <div class="changeinfo-entry mb-3 border p-3 rounded">
+                                    <div class="row">
+                                        <div class="col-md-3 mb-2">
+                                            <label class="form-label">Application Name</label>
+                                            <input type="text" class="form-control" name="change_application_name[]" value="{{ change_info.app_name }}" placeholder="Enter application name">
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label">Change Number</label>
+                                            <input type="text" class="form-control" name="change_number[]" value="{{ change_info.change_number }}" placeholder="CHG000123">
+                                        </div>
+                                        <div class="col-md-3 mb-2">
+                                            <label class="form-label">Description</label>
+                                            <textarea class="form-control" name="change_description[]" rows="2" placeholder="Brief description of the change">{{ change_info.description }}</textarea>
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label">Date & Time</label>
+                                            <input type="datetime-local" class="form-control change-datetime" name="change_datetime[]" value="{{ change_info.change_datetime if change_info.change_datetime else '' }}">
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label">Responsible Engineer</label>
+                                            <select class="form-select change-engineer-dropdown" name="change_responsible_engineer[]">
+                                                <option value="">Select Engineer</option>
+                                                {% for member in team_members %}
+                                                <option value="{{ member.id }}" {% if change_info.responsible_engineer_id == member.id %}selected{% endif %}>{{ member.name }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-3 mb-2">
+                                            <label class="form-label">Status</label>
+                                            <select class="form-select" name="change_status[]">
+                                                <option value="New" {% if change_info.status == 'New' %}selected{% endif %}>New</option>
+                                                <option value="In Progress" {% if change_info.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                                                <option value="Scheduled" {% if change_info.status == 'Scheduled' %}selected{% endif %}>Scheduled</option>
+                                                <option value="Postponed" {% if change_info.status == 'Postponed' %}selected{% endif %}>Postponed</option>
+                                                <option value="Completed" {% if change_info.status == 'Completed' %}selected{% endif %}>Completed</option>
+                                                <option value="Cancelled" {% if change_info.status == 'Cancelled' %}selected{% endif %}>Cancelled</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-2">
+                                        <div class="col-12 d-flex justify-content-end">
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeChangeInfo(this)">
+                                                <i class="fas fa-trash"></i> Remove
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <button type="button" class="btn btn-outline-primary" onclick="addChangeInfo()">
+                                <i class="fas fa-plus"></i> Add Change Information
+                            </button>
+                                    </div>
+                                </div>
+                            </div> <!-- End of Change Info Section -->
+
+                            <!-- Knowledge Base Updates Section -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="kbUpdatesHeading">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#kbUpdatesCollapse" aria-expanded="false" aria-controls="kbUpdatesCollapse">
+                                        <i class="fas fa-book me-2"></i>
+                                        Knowledge Base Updates
+                                    </button>
+                                </h2>
+                                <div id="kbUpdatesCollapse" class="accordion-collapse collapse" aria-labelledby="kbUpdatesHeading" data-bs-parent="#handoverAccordion">
+                                    <div class="accordion-body">
+                            <div id="kbupdates-container">
+                                <!-- Existing KB update entries will be populated here by backend -->
+                                {% for kb_update in kb_updates %}
+                                <div class="kbupdate-entry mb-3 border p-3 rounded">
+                                    <div class="row">
+                                        <div class="col-md-3 mb-2">
+                                            <label class="form-label">Application Name</label>
+                                            <input type="text" class="form-control" name="kb_application_name[]" value="{{ kb_update.app_name }}" placeholder="Enter application name">
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label">KB Number</label>
+                                            <input type="text" class="form-control" name="kb_number[]" value="{{ kb_update.kb_number }}" placeholder="KB000123">
+                                        </div>
+                                        <div class="col-md-4 mb-2">
+                                            <label class="form-label">Description</label>
+                                            <textarea class="form-control" name="kb_description[]" rows="2" placeholder="Brief description of the KB update">{{ kb_update.description }}</textarea>
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label">Responsible Person</label>
+                                            <select class="form-select kb-person-dropdown" name="kb_responsible_person[]">
+                                                <option value="">Select Person</option>
+                                                {% for member in team_members %}
+                                                <option value="{{ member.id }}" {% if kb_update.responsible_engineer_id == member.id %}selected{% endif %}>{{ member.name }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="col-md-1 mb-2">
+                                            <label class="form-label">Status</label>
+                                            <select class="form-select" name="kb_status[]">
+                                                <option value="">Select Status</option>
+                                                <option value="New" {% if kb_update.status == 'New' %}selected{% endif %}>New</option>
+                                                <option value="Draft" {% if kb_update.status == 'Draft' %}selected{% endif %}>Draft</option>
+                                                <option value="In Review" {% if kb_update.status == 'In Review' %}selected{% endif %}>In Review</option>
+                                                <option value="Published" {% if kb_update.status == 'Published' %}selected{% endif %}>Published</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-2">
+                                        <div class="col-12 d-flex justify-content-end">
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeKBUpdate(this)">
+                                                <i class="fas fa-trash"></i> Remove
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <button type="button" class="btn btn-outline-primary" onclick="addKBUpdate()">
+                                <i class="fas fa-plus"></i> Add KB Update
+                            </button>
+                                    </div>
+                                </div>
+                            </div> <!-- End of KB Updates Section -->
+
+                            <!-- Key Points Section -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="keyPointsHeading">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#keyPointsCollapse" aria-expanded="false" aria-controls="keyPointsCollapse">
+                                        <i class="fas fa-key me-2"></i>
+                                        Key Points
+                                    </button>
+                                </h2>
+                                <div id="keyPointsCollapse" class="accordion-collapse collapse" aria-labelledby="keyPointsHeading" data-bs-parent="#handoverAccordion">
+                                    <div class="accordion-body">
                             <div id="keypoints-container">
                                 {% for kp in open_key_points %}
                                 <div class="keypoint-entry mb-3 border p-3 rounded">
                                     <div class="row">
-                                        <div class="col-md-5 mb-2">
+                                        <div class="col-md-6 mb-2">
                                             <label class="form-label">Key Point Details</label>
                                             <textarea class="form-control" name="keypoint_description[]" style="height: 38px; resize: vertical; min-height: 38px;" placeholder="Describe the key point details">{{ kp.description if kp else '' }}</textarea>
                                         </div>
@@ -541,7 +756,7 @@
                                                 {% endfor %}
                                             </select>
                                         </div>
-                                        <div class="col-md-2 mb-2">
+                                        <div class="col-md-3 mb-2">
                                             <label class="form-label">Status</label>
                                             <select class="form-select" name="keypoint_status[]">
                                                 <option value="Open" {{ 'selected' if kp and kp.status == 'Open' else '' }}>Open</option>
@@ -549,12 +764,9 @@
                                                 <option value="Closed" {{ 'selected' if kp and kp.status == 'Closed' else '' }}>Closed</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-2 mb-2">
-                                            <label class="form-label">JIRA ID <span class="text-muted">(Optional)</span></label>
-                                            <input type="text" class="form-control" name="keypoint_jira_id[]" value="{{ kp.jira_id if kp else '' }}" placeholder="JIRA-123">
-                                        </div>
-                                        <div class="col-md-1 mb-2 d-flex align-items-end">
-                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.keypoint-entry').remove()" style="height: 38px; width: 38px;">
+                                        <!-- JIRA ID field removed to prevent duplication issues -->
+                                        <div class="col-md-1 mb-2 d-flex align-items-end justify-content-center">
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.keypoint-entry').remove(); setTimeout(updateSectionCounters, 100);" style="height: 38px; width: 38px;" title="Remove Key Point">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </div>
@@ -565,7 +777,7 @@
                                 {% if not open_key_points %}
                                 <div class="keypoint-entry mb-3 border p-3 rounded">
                                     <div class="row">
-                                        <div class="col-md-5 mb-2">
+                                        <div class="col-md-6 mb-2">
                                             <label class="form-label">Key Point Details</label>
                                             <textarea class="form-control" name="keypoint_description[]" style="height: 38px; resize: vertical; min-height: 38px;" placeholder="Describe the key point details"></textarea>
                                         </div>
@@ -586,10 +798,7 @@
                                                 <option value="Closed">Closed</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-2 mb-2">
-                                            <label class="form-label">JIRA ID <span class="text-muted">(Optional)</span></label>
-                                            <input type="text" class="form-control" name="keypoint_jira_id[]" placeholder="JIRA-123">
-                                        </div>
+                                        <!-- JIRA ID field removed to prevent duplication issues -->
                                         <div class="col-md-1 mb-2 d-flex align-items-end">
                                             <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.keypoint-entry').remove()" style="height: 38px; width: 38px;">
                                                 <i class="fas fa-trash"></i>
@@ -602,7 +811,10 @@
                             <button type="button" class="btn btn-outline-primary" onclick="addKeyPoint()">
                                 <i class="fas fa-plus"></i> Add Another Key Point
                             </button>
-                        </div>
+                                    </div>
+                                </div>
+                            </div> <!-- End of Key Points Section -->
+                        </div> <!-- End of Handover Accordion -->
 
                         <!-- Additional Notes -->
                         <div class="mb-4">
@@ -632,10 +844,159 @@
 </div>
 
 <script>
-// Page initialization
+// Enhanced Accordion Functionality
 document.addEventListener('DOMContentLoaded', function() {
+    // Add section counters to accordion headers
+    updateSectionCounters();
+    
+    // Add accordion event listeners
+    const accordionButtons = document.querySelectorAll('.handover-accordion .accordion-button');
+    accordionButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            // Update counters when sections are toggled
+            setTimeout(updateSectionCounters, 100);
+        });
+    });
+});
+
+// Function to update section counters
+function updateSectionCounters() {
+    // Update Incidents counter
+    const incidentsCount = document.querySelectorAll('#incidentsCollapse .incident-entry').length;
+    const incidentsButton = document.querySelector('button[data-bs-target="#incidentsCollapse"]');
+    updateButtonCounter(incidentsButton, incidentsCount, 'incident');
+    
+    // Update Change Info counter
+    const changeInfoCount = document.querySelectorAll('#changeInfoCollapse .changeinfo-entry').length;
+    const changeInfoButton = document.querySelector('button[data-bs-target="#changeInfoCollapse"]');
+    updateButtonCounter(changeInfoButton, changeInfoCount, 'change');
+    
+    // Update KB Updates counter
+    const kbUpdatesCount = document.querySelectorAll('#kbUpdatesCollapse .kbupdate-entry').length;
+    const kbUpdatesButton = document.querySelector('button[data-bs-target="#kbUpdatesCollapse"]');
+    updateButtonCounter(kbUpdatesButton, kbUpdatesCount, 'KB update');
+    
+    // Update Key Points counter
+    const keyPointsCount = document.querySelectorAll('#keyPointsCollapse .keypoint-entry').length;
+    const keyPointsButton = document.querySelector('button[data-bs-target="#keyPointsCollapse"]');
+    updateButtonCounter(keyPointsButton, keyPointsCount, 'key point');
+}
+
+// Function to update button counter badge
+function updateButtonCounter(button, count, itemType) {
+    if (!button) return;
+    
+    // Remove existing counter badge
+    const existingBadge = button.querySelector('.section-counter');
+    if (existingBadge) {
+        existingBadge.remove();
+    }
+    
+    // Add new counter badge if count > 0
+    if (count > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-primary section-counter ms-auto me-2';
+        badge.textContent = count + ' ' + itemType + (count === 1 ? '' : 's');
+        badge.style.fontSize = '0.75rem';
+        button.appendChild(badge);
+    }
+}
+
+// Global variables for dropdown population
+window.allTeamMembers = [
+    {% for member in team_members %}
+    {
+        id: {{ member.id }},
+        name: "{{ member.name|e }}"
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+console.log('👥 Loaded team members for dropdowns:', window.allTeamMembers);
+
+// Page initialization with comprehensive debugging
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Handover form initializing...');
+    
+    // Debug form state
+    console.log('📊 Form state check:');
+    console.log('- Date element:', document.getElementById('handover_date'));
+    console.log('- Current shift element:', document.getElementById('current_shift_type'));
+    console.log('- Next shift element:', document.getElementById('next_shift_type'));
+    console.log('- Team ID element:', document.getElementById('team_id'));
+    console.log('- Current engineers list:', document.getElementById('current_engineers_list'));
+    console.log('- Next engineers list:', document.getElementById('next_engineers_list'));
+    
+    // Check element values
+    const dateEl = document.getElementById('handover_date');
+    const currentShiftEl = document.getElementById('current_shift_type');
+    const nextShiftEl = document.getElementById('next_shift_type');
+    const teamEl = document.getElementById('team_id');
+    
+    console.log('📋 Form values:');
+    console.log('- Date:', dateEl ? dateEl.value : 'NOT FOUND');
+    console.log('- Current shift:', currentShiftEl ? currentShiftEl.value : 'NOT FOUND');
+    console.log('- Next shift:', nextShiftEl ? nextShiftEl.value : 'NOT FOUND');
+    console.log('- Team ID:', teamEl ? teamEl.value : 'NOT FOUND');
+    
     // Initialize team member dropdowns for keypoints
-    updateKeypointTeamMembersDropdowns();
+    console.log('🔧 Initializing keypoint dropdowns...');
+    try {
+        updateKeypointTeamMembersDropdowns();
+        console.log('✅ Keypoint dropdowns initialized');
+    } catch (error) {
+        console.error('❌ Error initializing keypoint dropdowns:', error);
+    }
+    
+    // 🔧 CRITICAL FIX: Initialize existing change info and KB update dropdowns
+    console.log('🔧 Initializing change info and KB update dropdowns...');
+    try {
+        initializeExistingDropdowns();
+        console.log('✅ Change info and KB update dropdowns initialized');
+    } catch (error) {
+        console.error('❌ Error initializing change/KB dropdowns:', error);
+    }
+    
+    // 🔧 ADDITIONAL FIX: Delayed initialization for edit mode (in case of timing issues)
+    setTimeout(function() {
+        console.log('🔧 DELAYED: Re-initializing dropdowns for edit mode...');
+        try {
+            initializeExistingDropdowns();
+            console.log('✅ DELAYED: Change info and KB update dropdowns re-initialized');
+        } catch (error) {
+            console.error('❌ DELAYED: Error re-initializing change/KB dropdowns:', error);
+        }
+    }, 1000); // Wait 1 second
+    
+    // CRITICAL FIX: Load engineers display on page load
+    console.log('📋 Loading engineers display...');
+    try {
+        updateEngineers();
+        console.log('✅ updateEngineers() called successfully');
+    } catch (error) {
+        console.error('❌ Error calling updateEngineers():', error);
+        
+        // Fallback: Try manual engineer loading
+        console.log('🔄 Attempting manual engineer loading...');
+        setTimeout(() => {
+            try {
+                const date = dateEl ? dateEl.value : '';
+                const currentShift = currentShiftEl ? currentShiftEl.value : '';
+                const nextShift = nextShiftEl ? nextShiftEl.value : '';
+                
+                if (date && currentShift) {
+                    console.log('🎯 Manual current engineers load...');
+                    fetchEngineers(date, currentShift, 'current_engineers', false, currentShift);
+                }
+                if (date && nextShift) {
+                    console.log('🎯 Manual next engineers load...');
+                    fetchEngineers(date, nextShift, 'next_engineers', true, currentShift);
+                }
+            } catch (fallbackError) {
+                console.error('❌ Manual engineer loading failed:', fallbackError);
+            }
+        }, 1000);
+    }
     
     // Initialize engineer dropdowns for incidents if date and shift are available
     const dateElement = document.getElementById('handover_date');
@@ -645,22 +1006,59 @@ document.addEventListener('DOMContentLoaded', function() {
         const date = dateElement.value;
         const nextShift = nextShiftElement.value;
         if (date && nextShift) {
-            updateIncidentEngineersDropdowns(date, nextShift);
+            console.log('🔧 Initializing incident engineer dropdowns...');
+            try {
+                updateIncidentEngineersDropdowns(date, nextShift);
+                console.log('✅ Incident engineer dropdowns initialized');
+            } catch (error) {
+                console.error('❌ Error initializing incident dropdowns:', error);
+            }
         }
     }
+    
+    console.log('✅ Handover form initialization complete');
+    
+    // Add debug button for manual testing
+    const debugButton = document.createElement('button');
+    debugButton.innerHTML = '🔧 Force Reload Engineers';
+    debugButton.className = 'btn btn-warning btn-sm';
+    debugButton.style.position = 'fixed';
+    debugButton.style.top = '10px';
+    debugButton.style.right = '10px';
+    debugButton.style.zIndex = '9999';
+    debugButton.onclick = function(e) {
+        e.preventDefault();
+        console.log('🔧 Manual debug reload triggered');
+        updateEngineers();
+    };
+    document.body.appendChild(debugButton);
 });
 
 // Form Mode Toggle Function
 function toggleFormMode() {
     const toggle = document.getElementById('formModeToggle');
     const incidentsSection = document.getElementById('incidentsSection');
+    const changeInfoSection = document.getElementById('changeInfoCollapse').closest('.accordion-item');
+    const kbUpdatesSection = document.getElementById('kbUpdatesCollapse').closest('.accordion-item');
+    const keyPointsCollapse = document.getElementById('keyPointsCollapse');
     const formModeLabel = document.getElementById('formModeLabel');
     const currentModeDisplay = document.getElementById('currentModeDisplay');
     const toggleIcon = document.getElementById('toggleIcon');
     
     if (toggle.checked) {
-        // Basic mode ON - hide incidents, show only key points
+        // Basic mode ON - hide complex sections, show only key points
         incidentsSection.style.display = 'none';
+        if (changeInfoSection) changeInfoSection.style.display = 'none';
+        if (kbUpdatesSection) kbUpdatesSection.style.display = 'none';
+        
+        // Auto-expand Key Points section in basic mode
+        if (keyPointsCollapse && !keyPointsCollapse.classList.contains('show')) {
+            const keyPointsButton = document.querySelector('button[data-bs-target="#keyPointsCollapse"]');
+            if (keyPointsButton) {
+                keyPointsButton.click();
+            }
+        }
+        
         formModeLabel.textContent = 'Basic';
         currentModeDisplay.textContent = 'ON';
         currentModeDisplay.className = 'badge bg-success text-dark';
@@ -669,8 +1067,11 @@ function toggleFormMode() {
         // Show notification
         showToggleNotification('✅ Basic mode ON - Showing only key points and essential fields', 'success');
     } else {
-        // Basic mode OFF - show all sections including incidents
+        // Basic mode OFF - show all sections
         incidentsSection.style.display = 'block';
+        if (changeInfoSection) changeInfoSection.style.display = 'block';
+        if (kbUpdatesSection) kbUpdatesSection.style.display = 'block';
+        
         formModeLabel.textContent = 'Basic';
         currentModeDisplay.textContent = 'OFF';
         currentModeDisplay.className = 'badge bg-light text-dark';
@@ -746,25 +1147,45 @@ function setShiftDefaults() {
 
 // Update engineers when date or shift changes
 function updateEngineers() {
+    console.log('🔄 updateEngineers() called');
+    
     const date = document.getElementById('handover_date').value;
     const currentShift = document.getElementById('current_shift_type').value;
     const nextShift = document.getElementById('next_shift_type').value;
+    const teamId = document.getElementById('team_id').value;
+    
+    console.log('📊 Form state:', {
+        date,
+        currentShift,
+        nextShift,
+        teamId,
+        teamName: document.getElementById('team_id').options[document.getElementById('team_id').selectedIndex]?.text
+    });
     
     if (date && currentShift) {
-        fetchEngineers(date, currentShift, 'current_engineers');
+        console.log('🔄 Calling fetchEngineers for current shift:', {date, currentShift});
+        fetchEngineers(date, currentShift, 'current_engineers', false, currentShift);
+    } else {
+        console.log('⚠️ Missing date or current shift:', {date, currentShift});
     }
+    
     if (date && nextShift) {
-        fetchEngineers(date, nextShift, 'next_engineers');
+        console.log('🔄 Calling fetchEngineers for next shift:', {date, nextShift});
+        fetchEngineers(date, nextShift, 'next_engineers', true, currentShift);
         // Also update all next-engineers-select dropdowns in incidents
-        updateIncidentEngineersDropdowns(date, nextShift);
+        updateIncidentEngineersDropdowns(date, nextShift, currentShift);
+    } else {
+        console.log('⚠️ Missing date or next shift:', {date, nextShift});
     }
     
     // Update keypoint team member dropdowns (not dependent on shift)
     updateKeypointTeamMembersDropdowns();
+    
+    console.log('✅ updateEngineers() completed');
 }
 
 // Function to update engineer dropdowns in incident sections
-function updateIncidentEngineersDropdowns(date, shiftType) {
+function updateIncidentEngineersDropdowns(date, shiftType, currentShiftType) {
     const shiftMap = {
         'morning': 'Morning',
         'evening': 'Evening', 
@@ -774,12 +1195,16 @@ function updateIncidentEngineersDropdowns(date, shiftType) {
     };
     
     const properShiftType = shiftMap[shiftType] || shiftType;
+    const properCurrentShiftType = shiftMap[currentShiftType] || currentShiftType;
     
     // Get selected team ID for filtering
     const teamId = document.getElementById('team_id').value;
     
-    // Build API URL with team parameter if available
-    let apiUrl = `/api/get_engineers?date=${date}&shift_type=${properShiftType}`;
+    // Build API URL with shift transition context (this is for next shift engineers)
+    let apiUrl = `/api/get_engineers?date=${date}&shift_type=${properShiftType}&is_next_shift=true`;
+    if (properCurrentShiftType) {
+        apiUrl += `&current_shift_type=${properCurrentShiftType}`;
+    }
     if (teamId) {
         apiUrl += `&team_id=${teamId}`;
     }
@@ -828,6 +1253,166 @@ function updateIncidentEngineersDropdowns(date, shiftType) {
         .catch(error => {
             console.error('Error fetching engineers for incidents:', error);
         });
+}
+
+// Function to handle team selection change for multi-team users
+function handleTeamChange(teamId) {
+    console.log('🔄 Team selection changed to:', teamId);
+    
+    if (!teamId) {
+        console.log('⚠️ No team selected');
+        return;
+    }
+    
+    // Show loading indicator
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'alert alert-info';
+    loadingIndicator.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading team data...';
+    loadingIndicator.id = 'team-loading';
+    
+    const form = document.getElementById('handover-form');
+    if (form) {
+        form.insertBefore(loadingIndicator, form.firstChild);
+    }
+    
+    // Update team filter in backend session
+    fetch('/auth/set_team_filter', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            team_id: teamId
+        })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            console.log('✅ Team filter updated, reloading page for team:', teamId);
+            // Reload the page to get all data for the new team
+            window.location.href = window.location.pathname + '?team_id=' + teamId;
+        } else {
+            console.error('❌ Failed to update team filter:', result.message);
+            const loading = document.getElementById('team-loading');
+            if (loading) loading.remove();
+            
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'alert alert-danger alert-dismissible fade show';
+            errorDiv.innerHTML = `
+                <strong>Error:</strong> Failed to update team. ${result.message || 'Unknown error'}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            if (form) {
+                form.insertBefore(errorDiv, form.firstChild);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error updating team:', error);
+        const loading = document.getElementById('team-loading');
+        if (loading) loading.remove();
+        
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger alert-dismissible fade show';
+        errorDiv.innerHTML = `
+            <strong>Network Error:</strong> Unable to update team. Please try again.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        if (form) {
+            form.insertBefore(errorDiv, form.firstChild);
+        }
+    });
+}
+
+// Function to clear engineer selections when team changes
+function clearEngineerSelections() {
+    const currentList = document.getElementById('current_engineers_list');
+    const nextList = document.getElementById('next_engineers_list');
+    const currentInput = document.getElementById('current_engineers');
+    const nextInput = document.getElementById('next_engineers');
+    
+    if (currentList) currentList.innerHTML = '';
+    if (nextList) nextList.innerHTML = '';
+    if (currentInput) currentInput.value = '';
+    if (nextInput) nextInput.value = '';
+    
+    console.log('🔄 Cleared engineer selections for team change');
+}
+
+// Function to update all team member dropdowns after team change
+function updateAllTeamMemberDropdowns() {
+    // Update keypoint dropdowns
+    updateKeypointTeamMembersDropdowns();
+    
+    // Update change info dropdowns
+    updateChangeInfoTeamMembersDropdowns();
+    
+    // Update KB dropdowns
+    updateKBTeamMembersDropdowns();
+    
+    console.log('🔄 Updated all team member dropdowns');
+}
+
+// Function to update change info team member dropdowns
+function updateChangeInfoTeamMembersDropdowns() {
+    const changeDropdowns = document.querySelectorAll('.change-engineer-dropdown');
+    console.log(`🔧 Updating ${changeDropdowns.length} change engineer dropdowns`);
+    
+    changeDropdowns.forEach((dropdown, index) => {
+        if (window.allTeamMembers && window.allTeamMembers.length > 0) {
+            const currentValue = dropdown.value;
+            
+            // Clear existing options except the first one
+            while (dropdown.children.length > 1) {
+                dropdown.removeChild(dropdown.lastChild);
+            }
+            
+            // Add all team members as options
+            window.allTeamMembers.forEach(member => {
+                const option = document.createElement('option');
+                option.value = member.id;
+                option.textContent = member.name;
+                dropdown.appendChild(option);
+            });
+            
+            // Restore selection if it was set
+            if (currentValue) {
+                dropdown.value = currentValue;
+            }
+        }
+    });
+}
+
+// Function to update KB team member dropdowns  
+function updateKBTeamMembersDropdowns() {
+    const kbDropdowns = document.querySelectorAll('.kb-person-dropdown');
+    console.log(`🔧 Updating ${kbDropdowns.length} KB person dropdowns`);
+    
+    kbDropdowns.forEach((dropdown, index) => {
+        if (window.allTeamMembers && window.allTeamMembers.length > 0) {
+            const currentValue = dropdown.value;
+            
+            // Clear existing options except the first one
+            while (dropdown.children.length > 1) {
+                dropdown.removeChild(dropdown.lastChild);
+            }
+            
+            // Add all team members as options
+            window.allTeamMembers.forEach(member => {
+                const option = document.createElement('option');
+                option.value = member.id;
+                option.textContent = member.name;
+                dropdown.appendChild(option);
+            });
+            
+            // Restore selection if it was set
+            if (currentValue) {
+                dropdown.value = currentValue;
+            }
+        }
+    });
 }
 
 // Function to update team member dropdowns in keypoint sections
@@ -884,7 +1469,25 @@ function updateKeypointTeamMembersDropdowns() {
         });
 }
 
-function fetchEngineers(date, shiftType, targetId) {
+function fetchEngineers(date, shiftType, targetId, isNextShift = false, currentShiftType = null) {
+    console.log('🚀 fetchEngineers ENTRY - Parameters:', {
+        date, shiftType, targetId, isNextShift, currentShiftType
+    });
+    
+    // Early validation
+    if (!date) {
+        console.error('❌ fetchEngineers: Missing required parameter - date');
+        return;
+    }
+    if (!shiftType) {
+        console.error('❌ fetchEngineers: Missing required parameter - shiftType');
+        return;
+    }
+    if (!targetId) {
+        console.error('❌ fetchEngineers: Missing required parameter - targetId');
+        return;
+    }
+    
     // Map shift types to proper case
     const shiftMap = {
         'morning': 'Morning',
@@ -893,52 +1496,180 @@ function fetchEngineers(date, shiftType, targetId) {
     };
     
     const properShiftType = shiftMap[shiftType] || shiftType;
+    const properCurrentShiftType = shiftMap[currentShiftType] || currentShiftType;
+    
+    console.log('🔄 Shift type mapping:', {
+        original: shiftType,
+        mapped: properShiftType,
+        currentOriginal: currentShiftType,
+        currentMapped: properCurrentShiftType
+    });
     
     // Get selected team ID for filtering
-    const teamId = document.getElementById('team_id').value;
+    const teamElement = document.getElementById('team_id');
+    if (!teamElement) {
+        console.error('❌ fetchEngineers: team_id element not found in DOM');
+        return;
+    }
+    const teamId = teamElement.value;
+    console.log('👥 Team ID from form:', teamId);
     
-    // Build API URL with team parameter if available
-    let apiUrl = `/api/get_engineers?date=${date}&shift_type=${properShiftType}`;
+    // Build API URL with team parameter and shift transition context
+    let apiUrl = `/api/get_engineers?date=${date}&shift_type=${properShiftType}&is_next_shift=${isNextShift}`;
+    if (properCurrentShiftType) {
+        apiUrl += `&current_shift_type=${properCurrentShiftType}`;
+    }
     if (teamId) {
         apiUrl += `&team_id=${teamId}`;
     }
+    
+    console.log(`🔍 fetchEngineers processing:`, {
+        date, 
+        shiftType, 
+        properShiftType, 
+        targetId, 
+        isNextShift, 
+        teamId,
+        finalApiUrl: apiUrl
+    });
     
     // Determine if this is for current or next engineers
     const isCurrentShift = targetId === 'current_engineers';
     const displayListId = isCurrentShift ? 'current_engineers_list' : 'next_engineers_list';
     const hiddenInputId = targetId; // Keep the same ID for hidden input
     
+    console.log(`📋 Target elements for ${targetId}:`, {
+        isCurrentShift,
+        displayListId,
+        hiddenInputId
+    });
+    
+    // Verify target elements exist
+    const displayList = document.getElementById(displayListId);
+    const hiddenInput = document.getElementById(hiddenInputId);
+    
+    console.log(`🔍 DOM element check:`, {
+        displayListExists: !!displayList,
+        hiddenInputExists: !!hiddenInput,
+        displayListId,
+        hiddenInputId
+    });
+    
+    if (!displayList) {
+        console.error(`❌ Display element NOT FOUND: ${displayListId}`);
+        return;
+    }
+    if (!hiddenInput) {
+        console.error(`❌ Hidden input element NOT FOUND: ${hiddenInputId}`);
+        return;
+    }
+    
+    // Set loading state
+    displayList.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Loading engineers...</span>';
+    
+    console.log(`📡 Starting API call to: ${apiUrl}`);
+    
     fetch(apiUrl)
-        .then(response => response.json())
+        .then(response => {
+            console.log(`📡 API Response received:`, {
+                status: response.status,
+                statusText: response.statusText,
+                ok: response.ok,
+                url: response.url,
+                headers: Array.from(response.headers.entries())
+            });
+            
+            if (!response.ok) {
+                console.error(`❌ API Error - Status: ${response.status}, Text: ${response.statusText}`);
+                throw new Error(`API returned ${response.status}: ${response.statusText}`);
+            }
+            
+            console.log(`✅ API Response OK - Converting to JSON...`);
+            return response.json();
+        })
         .then(data => {
+            console.log(`📊 Raw JSON data received:`, data);
+            console.log(`📊 Data type:`, typeof data);
+            console.log(`📊 Data keys:`, data ? Object.keys(data) : 'No keys - data is null/undefined');
+            
+            if (data && data.engineers) {
+                console.log(`👥 Engineers array:`, data.engineers);
+                console.log(`👥 Engineers count:`, data.engineers.length);
+                console.log(`👥 First engineer:`, data.engineers[0]);
+                console.log(`👥 Engineers array type:`, Array.isArray(data.engineers) ? 'Array' : 'Not an array');
+            } else {
+                console.log(`❌ No engineers property in data or data is null`);
+            }
+            
+            console.log(`🎯 Processing engineers data for display...`);
+            
+            // Re-verify elements exist (they might have been removed/changed)
             const displayList = document.getElementById(displayListId);
             const hiddenInput = document.getElementById(hiddenInputId);
             
-            if (data.engineers && data.engineers.length > 0) {
+            console.log(`🔍 Final DOM element verification:`, {
+                displayListExists: !!displayList,
+                hiddenInputExists: !!hiddenInput,
+                displayListId,
+                hiddenInputId
+            });
+            
+            if (!displayList) {
+                console.error(`❌ CRITICAL: Display element disappeared: ${displayListId}`);
+                return;
+            }
+            
+            if (data && data.engineers && Array.isArray(data.engineers) && data.engineers.length > 0) {
+                console.log(`✅ Processing ${data.engineers.length} engineers...`);
+                
                 // Display engineers as badges/chips
-                const engineerBadges = data.engineers.map(engineer => {
+                const engineerBadges = data.engineers.map((engineer, index) => {
+                    console.log(`👤 Processing engineer ${index + 1}:`, engineer);
                     // Handle both old format (string) and new format (object)
                     const engineerName = typeof engineer === 'string' ? engineer : engineer.name;
+                    console.log(`👤 Engineer name extracted: "${engineerName}"`);
                     return `<span class="badge bg-primary me-2 mb-1">${engineerName}</span>`;
                 }).join('');
                 
+                console.log(`🎨 Generated HTML badges:`, engineerBadges);
+                
                 displayList.innerHTML = engineerBadges;
+                console.log(`✅ Updated display list innerHTML`);
                 
                 // Store engineer names in hidden input (comma-separated)
                 const engineerNames = data.engineers.map(engineer => 
                     typeof engineer === 'string' ? engineer : engineer.name
                 );
-                hiddenInput.value = engineerNames.join(', ');
+                const engineerNamesStr = engineerNames.join(', ');
+                
+                if (hiddenInput) {
+                    hiddenInput.value = engineerNamesStr;
+                    console.log(`✅ Updated hidden input value: "${engineerNamesStr}"`);
+                } else {
+                    console.warn(`⚠️ Hidden input not available for update`);
+                }
+                
+                console.log(`🎉 SUCCESS: Loaded ${data.engineers.length} engineers for ${displayListId}`);
+                console.log(`🎉 Engineers: ${engineerNames.join(', ')}`);
             } else {
+                console.log(`ℹ️ No engineers in data - showing empty state`);
                 displayList.innerHTML = '<span class="text-muted"><i class="fas fa-info-circle me-1"></i>No engineers scheduled for this shift</span>';
-                hiddenInput.value = '';
+                if (hiddenInput) {
+                    hiddenInput.value = '';
+                }
+                console.log(`ℹ️ No engineers found for ${displayListId}`);
             }
         })
         .catch(error => {
-            console.error('Error fetching engineers:', error);
+            console.error(`❌ Error fetching engineers for ${displayListId}:`, error);
             const displayList = document.getElementById(displayListId);
-            displayList.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>Error loading engineers - use manual input below</span>';
-            document.getElementById(hiddenInputId).value = '';
+            if (displayList) {
+                displayList.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>Error loading engineers - use manual input below</span>';
+            }
+            const hiddenInput = document.getElementById(hiddenInputId);
+            if (hiddenInput) {
+                hiddenInput.value = '';
+            }
             
             // Show manual input fallback
             const manualInputId = isCurrentShift ? 'current_engineers_manual' : 'next_engineers_manual';
@@ -1213,6 +1944,9 @@ function addIncident(type, incidentData = null) {
         if (date && nextShift) {
             updateIncidentEngineersDropdowns(date, nextShift);
         }
+        
+        // Update section counter
+        setTimeout(updateSectionCounters, 100);
     }
 }
 
@@ -1257,7 +1991,21 @@ function populateIncidentEntry(entryElement, incident, type) {
 }
 
 function addKeyPoint() {
+    console.log('🔥 ADDING NEW KEYPOINT - Starting...');
     const container = document.getElementById('keypoints-container');
+    if (!container) {
+        console.error('❌ Keypoints container not found');
+        return;
+    }
+    
+    // Debug: Count existing keypoints before adding
+    const existingKeypoints = container.querySelectorAll('.keypoint-entry');
+    console.log(`🔥 EXISTING KEYPOINTS: ${existingKeypoints.length}`);
+    existingKeypoints.forEach((kp, index) => {
+        const desc = kp.querySelector('[name="keypoint_description[]"]')?.value || 'empty';
+        const status = kp.querySelector('[name="keypoint_status[]"]')?.value || 'empty';
+        console.log(`🔥   Existing KP ${index + 1}: "${desc}" - ${status}`);
+    });
     const keypointHTML = `
         <div class="keypoint-entry mb-3 border p-3 rounded">
             <div class="row">
@@ -1279,10 +2027,7 @@ function addKeyPoint() {
                         <option value="Closed">Closed</option>
                     </select>
                 </div>
-                <div class="col-md-2 mb-2">
-                    <label class="form-label">JIRA ID <span class="text-muted">(Optional)</span></label>
-                    <input type="text" class="form-control" name="keypoint_jira_id[]" placeholder="JIRA-123">
-                </div>
+                <!-- JIRA ID field removed to prevent duplication issues -->
                 <div class="col-md-1 mb-2 d-flex align-items-end">
                     <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.keypoint-entry').remove()" style="height: 38px; width: 38px;">
                         <i class="fas fa-trash"></i>
@@ -1304,7 +2049,7 @@ function addKeyPoint() {
                 if (data.team_members && data.team_members.length > 0) {
                     data.team_members.forEach(member => {
                         const option = document.createElement('option');
-                        option.value = member.name;
+                        option.value = member.id;
                         option.textContent = member.name;
                         newDropdown.appendChild(option);
                     });
@@ -1314,6 +2059,371 @@ function addKeyPoint() {
                 console.error('Error populating new keypoint dropdown:', error);
             });
     }
+    
+    // Debug: Count keypoints after adding
+    setTimeout(() => {
+        const finalKeypoints = container.querySelectorAll('.keypoint-entry');
+        console.log(`🔥 FINAL KEYPOINTS: ${finalKeypoints.length}`);
+        console.log('🔥 ADDKEYPOINT COMPLETE - New keypoint should be visible now');
+        
+        // Update section counter
+        updateSectionCounters();
+    }, 100);
+}
+
+function debugKeypoints() {
+    console.log('🐛 === KEYPOINTS DEBUG ANALYSIS ===');
+    
+    const form = document.getElementById('handover-form');
+    const container = document.getElementById('keypoints-container');
+    
+    if (!container) {
+        console.error('❌ Keypoints container not found!');
+        return;
+    }
+    
+    if (!form) {
+        console.error('❌ Form not found!');
+        return;
+    }
+    
+    // Count DOM elements
+    const keypointEntries = container.querySelectorAll('.keypoint-entry');
+    console.log(`🐛 DOM KEYPOINTS: ${keypointEntries.length}`);
+    
+    // Check each keypoint entry
+    keypointEntries.forEach((entry, index) => {
+        const desc = entry.querySelector('[name="keypoint_description[]"]');
+        const assignedTo = entry.querySelector('[name="keypoint_assigned_to[]"]');
+        const status = entry.querySelector('[name="keypoint_status[]"]');
+        
+        console.log(`🐛 Entry ${index + 1}:`);
+        console.log(`   📝 Description: "${desc?.value || 'empty'}" (element exists: ${!!desc})`);
+        console.log(`   👤 Assigned: "${assignedTo?.value || 'empty'}" (element exists: ${!!assignedTo})`);
+        console.log(`   📊 Status: "${status?.value || 'empty'}" (element exists: ${!!status})`);
+        console.log(`   📍 Inside form: ${form.contains(entry)}`);
+    });
+    
+    // Check form data
+    console.log('🐛 FORM DATA CHECK:');
+    const formData = new FormData(form);
+    const descriptions = formData.getAll('keypoint_description[]');
+    const assignedTos = formData.getAll('keypoint_assigned_to[]');
+    const statuses = formData.getAll('keypoint_status[]');
+    
+    console.log(`🐛 Form descriptions: [${descriptions.length}] ${JSON.stringify(descriptions)}`);
+    console.log(`🐛 Form assigned_to: [${assignedTos.length}] ${JSON.stringify(assignedTos)}`);
+    console.log(`🐛 Form statuses: [${statuses.length}] ${JSON.stringify(statuses)}`);
+    
+    console.log('🐛 === END DEBUG ANALYSIS ===');
+}
+
+// Change Info Management Functions
+function addChangeInfo() {
+    console.log('🔧 Adding new change info entry...');
+    const container = document.getElementById('changeinfo-container');
+    if (!container) {
+        console.error('❌ Change info container not found');
+        return;
+    }
+
+    const changeInfoHTML = `
+        <div class="changeinfo-entry mb-3 border p-3 rounded">
+            <div class="row">
+                <div class="col-md-3 mb-2">
+                    <label class="form-label">Application Name</label>
+                    <input type="text" class="form-control" name="change_application_name[]" placeholder="Enter application name">
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="form-label">Change Number</label>
+                    <input type="text" class="form-control" name="change_number[]" placeholder="CHG000123">
+                </div>
+                <div class="col-md-3 mb-2">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" name="change_description[]" rows="2" placeholder="Brief description of the change"></textarea>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="form-label">Date & Time</label>
+                    <input type="datetime-local" class="form-control change-datetime" name="change_datetime[]">
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="form-label">Responsible Engineer</label>
+                    <select class="form-select change-engineer-dropdown" name="change_responsible_engineer[]">
+                        <option value="">Select Engineer</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-3 mb-2">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" name="change_status[]">
+                        <option value="New" selected>New</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Scheduled">Scheduled</option>
+                        <option value="Postponed">Postponed</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-12 d-flex justify-content-end">
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeChangeInfo(this)">
+                        <i class="fas fa-trash"></i> Remove
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    container.insertAdjacentHTML('beforeend', changeInfoHTML);
+    
+    // Initialize engineer dropdown for the new entry
+    initializeEngineersForNewEntry(container.lastElementChild, 'change-engineer-dropdown');
+    
+    // Update section counter
+    setTimeout(updateSectionCounters, 100);
+    
+    console.log('✅ Change info entry added');
+}
+
+function removeChangeInfo(button) {
+    const entry = button.closest('.changeinfo-entry');
+    if (entry) {
+        entry.remove();
+        setTimeout(updateSectionCounters, 100);
+        console.log('🗑️ Change info entry removed');
+    }
+}
+
+// KB Updates Management Functions
+function addKBUpdate() {
+    console.log('📚 Adding new KB update entry...');
+    const container = document.getElementById('kbupdates-container');
+    if (!container) {
+        console.error('❌ KB updates container not found');
+        return;
+    }
+
+    const kbUpdateHTML = `
+        <div class="kbupdate-entry mb-3 border p-3 rounded">
+            <div class="row">
+                <div class="col-md-3 mb-2">
+                    <label class="form-label">Application Name</label>
+                    <input type="text" class="form-control" name="kb_application_name[]" placeholder="Enter application name">
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="form-label">KB Number</label>
+                    <input type="text" class="form-control" name="kb_number[]" placeholder="KB000123">
+                </div>
+                <div class="col-md-4 mb-2">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" name="kb_description[]" rows="2" placeholder="Brief description of the KB update"></textarea>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="form-label">Responsible Person</label>
+                    <select class="form-select kb-person-dropdown" name="kb_responsible_person[]">
+                        <option value="">Select Person</option>
+                    </select>
+                </div>
+                <div class="col-md-1 mb-2">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" name="kb_status[]">
+                        <option value="">Select Status</option>
+                        <option value="New">New</option>
+                        <option value="Draft">Draft</option>
+                        <option value="In Review">In Review</option>
+                        <option value="Published">Published</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-12 d-flex justify-content-end">
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeKBUpdate(this)">
+                        <i class="fas fa-trash"></i> Remove
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    container.insertAdjacentHTML('beforeend', kbUpdateHTML);
+    
+    // Initialize engineer dropdown for the new entry
+    initializeEngineersForNewEntry(container.lastElementChild, 'kb-person-dropdown');
+    
+    // Update section counter
+    setTimeout(updateSectionCounters, 100);
+    
+    console.log('✅ KB update entry added');
+}
+
+function removeKBUpdate(button) {
+    const entry = button.closest('.kbupdate-entry');
+    if (entry) {
+        entry.remove();
+        setTimeout(updateSectionCounters, 100);
+        console.log('🗑️ KB update entry removed');
+    }
+}
+
+// Helper function to initialize engineer dropdowns for new entries
+function initializeEngineersForNewEntry(entry, dropdownClass) {
+    const dropdown = entry.querySelector(`.${dropdownClass}`);
+    if (dropdown && window.allTeamMembers) {
+        // Clear existing options except the first one
+        while (dropdown.children.length > 1) {
+            dropdown.removeChild(dropdown.lastChild);
+        }
+        
+        // Add all team members as options
+        window.allTeamMembers.forEach(member => {
+            const option = document.createElement('option');
+            option.value = member.id;
+            option.textContent = member.name;
+            dropdown.appendChild(option);
+        });
+    } else if (dropdown) {
+        console.warn('⚠️ window.allTeamMembers not available for dropdown initialization');
+    }
+}
+
+// 🔧 CRITICAL FIX: Initialize existing change info and KB update dropdowns
+function initializeExistingDropdowns() {
+    console.log('🔧 Initializing existing dropdowns...');
+    console.log('🔧 window.allTeamMembers:', window.allTeamMembers);
+    console.log('🔧 Team members count:', window.allTeamMembers ? window.allTeamMembers.length : 0);
+    
+    // Check if we're in edit mode by looking for existing entries
+    const isEditMode = document.querySelector('input[name="is_edit_mode"]') || 
+                       document.querySelector('.change-info-section .change-info-entry') ||
+                       document.querySelector('.kb-updates-section .kb-update-entry');
+    console.log('🔧 Edit mode detected:', !!isEditMode);
+    
+    // Initialize change info dropdowns
+    const changeDropdowns = document.querySelectorAll('.change-engineer-dropdown');
+    console.log(`🔧 Found ${changeDropdowns.length} change engineer dropdowns`);
+    changeDropdowns.forEach((dropdown, index) => {
+        console.log(`🔧 Processing change dropdown ${index + 1}:`, dropdown);
+        console.log(`🔧 Current value:`, dropdown.value);
+        console.log(`🔧 Current options count:`, dropdown.children.length);
+        
+        if (window.allTeamMembers && window.allTeamMembers.length > 0) {
+            // Store current selection
+            const currentValue = dropdown.value;
+            
+            // Clear existing options except the first one (Select Engineer)
+            while (dropdown.children.length > 1) {
+                dropdown.removeChild(dropdown.lastChild);
+            }
+            
+            // Add all team members as options
+            window.allTeamMembers.forEach(member => {
+                const option = document.createElement('option');
+                option.value = member.id;
+                option.textContent = member.name;
+                dropdown.appendChild(option);
+            });
+            
+            // Restore selection if it was set
+            if (currentValue) {
+                dropdown.value = currentValue;
+                console.log(`🔧 Restored selection to:`, currentValue);
+            }
+            
+            console.log(`✅ Initialized change dropdown ${index + 1} with ${window.allTeamMembers.length} team members`);
+            console.log(`🔧 Final options count:`, dropdown.children.length);
+        } else {
+            console.warn(`⚠️ No team members available for change dropdown ${index + 1}`);
+            console.warn(`⚠️ window.allTeamMembers:`, window.allTeamMembers);
+        }
+    });
+    
+    // Initialize KB update dropdowns
+    const kbDropdowns = document.querySelectorAll('.kb-person-dropdown');
+    console.log(`🔧 Found ${kbDropdowns.length} KB person dropdowns`);
+    kbDropdowns.forEach((dropdown, index) => {
+        console.log(`🔧 Processing KB dropdown ${index + 1}:`, dropdown);
+        console.log(`🔧 Current value:`, dropdown.value);
+        console.log(`🔧 Current options count:`, dropdown.children.length);
+        
+        if (window.allTeamMembers && window.allTeamMembers.length > 0) {
+            // Store current selection
+            const currentValue = dropdown.value;
+            
+            // Clear existing options except the first one (Select Person)
+            while (dropdown.children.length > 1) {
+                dropdown.removeChild(dropdown.lastChild);
+            }
+            
+            // Add all team members as options
+            window.allTeamMembers.forEach(member => {
+                const option = document.createElement('option');
+                option.value = member.id;
+                option.textContent = member.name;
+                dropdown.appendChild(option);
+            });
+            
+            // Restore selection if it was set
+            if (currentValue) {
+                dropdown.value = currentValue;
+                console.log(`🔧 Restored selection to:`, currentValue);
+            }
+            
+            console.log(`✅ Initialized KB dropdown ${index + 1} with ${window.allTeamMembers.length} team members`);
+            console.log(`🔧 Final options count:`, dropdown.children.length);
+        } else {
+            console.warn(`⚠️ No team members available for KB dropdown ${index + 1}`);
+            console.warn(`⚠️ window.allTeamMembers:`, window.allTeamMembers);
+        }
+    });
+}
+
+// Validation functions for Change Info and KB Updates
+function validateChangeDateTime() {
+    const changeDateTimes = document.querySelectorAll('.change-datetime');
+    const now = new Date();
+    const maxFutureDate = new Date(now.getTime() + (90 * 24 * 60 * 60 * 1000)); // 90 days from now
+    let isValid = true;
+    
+    changeDateTimes.forEach(input => {
+        if (input.value) {  // Only validate if there's a value
+            const selectedDate = new Date(input.value);
+            
+            // Allow future dates (change requests are often scheduled)
+            // Only block dates that are unreasonably far in the future (>90 days)
+            if (selectedDate > maxFutureDate) {
+                input.setCustomValidity('Change date is too far in the future (maximum 90 days)');
+                input.reportValidity();
+                isValid = false;
+            } else {
+                input.setCustomValidity('');
+            }
+        }
+    });
+    return isValid;
+}
+
+function validateChangeNumbers() {
+    const changeNumbers = Array.from(document.querySelectorAll('input[name="change_number[]"]')).map(input => input.value.trim()).filter(val => val);
+    const duplicates = changeNumbers.filter((item, index) => changeNumbers.indexOf(item) !== index);
+    
+    if (duplicates.length > 0) {
+        alert(`Duplicate change numbers found: ${duplicates.join(', ')}`);
+        return false;
+    }
+    return true;
+}
+
+function validateKBNumbers() {
+    const kbNumbers = Array.from(document.querySelectorAll('input[name="kb_number[]"]')).map(input => input.value.trim()).filter(val => val);
+    const duplicates = kbNumbers.filter((item, index) => kbNumbers.indexOf(item) !== index);
+    
+    if (duplicates.length > 0) {
+        alert(`Duplicate KB numbers found: ${duplicates.join(', ')}`);
+        return false;
+    }
+    return true;
 }
 
 // ServiceNow Incident Auto-Population
@@ -1482,23 +2592,45 @@ function populateFirstIncidentEntryEditMode(container, incident, type) {
         const appInput = firstEntry.querySelector('input[name="handover_incident_app[]"]');
         const idInput = firstEntry.querySelector('input[name="handover_incident_id[]"]');
         const statusSelect = firstEntry.querySelector('select[name="handover_incident_status[]"]');
-        const nextByInput = firstEntry.querySelector('input[name="handover_incident_next_by[]"]');
+        const nextBySelect = firstEntry.querySelector('select[name="handover_incident_next_by[]"]');
         const notesTextarea = firstEntry.querySelector('textarea[name="handover_incident_notes[]"]');
         
         if (appInput) appInput.value = incident.app_name || '';
         if (idInput) idInput.value = incident.id || '';
         if (statusSelect) statusSelect.value = incident.status || 'Monitoring';
-        if (nextByInput) nextByInput.value = incident.next_action_by || '';
+        
+        // Fix: Set the Next Action By field properly
+        if (nextBySelect) {
+            console.log('🔧 HANDOVER DEBUG: Setting next_action_by to:', incident.next_action_by);
+            // Try setting by value first (team member name)
+            nextBySelect.value = incident.next_action_by || '';
+            
+            // If that didn't work, try finding by text content
+            if (!nextBySelect.value && incident.next_action_by) {
+                const options = nextBySelect.querySelectorAll('option');
+                for (let option of options) {
+                    if (option.textContent.trim() === incident.next_action_by.trim()) {
+                        option.selected = true;
+                        break;
+                    }
+                }
+            }
+        }
+        
         if (notesTextarea) notesTextarea.value = incident.notes || '';
         
     } else if (type === 'escalated') {
         const appInput = firstEntry.querySelector('input[name="escalated_incident_app[]"]');
         const idInput = firstEntry.querySelector('input[name="escalated_incident_id[]"]');
-        const escalatedToInput = firstEntry.querySelector('input[name="escalated_incident_escalated_to[]"]');
+        const escalatedToInput = firstEntry.querySelector('input[name="escalated_incident_to[]"]');
+        const escalationReasonTextarea = firstEntry.querySelector('textarea[name="escalated_incident_reason[]"]');
+        const currentStatusTextarea = firstEntry.querySelector('textarea[name="escalated_incident_status[]"]');
         
         if (appInput) appInput.value = incident.app_name || '';
         if (idInput) idInput.value = incident.id || '';
         if (escalatedToInput) escalatedToInput.value = incident.escalated_to || '';
+        if (escalationReasonTextarea) escalationReasonTextarea.value = incident.escalation_reason || '';
+        if (currentStatusTextarea) currentStatusTextarea.value = incident.current_status || '';
     }
     
     console.log('✅ Edit mode: Populated first incident entry for', type);
@@ -1643,19 +2775,178 @@ document.addEventListener('DOMContentLoaded', function() {
 function setupFormSubmissionHandling() {
     console.log('Setting up SIMPLE form submission handling...');
     
+    // 🔧 COMPREHENSIVE FIX: Ensure all key points are included in form submission
+    console.log('🔧 Adding comprehensive key points submission fix...');
+    
+    // Function to validate all key points are properly included before submission
+    function validateKeyPointsBeforeSubmission() {
+        console.log('🔍 VALIDATING KEY POINTS BEFORE SUBMISSION...');
+        
+        const form = document.getElementById('handover-form');
+        const container = document.getElementById('keypoints-container');
+        
+        if (!form || !container) {
+            console.error('❌ Form or keypoints container not found!');
+            return false;
+        }
+        
+        // Count DOM elements
+        const keypointEntries = container.querySelectorAll('.keypoint-entry');
+        console.log(`🔍 DOM Key Point Entries: ${keypointEntries.length}`);
+        
+        // Check form data
+        const formData = new FormData(form);
+        const descriptions = formData.getAll('keypoint_description[]');
+        const assignedTos = formData.getAll('keypoint_assigned_to[]');
+        const statuses = formData.getAll('keypoint_status[]');
+        // Note: JIRA ID field has been removed from the form
+        
+        console.log(`🔍 Form Data Arrays:`);
+        console.log(`   Descriptions: ${descriptions.length} items`);
+        console.log(`   Assigned Tos: ${assignedTos.length} items`);
+        console.log(`   Statuses: ${statuses.length} items`);
+        
+        // Log each key point
+        for (let i = 0; i < Math.max(descriptions.length, keypointEntries.length); i++) {
+            const desc = descriptions[i] || 'MISSING';
+            const assigned = assignedTos[i] || 'MISSING';
+            const status = statuses[i] || 'MISSING';
+            
+            console.log(`🔍 Key Point ${i + 1}:`);
+            console.log(`     Description: "${desc}"`);
+            console.log(`     Assigned: "${assigned}"`);
+            console.log(`     Status: "${status}"`);
+        }
+        
+        // Validation checks (removed JIRA ID requirement)
+        // For key points, we allow empty sections (user might not have key points)
+        const hasKeyPoints = keypointEntries.length > 0;
+        const isValid = !hasKeyPoints || (descriptions.length === assignedTos.length && descriptions.length === statuses.length);
+        
+        if (!isValid) {
+            console.error('❌ KEY POINTS VALIDATION FAILED!');
+            console.error(`   Expected lengths: descriptions(${descriptions.length}) = assignedTos(${assignedTos.length}) = statuses(${statuses.length})`);
+            console.error('   DOM entries: ' + keypointEntries.length);
+            console.error('   This indicates a form structure mismatch');
+            
+            // Try to fix missing elements
+            console.log('🔧 Attempting to fix missing form elements...');
+            
+            keypointEntries.forEach((entry, index) => {
+                const desc = entry.querySelector('[name="keypoint_description[]"]');
+                const assigned = entry.querySelector('[name="keypoint_assigned_to[]"]');
+                const status = entry.querySelector('[name="keypoint_status[]"]');
+                // Note: JIRA ID field has been removed from the form
+                
+                if (!desc || !assigned || !status) {
+                    console.error(`❌ Key Point ${index + 1} has missing form elements:`, {
+                        desc: !!desc,
+                        assigned: !!assigned, 
+                        status: !!status
+                    });
+                }
+            });
+            
+            return false;
+        }
+        
+        console.log('✅ KEY POINTS VALIDATION PASSED');
+        return true;
+    }
+
     // Add loading state to form submission
     const form = document.querySelector('#handover-form');
+    console.log('🔧 BUTTON SETUP: Form element found:', !!form);
+    
     if (form) {
         // Get form elements
         const submitBtn = document.querySelector('#submit-btn');
         const draftBtn = document.querySelector('#draft-btn');
         const hiddenActionField = document.querySelector('#clicked-action');
         
+        console.log('🔧 BUTTON SETUP: Elements found:');
+        console.log('   - submitBtn:', !!submitBtn);
+        console.log('   - draftBtn:', !!draftBtn);
+        console.log('   - hiddenActionField:', !!hiddenActionField);
+        
         // DRAFT BUTTON - Set action to 'draft' and submit form
         if (draftBtn) {
+            console.log('🔧 BUTTON SETUP: Adding draft button click handler');
             draftBtn.addEventListener('click', function(e) {
                 console.log('🟠 DRAFT BUTTON CLICKED - setting action to draft');
+                console.log('🟠 Event object:', e);
                 e.preventDefault();
+                
+                // 🔧 DEBUG: Log all form data before submission
+                const formData = new FormData(form);
+                console.log('📋 FORM DATA DEBUG:');
+                console.log('   Form action:', form.action);
+                console.log('   Form method:', form.method);
+                
+                // Log incident data
+                const openIds = formData.getAll('open_incident_id[]');
+                const closedIds = formData.getAll('closed_incident_id[]');
+                const priorityIds = formData.getAll('priority_incident_id[]');
+                const handoverIds = formData.getAll('handover_incident_id[]');
+                const escalatedIds = formData.getAll('escalated_incident_id[]');
+                
+                console.log('🚨 INCIDENT DATA:');
+                console.log('   Open incidents:', openIds);
+                console.log('   Closed incidents:', closedIds);
+                console.log('   Priority incidents:', priorityIds);
+                console.log('   Handover incidents:', handoverIds);
+                console.log('   Escalated incidents:', escalatedIds);
+                
+                // Log change info data
+                const changeApps = formData.getAll('change_application_name[]');
+                const changeNumbers = formData.getAll('change_number[]');
+                const changeDescs = formData.getAll('change_description[]');
+                
+                console.log('🔧 CHANGE INFO DATA:');
+                console.log('   Apps:', changeApps);
+                console.log('   Numbers:', changeNumbers);
+                console.log('   Descriptions:', changeDescs);
+                
+                // Log KB data
+                const kbApps = formData.getAll('kb_application_name[]');
+                const kbNumbers = formData.getAll('kb_number[]');
+                const kbDescs = formData.getAll('kb_description[]');
+                
+                console.log('📚 KB UPDATE DATA:');
+                console.log('   Apps:', kbApps);
+                console.log('   Numbers:', kbNumbers);
+                console.log('   Descriptions:', kbDescs);
+                
+                // Log key points data
+                const kpDescs = formData.getAll('keypoint_description[]');
+                const kpAssigned = formData.getAll('keypoint_assigned_to[]');
+                const kpStatus = formData.getAll('keypoint_status[]');
+                
+                console.log('🎯 KEY POINTS DATA:');
+                console.log('   Descriptions:', kpDescs);
+                console.log('   Assigned to:', kpAssigned);
+                console.log('   Statuses:', kpStatus);
+                
+                // 🔧 LENIENT VALIDATION FOR DRAFT SUBMISSIONS - Only warn, don't block
+                console.log('🟡 Running validation checks for DRAFT (warnings only)...');
+                
+                // Validate Key Points - warn but don't block drafts
+                if (!validateKeyPointsBeforeSubmission()) {
+                    console.warn('⚠️ Key points validation warning - but allowing draft save');
+                }
+                
+                // Validate Change Info - warn but don't block drafts  
+                if (!validateChangeDateTime()) {
+                    console.warn('⚠️ Change date/time validation warning - but allowing draft save');
+                }
+                if (!validateChangeNumbers()) {
+                    console.warn('⚠️ Duplicate change numbers warning - but allowing draft save');
+                }
+                
+                // Validate KB Updates - warn but don't block drafts
+                if (!validateKBNumbers()) {
+                    console.warn('⚠️ Duplicate KB numbers warning - but allowing draft save');
+                }
                 
                 if (hiddenActionField) {
                     hiddenActionField.value = 'draft';
@@ -1669,7 +2960,17 @@ function setupFormSubmissionHandling() {
                 
                 // Submit the form
                 console.log('📤 Submitting form as DRAFT');
-                form.submit();
+                console.log('📤 Form element:', form);
+                console.log('📤 Form action URL:', form.action);
+                console.log('📤 Hidden action field value:', hiddenActionField ? hiddenActionField.value : 'NOT FOUND');
+                
+                // Force form submission
+                try {
+                    form.submit();
+                    console.log('✅ Form.submit() called successfully');
+                } catch (submitError) {
+                    console.error('❌ Form submission failed:', submitError);
+                }
             });
         }
         
@@ -1678,6 +2979,36 @@ function setupFormSubmissionHandling() {
             submitBtn.addEventListener('click', function(e) {
                 console.log('🔵 SUBMIT BUTTON CLICKED - setting action to submit');
                 e.preventDefault();
+                
+                // 🔧 STRICT VALIDATION FOR FINAL SUBMISSION
+                console.log('🔴 Running strict validation for FINAL submission...');
+                
+                let validationErrors = [];
+                
+                // Validate Key Points
+                if (!validateKeyPointsBeforeSubmission()) {
+                    validationErrors.push('Key points validation failed');
+                }
+                
+                // Validate Change Info
+                if (!validateChangeDateTime()) {
+                    validationErrors.push('Change date/time validation failed');
+                }
+                if (!validateChangeNumbers()) {
+                    validationErrors.push('Duplicate change numbers found');
+                }
+                
+                // Validate KB Updates
+                if (!validateKBNumbers()) {
+                    validationErrors.push('Duplicate KB numbers found');
+                }
+                
+                if (validationErrors.length > 0) {
+                    console.error('❌ BLOCKING FINAL SUBMISSION - Validation failed:');
+                    validationErrors.forEach(error => console.error('   - ' + error));
+                    alert('Cannot submit form due to validation errors:\n\n• ' + validationErrors.join('\n• ') + '\n\nPlease fix these issues before submitting.');
+                    return false;
+                }
                 
                 if (hiddenActionField) {
                     hiddenActionField.value = 'submit';
@@ -1699,6 +3030,29 @@ function setupFormSubmissionHandling() {
         form.addEventListener('submit', function(e) {
             console.log('📋 Form submission event triggered');
             console.log('📋 Hidden action field value:', hiddenActionField ? hiddenActionField.value : 'not found');
+            
+            // DEBUG: Log all form fields before submission
+            console.log('🔍 DEBUGGING ALL FORM FIELDS BEFORE SUBMISSION:');
+            const formData = new FormData(form);
+            let keypointCount = 0;
+            for (let [name, value] of formData.entries()) {
+                if (name.includes('keypoint')) {
+                    console.log(`🔑 ${name}: ${value}`);
+                    keypointCount++;
+                }
+            }
+            console.log(`📊 Total keypoint-related fields: ${keypointCount}`);
+            
+            // Also check all keypoint entries in DOM
+            const keypointEntries = document.querySelectorAll('.keypoint-entry');
+            console.log(`🏠 Total keypoint entries in DOM: ${keypointEntries.length}`);
+            keypointEntries.forEach((entry, index) => {
+                const desc = entry.querySelector('[name="keypoint_description[]"]')?.value || 'empty';
+                const assignedTo = entry.querySelector('[name="keypoint_assigned_to[]"]')?.value || 'empty';
+                const status = entry.querySelector('[name="keypoint_status[]"]')?.value || 'empty';
+                // Note: JIRA ID field has been removed from the form
+                console.log(`🔸 Entry ${index + 1}: desc="${desc}", assigned="${assignedTo}", status="${status}"`);
+            });
             
             // Set a fallback redirect in case server doesn't respond
             setTimeout(() => {
@@ -1751,6 +3105,199 @@ function showGlobalProgress(title, message) {
     }
 }
 
+// Population function for Change Info section in edit mode
+function populateChangeInfoSection(changeInfos) {
+    const container = document.getElementById('changeinfo-container');
+    if (!container || !changeInfos) {
+        console.log('Change Info container not found or no data');
+        return;
+    }
+    
+    console.log('Populating Change Info section with', changeInfos.length, 'entries');
+    
+    // Clear existing entries except the first template
+    const entries = container.querySelectorAll('.changeinfo-entry');
+    for (let i = 1; i < entries.length; i++) {
+        entries[i].remove();
+    }
+    
+    if (changeInfos.length === 0) {
+        console.log('No Change Info entries to populate');
+        return;
+    }
+    
+    // Populate Change Info entries
+    changeInfos.forEach((changeInfo, index) => {
+        if (index === 0) {
+            // Use the first existing entry
+            populateFirstChangeInfoEntry(container, changeInfo);
+        } else {
+            // Add new entries with data
+            addChangeInfoWithData(changeInfo);
+        }
+    });
+}
+
+// Helper function to populate first Change Info entry
+function populateFirstChangeInfoEntry(container, changeInfo) {
+    const firstEntry = container.querySelector('.changeinfo-entry');
+    if (!firstEntry) return;
+    
+    console.log('🔧 Edit mode: Populating Change Info:', changeInfo);
+    
+    const appInput = firstEntry.querySelector('input[name="change_application_name[]"]');
+    const numberInput = firstEntry.querySelector('input[name="change_number[]"]');
+    const descTextarea = firstEntry.querySelector('textarea[name="change_description[]"]');
+    const datetimeInput = firstEntry.querySelector('input[name="change_datetime[]"]');
+    const responsibleSelect = firstEntry.querySelector('select[name="change_responsible_engineer[]"]');
+    const statusSelect = firstEntry.querySelector('select[name="change_status[]"]');
+    
+    if (appInput) appInput.value = changeInfo.app_name || '';
+    if (numberInput) numberInput.value = changeInfo.change_number || '';
+    if (descTextarea) descTextarea.value = changeInfo.description || '';
+    if (datetimeInput) datetimeInput.value = changeInfo.change_datetime || '';
+    if (statusSelect) statusSelect.value = changeInfo.status || 'New';
+    
+    // Set responsible engineer
+    if (responsibleSelect && changeInfo.responsible_engineer_id) {
+        responsibleSelect.value = changeInfo.responsible_engineer_id;
+    }
+}
+
+// Helper function to add Change Info entry with data
+function addChangeInfoWithData(changeInfo) {
+    // Add a new entry first
+    addChangeInfo();
+    
+    // Then populate it with data
+    const container = document.getElementById('changeinfo-container');
+    const entries = container.querySelectorAll('.change-info-entry');
+    const newEntry = entries[entries.length - 1]; // Get the last entry
+    
+    if (newEntry) {
+        const appInput = newEntry.querySelector('input[name="change_application_name[]"]');
+        const numberInput = newEntry.querySelector('input[name="change_number[]"]');
+        const descTextarea = newEntry.querySelector('textarea[name="change_description[]"]');
+        const datetimeInput = newEntry.querySelector('input[name="change_datetime[]"]');
+        const responsibleSelect = newEntry.querySelector('select[name="change_responsible_engineer[]"]');
+        const statusSelect = newEntry.querySelector('select[name="change_status[]"]');
+        
+        if (appInput) appInput.value = changeInfo.app_name || '';
+        if (numberInput) numberInput.value = changeInfo.change_number || '';
+        if (descTextarea) descTextarea.value = changeInfo.description || '';
+        if (datetimeInput) datetimeInput.value = changeInfo.change_datetime || '';
+        if (statusSelect) statusSelect.value = changeInfo.status || 'New';
+        
+        // Set responsible engineer
+        if (responsibleSelect && changeInfo.responsible_engineer_id) {
+            responsibleSelect.value = changeInfo.responsible_engineer_id;
+        }
+    }
+}
+
+// Population function for KB Update section in edit mode
+function populateKBUpdateSection(kbUpdates) {
+    const container = document.getElementById('kbupdates-container');
+    if (!container || !kbUpdates) {
+        console.log('KB Update container not found or no data');
+        return;
+    }
+    
+    console.log('Populating KB Update section with', kbUpdates.length, 'entries');
+    
+    // Clear existing entries except the first template
+    const entries = container.querySelectorAll('.kbupdate-entry');
+    for (let i = 1; i < entries.length; i++) {
+        entries[i].remove();
+    }
+    
+    if (kbUpdates.length === 0) {
+        console.log('No KB Update entries to populate');
+        return;
+    }
+    
+    // Populate KB Update entries
+    kbUpdates.forEach((kbUpdate, index) => {
+        if (index === 0) {
+            // Use the first existing entry
+            populateFirstKBUpdateEntry(container, kbUpdate);
+        } else {
+            // Add new entries with data
+            addKBUpdateWithData(kbUpdate);
+        }
+    });
+}
+
+// Helper function to populate first KB Update entry
+function populateFirstKBUpdateEntry(container, kbUpdate) {
+    const firstEntry = container.querySelector('.kbupdate-entry');
+    if (!firstEntry) return;
+    
+    console.log('🔧 Edit mode: Populating KB Update:', kbUpdate);
+    
+    const appInput = firstEntry.querySelector('input[name="kb_application_name[]"]');
+    const numberInput = firstEntry.querySelector('input[name="kb_number[]"]');
+    const descTextarea = firstEntry.querySelector('textarea[name="kb_description[]"]');
+    const responsibleSelect = firstEntry.querySelector('select[name="kb_responsible_person[]"]');
+    const statusSelect = firstEntry.querySelector('select[name="kb_status[]"]');
+    
+    if (appInput) appInput.value = kbUpdate.app_name || '';
+    if (numberInput) numberInput.value = kbUpdate.kb_number || '';
+    if (descTextarea) descTextarea.value = kbUpdate.description || '';
+    if (statusSelect) statusSelect.value = kbUpdate.status || '';
+    
+    // Set responsible engineer
+    if (responsibleSelect && kbUpdate.responsible_engineer_id) {
+        responsibleSelect.value = kbUpdate.responsible_engineer_id;
+    }
+}
+
+// Helper function to add KB Update entry with data
+function addKBUpdateWithData(kbUpdate) {
+    // Add a new entry first
+    addKBUpdate();
+    
+    // Then populate it with data
+    const container = document.getElementById('kbupdates-container');
+    const entries = container.querySelectorAll('.kbupdate-entry');
+    const newEntry = entries[entries.length - 1]; // Get the last entry
+    
+    if (newEntry) {
+        const appInput = newEntry.querySelector('input[name="kb_application_name[]"]');
+        const numberInput = newEntry.querySelector('input[name="kb_number[]"]');
+        const descTextarea = newEntry.querySelector('textarea[name="kb_description[]"]');
+        const responsibleSelect = newEntry.querySelector('select[name="kb_responsible_person[]"]');
+        const statusSelect = newEntry.querySelector('select[name="kb_status[]"]');
+        
+        if (appInput) appInput.value = kbUpdate.app_name || '';
+        if (numberInput) numberInput.value = kbUpdate.kb_number || '';
+        if (descTextarea) descTextarea.value = kbUpdate.description || '';
+        if (statusSelect) statusSelect.value = kbUpdate.status || '';
+        
+        // Set responsible engineer
+        if (responsibleSelect && kbUpdate.responsible_engineer_id) {
+            responsibleSelect.value = kbUpdate.responsible_engineer_id;
+        }
+    }
+}
+
+// Helper function to set select value by text content
+function setSelectValueByText(selectElement, targetText) {
+    if (!selectElement || !targetText) return;
+    
+    const options = selectElement.options;
+    for (let i = 0; i < options.length; i++) {
+        if (options[i].text === targetText || 
+            options[i].value === targetText ||
+            options[i].text.includes(targetText)) {
+            selectElement.selectedIndex = i;
+            console.log('✅ Set select value:', targetText, 'at index', i);
+            return;
+        }
+    }
+    console.log('⚠️ Could not find option for:', targetText);
+}
+
 function hideGlobalProgress() {
     const progressDiv = document.getElementById('global-progress');
     if (progressDiv) {
@@ -1772,6 +3319,10 @@ document.addEventListener('DOMContentLoaded', function() {
         escalated_incidents: {{ escalated_incidents | tojson | safe }}
     };
     
+    // Define the Change Info and KB Updates data from backend
+    const editModeChangeInfos = {{ change_infos | tojson | safe }};
+    const editModeKBUpdates = {{ kb_updates | tojson | safe }};
+    
     console.log('📋 Edit mode incident data:', editModeIncidents);
     
     // Wait a moment for DOM to be fully ready, then populate
@@ -1783,9 +3334,65 @@ document.addEventListener('DOMContentLoaded', function() {
         populateIncidentSection('handover', editModeIncidents.handover_incidents);
         populateIncidentSection('escalated', editModeIncidents.escalated_incidents);
         
+        // Populate Change Info and KB Updates sections
+        populateChangeInfoSection(editModeChangeInfos);
+        populateKBUpdateSection(editModeKBUpdates);
+        
+        // 🔧 CRITICAL FIX: Initialize dropdowns after population
+        console.log('🔧 Initializing dropdowns after section population...');
+        initializeExistingDropdowns();
+        
         console.log('✅ Edit mode form population completed');
     }, 500);
 });
 {% endif %}
+
+// 🚨 EMERGENCY DRAFT BUTTON FIX - Add global click handler
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚨 EMERGENCY: Setting up backup draft button handler');
+    
+    setTimeout(function() {
+        const emergencyDraftBtn = document.getElementById('draft-btn');
+        console.log('🚨 EMERGENCY: Draft button found:', !!emergencyDraftBtn);
+        
+        if (emergencyDraftBtn) {
+            // Remove any existing handlers and add new one
+            emergencyDraftBtn.onclick = function(e) {
+                console.log('🚨 EMERGENCY DRAFT CLICKED - bypassing all validation');
+                e.preventDefault();
+                
+                const form = document.getElementById('handover-form');
+                const hiddenField = document.getElementById('clicked-action');
+                
+                // Debug form data before emergency submission
+                if (form) {
+                    const emergencyFormData = new FormData(form);
+                    console.log('🚨 EMERGENCY FORM DATA:');
+                    console.log('   Total fields:', Array.from(emergencyFormData.keys()).length);
+                    console.log('   Incident fields:', Array.from(emergencyFormData.keys()).filter(k => k.includes('incident')));
+                    console.log('   Change fields:', Array.from(emergencyFormData.keys()).filter(k => k.includes('change')));
+                    console.log('   KB fields:', Array.from(emergencyFormData.keys()).filter(k => k.includes('kb')));
+                }
+                
+                if (hiddenField) {
+                    hiddenField.value = 'draft';
+                    console.log('🚨 EMERGENCY: Set action to draft');
+                }
+                
+                if (form) {
+                    console.log('🚨 EMERGENCY: Submitting form directly');
+                    console.log('🚨 EMERGENCY: Form action:', form.action);
+                    form.submit();
+                } else {
+                    console.error('🚨 EMERGENCY: Form not found');
+                }
+            };
+            console.log('🚨 EMERGENCY: Backup handler installed');
+        } else {
+            console.error('🚨 EMERGENCY: Draft button not found');
+        }
+    }, 2000); // Wait longer for all JS to load
+});
+
 </script>
 {% endblock %}

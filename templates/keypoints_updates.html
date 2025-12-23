@@ -1,160 +1,112 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="container-fluid px-0">
-    <!-- Header Section -->
-    <div class="mb-4">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h1 class="h3 mb-1 text-primary">Key Points Management</h1>
-                <p class="text-muted mb-0">Track, update, and manage key points with comprehensive status controls</p>
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="page-header-content">
+            <div class="page-header-left">
+                <h1><i class="bi bi-list-check"></i>Key Points Management</h1>
+                <p>Track, update, and manage key points with comprehensive status controls</p>
             </div>
-            <div class="d-flex align-items-center gap-2">
+            <div class="page-header-right">
                 {% if key_points %}
-                <span class="badge bg-primary fs-6 px-3 py-2">
-                    <i class="bi bi-list-check me-2"></i>{{ key_points|length }} Key Points
-                </span>
+                <div class="page-header-badge">
+                    <span class="badge-value">{{ key_points|length }}</span>
+                    <span class="badge-label">Key Points</span>
+                </div>
                 {% endif %}
                 {% if date_filter %}
-                <span class="badge bg-info fs-6 px-3 py-2">
-                    <i class="bi bi-calendar-date me-2"></i>{{ date_filter }}
-                </span>
+                <div class="page-header-badge">
+                    <span class="badge-value">{{ date_filter }}</span>
+                    <span class="badge-label">Date</span>
+                </div>
                 {% endif %}
             </div>
         </div>
     </div>
 
-    <!-- Status Legend -->
-    <div class="card mb-4 border-0 shadow-sm">
-        <div class="card-header bg-light border-0 py-3">
-            <h6 class="mb-0 text-secondary">
-                <i class="bi bi-info-circle me-2"></i>Status Legend
-            </h6>
-        </div>
-        <div class="card-body py-2">
-            <div class="row g-2">
-                <div class="col-md-3">
-                    <span class="badge bg-secondary me-2">
-                        <i class="bi-circle me-1"></i>Open
-                    </span>
-                    <small class="text-muted">Ready to be worked on</small>
-                </div>
-                <div class="col-md-3">
-                    <span class="badge bg-primary me-2">
-                        <i class="bi-clock me-1"></i>In Progress
-                    </span>
-                    <small class="text-muted">Currently being worked on</small>
-                </div>
-                <div class="col-md-3">
-                    <span class="badge bg-warning me-2">
-                        <i class="bi-people me-1"></i>Pending with Another Team
-                    </span>
-                    <small class="text-muted">Waiting for another team</small>
-                </div>
-                <div class="col-md-3">
-                    <span class="badge bg-danger me-2">
-                        <i class="bi-pause-circle me-1"></i>On Hold
-                    </span>
-                    <small class="text-muted">Temporarily paused or blocked</small>
-                </div>
-                <div class="col-md-3">
-                    <span class="badge bg-info me-2">
-                        <i class="bi-eye me-1"></i>Under Review
-                    </span>
-                    <small class="text-muted">Being reviewed or validated</small>
-                </div>
-                <div class="col-md-3">
-                    <span class="badge bg-dark me-2">
-                        <i class="bi-arrow-up-circle me-1"></i>Escalated
-                    </span>
-                    <small class="text-muted">Escalated to higher level</small>
-                </div>
-                <div class="col-md-3">
-                    <span class="badge bg-light text-dark me-2">
-                        <i class="bi-check-circle-fill me-1"></i>Waiting for Approval
-                    </span>
-                    <small class="text-muted">Waiting for approval</small>
-                </div>
-                <div class="col-md-3">
-                    <span class="badge bg-success me-2">
-                        <i class="bi-check-circle me-1"></i>Closed
-                    </span>
-                    <small class="text-muted">Completed successfully</small>
-                </div>
+    <!-- Unified Filter Bar -->
+    <div class="filter-bar mb-4 p-3 rounded-3" style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border: 1px solid #e2e8f0;">
+        <form method="get" class="d-flex flex-wrap align-items-center gap-3">
+            <div class="filter-label d-flex align-items-center">
+                <i class="bi bi-funnel-fill text-primary me-2"></i>
+                <span class="fw-semibold text-secondary">Filters:</span>
             </div>
+            
+            {% if current_user.role == 'super_admin' %}
+            <div class="filter-item">
+                <select name="account_id" id="account_id" class="form-select form-select-sm filter-select" style="min-width: 150px;">
+                    <option value="">📁 All Accounts</option>
+                    {% for account in accounts %}
+                    <option value="{{ account.id }}" {% if account.id|string == selected_account_id|string %}selected{% endif %}>
+                        {{ account.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            
+            <div class="filter-item">
+                <select name="team_id" id="team_id" class="form-select form-select-sm filter-select" style="min-width: 180px;">
+                    <option value="">👥 All Teams</option>
+                    {% for team in teams %}
+                    <option value="{{ team.id }}" {% if team.id|string == selected_team_id|string %}selected{% endif %}>
+                        {{ team.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-item">
+                <select name="status" id="status" class="form-select form-select-sm filter-select" style="min-width: 200px;">
+                    <option value="all" {% if status_filter=='all' %}selected{% endif %}>🏷️ All Status</option>
+                    <option value="Open" {% if status_filter=='Open' %}selected{% endif %}>⚪ Open</option>
+                    <option value="In Progress" {% if status_filter=='In Progress' %}selected{% endif %}>🔵 In Progress</option>
+                    <option value="Pending with Another Team" {% if status_filter=='Pending with Another Team' %}selected{% endif %}>🟡 Pending with Another Team</option>
+                    <option value="On Hold" {% if status_filter=='On Hold' %}selected{% endif %}>🔴 On Hold</option>
+                    <option value="Under Review" {% if status_filter=='Under Review' %}selected{% endif %}>🔍 Under Review</option>
+                    <option value="Escalated" {% if status_filter=='Escalated' %}selected{% endif %}>⬆️ Escalated</option>
+                    <option value="Waiting for Approval" {% if status_filter=='Waiting for Approval' %}selected{% endif %}>⏳ Waiting for Approval</option>
+                    <option value="Closed" {% if status_filter=='Closed' %}selected{% endif %}>✅ Closed</option>
+                </select>
+            </div>
+            
+            <div class="filter-item">
+                <input type="date" name="date" id="date" class="form-control form-control-sm filter-input" 
+                       value="{{ date_filter or date.today().strftime('%Y-%m-%d') }}" style="min-width: 150px;">
+            </div>
+            
+            <div class="filter-actions d-flex gap-2 ms-auto">
+                <button type="submit" class="btn btn-primary btn-sm px-4">
+                    <i class="bi bi-search me-1"></i>Apply
+                </button>
+                <a href="{{ url_for('keypoints.keypoints') }}" class="btn btn-outline-secondary btn-sm px-3" title="Clear All Filters">
+                    <i class="bi bi-x-lg"></i>
+                </a>
+            </div>
+        </form>
+        
+        <!-- Active Filters Summary -->
+        {% if selected_team_id or status_filter != 'all' or date_filter %}
+        <div class="active-filters mt-2 pt-2 border-top border-secondary border-opacity-25">
+            <small class="text-muted me-2">Active:</small>
+            {% if selected_team_id %}
+            <span class="badge bg-primary bg-opacity-10 text-primary me-1 px-2 py-1">
+                <i class="bi bi-people me-1"></i>Team: {{ teams|selectattr('id', 'equalto', selected_team_id|int)|map(attribute='name')|first or 'Selected' }}
+            </span>
+            {% endif %}
+            {% if status_filter != 'all' %}
+            <span class="badge bg-info bg-opacity-10 text-info me-1 px-2 py-1">
+                <i class="bi bi-flag me-1"></i>{{ status_filter }}
+            </span>
+            {% endif %}
+            {% if date_filter %}
+            <span class="badge bg-success bg-opacity-10 text-success me-1 px-2 py-1">
+                <i class="bi bi-calendar me-1"></i>{{ date_filter }}
+            </span>
+            {% endif %}
         </div>
-    </div>
-
-    <!-- Filter Section -->
-    <div class="card mb-4 border-0 shadow-sm">
-        <div class="card-header bg-light border-0 py-3">
-            <h5 class="mb-0 text-secondary">
-                <i class="bi bi-funnel me-2"></i>Filter Key Points
-            </h5>
-        </div>
-        <div class="card-body">
-            <form method="get" class="row g-3 align-items-end">
-                {% if current_user.role == 'super_admin' %}
-                <div class="col-md-2">
-                    <label for="account_id" class="form-label fw-semibold text-secondary">
-                        <i class="bi bi-building me-1"></i>Account
-                    </label>
-                    <select name="account_id" id="account_id" class="form-select">
-                        <option value="">All Accounts</option>
-                        {% for account in accounts %}
-                        <option value="{{ account.id }}" {% if account.id|string == selected_account_id|string %}selected{% endif %}>
-                            {{ account.name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                {% endif %}
-                <div class="col-md-2">
-                    <label for="team_id" class="form-label fw-semibold text-secondary">
-                        <i class="bi bi-people me-1"></i>Team
-                    </label>
-                    <select name="team_id" id="team_id" class="form-select">
-                        <option value="">All Teams</option>
-                        {% for team in teams %}
-                        <option value="{{ team.id }}" {% if team.id|string == selected_team_id|string %}selected{% endif %}>
-                            {{ team.name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label for="status" class="form-label fw-semibold text-secondary">
-                        <i class="bi bi-flag me-1"></i>Status
-                    </label>
-                    <select name="status" id="status" class="form-select">
-                        <option value="all" {% if status_filter=='all' %}selected{% endif %}>All Status</option>
-                        <option value="Open" {% if status_filter=='Open' %}selected{% endif %}>Open</option>
-                        <option value="In Progress" {% if status_filter=='In Progress' %}selected{% endif %}>In Progress</option>
-                        <option value="Pending with Another Team" {% if status_filter=='Pending with Another Team' %}selected{% endif %}>Pending with Another Team</option>
-                        <option value="On Hold" {% if status_filter=='On Hold' %}selected{% endif %}>On Hold</option>
-                        <option value="Under Review" {% if status_filter=='Under Review' %}selected{% endif %}>Under Review</option>
-                        <option value="Escalated" {% if status_filter=='Escalated' %}selected{% endif %}>Escalated</option>
-                        <option value="Waiting for Approval" {% if status_filter=='Waiting for Approval' %}selected{% endif %}>Waiting for Approval</option>
-                        <option value="Closed" {% if status_filter=='Closed' %}selected{% endif %}>Closed</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label for="date" class="form-label fw-semibold text-secondary">
-                        <i class="bi bi-calendar3 me-1"></i>Date
-                    </label>
-                    <input type="date" name="date" id="date" class="form-control" value="{{ date_filter or '' }}">
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="bi bi-search me-1"></i>Filter
-                    </button>
-                </div>
-                <div class="col-md-1">
-                    <a href="{{ url_for('keypoints.keypoints') }}" class="btn btn-outline-secondary w-100" title="Clear Filters">
-                        <i class="bi bi-x-circle"></i>
-                    </a>
-                </div>
-            </form>
-        </div>
+        {% endif %}
     </div>
 
     <!-- Key Points Section -->
@@ -209,15 +161,7 @@
                                         </span>
                                     {% endif %}
                                     
-                                    {% if kp.jira_id %}
-                                    <span class="badge bg-info fs-6 px-3 py-2">
-                                        <i class="bi bi-link-45deg me-1"></i>{{ kp.jira_id }}
-                                    </span>
-                                    {% else %}
-                                    <span class="badge bg-light text-dark border fs-6 px-3 py-2">
-                                        <i class="bi bi-dash-circle me-1"></i>No JIRA ID
-                                    </span>
-                                    {% endif %}
+                                    <!-- JIRA ID field removed as per handover form changes -->
                                 </div>
                                 
                                 <!-- Enhanced Status Update Controls -->
@@ -258,11 +202,25 @@
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label fw-semibold mb-1">
-                                            <i class="bi bi-calendar-date me-1 text-success"></i>Created
+                                            <i class="bi bi-calendar-date me-1 text-success"></i>Created on
                                         </label>
                                         <div class="fw-normal text-muted">
                                             {% if kp.shift %}
                                                 {{ kp.shift.date }}
+                                            {% else %}
+                                                <span class="text-muted">Unknown</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-semibold mb-1">
+                                            <i class="bi bi-person me-1 text-info"></i>Created by
+                                        </label>
+                                        <div class="fw-normal text-muted">
+                                            {% if kp.shift and kp.shift.current_engineers and kp.shift.current_engineers|length > 0 %}
+                                                {% for engineer in kp.shift.current_engineers %}
+                                                    {{ engineer.name }}{% if not loop.last %}, {% endif %}
+                                                {% endfor %}
                                             {% else %}
                                                 <span class="text-muted">Unknown</span>
                                             {% endif %}
@@ -355,7 +313,7 @@
                                             <i class="bi bi-calendar3 me-1"></i>Date
                                         </label>
                                         <input type="date" name="update_date" id="update_date_{{ kp.id }}" 
-                                               class="form-control" value="{{ date_filter or '' }}">
+                                               class="form-control" value="{{ date.today().strftime('%Y-%m-%d') }}">
                                     </div>
                                     <div class="col-md-2">
                                         <button type="submit" class="btn btn-success w-100">
@@ -392,6 +350,33 @@
 
 <!-- Custom Styles -->
 <style>
+/* Filter Bar Styles */
+.filter-bar {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.filter-select, .filter-input {
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background-color: white;
+    transition: all 0.2s ease;
+}
+
+.filter-select:hover, .filter-input:hover {
+    border-color: #9ca3af;
+}
+
+.filter-select:focus, .filter-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.active-filters .badge {
+    font-weight: 500;
+    border-radius: 6px;
+}
+
+/* Keypoint Card Styles */
 .keypoint-card {
     transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
 }
@@ -421,6 +406,17 @@
 
 .btn:hover {
     transform: translateY(-1px);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .filter-bar .filter-item {
+        flex: 1 1 100%;
+    }
+    .filter-bar .filter-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
 }
 </style>
 

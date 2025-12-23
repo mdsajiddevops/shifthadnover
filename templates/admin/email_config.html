@@ -1,0 +1,1148 @@
+{% extends "base.html" %}
+
+{% block title %}Email Configuration Management{% endblock %}
+
+{% block extra_css %}
+<style>
+    .email-config-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 30px;
+        min-height: calc(100vh - 100px);
+        background: #f8f9fa;
+    }
+    
+    .config-filters {
+        background: white;
+        padding: 25px;
+        border-radius: 8px;
+        margin-bottom: 25px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border: 1px solid #e9ecef;
+    }
+    
+    .filter-row {
+        display: flex;
+        gap: 20px;
+        align-items: end;
+        margin-bottom: 0;
+        flex-wrap: wrap;
+    }
+    
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 200px;
+        flex: 1;
+    }
+    
+    .filter-group label {
+        font-weight: 600;
+        font-size: 0.95em;
+        color: #2c3e50;
+        margin-bottom: 5px;
+    }
+    
+    .filter-group .form-control {
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        padding: 12px 16px;
+        font-size: 1em;
+        transition: all 0.3s ease;
+        background: #f8f9fa;
+    }
+    
+    .filter-group .form-control:focus {
+        border-color: #a29bfe;
+        box-shadow: 0 0 0 3px rgba(162, 155, 254, 0.1);
+        background: white;
+        transform: translateY(-1px);
+    }
+    
+    .filter-buttons {
+        display: flex;
+        gap: 10px;
+        align-items: end;
+    }
+    
+    .filter-buttons .btn {
+        padding: 12px 24px;
+        border-radius: 12px;
+        font-weight: 600;
+        border: none;
+        transition: all 0.3s ease;
+    }
+    
+    .filter-buttons .btn-secondary {
+        background: #007bff;
+        color: white;
+        box-shadow: none;
+        border-radius: 6px;
+    }
+    
+    .filter-buttons .btn-secondary:hover {
+        background: #0056b3;
+        transform: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .filter-buttons .btn-outline-secondary {
+        border: 1px solid #6c757d;
+        color: #6c757d;
+        background: white;
+        border-radius: 6px;
+    }
+    
+    .filter-buttons .btn-outline-secondary:hover {
+        background: #6c757d;
+        color: white;
+        border-color: #6c757d;
+        transform: none;
+    }
+    
+    .configs-table {
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border: 1px solid #e9ecef;
+    }
+    
+    .table {
+        margin-bottom: 0;
+    }
+    
+    .table th {
+        background: #f8f9fa;
+        color: #495057;
+        font-weight: 600;
+        border: none;
+        padding: 15px 12px;
+        font-size: 0.9em;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+        border-bottom: 2px solid #e9ecef;
+    }
+    
+    .table td {
+        padding: 18px 15px;
+        vertical-align: middle;
+        border-top: 1px solid #f1f3f4;
+        font-size: 0.95em;
+    }
+    
+    .table tbody tr {
+        transition: all 0.3s ease;
+    }
+    
+    .table tbody tr:hover {
+        background-color: #f8f9ff;
+        transform: scale(1.005);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+    
+    .email-list {
+        max-width: 250px;
+        word-wrap: break-word;
+        font-size: 0.9em;
+    }
+    
+    .email-list .email-item {
+        display: inline-block;
+        background: #e9ecef;
+        color: #495057;
+        padding: 3px 8px;
+        margin: 1px;
+        border-radius: 12px;
+        font-size: 0.75em;
+        font-weight: 500;
+        border: 1px solid #dee2e6;
+        transition: all 0.2s ease;
+    }
+    
+    .email-list .email-item:hover {
+        background: #007bff;
+        color: white;
+        transform: none;
+    }
+    
+    .default-badge {
+        background: #28a745;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.75em;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+        border: none;
+    }
+    
+    .status-standard {
+        background: #007bff;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.75em;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+        border: none;
+    }
+    
+    .config-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+    }
+    
+    .btn-sm {
+        padding: 8px 16px;
+        font-size: 0.85em;
+        border-radius: 10px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        border: none;
+    }
+    
+    .btn-outline-primary {
+        background: linear-gradient(135deg, #a29bfe 0%, #74b9ff 100%);
+        color: white;
+        border: none;
+        box-shadow: 0 2px 8px rgba(162, 155, 254, 0.3);
+    }
+    
+    .btn-outline-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(162, 155, 254, 0.4);
+    }
+    
+    .btn-outline-danger {
+        background: linear-gradient(135deg, #fd79a8 0%, #fdcb6e 100());
+        color: #8b4513;
+        border: none;
+        box-shadow: 0 2px 8px rgba(253, 203, 110, 0.3);
+    }
+    
+    .btn-outline-danger:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(253, 203, 110, 0.4);
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 80px 20px;
+        color: #636e72;
+        background: linear-gradient(135deg, #ffeaa7 0%, #ffeaa7 50%, #fdcb6e 100%);
+        border-radius: 20px;
+        margin: 20px;
+    }
+    
+    .empty-state i {
+        font-size: 5em;
+        margin-bottom: 25px;
+        opacity: 0.7;
+        color: #fdcb6e;
+    }
+    
+    .empty-state h4 {
+        color: #2d3436;
+        font-weight: 600;
+        margin-bottom: 15px;
+    }
+    
+    .empty-state p {
+        color: #636e72;
+        font-size: 1.1em;
+    }
+    
+    /* Modal styles */
+    .modal-content {
+        border: none;
+        border-radius: 8px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    }
+    
+    .modal-header {
+        background: #007bff;
+        color: white;
+        border-radius: 8px 8px 0 0;
+        border: none;
+        padding: 20px 25px;
+    }
+    
+    .modal-header .modal-title {
+        font-weight: 600;
+        font-size: 1.3em;
+    }
+    
+    .modal-header .close {
+        color: white;
+        opacity: 0.9;
+        font-size: 1.5em;
+    }
+    
+    .modal-header .close:hover {
+        opacity: 1;
+    }
+    
+    .modal-body {
+        padding: 30px;
+    }
+    
+    .modal-footer {
+        padding: 20px 30px;
+        border-top: 1px solid #f1f3f4;
+    }
+    
+    .form-group label {
+        font-weight: 600;
+        color: #2d3436;
+        font-size: 1em;
+        margin-bottom: 8px;
+    }
+    
+    .form-control {
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        padding: 12px 16px;
+        font-size: 1em;
+        transition: all 0.3s ease;
+    }
+    
+    .form-control:focus {
+        border-color: #a29bfe;
+        box-shadow: 0 0 0 3px rgba(162, 155, 254, 0.1);
+        background: #fff;
+    }
+    
+    .recipient-input {
+        min-height: 100px;
+        resize: vertical;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        line-height: 1.6;
+    }
+    
+    .help-text {
+        font-size: 0.9em;
+        color: #636e72;
+        margin-top: 8px;
+        font-style: italic;
+    }
+    
+    .form-check {
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 12px;
+        border: 2px solid #e9ecef;
+        transition: all 0.3s ease;
+    }
+    
+    .form-check:hover {
+        background: #e9ecef;
+        border-color: #ddd;
+    }
+    
+    .form-check-input {
+        width: 1.2em;
+        height: 1.2em;
+        margin-top: 0.1em;
+    }
+    
+    .form-check-label {
+        font-weight: 600;
+        color: #2d3436;
+        margin-left: 8px;
+    }
+    
+    /* Loading and error states */
+    .loading {
+        display: none;
+        text-align: center;
+        padding: 60px;
+        color: #a29bfe;
+        background: linear-gradient(135deg, #f8f9ff 0%, #e8edff 100%);
+        border-radius: 16px;
+        margin: 20px;
+    }
+    
+    .loading i {
+        font-size: 3em;
+        margin-bottom: 20px;
+        animation: spin 2s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .error-message {
+        background: linear-gradient(135deg, #fd79a8 0%, #e84393 100%);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        border: none;
+        box-shadow: 0 4px 15px rgba(253, 121, 168, 0.3);
+        font-weight: 500;
+    }
+    
+    .success-message {
+        background: linear-gradient(135deg, #00b894 0%, #00a085 100());
+        color: white;
+        padding: 15px 20px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        border: none;
+        box-shadow: 0 4px 15px rgba(0, 184, 148, 0.3);
+        font-weight: 500;
+    }
+    
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .email-config-container {
+            padding: 15px;
+        }
+        
+        .config-header {
+            flex-direction: column;
+            gap: 20px;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .filter-row {
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .filter-group {
+            min-width: 100%;
+        }
+        
+        .filter-buttons {
+            justify-content: center;
+            width: 100%;
+        }
+        
+        .configs-table {
+            font-size: 0.9em;
+        }
+        
+        .email-list {
+            max-width: 150px;
+        }
+        
+        .config-actions {
+            flex-direction: column;
+            gap: 5px;
+        }
+    }
+    
+    @media (max-width: 1200px) {
+        .email-config-container {
+            max-width: 100%;
+            padding: 20px;
+        }
+    }
+    /* Enhanced hover effects and animations */
+    .config-filters:hover {
+        box-shadow: 0 12px 35px rgba(0,0,0,0.12);
+        transform: translateY(-2px);
+    }
+    
+    .configs-table:hover {
+        box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+    }
+    
+    /* Card entrance animation */
+    .config-filters, .configs-table {
+        animation: slideInUp 0.6s ease-out;
+    }
+    
+    .config-header {
+        animation: slideInDown 0.6s ease-out;
+    }
+    
+    @keyframes slideInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    @keyframes slideInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    /* Focus accessibility improvements */
+    .btn:focus {
+        outline: 3px solid rgba(162, 155, 254, 0.5);
+        outline-offset: 2px;
+    }
+    
+    .form-control:focus {
+        outline: none;
+    }
+    
+    /* Table zebra striping for better readability */
+    .table tbody tr:nth-child(even) {
+        background-color: #fbfcff;
+    }
+    
+    /* Enhanced loading spinner */
+    .loading::after {
+        content: 'Loading configurations...';
+        display: block;
+        margin-top: 15px;
+        font-size: 1.1em;
+        font-weight: 500;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-envelope-open me-2"></i>Email Configuration Management
+            </h1>
+            <p class="page-subtitle mb-0">Manage email recipients for handover notifications</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-light" onclick="showCreateModal()">
+                <i class="bi bi-plus-lg me-1"></i>Add Configuration
+            </button>
+            <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-outline-light">
+                <i class="bi bi-arrow-left me-1"></i>Back
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="email-config-container">
+    
+    <div class="config-filters">
+        <h5 style="margin-bottom: 20px; color: #2d3436; font-weight: 600;"><i class="fas fa-filter" style="margin-right: 8px;"></i>Filter Configurations</h5>
+        <div class="filter-row">
+            <div class="filter-group">
+                <label for="accountFilter">Account</label>
+                <select id="accountFilter" class="form-control">
+                    <option value="">All Accounts</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="teamFilter">Team</label>
+                <select id="teamFilter" class="form-control">
+                    <option value="">All Teams</option>
+                </select>
+            </div>
+            
+            <div class="filter-buttons">
+                <button class="btn btn-secondary" onclick="loadConfigurations()">
+                    <i class="fas fa-search"></i> Apply Filters
+                </button>
+                <button class="btn btn-outline-secondary" onclick="resetFilters()">
+                    <i class="fas fa-refresh"></i> Reset
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="loading">
+        <i class="fas fa-spinner fa-spin fa-2x"></i>
+        <p>Loading configurations...</p>
+    </div>
+    
+    <div class="configs-table">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Account</th>
+                    <th>Team</th>
+                    <th>TO Recipients</th>
+                    <th>CC Recipients</th>
+                    <th>Priority Recipients</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="configurationsTableBody">
+                <tr class="empty-state">
+                    <td colspan="7">
+                        <i class="fas fa-envelope"></i>
+                        <h4>No Email Configurations Found</h4>
+                        <p>Get started by creating your first email configuration.</p>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Create/Edit Configuration Modal -->
+<div class="modal fade" id="configModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-envelope-open-text"></i>
+                    <span id="modalTitle">Add Email Configuration</span>
+                </h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="modalMessages"></div>
+                
+                <form id="configForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="configAccount">Account <span class="text-danger">*</span></label>
+                                <select id="configAccount" class="form-control" required>
+                                    <option value="">Select Account</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="configTeam">Team <span class="text-danger">*</span></label>
+                                <select id="configTeam" class="form-control" required>
+                                    <option value="">Select Team</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="toRecipients">TO Recipients</label>
+                        <textarea id="toRecipients" class="form-control recipient-input" 
+                                  placeholder="user1@example.com, user2@example.com"></textarea>
+                        <div class="help-text">Enter email addresses separated by commas</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ccRecipients">CC Recipients</label>
+                        <textarea id="ccRecipients" class="form-control recipient-input"
+                                  placeholder="manager1@example.com, manager2@example.com"></textarea>
+                        <div class="help-text">Enter email addresses separated by commas</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="priorityRecipients">Priority Recipients</label>
+                        <textarea id="priorityRecipients" class="form-control recipient-input"
+                                  placeholder="escalation1@example.com, escalation2@example.com"></textarea>
+                        <div class="help-text">These recipients will be included for priority handovers only</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="isDefault">
+                            <label class="form-check-label" for="isDefault">
+                                Set as default configuration for this account
+                            </label>
+                        </div>
+                        <div class="help-text">Default configurations are used when no specific team configuration exists</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveConfiguration()">
+                    <i class="fas fa-save"></i> Save Configuration
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Confirm Deletion
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this email configuration?</p>
+                <p><strong id="deleteConfigName"></strong></p>
+                <p class="text-muted">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()">
+                    <i class="fas fa-trash"></i> Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Global variables
+let currentConfigs = [];
+let editingConfigId = null;
+let deleteConfigId = null;
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initializing Email Configuration page...');
+    
+    try {
+        loadAccounts();
+        loadConfigurations();
+        
+        // Setup account change handler
+        var accountFilter = document.getElementById('accountFilter');
+        if (accountFilter) {
+            accountFilter.addEventListener('change', function() {
+                loadTeamsForFilter();
+            });
+        }
+        
+        var configAccount = document.getElementById('configAccount');
+        if (configAccount) {
+            configAccount.addEventListener('change', function() {
+                loadTeamsForConfig();
+            });
+        }
+        
+        console.log('Email Configuration page initialized successfully');
+    } catch (error) {
+        console.error('Error initializing Email Configuration page:', error);
+    }
+});
+
+// Load accounts for filters and form
+function loadAccounts() {
+    fetch('/api/email-config/accounts')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.success) {
+                var accountFilter = document.getElementById('accountFilter');
+                var configAccount = document.getElementById('configAccount');
+                
+                // Clear existing options
+                accountFilter.innerHTML = '<option value="">All Accounts</option>';
+                configAccount.innerHTML = '<option value="">Select Account</option>';
+                
+                // Add account options
+                for (var i = 0; i < data.data.length; i++) {
+                    var account = data.data[i];
+                    var option1 = document.createElement('option');
+                    option1.value = account.id;
+                    option1.textContent = account.name;
+                    accountFilter.appendChild(option1);
+                    
+                    var option2 = document.createElement('option');
+                    option2.value = account.id;
+                    option2.textContent = account.name;
+                    configAccount.appendChild(option2);
+                }
+            }
+        })
+        .catch(function(error) {
+            console.error('Error loading accounts:', error);
+        });
+}
+
+// Load teams for filter dropdown
+function loadTeamsForFilter() {
+    var accountId = document.getElementById('accountFilter').value;
+    var teamFilter = document.getElementById('teamFilter');
+    
+    teamFilter.innerHTML = '<option value="">All Teams</option>';
+    
+    if (accountId) {
+        fetch('/api/email-config/accounts/' + accountId + '/teams')
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    for (var i = 0; i < data.data.length; i++) {
+                        var team = data.data[i];
+                        var option = document.createElement('option');
+                        option.value = team.id;
+                        option.textContent = team.name;
+                        teamFilter.appendChild(option);
+                    }
+                }
+            })
+            .catch(function(error) {
+                console.error('Error loading teams:', error);
+            });
+    }
+}
+
+// Load teams for configuration form
+function loadTeamsForConfig() {
+    var accountId = document.getElementById('configAccount').value;
+    var teamSelect = document.getElementById('configTeam');
+    
+    teamSelect.innerHTML = '<option value="">Select Team</option>';
+    
+    if (accountId) {
+        fetch('/api/email-config/accounts/' + accountId + '/teams')
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    for (var i = 0; i < data.data.length; i++) {
+                        var team = data.data[i];
+                        var option = document.createElement('option');
+                        option.value = team.id;
+                        option.textContent = team.name;
+                        teamSelect.appendChild(option);
+                    }
+                }
+            })
+            .catch(function(error) {
+                console.error('Error loading teams:', error);
+            });
+    }
+}
+
+// Load email configurations
+function loadConfigurations() {
+    console.log('Loading configurations...');
+    
+    var loading = document.querySelector('.loading');
+    var tableBody = document.getElementById('configurationsTableBody');
+    
+    if (!loading || !tableBody) {
+        console.error('Required DOM elements not found');
+        return;
+    }
+    
+    loading.style.display = 'block';
+    tableBody.innerHTML = '';
+    
+    var accountFilter = document.getElementById('accountFilter');
+    var teamFilter = document.getElementById('teamFilter');
+    
+    var accountId = accountFilter ? accountFilter.value : '';
+    var teamId = teamFilter ? teamFilter.value : '';
+    
+    var url = '/api/email-config/configs';
+    var params = [];
+    
+    if (accountId) params.push('account_id=' + accountId);
+    if (teamId) params.push('team_id=' + teamId);
+    
+    if (params.length > 0) {
+        url += '?' + params.join('&');
+    }
+    
+    fetch(url)
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            loading.style.display = 'none';
+            
+            if (data.success) {
+                currentConfigs = data.data;
+                displayConfigurations(data.data);
+            } else {
+                showError('Error loading configurations: ' + data.message);
+                displayConfigurations([]);
+            }
+        })
+        .catch(function(error) {
+            loading.style.display = 'none';
+            console.error('Error loading configurations:', error);
+            showError('Error loading configurations. Please try again.');
+            displayConfigurations([]);
+        });
+}
+
+// Display configurations in table
+function displayConfigurations(configs) {
+    var tableBody = document.getElementById('configurationsTableBody');
+    
+    if (configs.length === 0) {
+        tableBody.innerHTML = '<tr class="empty-state"><td colspan="7"><i class="fas fa-envelope"></i><h4>No Email Configurations Found</h4><p>No configurations match your current filters.</p></td></tr>';
+        return;
+    }
+    
+    var html = '';
+    for (var i = 0; i < configs.length; i++) {
+        var config = configs[i];
+        
+        html += '<tr>';
+        html += '<td><strong>' + escapeHtml(config.account_name) + '</strong></td>';
+        html += '<td><span style="color: #667eea; font-weight: 600;">' + escapeHtml(config.team_name) + '</span></td>';
+        html += '<td><div class="email-list">' + formatEmailList(config.to_recipients) + '</div></td>';
+        html += '<td><div class="email-list">' + formatEmailList(config.cc_recipients) + '</div></td>';
+        html += '<td><div class="email-list">' + formatEmailList(config.priority_recipients) + '</div></td>';
+        html += '<td>';
+        if (config.is_default) {
+            html += '<span class="default-badge">Default</span>';
+        } else {
+            html += '<span class="status-standard">Standard</span>';
+        }
+        html += '</td>';
+        html += '<td>';
+        html += '<div class="config-actions">';
+        html += '<button class="btn btn-sm btn-outline-primary" onclick="editConfiguration(' + config.id + ')" title="Edit">';
+        html += '<i class="fas fa-edit"></i>';
+        html += '</button>';
+        html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteConfiguration(' + config.id + ')" title="Delete">';
+        html += '<i class="fas fa-trash"></i>';
+        html += '</button>';
+        html += '</div>';
+        html += '</td>';
+        html += '</tr>';
+    }
+    
+    tableBody.innerHTML = html;
+}
+
+// Format email list for display
+function formatEmailList(emails) {
+    if (!emails) return '<span class="text-muted">None</span>';
+    
+    var emailArray = emails.split(',');
+    var html = '';
+    
+    for (var i = 0; i < emailArray.length; i++) {
+        var email = emailArray[i].trim();
+        if (email) {
+            html += '<span class="email-item">' + escapeHtml(email) + '</span>';
+        }
+    }
+    
+    return html || '<span class="text-muted">None</span>';
+}
+
+// Show create modal
+function showCreateModal() {
+    editingConfigId = null;
+    document.getElementById('modalTitle').textContent = 'Add Email Configuration';
+    document.getElementById('configForm').reset();
+    document.getElementById('modalMessages').innerHTML = '';
+    $('#configModal').modal('show');
+}
+
+// Edit configuration
+function editConfiguration(configId) {
+    var config = currentConfigs.find(function(c) { return c.id === configId; });
+    if (!config) return;
+    
+    editingConfigId = configId;
+    document.getElementById('modalTitle').textContent = 'Edit Email Configuration';
+    document.getElementById('modalMessages').innerHTML = '';
+    
+    // Populate form
+    document.getElementById('configAccount').value = config.account_id;
+    loadTeamsForConfig();
+    
+    // Set team after teams are loaded
+    setTimeout(function() {
+        document.getElementById('configTeam').value = config.team_id;
+    }, 100);
+    
+    document.getElementById('toRecipients').value = config.to_recipients || '';
+    document.getElementById('ccRecipients').value = config.cc_recipients || '';
+    document.getElementById('priorityRecipients').value = config.priority_recipients || '';
+    document.getElementById('isDefault').checked = config.is_default;
+    
+    $('#configModal').modal('show');
+}
+
+// Save configuration
+function saveConfiguration() {
+    var form = document.getElementById('configForm');
+    var messages = document.getElementById('modalMessages');
+    
+    messages.innerHTML = '';
+    
+    // Get form data
+    var accountId = document.getElementById('configAccount').value;
+    var teamId = document.getElementById('configTeam').value;
+    var toRecipients = document.getElementById('toRecipients').value;
+    var ccRecipients = document.getElementById('ccRecipients').value;
+    var priorityRecipients = document.getElementById('priorityRecipients').value;
+    var isDefault = document.getElementById('isDefault').checked;
+    
+    // Validate required fields
+    if (!accountId || !teamId) {
+        showModalError('Please select both Account and Team.');
+        return;
+    }
+    
+    var data = {
+        account_id: parseInt(accountId),
+        team_id: parseInt(teamId),
+        to_recipients: toRecipients || null,
+        cc_recipients: ccRecipients || null,
+        priority_recipients: priorityRecipients || null,
+        is_default: isDefault
+    };
+    
+    var url = '/api/email-config/config';
+    var method = 'POST';
+    
+    if (editingConfigId) {
+        url += '/' + editingConfigId;
+        method = 'PUT';
+    }
+    
+    fetch(url, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(result) {
+        if (result.success) {
+            $('#configModal').modal('hide');
+            loadConfigurations();
+            showSuccess(editingConfigId ? 'Configuration updated successfully!' : 'Configuration created successfully!');
+        } else {
+            showModalError(result.error || 'An error occurred while saving the configuration.');
+        }
+    })
+    .catch(function(error) {
+        console.error('Error saving configuration:', error);
+        showModalError('An error occurred while saving the configuration.');
+    });
+}
+
+// Delete configuration
+function deleteConfiguration(configId) {
+    var config = currentConfigs.find(function(c) { return c.id === configId; });
+    if (!config) return;
+    
+    deleteConfigId = configId;
+    document.getElementById('deleteConfigName').textContent = config.account_name + ' - ' + config.team_name;
+    $('#deleteModal').modal('show');
+}
+
+// Confirm delete
+function confirmDelete() {
+    if (!deleteConfigId) return;
+    
+    fetch('/api/email-config/config/' + deleteConfigId, {
+        method: 'DELETE'
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(result) {
+        $('#deleteModal').modal('hide');
+        if (result.success) {
+            loadConfigurations();
+            showSuccess('Configuration deleted successfully!');
+        } else {
+            showError(result.error || 'An error occurred while deleting the configuration.');
+        }
+    })
+    .catch(function(error) {
+        $('#deleteModal').modal('hide');
+        console.error('Error deleting configuration:', error);
+        showError('An error occurred while deleting the configuration.');
+    });
+}
+
+// Reset filters
+function resetFilters() {
+    document.getElementById('accountFilter').value = '';
+    document.getElementById('teamFilter').value = '';
+    loadConfigurations();
+}
+
+// Utility functions
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showError(message) {
+    var container = document.querySelector('.email-config-container');
+    var alert = document.createElement('div');
+    alert.className = 'error-message';
+    alert.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + message;
+    container.insertBefore(alert, container.firstChild);
+    
+    setTimeout(function() {
+        alert.remove();
+    }, 5000);
+}
+
+function showSuccess(message) {
+    var container = document.querySelector('.email-config-container');
+    var alert = document.createElement('div');
+    alert.className = 'success-message';
+    alert.innerHTML = '<i class="fas fa-check-circle"></i> ' + message;
+    container.insertBefore(alert, container.firstChild);
+    
+    setTimeout(function() {
+        alert.remove();
+    }, 5000);
+}
+
+function showModalError(message) {
+    var messages = document.getElementById('modalMessages');
+    messages.innerHTML = '<div class="error-message"><i class="fas fa-exclamation-triangle"></i> ' + message + '</div>';
+}
+
+// Enhanced visual feedback functions
+function addVisualEnhancements() {
+    // Add loading indicators to buttons
+    var buttons = document.querySelectorAll('.btn');
+    buttons.forEach(function(button) {
+        button.addEventListener('click', function() {
+            if (!button.disabled) {
+                button.style.transform = 'scale(0.95)';
+                setTimeout(function() {
+                    button.style.transform = '';
+                }, 150);
+            }
+        });
+    });
+    
+    // Enhanced form validation feedback
+    var inputs = document.querySelectorAll('.form-control');
+    inputs.forEach(function(input) {
+        input.addEventListener('input', function() {
+            if (input.value) {
+                input.style.borderColor = '#00b894';
+                input.style.backgroundColor = '#f0fff4';
+            } else {
+                input.style.borderColor = '';
+                input.style.backgroundColor = '';
+            }
+        });
+    });
+}
+
+// Call visual enhancements after page loads
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(addVisualEnhancements, 500);
+});
+</script>
+{% endblock %}

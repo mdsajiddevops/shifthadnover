@@ -1,0 +1,54 @@
+{# 
+   Unified Page Header Component
+   
+   Usage:
+   {% include 'components/page_header.html' with context %}
+   
+   Variables:
+   - page_icon: Icon class (e.g., 'bi bi-calendar-check', 'fas fa-users')
+   - page_title: Main title text
+   - page_subtitle: Description text (optional)
+   - header_class: Additional classes like 'purple', 'green', 'compact' (optional)
+   - show_badge: Boolean to show badge (optional)
+   - badge_value: Badge number/text (optional)
+   - badge_label: Badge label text (optional)
+   - action_url: URL for action button (optional)
+   - action_text: Action button text (optional)
+   - action_icon: Action button icon (optional)
+#}
+
+<div class="page-header {{ header_class|default('') }}">
+    <div class="page-header-content">
+        <div class="page-header-left">
+            <h1 class="page-title">
+                {% if page_icon %}<i class="{{ page_icon }}"></i>{% endif %}
+                {{ page_title|default('Page Title') }}
+            </h1>
+            {% if page_subtitle %}
+            <p class="page-subtitle">{{ page_subtitle }}</p>
+            {% endif %}
+        </div>
+        
+        {% if show_badge or action_url %}
+        <div class="page-header-right">
+            {% if show_badge and badge_value is defined %}
+            <div class="page-header-badge">
+                <span class="badge-value">{{ badge_value }}</span>
+                <span class="badge-label">{{ badge_label|default('Items') }}</span>
+            </div>
+            {% endif %}
+            
+            {% if action_url %}
+            <a href="{{ action_url }}" class="btn-header">
+                {% if action_icon %}<i class="{{ action_icon }}"></i>{% endif %}
+                {{ action_text|default('Action') }}
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+
+
+

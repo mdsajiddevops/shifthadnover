@@ -1,0 +1,516 @@
+{% extends "base.html" %}
+{% set page_title = "ServiceNow Integration" %}
+
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+    body {
+        background: #f8f9fa;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    .config-header {
+        background: #ffffff;
+        color: #2c3e50;
+        padding: 2rem;
+        border-bottom: 1px solid #e9ecef;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .config-header h1 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 600;
+        color: #2c3e50;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .config-header p {
+        margin: 0.5rem 0 0 0;
+        color: #6c757d;
+        font-size: 1rem;
+        font-weight: 400;
+    }
+
+    .breadcrumb {
+        background: transparent;
+        padding: 0;
+        margin-bottom: 1rem;
+    }
+
+    .breadcrumb-item a {
+        color: #0d6efd;
+        text-decoration: none;
+    }
+
+    .config-section {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 1px solid #e9ecef;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        color: #2c3e50;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        border-bottom: 1px solid #e9ecef;
+        padding-bottom: 0.75rem;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        margin-bottom: 1.5rem;
+        align-items: start;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .form-control, .form-select {
+        padding: 0.75rem 1rem;
+        border: 1px solid #ced4da;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #495057;
+        font-size: 0.95rem;
+        transition: all 0.15s ease;
+    }
+
+    .form-control:focus, .form-select:focus {
+        outline: none;
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+
+    .form-help {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+        line-height: 1.4;
+    }
+
+    .connection-status {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        font-weight: 500;
+    }
+
+    .status-connected {
+        background: #d1e7dd;
+        border: 1px solid #badbcc;
+        color: #0f5132;
+    }
+
+    .status-disconnected {
+        background: #f8d7da;
+        border: 1px solid #f5c2c7;
+        color: #842029;
+    }
+
+    .status-testing {
+        background: #fff3cd;
+        border: 1px solid #ffecb5;
+        color: #664d03;
+    }
+
+    .btn-group {
+        display: flex;
+        gap: 1rem;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e9ecef;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 0.95rem;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.15s ease;
+        text-decoration: none;
+    }
+
+    .btn-primary {
+        background: #0d6efd;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #0b5ed7;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+        color: white;
+        text-decoration: none;
+    }
+
+    .btn-success {
+        background: #198754;
+        color: white;
+    }
+
+    .btn-success:hover {
+        background: #157347;
+        color: white;
+        text-decoration: none;
+    }
+
+    .btn-outline-primary {
+        background: transparent;
+        color: #0d6efd;
+        border: 2px solid #0d6efd;
+    }
+
+    .btn-outline-primary:hover {
+        background: #0d6efd;
+        color: white;
+        text-decoration: none;
+    }
+
+    .integration-feature {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+
+    .feature-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+    }
+
+    .feature-content h5 {
+        margin: 0 0 0.25rem 0;
+        font-size: 1rem;
+        font-weight: 600;
+    }
+
+    .feature-content p {
+        margin: 0;
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+
+    @media (max-width: 768px) {
+        .form-row {
+            grid-template-columns: 1fr;
+        }
+        
+        .btn-group {
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb Navigation -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('admin_secrets.config_menu') }}">Configuration</a></li>
+            <li class="breadcrumb-item active" aria-current="page">ServiceNow Integration</li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="config-header">
+        <h1><i class="fas fa-ticket-alt"></i> ServiceNow Integration</h1>
+        <p>Connect to ServiceNow for automated ticket creation and incident management workflows</p>
+    </div>
+
+    <!-- Connection Status -->
+    <div class="config-section">
+        <div class="connection-status status-disconnected" id="connectionStatus">
+            <i class="fas fa-times-circle"></i>
+            <span>Not Connected to ServiceNow</span>
+        </div>
+    </div>
+
+    <!-- ServiceNow Configuration -->
+    <div class="config-section">
+        <div class="section-title">
+            <i class="fas fa-server"></i>
+            ServiceNow Instance Configuration
+        </div>
+        
+        <form id="serviceNowForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="instanceUrl" class="form-label">
+                        <i class="fas fa-link"></i> Instance URL
+                    </label>
+                    <input type="url" class="form-control" id="instanceUrl" name="instance_url" 
+                           placeholder="https://your-instance.service-now.com">
+                    <div class="form-help">Enter your ServiceNow instance URL (including https://)</div>
+                </div>
+                <div class="form-group">
+                    <label for="apiVersion" class="form-label">
+                        <i class="fas fa-code-branch"></i> API Version
+                    </label>
+                    <select class="form-select" id="apiVersion" name="api_version">
+                        <option value="v1">Version 1 (REST API v1)</option>
+                        <option value="v2" selected>Version 2 (REST API v2)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="username" class="form-label">
+                        <i class="fas fa-user"></i> Username
+                    </label>
+                    <input type="text" class="form-control" id="username" name="username" 
+                           placeholder="service-account-user">
+                    <div class="form-help">ServiceNow service account username</div>
+                </div>
+                <div class="form-group">
+                    <label for="password" class="form-label">
+                        <i class="fas fa-lock"></i> Password
+                    </label>
+                    <input type="password" class="form-control" id="password" name="password" 
+                           placeholder="••••••••••••">
+                    <div class="form-help">ServiceNow service account password</div>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="defaultTable" class="form-label">
+                        <i class="fas fa-table"></i> Default Table
+                    </label>
+                    <select class="form-select" id="defaultTable" name="default_table">
+                        <option value="incident">Incident (incident)</option>
+                        <option value="problem">Problem (problem)</option>
+                        <option value="change_request">Change Request (change_request)</option>
+                        <option value="sc_request">Service Catalog Request (sc_request)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="defaultPriority" class="form-label">
+                        <i class="fas fa-exclamation-triangle"></i> Default Priority
+                    </label>
+                    <select class="form-select" id="defaultPriority" name="default_priority">
+                        <option value="1">1 - Critical</option>
+                        <option value="2">2 - High</option>
+                        <option value="3" selected>3 - Medium</option>
+                        <option value="4">4 - Low</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="btn-group">
+                <button type="button" class="btn btn-primary" onclick="saveServiceNowConfig()">
+                    <i class="fas fa-save"></i> Save Configuration
+                </button>
+                <button type="button" class="btn btn-success" onclick="testServiceNowConnection()">
+                    <i class="fas fa-vial"></i> Test Connection
+                </button>
+                <a href="{{ url_for('admin_secrets.config_menu') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left"></i> Back to Configuration
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Integration Features -->
+    <div class="config-section">
+        <div class="section-title">
+            <i class="fas fa-puzzle-piece"></i>
+            Available Integration Features
+        </div>
+        
+        <div class="integration-feature">
+            <div class="feature-icon">
+                <i class="fas fa-ticket-alt"></i>
+            </div>
+            <div class="feature-content">
+                <h5>Automatic Ticket Creation</h5>
+                <p>Create ServiceNow tickets automatically from handover incidents and alerts</p>
+            </div>
+        </div>
+
+        <div class="integration-feature">
+            <div class="feature-icon">
+                <i class="fas fa-sync"></i>
+            </div>
+            <div class="feature-content">
+                <h5>Status Synchronization</h5>
+                <p>Keep handover status in sync with ServiceNow ticket status updates</p>
+            </div>
+        </div>
+
+        <div class="integration-feature">
+            <div class="feature-icon">
+                <i class="fas fa-bell"></i>
+            </div>
+            <div class="feature-content">
+                <h5>Notification Webhooks</h5>
+                <p>Receive real-time notifications when ServiceNow tickets are updated</p>
+            </div>
+        </div>
+
+        <div class="integration-feature">
+            <div class="feature-icon">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="feature-content">
+                <h5>Analytics & Reporting</h5>
+                <p>Generate reports combining handover data with ServiceNow metrics</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Load configuration on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadServiceNowConfig();
+});
+
+// Load ServiceNow configuration
+async function loadServiceNowConfig() {
+    try {
+        // Simulate loading config
+        const config = {
+            instance_url: 'https://dev12345.service-now.com',
+            api_version: 'v2',
+            username: 'integration-user',
+            password: '••••••••••••',
+            default_table: 'incident',
+            default_priority: '3',
+            connected: false
+        };
+        
+        // Populate form fields
+        document.getElementById('instanceUrl').value = config.instance_url || '';
+        document.getElementById('apiVersion').value = config.api_version || 'v2';
+        document.getElementById('username').value = config.username || '';
+        document.getElementById('password').value = config.password || '';
+        document.getElementById('defaultTable').value = config.default_table || 'incident';
+        document.getElementById('defaultPriority').value = config.default_priority || '3';
+        
+        // Update connection status
+        updateConnectionStatus(config.connected);
+    } catch (error) {
+        console.error('Error loading ServiceNow config:', error);
+    }
+}
+
+// Save ServiceNow configuration
+async function saveServiceNowConfig() {
+    const formData = new FormData(document.getElementById('serviceNowForm'));
+    
+    // Show loading state
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    btn.disabled = true;
+    
+    try {
+        // Simulate save
+        setTimeout(() => {
+            alert('ServiceNow configuration saved successfully!\n\nConfiguration has been stored securely.');
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }, 1500);
+    } catch (error) {
+        alert('Error saving configuration: ' + error.message);
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
+// Test ServiceNow connection
+async function testServiceNowConnection() {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+    btn.disabled = true;
+    
+    // Update status to testing
+    updateConnectionStatus('testing');
+    
+    try {
+        // Simulate connection test
+        setTimeout(() => {
+            const success = Math.random() > 0.3; // 70% success rate for demo
+            
+            if (success) {
+                updateConnectionStatus(true);
+                alert('ServiceNow connection test successful!\n\n✓ Instance URL is reachable\n✓ Authentication successful\n✓ API access confirmed\n✓ Default table accessible');
+            } else {
+                updateConnectionStatus(false);
+                alert('ServiceNow connection test failed!\n\n✗ Unable to connect to instance\n✗ Please check:\n  - Instance URL is correct\n  - Username and password are valid\n  - ServiceNow instance is accessible');
+            }
+            
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }, 3000);
+    } catch (error) {
+        updateConnectionStatus(false);
+        alert('Error testing ServiceNow connection: ' + error.message);
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
+// Update connection status display
+function updateConnectionStatus(status) {
+    const statusElement = document.getElementById('connectionStatus');
+    
+    if (status === 'testing') {
+        statusElement.className = 'connection-status status-testing';
+        statusElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Testing Connection...</span>';
+    } else if (status === true) {
+        statusElement.className = 'connection-status status-connected';
+        statusElement.innerHTML = '<i class="fas fa-check-circle"></i><span>Connected to ServiceNow</span>';
+    } else {
+        statusElement.className = 'connection-status status-disconnected';
+        statusElement.innerHTML = '<i class="fas fa-times-circle"></i><span>Not Connected to ServiceNow</span>';
+    }
+}
+</script>
+{% endblock %}

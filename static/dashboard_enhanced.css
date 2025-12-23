@@ -402,6 +402,159 @@
     }
 }
 
+/* Check-in Widget Styles */
+.checkin-widget {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 0.5rem;
+    backdrop-filter: blur(5px);
+    position: relative;
+    z-index: 1050;
+}
+
+.status-indicator {
+    position: relative;
+}
+
+.status-indicator .badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+    }
+}
+
+.status-indicator .badge.bg-warning {
+    animation-name: pulse-warning;
+}
+
+@keyframes pulse-warning {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(255, 193, 7, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
+    }
+}
+
+.status-indicator .badge.bg-secondary {
+    animation: none;
+}
+
+#checkinDropdown {
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    border: 2px solid rgba(13, 110, 253, 0.3);
+}
+
+#checkinDropdown:hover {
+    border-color: #0d6efd;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(13, 110, 253, 0.2);
+}
+
+.dropdown-menu {
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    border: none;
+    padding: 0.5rem 0;
+    z-index: 1055 !important;
+    position: absolute !important;
+}
+
+/* Specific positioning for check-in dropdown - Force highest z-index */
+.dashboard-header .checkin-widget {
+    z-index: 9999 !important;
+    position: relative !important;
+}
+
+.dashboard-header .checkin-widget .dropdown {
+    z-index: 9999 !important;
+    position: relative !important;
+}
+
+.checkin-widget .dropdown-menu {
+    right: 0 !important;
+    left: auto !important;
+    top: 100% !important;
+    transform: none !important;
+    margin-top: 0.5rem;
+    min-width: 200px;
+    z-index: 10000 !important;
+    position: absolute !important;
+}
+
+/* Force dropdown to appear over everything */
+.dashboard-header .dropdown-menu {
+    z-index: 10000 !important;
+    position: fixed !important;
+}
+
+.dropdown-item {
+    padding: 0.75rem 1rem;
+    border-radius: 0;
+    transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+    background-color: #f8f9fa;
+    transform: translateX(5px);
+}
+
+.dropdown-header {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.85rem;
+}
+
+/* Team Status Display Enhancements */
+.team-member-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.status-dot.online {
+    background-color: #28a745;
+}
+
+.status-dot.oncall {
+    background-color: #ffc107;
+}
+
+.status-dot.offline {
+    background-color: #6c757d;
+    animation: none;
+}
+
 /* Mobile responsiveness */
 @media (max-width: 768px) {
     .dashboard-stats {
@@ -417,5 +570,15 @@
         width: 80px;
         height: 80px;
         font-size: 1.2rem;
+    }
+    
+    .checkin-widget {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    #checkinDropdown {
+        font-size: 0.875rem;
+        padding: 0.375rem 0.75rem;
     }
 }

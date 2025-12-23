@@ -71,9 +71,14 @@ def initiate_sso(provider):
 def sso_callback(provider):
     """Handle SSO callback from provider"""
     try:
-        # Log callback details for debugging
+        # Enhanced debugging for callback investigation
         current_app.logger.info(f"SSO callback for provider: {provider}")
+        current_app.logger.info(f"Request method: {request.method}")
+        current_app.logger.info(f"Request URL: {request.url}")
         current_app.logger.info(f"Request args: {dict(request.args)}")
+        current_app.logger.info(f"Request form: {dict(request.form)}")
+        current_app.logger.info(f"Request headers: {dict(request.headers)}")
+        current_app.logger.info(f"Request query string: {request.query_string}")
         
         # Check for OAuth errors
         if request.args.get('error'):
@@ -158,6 +163,8 @@ def _initiate_azure_ad_login(config, account_id):
 
 def _initiate_oauth_login(config, account_id):
     """Initiate generic OAuth 2.0 login"""
+    from urllib.parse import urlencode, quote_plus
+    
     session['sso_account_id'] = account_id
     
     # Store provider type for callback handling
@@ -168,7 +175,7 @@ def _initiate_oauth_login(config, account_id):
     state = secrets.token_hex(16)
     session['oauth_state'] = state
     
-    # Build authorization URL
+    # Build authorization URL with proper URL encoding
     params = {
         'client_id': config.get('client_id'),
         'response_type': 'code',
@@ -178,13 +185,16 @@ def _initiate_oauth_login(config, account_id):
     }
     
     auth_url = config.get('authorization_endpoint')
-    query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+    
+    # Use proper URL encoding for query parameters
+    query_string = urlencode(params)
     redirect_url = f"{auth_url}?{query_string}"
     
     # Debug logging
     current_app.logger.info(f"OAuth redirect URL: {redirect_url}")
     current_app.logger.info(f"Client ID: {config.get('client_id')}")
     current_app.logger.info(f"Redirect URI: {config.get('redirect_uri')}")
+    current_app.logger.info(f"Authorization endpoint: {auth_url}")
     
     return redirect(redirect_url)
 

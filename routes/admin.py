@@ -16,6 +16,14 @@ def admin_required(f):
 
 admin_bp = Blueprint('admin', __name__)
 
+# --- Admin Dashboard - Redirect to Secrets Management ---
+@admin_bp.route('/')
+@login_required
+@admin_required
+def admin_dashboard():
+    """Redirect to secrets management dashboard"""
+    return redirect(url_for('admin_secrets.secrets_dashboard'))
+
 # --- Account Management ---
 @admin_bp.route('/accounts')
 @login_required
@@ -62,34 +70,82 @@ def delete_account(account_id):
     return redirect(url_for('admin.accounts'))
 
 # --- Team Management ---
-@admin_bp.route('/teams')
-@login_required
-@admin_required
-def teams():
-    teams = Team.query.all()
-    return render_template('admin/teams.html', teams=teams)
+# Team management route removed - functionality moved to user management
+# @admin_bp.route('/teams')
+# @login_required
+# @admin_required
+# def teams():
+#     teams = Team.query.all()
+#     return render_template('admin/teams.html', teams=teams)
 
-@admin_bp.route('/teams/add', methods=['GET', 'POST'])
+# Team email configuration is now integrated into secrets management
+# Route removed - functionality available at /admin/secrets/
+
+@admin_bp.route('/api/teams-by-account/<int:account_id>')
 @login_required
-@admin_required
-def add_team():
+@admin_required  
+def get_teams_by_account(account_id):
+    """API endpoint to get teams for a specific account"""
+    from flask import jsonify
+    teams = Team.query.filter_by(account_id=account_id).all()
+    return jsonify([{
+        'id': team.id,
+        'name': team.name,
+        'email_recipients': team.email_recipients or '',
+        'priority_alert_recipients': team.priority_alert_recipients or ''
+    } for team in teams])
+
+# Team add route removed - use user management interface
+# @admin_bp.route('/teams/add', methods=['GET', 'POST'])
+# @login_required
+# @admin_required
+# def add_team():
     accounts = Account.query.all()
     if request.method == 'POST':
         name = request.form['name']
         account_id = request.form['account_id']
+        email_recipients = request.form.get('email_recipients', '').strip()
+        priority_alert_recipients = request.form.get('priority_alert_recipients', '').strip()
+        
         if Team.query.filter_by(name=name, account_id=account_id).first():
             flash('Team already exists.')
         else:
-            db.session.add(Team(name=name, account_id=account_id))
+            # Validate email addresses if provided
+            def validate_email_list(email_string, field_name):
+                if email_string:
+                    emails = [email.strip() for email in email_string.split(',')]
+                    import re
+                    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+                    for email in emails:
+                        if email and not re.match(email_pattern, email):
+                            flash(f'Invalid email address in {field_name}: {email}', 'error')
+                            return render_template('admin/team_form.html', action='Add', accounts=accounts)
+                return None
+            
+            # Validate emails
+            if validate_email_list(email_recipients, 'Email Recipients'):
+                return render_template('admin/team_form.html', action='Add', accounts=accounts)
+            if validate_email_list(priority_alert_recipients, 'Priority Alert Recipients'):
+                return render_template('admin/team_form.html', action='Add', accounts=accounts)
+            
+            # Create team with email configuration
+            team = Team(
+                name=name, 
+                account_id=account_id,
+                email_recipients=email_recipients if email_recipients else None,
+                priority_alert_recipients=priority_alert_recipients if priority_alert_recipients else None
+            )
+            db.session.add(team)
             db.session.commit()
-            flash('Team added.')
+            flash('Team added with email configuration.')
             return redirect(url_for('admin.teams'))
     return render_template('admin/team_form.html', action='Add', accounts=accounts)
 
-@admin_bp.route('/teams/edit/<int:team_id>', methods=['GET', 'POST'])
-@login_required
-@admin_required
-def edit_team(team_id):
+# Team edit route removed - use user management interface
+# @admin_bp.route('/teams/edit/<int:team_id>', methods=['GET', 'POST'])
+# @login_required
+# @admin_required
+# def edit_team(team_id):
     team = Team.query.get_or_404(team_id)
     accounts = Account.query.all()
     
@@ -133,12 +189,40 @@ def edit_team(team_id):
                 flash(f'A team named "{name}" already exists in this account.', 'error')
                 return render_template('admin/team_form.html', action='Edit', team=team, accounts=accounts)
             
+            # Get email configuration fields
+            email_recipients = request.form.get('email_recipients', '').strip()
+            priority_alert_recipients = request.form.get('priority_alert_recipients', '').strip()
+            
+            # Validate email addresses if provided
+            def validate_email_list(email_string, field_name):
+                if email_string:
+                    emails = [email.strip() for email in email_string.split(',')]
+                    import re
+                    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+                    for email in emails:
+                        if email and not re.match(email_pattern, email):
+                            return f'Invalid email address in {field_name}: {email}'
+                return None
+            
+            # Validate email recipients
+            email_error = validate_email_list(email_recipients, 'Email Recipients')
+            if email_error:
+                flash(email_error, 'error')
+                return render_template('admin/team_form.html', action='Edit', team=team, accounts=accounts)
+            
+            priority_error = validate_email_list(priority_alert_recipients, 'Priority Alert Recipients')
+            if priority_error:
+                flash(priority_error, 'error')
+                return render_template('admin/team_form.html', action='Edit', team=team, accounts=accounts)
+            
             # Update team
             old_name = team.name
             old_account = team.account.name if team.account else 'Unknown'
             
             team.name = name
             team.account_id = account_id
+            team.email_recipients = email_recipients if email_recipients else None
+            team.priority_alert_recipients = priority_alert_recipients if priority_alert_recipients else None
             
             db.session.commit()
             
@@ -158,10 +242,11 @@ def edit_team(team_id):
     
     return render_template('admin/team_form.html', action='Edit', team=team, accounts=accounts)
 
-@admin_bp.route('/teams/delete/<int:team_id>', methods=['POST'])
-@login_required
-@admin_required
-def delete_team(team_id):
+# Team delete route removed - use user management interface  
+# @admin_bp.route('/teams/delete/<int:team_id>', methods=['POST'])
+# @login_required
+# @admin_required
+# def delete_team(team_id):
     team = Team.query.get_or_404(team_id)
     db.session.delete(team)
     db.session.commit()

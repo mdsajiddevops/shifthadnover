@@ -4,6 +4,9 @@ import os
 import pandas as pd
 from functools import wraps
 from io import BytesIO
+from services.team_access_service import TeamAccessService
+from models.models import db, Account, Team
+from models.escalation_matrix import EscalationMatrixEntry
 
 UPLOAD_FOLDER = 'uploads/escalation_matrix'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -22,41 +25,40 @@ def admin_required_for_upload(f):
         return f(*args, **kwargs)
     return decorated_function
 
+
+def is_admin():
+    """Check if current user is an admin"""
+    return current_user.role in ['super_admin', 'account_admin', 'team_admin']
+
+
 @escalation_bp.route('/download-sample-escalation-matrix')
 @login_required
 def download_sample_escalation_matrix():
     """Generate and download a sample escalation matrix template"""
     try:
-        # Create sample data matching the exact format from image-2
+        # Create sample data matching the exact format
         sample_data = {
-            'Team Email ID': ['billing_systems_app_support@example.co', 'billing_systems_app_support@example.co', 'billing_systems_app_support@example.co', 'billing_systems_app_support@example.co', 'billing_systems_app_support@example.co'],
-            'Contact Details': ['+1-555-707-8085', '+1-555-707-8085', '+1-555-707-8085', '+1-555-707-8085', '+1-555-707-8085'],
-            'Support Coverage': ['Mon-Fri 8AM-5PM PST', 'Mon-Fri 8AM-5PM PST', 'Mon-Fri 8AM-5PM PST', 'Mon-Fri 8AM-5PM PST', 'Mon-Fri 8AM-5PM PST'],
-            'SLA': ['P1 - 25 min, P2 - 45 min', 'P1 - 25 min, P2 - 45 min', 'P1 - 25 min, P2 - 45 min', 'P1 - 25 min, P2 - 45 min', 'P1 - 25 min, P2 - 45 min'],
-            'ServiceNow Assignment Group': ['BILLING_SYSTEM_APP', 'BILLING_SYSTEM_APP', 'BILLING_SYSTEM_APP', 'BILLING_SYSTEM_APP', 'BILLING_SYSTEM_APP'],
-            'Escalation Level 1': ['Isabella Moore (+1-555-000-1111, isabella.moore@example.co)', 'Isabella Moore (+1-555-000-1111, isabella.moore@example.co)', 'Isabella Moore (+1-555-000-1111, isabella.moore@example.co)', 'Isabella Moore (+1-555-000-1111, isabella.moore@example.co)', 'Isabella Moore (+1-555-000-1111, isabella.moore@example.co)'],
-            'Escalation Level 2': ['William Harris (+1-555-111-2223, william.harris@example.co)', 'William Harris (+1-555-111-2223, william.harris@example.co)', 'William Harris (+1-555-111-2223, william.harris@example.co)', 'William Harris (+1-555-111-2223, william.harris@example.co)', 'William Harris (+1-555-111-2223, william.harris@example.co)'],
-            'Escalation Level 3': ['Charlotte Miller (+1-555-222-3334, charlotte.miller@example.com)', 'Charlotte Miller (+1-555-222-3334, charlotte.miller@example.com)', 'Charlotte Miller (+1-555-222-3334, charlotte.miller@example.com)', 'Charlotte Miller (+1-555-222-3334, charlotte.miller@example.com)', 'Charlotte Miller (+1-555-222-3334, charlotte.miller@example.com)']
+            'Team Email ID': ['billing_systems_app_support@example.co', 'payment_systems_app_support@example.co'],
+            'Contact Details': ['+1-555-707-8085', '+1-555-808-9096'],
+            'Support Coverage': ['Mon-Fri 8AM-5PM PST', '24x7'],
+            'SLA': ['P1 - 25 min, P2 - 45 min', 'P1 - 15 min, P2 - 30 min'],
+            'ServiceNow Assignment Group': ['BILLING_SYSTEM_APP', 'PAYMENT_SYSTEM_APP'],
+            'Escalation Level 1': ['Isabella Moore (+1-555-000-1111, isabella.moore@example.co)', 'John Smith (+1-555-111-2222, john.smith@example.co)'],
+            'Escalation Level 2': ['William Harris (+1-555-111-2223, william.harris@example.co)', 'Jane Doe (+1-555-222-3333, jane.doe@example.co)'],
+            'Escalation Level 3': ['Charlotte Miller (+1-555-222-3334, charlotte.miller@example.com)', 'Bob Wilson (+1-555-333-4444, bob.wilson@example.com)'],
+            'Notes': ['Primary billing support', 'Payment gateway support']
         }
         
-        # Create DataFrame
         df = pd.DataFrame(sample_data)
-        
-        # Create BytesIO object to store the Excel file in memory
         output = BytesIO()
         
-        # Write to Excel with multiple sheets matching the image-2 format
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            # Create multiple sample sheets as shown in image-2
-            sheet_names = ['acme_corp_team_a', 'acme_corp_team_b']
+            sheet_names = ['Application_Team_A', 'Application_Team_B']
             
             for sheet_name in sheet_names:
                 df.to_excel(writer, sheet_name=sheet_name, index=False)
-                
-                # Get the worksheet for formatting
                 worksheet = writer.sheets[sheet_name]
                 
-                # Auto-adjust column widths
                 for column in worksheet.columns:
                     max_length = 0
                     column_letter = column[0].column_letter
@@ -82,10 +84,11 @@ def download_sample_escalation_matrix():
         flash(f'Error generating sample template: {str(e)}', 'error')
         return redirect(url_for('escalation_matrix.escalation_matrix'))
 
-@escalation_bp.route('/api/teams-by-account')
+
+@escalation_bp.route('/api/escalation-matrix/teams-by-account')
 @login_required
 def get_teams_by_account():
-    """API endpoint to get teams for a specific account (for escalation matrix upload)"""
+    """API endpoint to get teams for a specific account"""
     account_id = request.args.get('account_id')
     
     if not account_id:
@@ -94,18 +97,14 @@ def get_teams_by_account():
     try:
         account_id = int(account_id)
         
-        # Security check: ensure user has permission to access this account
+        # Security check
         if current_user.role == 'super_admin':
-            # Super admin can access any account
             pass
         elif current_user.role == 'account_admin' and current_user.account_id == account_id:
-            # Account admin can only access their own account
             pass
         else:
-            # Other roles cannot access this endpoint
             return jsonify({'teams': []})
         
-        from models.models import Team
         teams = Team.query.filter_by(account_id=account_id, is_active=True).order_by(Team.name).all()
         teams_data = [{'id': team.id, 'name': team.name} for team in teams]
         
@@ -114,257 +113,309 @@ def get_teams_by_account():
     except (TypeError, ValueError):
         return jsonify({'teams': []})
 
+
+@escalation_bp.route('/api/escalation-matrix/entries')
+@login_required
+def get_entries_api():
+    """API endpoint to get escalation matrix entries"""
+    account_id = request.args.get('account_id', type=int)
+    team_id = request.args.get('team_id', type=int)
+    application = request.args.get('application')
+    
+    query = EscalationMatrixEntry.query.filter_by(is_active=True)
+    
+    # Apply role-based filtering
+    if current_user.role == 'super_admin':
+        if account_id:
+            query = query.filter_by(account_id=account_id)
+        if team_id:
+            query = query.filter_by(team_id=team_id)
+    elif current_user.role == 'account_admin':
+        query = query.filter_by(account_id=current_user.account_id)
+        if team_id:
+            query = query.filter_by(team_id=team_id)
+    else:
+        # Team admin or user - filter by their teams
+        user_team_ids = TeamAccessService.get_user_team_ids()
+        if user_team_ids:
+            query = query.filter(EscalationMatrixEntry.team_id.in_(user_team_ids))
+    
+    if application:
+        query = query.filter_by(application_name=application)
+    
+    entries = query.order_by(EscalationMatrixEntry.application_name, EscalationMatrixEntry.id).all()
+    
+    return jsonify({
+        'entries': [entry.to_dict() for entry in entries],
+        'count': len(entries)
+    })
+
+
+@escalation_bp.route('/api/escalation-matrix/entry/<int:entry_id>', methods=['GET'])
+@login_required
+def get_entry_api(entry_id):
+    """Get a single escalation matrix entry"""
+    entry = EscalationMatrixEntry.query.get_or_404(entry_id)
+    return jsonify(entry.to_dict())
+
+
+@escalation_bp.route('/api/escalation-matrix/entry', methods=['POST'])
+@login_required
+def add_entry_api():
+    """Add a new escalation matrix entry"""
+    if not is_admin():
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    
+    data = request.get_json()
+    
+    try:
+        entry = EscalationMatrixEntry(
+            application_name=data.get('application_name', 'Default'),
+            team_email_id=data.get('team_email_id'),
+            contact_details=data.get('contact_details'),
+            support_coverage=data.get('support_coverage'),
+            sla=data.get('sla'),
+            servicenow_assignment_group=data.get('servicenow_assignment_group'),
+            escalation_level_1=data.get('escalation_level_1'),
+            escalation_level_2=data.get('escalation_level_2'),
+            escalation_level_3=data.get('escalation_level_3'),
+            escalation_level_4=data.get('escalation_level_4'),
+            escalation_level_5=data.get('escalation_level_5'),
+            notes=data.get('notes'),
+            additional_info=data.get('additional_info'),
+            account_id=data.get('account_id') or current_user.account_id,
+            team_id=data.get('team_id') or current_user.team_id,
+            created_by=current_user.id
+        )
+        
+        db.session.add(entry)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'entry': entry.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@escalation_bp.route('/api/escalation-matrix/entry/<int:entry_id>', methods=['PUT'])
+@login_required
+def edit_entry_api(entry_id):
+    """Edit an escalation matrix entry"""
+    if not is_admin():
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    
+    entry = EscalationMatrixEntry.query.get_or_404(entry_id)
+    data = request.get_json()
+    
+    try:
+        entry.application_name = data.get('application_name', entry.application_name)
+        entry.team_email_id = data.get('team_email_id')
+        entry.contact_details = data.get('contact_details')
+        entry.support_coverage = data.get('support_coverage')
+        entry.sla = data.get('sla')
+        entry.servicenow_assignment_group = data.get('servicenow_assignment_group')
+        entry.escalation_level_1 = data.get('escalation_level_1')
+        entry.escalation_level_2 = data.get('escalation_level_2')
+        entry.escalation_level_3 = data.get('escalation_level_3')
+        entry.escalation_level_4 = data.get('escalation_level_4')
+        entry.escalation_level_5 = data.get('escalation_level_5')
+        entry.notes = data.get('notes')
+        entry.additional_info = data.get('additional_info')
+        
+        if data.get('account_id'):
+            entry.account_id = data.get('account_id')
+        if data.get('team_id'):
+            entry.team_id = data.get('team_id')
+        
+        db.session.commit()
+        
+        return jsonify({'success': True, 'entry': entry.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@escalation_bp.route('/api/escalation-matrix/entry/<int:entry_id>', methods=['DELETE'])
+@login_required
+def delete_entry_api(entry_id):
+    """Delete an escalation matrix entry"""
+    if not is_admin():
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    
+    entry = EscalationMatrixEntry.query.get_or_404(entry_id)
+    
+    try:
+        # Soft delete
+        entry.is_active = False
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Entry deleted successfully'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@escalation_bp.route('/api/escalation-matrix/import', methods=['POST'])
+@login_required
+def import_entries():
+    """Import escalation matrix entries from Excel file"""
+    if not is_admin():
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    
+    file = request.files.get('file')
+    account_id = request.form.get('account_id', type=int) or current_user.account_id
+    team_id = request.form.get('team_id', type=int) or current_user.team_id
+    replace_existing = request.form.get('replace_existing', 'false').lower() == 'true'
+    
+    if not file or not file.filename.endswith('.xlsx'):
+        return jsonify({'success': False, 'error': 'Please upload a valid .xlsx file'}), 400
+    
+    try:
+        xls = pd.ExcelFile(file)
+        imported_count = 0
+        
+        # If replacing, delete existing entries for this account/team
+        if replace_existing:
+            EscalationMatrixEntry.query.filter_by(
+                account_id=account_id,
+                team_id=team_id,
+                is_active=True
+            ).update({'is_active': False})
+        
+        for sheet_name in xls.sheet_names:
+            df = xls.parse(sheet_name)
+            df = df.where(pd.notnull(df), None)
+            
+            for _, row in df.iterrows():
+                row_dict = row.to_dict()
+                
+                # Skip empty rows
+                if all(v is None or str(v).strip() == '' for v in row_dict.values()):
+                    continue
+                
+                entry = EscalationMatrixEntry.from_excel_row(
+                    row_dict,
+                    application_name=sheet_name,
+                    account_id=account_id,
+                    team_id=team_id,
+                    created_by=current_user.id
+                )
+                db.session.add(entry)
+                imported_count += 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully imported {imported_count} entries from {len(xls.sheet_names)} sheets',
+            'count': imported_count
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@escalation_bp.route('/api/escalation-matrix/applications')
+@login_required
+def get_applications():
+    """Get list of unique application names for filtering"""
+    query = EscalationMatrixEntry.query.filter_by(is_active=True)
+    
+    # Apply role-based filtering
+    if current_user.role == 'super_admin':
+        account_id = request.args.get('account_id', type=int)
+        team_id = request.args.get('team_id', type=int)
+        if account_id:
+            query = query.filter_by(account_id=account_id)
+        if team_id:
+            query = query.filter_by(team_id=team_id)
+    elif current_user.role == 'account_admin':
+        query = query.filter_by(account_id=current_user.account_id)
+        team_id = request.args.get('team_id', type=int)
+        if team_id:
+            query = query.filter_by(team_id=team_id)
+    else:
+        user_team_ids = TeamAccessService.get_user_team_ids()
+        if user_team_ids:
+            query = query.filter(EscalationMatrixEntry.team_id.in_(user_team_ids))
+    
+    applications = query.with_entities(EscalationMatrixEntry.application_name).distinct().all()
+    app_names = [app[0] for app in applications if app[0]]
+    
+    return jsonify({'applications': sorted(app_names)})
+
+
 @escalation_bp.route('/escalation-matrix', methods=['GET', 'POST'])
 @login_required
 @admin_required_for_upload
 def escalation_matrix():
-    app_names = []
-    matrix_data = None
+    """Main escalation matrix page"""
+    # Get filter parameters
+    account_id = request.args.get('account_id', type=int)
+    team_id = request.args.get('team_id', type=int)
     selected_app = request.args.get('application')
-    if request.method == 'POST':
-        if current_user.role not in ['super_admin', 'account_admin', 'team_admin']:
-            flash('Access denied. Administrator privileges required for uploading.', 'error')
-            return redirect(url_for('escalation_matrix.escalation_matrix'))
-        
-        file = request.files.get('file')
-        
-        # For admins, get account_id and team_id from form submission
-        if current_user.role == 'super_admin':
-            # Super admin can select any account and team
-            account_id = request.form.get('upload_account_id')
-            team_id = request.form.get('upload_team_id')
-        elif current_user.role == 'account_admin':
-            # Account admin can only upload to their account, but can select team
-            account_id = current_user.account_id
-            team_id = request.form.get('upload_team_id')
-        else:
-            # Team admin uses their current account/team
-            account_id = getattr(current_user, 'account_id', None)
-            team_id = getattr(current_user, 'team_id', None)
-        
-        # Validate and convert to integers
-        try:
-            account_id = int(account_id) if account_id else None
-        except (TypeError, ValueError):
-            account_id = None
-        try:
-            team_id = int(team_id) if team_id else None
-        except (TypeError, ValueError):
-            team_id = None
-        
-        # Validation
-        if not account_id:
-            flash('Please select a valid account.', 'error')
-            return redirect(url_for('escalation_matrix.escalation_matrix'))
-        
-        if not team_id:
-            flash('Please select a valid team.', 'error')
-            return redirect(url_for('escalation_matrix.escalation_matrix'))
-        
-        # Additional security check for account_admin
-        if current_user.role == 'account_admin' and account_id != current_user.account_id:
-            flash('Access denied. You can only upload to your own account.', 'error')
-            return redirect(url_for('escalation_matrix.escalation_matrix'))
-        if file and file.filename.endswith('.xlsx'):
-            filepath = os.path.join(UPLOAD_FOLDER, file.filename)
-            # If file exists, remove it before saving new one
-            if os.path.exists(filepath):
-                os.remove(filepath)
-            file.save(filepath)
-            # Save or update file info in EscalationMatrixFile table
-            from models.models import EscalationMatrixFile, db
-            import datetime
-            # Find by filename only to avoid duplicate constraint issues
-            existing_file = EscalationMatrixFile.query.filter_by(filename=file.filename).first()
-            if existing_file:
-                # Update existing record with new account/team info and timestamp
-                existing_file.account_id = account_id
-                existing_file.team_id = team_id
-                existing_file.upload_time = datetime.datetime.now()
-            else:
-                matrix_file = EscalationMatrixFile(filename=file.filename, upload_time=datetime.datetime.now(), account_id=account_id, team_id=team_id)
-                db.session.add(matrix_file)
-            # Parse and save each sheet/row if you have a model for escalation matrix rows
-            xls = pd.ExcelFile(filepath)
-            for sheet_name in xls.sheet_names:
-                df = xls.parse(sheet_name)
-                table_data = df.where(pd.notnull(df), '').to_dict(orient='records')
-                # If you have a model like EscalationMatrixRow, save each row
-                # from models.models import EscalationMatrixRow
-                # for row in table_data:
-                #     escalation_row = EscalationMatrixRow(...)
-                #     db.session.add(escalation_row)
-            db.session.commit()
-            flash('Escalation matrix uploaded and replaced successfully!')
-            return redirect(url_for('escalation_matrix.escalation_matrix'))
-        else:
-            flash('Please upload a valid .xlsx file.')
-    # Find the latest uploaded file
-    files = [f for f in os.listdir(UPLOAD_FOLDER) if f.endswith('.xlsx')]
-    app_names = []
-    xls = None
-    account_name = None
-    team_name = None
-    account_id = request.args.get('account_id') or (session.get('selected_account_id') if hasattr(session, 'get') else None)
-    team_id = request.args.get('team_id') or (session.get('selected_team_id') if hasattr(session, 'get') else None)
-    # Ensure IDs are integers for filtering
-    try:
-        account_id = int(account_id) if account_id else None
-    except Exception:
-        account_id = None
-    try:
-        team_id = int(team_id) if team_id else None
-    except Exception:
-        team_id = None
-    if files:
-        from models.models import EscalationMatrixFile, Account, Team
-        # Find the latest file for the selected account/team
-        file_query = EscalationMatrixFile.query
-        # Super Admin: use filter, fallback to latest file if no filter
-        if current_user.role == 'super_admin':
-            if account_id is not None:
-                file_query = file_query.filter_by(account_id=account_id)
-            if team_id is not None:
-                file_query = file_query.filter_by(team_id=team_id)
-            latest_db_file = file_query.order_by(EscalationMatrixFile.upload_time.desc()).first()
-            if not latest_db_file:
-                latest_db_file = EscalationMatrixFile.query.order_by(EscalationMatrixFile.upload_time.desc()).first()
-            if latest_db_file:
-                latest_file = latest_db_file.filename
-                xls = pd.ExcelFile(os.path.join(UPLOAD_FOLDER, latest_file))
-                # Always use account_id/team_id from the file record for name lookup
-                file_account_id = latest_db_file.account_id
-                file_team_id = latest_db_file.team_id
-                account_obj = Account.query.get(file_account_id) if file_account_id else None
-                team_obj = Team.query.get(file_team_id) if file_team_id else None
-                account_name = account_obj.name if account_obj else None
-                team_name = team_obj.name if team_obj else None
-                all_sheets = xls.sheet_names
-                # If both account and team names are present, filter by both
-                if account_name and team_name:
-                    filtered = [s for s in all_sheets if account_name in s and team_name in s]
-                    app_names = filtered if filtered else all_sheets
-                elif account_name:
-                    filtered = [s for s in all_sheets if account_name in s]
-                    app_names = filtered if filtered else all_sheets
-                elif team_name:
-                    filtered = [s for s in all_sheets if team_name in s]
-                    app_names = filtered if filtered else all_sheets
-                else:
-                    app_names = all_sheets
-            else:
-                app_names = []
-        # Account Admin: use user's account, filter by team if selected
-        elif current_user.role == 'account_admin':
-            file_query = file_query.filter_by(account_id=current_user.account_id)
-            if team_id is not None:
-                file_query = file_query.filter_by(team_id=team_id)
-            latest_db_file = file_query.order_by(EscalationMatrixFile.upload_time.desc()).first()
-            if not latest_db_file:
-                latest_db_file = EscalationMatrixFile.query.filter_by(account_id=current_user.account_id).order_by(EscalationMatrixFile.upload_time.desc()).first()
-            if latest_db_file:
-                latest_file = latest_db_file.filename
-                xls = pd.ExcelFile(os.path.join(UPLOAD_FOLDER, latest_file))
-                file_team_id = latest_db_file.team_id
-                team_obj = Team.query.get(file_team_id) if file_team_id else None
-                team_name = team_obj.name if team_obj else None
-                all_sheets = xls.sheet_names
-                if team_name:
-                    filtered = [s for s in all_sheets if team_name in s]
-                    app_names = filtered if filtered else all_sheets
-                else:
-                    app_names = all_sheets
-            else:
-                app_names = []
-        # Team Admin and Regular Users: use user's account/team
-        else:
-            # First try to find files for exact account/team match
-            file_query = file_query.filter_by(account_id=current_user.account_id, team_id=current_user.team_id)
-            latest_db_file = file_query.order_by(EscalationMatrixFile.upload_time.desc()).first()
-            
-            # If no exact match, try to find files for the user's account
-            if not latest_db_file:
-                latest_db_file = EscalationMatrixFile.query.filter_by(account_id=current_user.account_id).order_by(EscalationMatrixFile.upload_time.desc()).first()
-            
-            # If still no files found, try to find any files that might be accessible
-            if not latest_db_file:
-                latest_db_file = EscalationMatrixFile.query.order_by(EscalationMatrixFile.upload_time.desc()).first()
-            
-            if latest_db_file:
-                latest_file = latest_db_file.filename
-                xls = pd.ExcelFile(os.path.join(UPLOAD_FOLDER, latest_file))
-                file_account_id = latest_db_file.account_id
-                file_team_id = latest_db_file.team_id
-                
-                # Get account and team names for filtering
-                account_obj = Account.query.get(current_user.account_id) if current_user.account_id else None
-                team_obj = Team.query.get(current_user.team_id) if current_user.team_id else None
-                account_name = account_obj.name if account_obj else None
-                team_name = team_obj.name if team_obj else None
-                
-                all_sheets = xls.sheet_names
-                
-                # Filter sheets based on user's account/team
-                if account_name and team_name:
-                    # Try to find sheets with both account and team names
-                    filtered = [s for s in all_sheets if account_name.lower() in s.lower() and team_name.lower() in s.lower()]
-                    if not filtered:
-                        # If no exact match, try account name only
-                        filtered = [s for s in all_sheets if account_name.lower() in s.lower()]
-                    if not filtered:
-                        # If still no match, try team name only
-                        filtered = [s for s in all_sheets if team_name.lower() in s.lower()]
-                    app_names = filtered if filtered else all_sheets
-                elif account_name:
-                    filtered = [s for s in all_sheets if account_name.lower() in s.lower()]
-                    app_names = filtered if filtered else all_sheets
-                elif team_name:
-                    filtered = [s for s in all_sheets if team_name.lower() in s.lower()]
-                    app_names = filtered if filtered else all_sheets
-                else:
-                    app_names = all_sheets
-            else:
-                app_names = []
-    if selected_app and selected_app in app_names:
-        df = xls.parse(selected_app)
-        matrix_data = df.where(pd.notnull(df), '').to_dict(orient='records')
-    from models.models import Account, Team
+    
+    # Get accounts and teams for dropdowns
     accounts = []
     teams = []
-    account_id = None
-    team_id = None
-    selected_team_id = None
+    
     if current_user.role == 'super_admin':
-        accounts = Account.query.filter_by(is_active=True).all()
-        account_id = request.args.get('account_id') or (session.get('selected_account_id') if hasattr(session, 'get') else None)
-        teams = Team.query.filter_by(is_active=True)
+        accounts = Account.query.filter_by(is_active=True).order_by(Account.name).all()
         if account_id:
-            teams = teams.filter_by(account_id=account_id)
-        teams = teams.all()
-        team_id = request.args.get('team_id')
-        if not team_id:
-            selected_team_id = None
+            teams = Team.query.filter_by(account_id=account_id, is_active=True).order_by(Team.name).all()
         else:
-            selected_team_id = team_id
+            teams = Team.query.filter_by(is_active=True).order_by(Team.name).all()
     elif current_user.role == 'account_admin':
         account_id = current_user.account_id
         accounts = [Account.query.get(account_id)] if account_id else []
-        teams = Team.query.filter_by(account_id=account_id, is_active=True).all()
-        team_id = request.args.get('team_id') or (session.get('selected_team_id') if hasattr(session, 'get') else None)
-        selected_team_id = team_id
-    elif current_user.role == 'team_admin':
-        account_id = current_user.account_id
-        team_id = current_user.team_id
-        accounts = [Account.query.get(account_id)] if account_id else []
-        teams = [Team.query.get(team_id)] if team_id else []
-        selected_team_id = team_id
+        teams = Team.query.filter_by(account_id=account_id, is_active=True).order_by(Team.name).all()
     else:
-        # Regular users: show their account/team info but no filtering controls
-        account_id = current_user.account_id
-        team_id = current_user.team_id
+        # Team admin or user
+        team_filter_context = TeamAccessService.get_team_filter_context()
+        account_id = team_filter_context.get('selected_account_id')
         accounts = [Account.query.get(account_id)] if account_id else []
-        teams = [Team.query.get(team_id)] if team_id else []
-        selected_team_id = team_id
-    # Always show Application dropdown if app_names is available
-    return render_template('escalation_matrix.html', app_names=app_names, matrix_data=matrix_data, selected_app=selected_app, accounts=accounts, teams=teams, selected_account_id=account_id, selected_team_id=selected_team_id)
-
+        teams = team_filter_context.get('user_teams', [])
+        if not team_id:
+            team_id = team_filter_context.get('selected_team_id')
+    
+    # Build query for entries
+    query = EscalationMatrixEntry.query.filter_by(is_active=True)
+    
+    if current_user.role == 'super_admin':
+        if account_id:
+            query = query.filter_by(account_id=account_id)
+        if team_id:
+            query = query.filter_by(team_id=team_id)
+    elif current_user.role == 'account_admin':
+        query = query.filter_by(account_id=current_user.account_id)
+        if team_id:
+            query = query.filter_by(team_id=team_id)
+    else:
+        user_team_ids = TeamAccessService.get_user_team_ids()
+        if user_team_ids:
+            query = query.filter(EscalationMatrixEntry.team_id.in_(user_team_ids))
+    
+    # Get unique application names for filter
+    app_query = query.with_entities(EscalationMatrixEntry.application_name).distinct()
+    app_names = [app[0] for app in app_query.all() if app[0]]
+    app_names = sorted(set(app_names))
+    
+    # Filter by selected application
+    matrix_data = []
+    if selected_app:
+        entries = query.filter_by(application_name=selected_app).order_by(EscalationMatrixEntry.id).all()
+        matrix_data = [entry.to_dict() for entry in entries]
+    
+    # Get total count
+    total_count = query.count()
+    
+    return render_template('escalation_matrix.html',
+                         app_names=app_names,
+                         matrix_data=matrix_data,
+                         selected_app=selected_app,
+                         accounts=accounts,
+                         teams=teams,
+                         selected_account_id=account_id,
+                         selected_team_id=team_id,
+                         total_count=total_count,
+                         is_admin=is_admin())

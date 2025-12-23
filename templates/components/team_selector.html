@@ -1,0 +1,96 @@
+<!-- 
+Multi-Team Selector Component
+Include this in pages that need team filtering for multi-team users
+-->
+
+{% if team_filter_context and team_filter_context.show_team_filter %}
+<div class="team-selector-bar mb-3 p-2 bg-light border rounded d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-funnel text-primary"></i>
+        <span class="fw-semibold text-secondary">Team:</span>
+        <form method="GET" id="team-filter-form" class="d-inline-flex align-items-center gap-2 mb-0">
+            <!-- Preserve existing URL parameters -->
+            {% for key, value in request.args.items() %}
+                {% if key != 'team_id' %}
+                    <input type="hidden" name="{{ key }}" value="{{ value }}">
+                {% endif %}
+            {% endfor %}
+            
+            <select name="team_id" id="team-filter-select" class="form-select form-select-sm" style="width: auto; min-width: 200px;"
+                    onchange="handleTeamFilterChange(this)">
+                <option value="">All Teams ({{ team_filter_context.user_teams|length }})</option>
+                {% for team in team_filter_context.user_teams %}
+                    <option value="{{ team.id }}" 
+                            {% if team_filter_context.selected_team_id and team_filter_context.selected_team_id|int == team.id|int %}selected{% endif %}>
+                        {{ team.name }}
+                        {% if team_filter_context.primary_team_id and team_filter_context.primary_team_id|int == team.id|int %}
+                            (Primary)
+                        {% endif %}
+                    </option>
+                {% endfor %}
+            </select>
+        </form>
+        <script>
+        function handleTeamFilterChange(selectElement) {
+            var teamId = selectElement.value;
+            var currentPath = window.location.pathname;
+            
+            // Check if we're on a team-details page with team_id in the URL path
+            var teamDetailsMatch = currentPath.match(/^\/team-details(?:\/(\d+))?$/);
+            
+            if (teamDetailsMatch) {
+                // For team-details pages, change the URL path
+                if (teamId) {
+                    window.location.href = '/team-details/' + teamId;
+                } else {
+                    window.location.href = '/team-details';
+                }
+            } else {
+                // For other pages (like keypoints), submit the form as query param
+                document.getElementById('team-filter-form').submit();
+            }
+        }
+        </script>
+    </div>
+    
+    <div class="d-flex align-items-center gap-2">
+        <small class="text-muted">
+            <i class="bi bi-eye me-1"></i>Viewing: 
+            <strong>
+                {% if team_filter_context.selected_team_id %}
+                    {% for team in team_filter_context.user_teams %}
+                        {% if team.id|int == team_filter_context.selected_team_id|int %}
+                            {{ team.name }}
+                            {% if team_filter_context.primary_team_id and team_filter_context.primary_team_id|int == team.id|int %}
+                                <span class="badge bg-primary">Primary</span>
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    All teams
+                {% endif %}
+            </strong>
+        </small>
+        {% if team_filter_context.selected_team_id %}
+            <a href="javascript:void(0)" onclick="clearTeamFilter()" class="btn btn-sm btn-outline-secondary py-0 px-2">
+                <i class="bi bi-x"></i> Clear
+            </a>
+            <script>
+            function clearTeamFilter() {
+                var currentPath = window.location.pathname;
+                var teamDetailsMatch = currentPath.match(/^\/team-details(?:\/(\d+))?$/);
+                
+                if (teamDetailsMatch) {
+                    window.location.href = '/team-details';
+                } else {
+                    // For other pages, clear the team_id param
+                    var url = new URL(window.location.href);
+                    url.searchParams.delete('team_id');
+                    window.location.href = url.toString();
+                }
+            }
+            </script>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

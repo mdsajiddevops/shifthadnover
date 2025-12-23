@@ -8,6 +8,7 @@ def send_handover_email(shift):
     from flask import current_app
     import os
     import logging
+    from models.models import Team, User, Incident
     from models.models import Incident, ShiftKeyPoint, TeamMember, Team, User, Account
     from models.app_config import AppConfig
     
@@ -135,43 +136,102 @@ def send_handover_email(shift):
     # Check if email notifications are enabled in SMTP configuration
     from models.smtp_config import SMTPConfig
     smtp_enabled = SMTPConfig.get_config('smtp_enabled', 'false').lower() == 'true'
+    print(f"[EMAIL_SERVICE] 🔍 SMTP enabled check: {smtp_enabled}")
     if not smtp_enabled:
         print("[EMAIL_SERVICE] 📧 Email sending is disabled in SMTP configuration (smtp_enabled=false)")
         return
     
     # Check if email notifications are enabled in app configuration (backward compatibility)
     notifications_enabled = AppConfig.get_config('email_notifications_enabled', 'true').lower() == 'true'
+    print(f"[EMAIL_SERVICE] 🔍 App notifications enabled: {notifications_enabled}")
     if not notifications_enabled:
+        print("[EMAIL_SERVICE] 📧 Email notifications are disabled in app configuration")
         logging.info("[EMAIL_SERVICE] Email notifications are disabled in app configuration")
         return
     
     subject = f"🔄 {shift.current_shift_type} to {shift.next_shift_type} Shift Handover - {shift.date}"
     
-    # Build comprehensive recipient list using configured recipients
+    # Initialize variables for recipient tracking (to fix variable scoping issue)
+    configured_recipients = None
+    priority_alert_recipients = None
+    
+    # Build comprehensive recipient list using new EmailConfigService
     recipients = set()
     
-    # 1. Add configured handover email recipients (primary)
-    configured_recipients = AppConfig.get_config('handover_email_recipients', '')
-    if configured_recipients:
-        for email in configured_recipients.split(','):
-            email = email.strip()
-            if email:
-                recipients.add(email)
-    
-    # 2. Add configured priority alert recipients if there are high-priority incidents
-    priority_alert_recipients = AppConfig.get_config('priority_alert_recipients', '')
-    if priority_alert_recipients:
-        # Check for high-priority incidents
+    # 1. Try to use new Email Configuration Service first
+    try:
+        from services.email_config_service import EmailConfigService
+        email_service = EmailConfigService()
+        
+        # Get recipients using the new service
+        # We need a user_id for audit purposes - use the first available user or system user
+        user_id = 1  # System/admin user for handover operations
+        
+        # Check if this is a priority handover (has high-priority incidents)
         priority_incidents = Incident.query.filter_by(shift_id=shift.id, type='Priority').all()
         escalated_incidents = Incident.query.filter_by(shift_id=shift.id, type='Escalated').all()
         high_priority_count = len([i for i in priority_incidents + escalated_incidents 
                                  if i.priority and i.priority.lower() in ['high', 'critical']])
+        is_priority_handover = high_priority_count > 0
         
-        if high_priority_count > 0:
-            for email in priority_alert_recipients.split(','):
-                email = email.strip()
-                if email:
+        recipient_result = email_service.get_recipients_for_handover(
+            user_id=user_id,
+            account_id=shift.account_id,
+            team_id=shift.team_id,
+            is_priority=is_priority_handover
+        )
+        
+        if recipient_result['success']:
+            # Add TO recipients
+            for email in recipient_result['to_recipients']:
+                recipients.add(email)
+            
+            # Add CC recipients
+            for email in recipient_result['cc_recipients']:
+                recipients.add(email)
+            
+            # Add priority recipients if it's a priority handover
+            if is_priority_handover:
+                for email in recipient_result['priority_recipients']:
                     recipients.add(email)
+            
+            # Set tracking variables for recipient_info() function
+            if recipient_result['to_recipients'] or recipient_result['cc_recipients']:
+                configured_recipients = f"{len(recipient_result['to_recipients']) + len(recipient_result['cc_recipients'])} configured recipients"
+            if recipient_result['priority_recipients']:
+                priority_alert_recipients = f"{len(recipient_result['priority_recipients'])} priority recipients"
+            
+            print(f"[EMAIL_SERVICE] ✅ Using new Email Configuration Service")
+            print(f"[EMAIL_SERVICE] 📧 Recipients from config: TO={len(recipient_result['to_recipients'])}, CC={len(recipient_result['cc_recipients'])}, Priority={len(recipient_result['priority_recipients'])}")
+            
+    except Exception as config_error:
+        print(f"[EMAIL_SERVICE] ⚠️ New Email Configuration Service failed: {config_error}")
+        print(f"[EMAIL_SERVICE] 🔄 Falling back to legacy recipient configuration...")
+        
+        # 2. Fallback: Use legacy team-specific email recipients
+        team_recipients = None
+        if shift.team_id:
+            team = Team.query.get(shift.team_id)
+            if team and team.email_recipients:
+                team_recipients = team.email_recipients.strip()
+                configured_recipients = team_recipients  # Set for recipient_info() function
+                print(f"[EMAIL_SERVICE] 🏢 Using team-specific recipients for {team.name}: {team_recipients}")
+                for email in team_recipients.split(','):
+                    email = email.strip()
+                    if email:
+                        recipients.add(email)
+        
+        # 3. Fallback: Use global handover email recipients if no team-specific config
+        if not recipients:
+            configured_recipients = AppConfig.get_config('handover_email_recipients', '')
+            if configured_recipients:
+                print(f"[EMAIL_SERVICE] 🌐 Using global recipients (no team-specific config): {configured_recipients}")
+                for email in configured_recipients.split(','):
+                    email = email.strip()
+                    if email:
+                        recipients.add(email)
+    
+    # Priority alert recipients are now handled by the EmailConfigService above
     
     # 3. Fallback: Add next shift engineers' emails if available
     if not recipients:
@@ -202,7 +262,12 @@ def send_handover_email(shift):
     # Convert set to list
     recipients = list(recipients)
     
+    print(f"[EMAIL_SERVICE] 🔍 Final recipients list: {recipients}")
+    print(f"[EMAIL_SERVICE] 🔍 Total recipients count: {len(recipients)}")
+    
     if not recipients:
+        print("[EMAIL_SERVICE] ❌ No email recipients found for handover notification")
+        print("[EMAIL_SERVICE] 💡 Please configure email recipients in Admin > Secrets Management > Email Recipients")
         logging.warning("No email recipients found for handover notification - please configure email recipients in admin settings")
         return
 
@@ -216,7 +281,14 @@ def send_handover_email(shift):
     priority_incidents = Incident.query.filter_by(shift_id=shift.id, type='Priority').all()
     handover_incidents = Incident.query.filter_by(shift_id=shift.id, type='Handover').all()
     escalated_incidents = Incident.query.filter_by(shift_id=shift.id, type='Escalated').all()
+    # Query key points specific to this shift (entered in the submitted handover form)
     key_points = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
+    
+    # Query additional handover data for complete email content
+    from models.models import ShiftChangeInfo, ShiftKBUpdate
+    change_infos = ShiftChangeInfo.query.filter_by(shift_id=shift.id).all()
+    kb_updates = ShiftKBUpdate.query.filter_by(shift_id=shift.id).all()
+    additional_notes = getattr(shift, 'additional_notes', None) or getattr(shift, 'notes', None) or ''
     
     # Get team name for context
     team_name = "Team"
@@ -239,36 +311,50 @@ def send_handover_email(shift):
         if open_incidents:
             sections += '<h4 style="color: #dc3545; margin-top: 20px;">🔴 Open Incidents</h4>'
             sections += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
-            sections += '<tr style="background-color: #f8f9fa;"><th>Incident ID</th><th>Priority</th><th>Assigned To</th><th>Description</th></tr>'
+            sections += '<tr style="background-color: #f8f9fa;"><th>Application</th><th>Incident ID</th><th>Priority</th><th>Assigned To</th><th>Description</th></tr>'
             for inc in open_incidents:
-                sections += f'<tr><td>{inc.title}</td><td>{inc.priority or "Medium"}</td><td>{inc.assigned_to or "-"}</td><td>{inc.description or "-"}</td></tr>'
+                app_name, inc_id = inc.title.split(' - ', 1) if ' - ' in inc.title else ('-', inc.title)
+                sections += f'<tr><td>{app_name}</td><td>{inc_id}</td><td>{inc.priority or "Medium"}</td><td>{inc.assigned_to or "-"}</td><td>{inc.description or "-"}</td></tr>'
             sections += '</table>'
         
         # Closed Incidents  
         if closed_incidents:
             sections += '<h4 style="color: #198754; margin-top: 20px;">✅ Closed Incidents</h4>'
             sections += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
-            sections += '<tr style="background-color: #f8f9fa;"><th>Incident ID</th><th>Resolution</th></tr>'
+            sections += '<tr style="background-color: #f8f9fa;"><th>Application</th><th>Incident ID</th><th>Resolution</th></tr>'
             for inc in closed_incidents:
-                sections += f'<tr><td>{inc.title}</td><td>{inc.description or "Resolved"}</td></tr>'
+                app_name, inc_id = inc.title.split(' - ', 1) if ' - ' in inc.title else ('-', inc.title)
+                sections += f'<tr><td>{app_name}</td><td>{inc_id}</td><td>{inc.description or "Resolved"}</td></tr>'
             sections += '</table>'
         
         # Priority Incidents
         if priority_incidents:
             sections += '<h4 style="color: #fd7e14; margin-top: 20px;">⚡ Priority Incidents</h4>'
             sections += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
-            sections += '<tr style="background-color: #f8f9fa;"><th>Incident ID</th><th>Priority Level</th><th>Escalated To</th><th>Impact</th></tr>'
+            sections += '<tr style="background-color: #f8f9fa;"><th>Application</th><th>Incident ID</th><th>Priority Level</th><th>Escalated To</th><th>Impact</th></tr>'
             for inc in priority_incidents:
-                sections += f'<tr><td>{inc.title}</td><td>{inc.priority or "High"}</td><td>{inc.escalated_to or "-"}</td><td>{inc.description or "-"}</td></tr>'
+                app_name, inc_id = inc.title.split(' - ', 1) if ' - ' in inc.title else ('-', inc.title)
+                sections += f'<tr><td>{app_name}</td><td>{inc_id}</td><td>{inc.priority or "High"}</td><td>{inc.escalated_to or "-"}</td><td>{inc.description or "-"}</td></tr>'
+            sections += '</table>'
+        
+        # Escalated Incidents
+        if escalated_incidents:
+            sections += '<h4 style="color: #6f42c1; margin-top: 20px;">🚨 Escalated Incidents</h4>'
+            sections += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
+            sections += '<tr style="background-color: #f8f9fa;"><th>Application</th><th>Incident ID</th><th>Priority Level</th><th>Escalated To</th><th>Impact</th></tr>'
+            for inc in escalated_incidents:
+                app_name, inc_id = inc.title.split(' - ', 1) if ' - ' in inc.title else ('-', inc.title)
+                sections += f'<tr><td>{app_name}</td><td>{inc_id}</td><td>{inc.priority or "High"}</td><td>{inc.escalated_to or "-"}</td><td>{inc.description or "-"}</td></tr>'
             sections += '</table>'
         
         # Handover Incidents
         if handover_incidents:
             sections += '<h4 style="color: #0d6efd; margin-top: 20px;">🔄 Handover Incidents</h4>'
             sections += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
-            sections += '<tr style="background-color: #f8f9fa;"><th>Incident ID</th><th>Status</th><th>Next Action By</th><th>Notes</th></tr>'
+            sections += '<tr style="background-color: #f8f9fa;"><th>Application</th><th>Incident ID</th><th>Status</th><th>Next Action By</th><th>Notes</th></tr>'
             for inc in handover_incidents:
-                sections += f'<tr><td>{inc.title}</td><td>{inc.status or "Active"}</td><td>{inc.assigned_to or "-"}</td><td>{inc.description or "-"}</td></tr>'
+                app_name, inc_id = inc.title.split(' - ', 1) if ' - ' in inc.title else ('-', inc.title)
+                sections += f'<tr><td>{app_name}</td><td>{inc_id}</td><td>{inc.status or "Active"}</td><td>{inc.assigned_to or "-"}</td><td>{inc.description or "-"}</td></tr>'
             sections += '</table>'
         
         if not sections:
@@ -289,6 +375,57 @@ def send_handover_email(shift):
             jira_id = kp.jira_id or "-"
             status_color = "#198754" if kp.status == "Closed" else "#ffc107" if kp.status == "In Progress" else "#dc3545"
             section += f'<tr><td>{kp.description}</td><td style="color: {status_color}; font-weight: bold;">{kp.status}</td><td>{responsible}</td><td>{jira_id}</td></tr>'
+        
+        section += '</table>'
+        return section
+
+    def additional_notes_section():
+        if not additional_notes or additional_notes.strip() == '':
+            return ''
+        
+        section = '<h4 style="margin-top: 20px;">📝 Additional Notes</h4>'
+        section += '<div style="padding: 15px; background-color: #f8f9fa; border-left: 4px solid #007bff; margin-bottom: 15px;">'
+        section += f'<p style="margin: 0; white-space: pre-line;">{additional_notes.strip()}</p>'
+        section += '</div>'
+        return section
+
+    def change_info_section():
+        if not change_infos:
+            return ''
+        
+        section = '<h4 style="margin-top: 20px;">🔧 Change Information</h4>'
+        section += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
+        section += '<tr style="background-color: #f8f9fa;"><th>Application</th><th>Change Number</th><th>Description</th><th>Date/Time</th><th>Responsible Engineer</th><th>Status</th></tr>'
+        
+        for change in change_infos:
+            section += f'<tr>'
+            section += f'<td>{change.app_name or "-"}</td>'
+            section += f'<td>{change.change_number or "-"}</td>'
+            section += f'<td>{change.description or "-"}</td>'
+            section += f'<td>{change.change_datetime or "-"}</td>'
+            section += f'<td>{change.responsible or "-"}</td>'
+            section += f'<td>{change.status or "-"}</td>'
+            section += f'</tr>'
+        
+        section += '</table>'
+        return section
+
+    def kb_updates_section():
+        if not kb_updates:
+            return ''
+        
+        section = '<h4 style="margin-top: 20px;">📚 KB Updates</h4>'
+        section += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
+        section += '<tr style="background-color: #f8f9fa;"><th>Application</th><th>KB Number</th><th>Description</th><th>Responsible Person</th><th>Status</th></tr>'
+        
+        for kb in kb_updates:
+            section += f'<tr>'
+            section += f'<td>{kb.app_name or "-"}</td>'
+            section += f'<td>{kb.kb_number or "-"}</td>'
+            section += f'<td>{kb.description or "-"}</td>'
+            section += f'<td>{kb.responsible or "-"}</td>'
+            section += f'<td>{kb.status or "-"}</td>'
+            section += f'</tr>'
         
         section += '</table>'
         return section
@@ -344,7 +481,13 @@ def send_handover_email(shift):
         
         {detailed_incidents_section()}
         
+        {change_info_section()}
+        
+        {kb_updates_section()}
+        
         {key_points_section()}
+        
+        {additional_notes_section()}
         
         <div class="footer">
             <p><strong>📧 This is an automated shift handover notification.</strong></p>
@@ -376,8 +519,17 @@ INCIDENTS SUMMARY:
 - Escalated Incidents: {len(escalated_incidents)}
 - Handover Incidents: {len(handover_incidents)}
 - Closed Incidents: {len(closed_incidents)}
+- Change Requests: {len(change_infos)}
+- KB Updates: {len(kb_updates)}
+- Key Points: {len(key_points)}
 
 KEY POINTS: {len(key_points)} items
+
+CHANGE INFORMATION: {len(change_infos)} items
+
+KB UPDATES: {len(kb_updates)} items
+
+ADDITIONAL NOTES: {'Yes' if additional_notes and additional_notes.strip() else 'None'}
 
 RECIPIENT INFO:
 - Category: {recipient_info()}
@@ -462,15 +614,15 @@ Configure email recipients in Admin > Secrets Management > Email Recipients.
     try:
         import time
         
-        # Set up timeout for Flask-Mail sending (10 seconds max)
-        print(f"[EMAIL_SERVICE] 🕐 Attempting Flask-Mail send with 10-second timeout...")
+        # Set up timeout for Flask-Mail sending (5 seconds max for better UX)
+        print(f"[EMAIL_SERVICE] 🕐 Attempting Flask-Mail send with 5-second timeout...")
         start_time = time.time()
         
         # Use simple socket-based timeout approach (works in any thread)
         import socket
         original_timeout = socket.getdefaulttimeout()
         try:
-            socket.setdefaulttimeout(10)  # 10 second timeout for all socket operations
+            socket.setdefaulttimeout(5)  # 5 second timeout for better user experience
             
             # Final validation before attempting send
             from flask import current_app

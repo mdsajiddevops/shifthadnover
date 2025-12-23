@@ -1,0 +1,658 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Team Roster - {{ team.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .manage-roster-container {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        min-height: 100vh;
+        padding: 2rem 0;
+    }
+
+    .page-header {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 15px;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    }
+
+    .team-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .team-avatar {
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(135deg, #74b9ff, #0984e3);
+        border-radius: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+
+    .breadcrumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        margin: 0;
+    }
+
+    .breadcrumb-item a {
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+    }
+
+    .breadcrumb-item.active {
+        color: white;
+    }
+
+    .section-card {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+        margin-bottom: 2rem;
+        overflow: hidden;
+    }
+
+    .section-header {
+        background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+        color: white;
+        padding: 1.5rem;
+        display: flex;
+        justify-content: between;
+        align-items: center;
+    }
+
+    .section-title {
+        margin: 0;
+        font-size: 1.3rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .section-body {
+        padding: 2rem;
+    }
+
+    .shift-config-item {
+        background: #f8f9fa;
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .shift-config-item:hover {
+        border-color: #74b9ff;
+        box-shadow: 0 5px 15px rgba(116, 185, 255, 0.2);
+    }
+
+    .shift-config-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .shift-name {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #2c3e50;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .shift-time {
+        background: white;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        border: 1px solid #dee2e6;
+        font-family: 'Courier New', monospace;
+        color: #495057;
+    }
+
+    .shift-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn-shift-action {
+        padding: 0.4rem 0.8rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-edit {
+        background: #ffeaa7;
+        color: #fdcb6e;
+    }
+
+    .btn-edit:hover {
+        background: #fdcb6e;
+        color: white;
+    }
+
+    .btn-delete {
+        background: #ff7675;
+        color: white;
+    }
+
+    .btn-delete:hover {
+        background: #d63031;
+    }
+
+    .add-shift-form {
+        background: linear-gradient(135deg, #dfe6e9 0%, #b2bec3 100%);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 1rem;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-control {
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
+        padding: 0.75rem;
+        transition: border-color 0.3s ease;
+    }
+
+    .form-control:focus {
+        border-color: #74b9ff;
+        box-shadow: 0 0 0 0.2rem rgba(116, 185, 255, 0.25);
+    }
+
+    .no-shifts {
+        text-align: center;
+        padding: 3rem;
+        color: #6c757d;
+    }
+
+    .no-shifts i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .member-assignment-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .member-card {
+        background: #f8f9fa;
+        border: 2px solid #e9ecef;
+        border-radius: 10px;
+        padding: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .member-card:hover {
+        border-color: #74b9ff;
+        background: #e3f2fd;
+    }
+
+    .member-info {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .member-avatar {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #74b9ff, #0984e3);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 0.9rem;
+    }
+
+    .member-details {
+        flex: 1;
+    }
+
+    .member-name {
+        font-weight: 600;
+        color: #2c3e50;
+        margin: 0;
+    }
+
+    .member-email {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin: 0;
+    }
+
+    .shift-assignment {
+        font-size: 0.85rem;
+    }
+
+    .assignment-badge {
+        background: #74b9ff;
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+    }
+
+    .quick-actions {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .quick-action-btn {
+        flex: 1;
+        padding: 1rem;
+        background: white;
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        text-align: center;
+        color: #495057;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .quick-action-btn:hover {
+        border-color: #74b9ff;
+        background: #e3f2fd;
+        color: #1565c0;
+        text-decoration: none;
+    }
+
+    .quick-action-icon {
+        font-size: 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+        .manage-roster-container {
+            padding: 1rem 0;
+        }
+        
+        .member-assignment-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .quick-actions {
+            flex-direction: column;
+        }
+        
+        .shift-config-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="manage-roster-container">
+    <div class="container-fluid">
+        <div class="page-header">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('team_roster.teams_roster') }}">
+                            <i class="fas fa-users-cog"></i> Teams Roster
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item">{{ team.account.name }}</li>
+                    <li class="breadcrumb-item active">{{ team.name }}</li>
+                </ol>
+            </nav>
+            <div class="team-info">
+                <div class="team-avatar">
+                    {{ team.name[:2].upper() }}
+                </div>
+                <div>
+                    <h1 class="mb-1">Manage Roster: {{ team.name }}</h1>
+                    <p class="mb-0 text-light">{{ team.account.name }} • {{ team_members|length }} Members</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="quick-actions">
+            <a href="#" class="quick-action-btn" onclick="showAddShiftModal()">
+                <div class="quick-action-icon">
+                    <i class="fas fa-plus-circle"></i>
+                </div>
+                <div>Add Shift Pattern</div>
+            </a>
+            <a href="#" class="quick-action-btn" onclick="showBulkAssignModal()">
+                <div class="quick-action-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div>Bulk Assign Members</div>
+            </a>
+            <a href="#" class="quick-action-btn" onclick="showImportModal()">
+                <div class="quick-action-icon">
+                    <i class="fas fa-file-import"></i>
+                </div>
+                <div>Import Schedule</div>
+            </a>
+        </div>
+
+        <!-- Shift Configurations Section -->
+        <div class="section-card">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <i class="fas fa-clock"></i>
+                    Shift Configurations
+                </h2>
+            </div>
+            <div class="section-body">
+                {% if shifts %}
+                    {% for shift in shifts %}
+                    <div class="shift-config-item {% if not shift.is_active %}opacity-50{% endif %}">
+                        <div class="shift-config-header">
+                            <div class="shift-name">
+                                <i class="fas fa-circle {% if shift.is_active %}text-success{% else %}text-muted{% endif %}"></i>
+                                {{ shift.shift_name }}
+                                {% if not shift.is_active %}
+                                    <span class="badge bg-secondary">Inactive</span>
+                                {% endif %}
+                            </div>
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="shift-time">
+                                    {{ shift.start_time.strftime('%H:%M') }} - {{ shift.end_time.strftime('%H:%M') }}
+                                </div>
+                                <div class="shift-actions">
+                                    <button class="btn-shift-action btn-edit" onclick="editShift({{ shift.id }})">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn-shift-action btn-delete" onclick="deleteShift({{ shift.id }})">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="shift-details">
+                            <small class="text-muted">
+                                Order: {{ shift.order_index }} • 
+                                Created: {{ shift.created_at.strftime('%Y-%m-%d') }}
+                            </small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="no-shifts">
+                        <i class="fas fa-clock"></i>
+                        <h4>No Shift Patterns Configured</h4>
+                        <p>Create shift patterns to define when team members work.</p>
+                        <button class="btn btn-primary" onclick="showAddShiftModal()">
+                            <i class="fas fa-plus"></i>
+                            Add First Shift Pattern
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Team Members Section -->
+        <div class="section-card">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <i class="fas fa-users"></i>
+                    Team Members ({{ team_members|length }})
+                </h2>
+            </div>
+            <div class="section-body">
+                {% if team_members %}
+                    <div class="member-assignment-grid">
+                        {% for member in team_members %}
+                        <div class="member-card">
+                            <div class="member-info">
+                                <div class="member-avatar">
+                                    {{ member.initials }}
+                                </div>
+                                <div class="member-details">
+                                    <h6 class="member-name">{{ member.display_name }}</h6>
+                                    <p class="member-email">{{ member.email }}</p>
+                                </div>
+                            </div>
+                            <div class="shift-assignment">
+                                <strong>Current Assignment:</strong>
+                                <div class="mt-1">
+                                    {% set assignments = recent_assignments|selectattr('user_id', 'equalto', member.id)|list %}
+                                    {% if assignments %}
+                                        {% for assignment in assignments[:1] %}
+                                            <span class="assignment-badge">
+                                                {{ assignment.shift_config.shift_name }} - {{ assignment.assignment_date.strftime('%m/%d') }}
+                                            </span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="text-muted">No assignment</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-user-plus fa-3x text-muted mb-3"></i>
+                        <h5>No Team Members</h5>
+                        <p class="text-muted">Add members to this team to manage their shift assignments.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Recent Assignments Section -->
+        {% if recent_assignments %}
+        <div class="section-card">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <i class="fas fa-calendar-check"></i>
+                    Recent Assignments
+                </h2>
+            </div>
+            <div class="section-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Member</th>
+                                <th>Shift</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for assignment in recent_assignments[:10] %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="member-avatar" style="width: 30px; height: 30px; font-size: 0.8rem;">
+                                            {{ assignment.user.initials }}
+                                        </div>
+                                        {{ assignment.user.display_name }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="assignment-badge">
+                                        {{ assignment.shift_config.shift_name }}
+                                    </span>
+                                </td>
+                                <td>{{ assignment.assignment_date.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    {% if assignment.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ assignment.created_at.strftime('%m/%d %H:%M') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Shift Modal -->
+<div class="modal fade" id="addShiftModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Shift Pattern</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addShiftForm">
+                    <div class="form-group">
+                        <label class="form-label">Shift Name</label>
+                        <input type="text" class="form-control" name="shift_name" placeholder="e.g., Morning, Evening, Night, Onshore, Offshore">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">Start Time</label>
+                                <input type="time" class="form-control" name="start_time">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">End Time</label>
+                                <input type="time" class="form-control" name="end_time">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Order</label>
+                        <input type="number" class="form-control" name="order_index" value="0" min="0">
+                        <small class="form-text text-muted">Lower numbers appear first in rotation</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveShift()">Save Shift</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showAddShiftModal() {
+    new bootstrap.Modal(document.getElementById('addShiftModal')).show();
+}
+
+function saveShift() {
+    // Implementation for saving shift configuration
+    const form = document.getElementById('addShiftForm');
+    const formData = new FormData(form);
+    
+    // Add team_id to form data
+    formData.append('team_id', '{{ team.id }}');
+    
+    // Here you would implement the AJAX call to save the shift
+    console.log('Saving shift configuration:', Object.fromEntries(formData));
+    
+    // Close modal and show success message
+    bootstrap.Modal.getInstance(document.getElementById('addShiftModal')).hide();
+    
+    Swal.fire({
+        icon: 'success',
+        title: 'Shift Added!',
+        text: 'The shift pattern has been configured successfully.',
+        timer: 2000,
+        showConfirmButton: false
+    }).then(() => {
+        // Reload page to show new shift
+        window.location.reload();
+    });
+}
+
+function editShift(shiftId) {
+    // Implementation for editing shift configuration
+    console.log('Editing shift:', shiftId);
+    
+    Swal.fire({
+        icon: 'info',
+        title: 'Edit Shift',
+        text: 'Shift editing functionality will be implemented here.',
+    });
+}
+
+function deleteShift(shiftId) {
+    Swal.fire({
+        title: 'Delete Shift Pattern?',
+        text: 'This will remove the shift pattern and all related assignments.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Yes, delete it!'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Implementation for deleting shift
+            console.log('Deleting shift:', shiftId);
+            
+            Swal.fire({
+                icon: 'success',
+                title: 'Deleted!',
+                text: 'The shift pattern has been deleted.',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+    });
+}
+
+function showBulkAssignModal() {
+    Swal.fire({
+        icon: 'info',
+        title: 'Bulk Assignment',
+        text: 'Bulk member assignment functionality will be implemented here.',
+    });
+}
+
+function showImportModal() {
+    Swal.fire({
+        icon: 'info',
+        title: 'Import Schedule',
+        text: 'Schedule import functionality will be implemented here.',
+    });
+}
+</script>
+{% endblock %}

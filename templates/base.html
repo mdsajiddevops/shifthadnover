@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="/static/dashboard_enhanced.css">
     <link rel="stylesheet" href="/static/dashboard_modern.css">
     <link rel="stylesheet" href="/static/sidebar_modern.css">
+    <link rel="stylesheet" href="/static/page_header.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -214,6 +215,18 @@
                         <span class="nav-text">Shift Reports</span>
                     </a>
                 </div>
+                <div class="modern-nav-item">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/change-info-reports') else '' }}" href="/change-info-reports" data-tooltip="Change Information">
+                        <i class="nav-icon bi bi-gear"></i>
+                        <span class="nav-text">Change Info</span>
+                    </a>
+                </div>
+                <div class="modern-nav-item">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/kb-update-reports') else '' }}" href="/kb-update-reports" data-tooltip="KB Updates">
+                        <i class="nav-icon bi bi-journal-text"></i>
+                        <span class="nav-text">KB Updates</span>
+                    </a>
+                </div>
             </div>
             
             <!-- Team Management Section -->
@@ -240,6 +253,12 @@
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/team') else '' }}" href="/team" data-tooltip="Team Details">
                         <i class="nav-icon bi bi-people"></i>
                         <span class="nav-text">Team Details</span>
+                    </a>
+                </div>
+                <div class="modern-nav-item">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/teams-roster') else '' }}" href="/teams-roster" data-tooltip="Teams Roster">
+                        <i class="nav-icon bi bi-calendar-check"></i>
+                        <span class="nav-text">Teams Roster</span>
                     </a>
                 </div>
             </div>
@@ -292,6 +311,8 @@
                 </div>
             </div>
             
+
+            
             <!-- Administration Section -->
             {% if current_user.is_authenticated and current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
             <div class="nav-section">
@@ -299,6 +320,7 @@
                     <span class="section-icon">⚙️</span>
                     <span>Administration</span>
                 </div>
+                <!-- Team Management removed - functionality available in User Management -->
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/user-management') else '' }}" href="/user-management" data-tooltip="User Management">
                         <i class="nav-icon bi bi-person-gear"></i>
@@ -335,6 +357,18 @@
                     </a>
                 </div>
                 {% endif %}
+                <div class="modern-nav-item">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/api/email-config/admin') else '' }}" href="/api/email-config/admin" data-tooltip="Email Configuration">
+                        <i class="nav-icon fas fa-envelope-open-text"></i>
+                        <span class="nav-text">Email Configuration</span>
+                    </a>
+                </div>
+                <div class="modern-nav-item">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/shift-config') else '' }}" href="/admin/shift-config" data-tooltip="Shift Time Configuration">
+                        <i class="nav-icon fas fa-clock"></i>
+                        <span class="nav-text">Shift Time Configuration</span>
+                    </a>
+                </div>
             </div>
             {% endif %}
             

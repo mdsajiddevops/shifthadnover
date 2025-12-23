@@ -1,0 +1,15 @@
+# Migration Script Dependencies
+
+# PostgreSQL driver
+psycopg2-binary>=2.9.0
+
+# MySQL driver (if using MySQL)
+mysql-connector-python>=8.0.0
+
+# For Flask-based migration
+Flask>=2.0.0
+Flask-SQLAlchemy>=3.0.0
+
+
+
+

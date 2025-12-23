@@ -1,0 +1,928 @@
+{% extends "base.html" %}
+
+{% block title %}Shift Time Configuration{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-clock-history me-2"></i>Shift Time Configuration
+            </h1>
+            <p class="page-subtitle mb-0">Configure shift timings and schedules for teams</p>
+        </div>
+        <div>
+            <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-light">
+                <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+    .shift-config-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 30px;
+        min-height: calc(100vh - 100px);
+        background: #f8f9fa;
+    }
+    
+    .filters-card {
+        background: white;
+        padding: 25px;
+        border-radius: 8px;
+        margin-bottom: 25px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border: 1px solid #e9ecef;
+    }
+    
+    .configurations-card {
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border: 1px solid #e9ecef;
+    }
+    
+    .table th {
+        background: #f8f9fa;
+        color: #495057;
+        font-weight: 600;
+        border: none;
+        padding: 15px 12px;
+        font-size: 0.9em;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+        border-bottom: 2px solid #e9ecef;
+    }
+    
+    .shift-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8em;
+        font-weight: 600;
+        color: white;
+        text-transform: uppercase;
+    }
+    
+    .status-active {
+        background: #28a745;
+    }
+    
+    .status-inactive {
+        background: #6c757d;
+    }
+    
+    .time-range {
+        font-family: 'Courier New', monospace;
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .overnight-indicator {
+        color: #dc3545;
+        font-size: 0.8em;
+        margin-left: 5px;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6c757d;
+    }
+    
+    .empty-state i {
+        font-size: 4em;
+        margin-bottom: 20px;
+        color: #dee2e6;
+    }
+    
+    .btn-sm {
+        padding: 6px 12px;
+        font-size: 0.875em;
+        border-radius: 4px;
+        margin: 0 2px;
+    }
+    
+    .alert {
+        border: none;
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+    }
+    
+    .modal-content {
+        border: none;
+        border-radius: 8px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    }
+    
+    .modal-header {
+        background: #007bff;
+        color: white;
+        border-radius: 8px 8px 0 0;
+        border: none;
+        padding: 20px 25px;
+    }
+    
+    .modal-header .modal-title {
+        font-weight: 600;
+        font-size: 1.2em;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 8px;
+    }
+    
+    .form-control, .form-select {
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        padding: 10px 15px;
+        font-size: 1em;
+        transition: border-color 0.15s ease-in-out;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+    
+    .pattern-card {
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 15px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .pattern-card:hover {
+        border-color: #007bff;
+        background: #f8f9ff;
+    }
+    
+    .pattern-card.selected {
+        border-color: #007bff;
+        background: #e3f2fd;
+    }
+    
+    .pattern-shifts {
+        margin-top: 10px;
+    }
+    
+    .pattern-shift {
+        display: inline-block;
+        background: #e9ecef;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.8em;
+        margin: 2px;
+    }
+</style>
+
+<div class="shift-config-container">
+    {% if can_manage %}
+    <div class="d-flex justify-content-end mb-3">
+        <button type="button" class="btn btn-primary" onclick="openAddModal()">
+            <i class="fas fa-plus"></i> Add Configuration
+        </button>
+        <button type="button" class="btn btn-outline-secondary ms-2" onclick="openDefaultsModal()">
+            <i class="fas fa-magic"></i> Create Defaults
+        </button>
+    </div>
+    {% endif %}
+
+    <!-- Filters -->
+    <div class="filters-card">
+        <div class="row">
+            <div class="col-md-5">
+                <label class="form-label">Account</label>
+                <select class="form-select" id="accountSelect" onchange="loadTeams()">
+                    <option value="">Select Account</option>
+                    {% for account in accounts %}
+                    <option value="{{ account.id }}">{{ account.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label">Team</label>
+                <select class="form-select" id="teamSelect" onchange="loadConfigurations()">
+                    <option value="">Select Team</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="button" class="btn btn-outline-secondary w-100" onclick="resetFilters()">
+                    <i class="fas fa-undo"></i> Reset
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Container -->
+    <div id="alertContainer"></div>
+
+    <!-- Configurations Table -->
+    <div class="configurations-card">
+        <div id="configurationsContent">
+            <div class="empty-state">
+                <i class="fas fa-clock"></i>
+                <h4>Select Account and Team</h4>
+                <p>Choose an account and team to view shift configurations</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Configuration Modal -->
+<div class="modal fade" id="configModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="configModalTitle">Add Shift Configuration</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="configForm">
+                    <input type="hidden" id="configId" name="config_id">
+                    
+                    <!-- Account and Team Selection -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Account *</label>
+                            <select class="form-select" id="modalAccountSelect" name="account_id" required>
+                                <option value="">Select Account</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Team *</label>
+                            <select class="form-select" id="modalTeamSelect" name="team_id" required>
+                                <option value="">Select Team</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Shift Code *</label>
+                                <input type="text" class="form-control text-uppercase" id="shiftCode" name="shift_code" maxlength="10" required>
+                                <small class="form-text text-muted">e.g., D, E, N, LE, G, O</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Shift Name *</label>
+                                <input type="text" class="form-control" id="shiftName" name="shift_name" maxlength="100" required>
+                                <small class="form-text text-muted">e.g., Day Shift, Evening Shift</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Start Time *</label>
+                                <input type="time" class="form-control" id="startTime" name="start_time" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">End Time *</label>
+                                <input type="time" class="form-control" id="endTime" name="end_time" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="isActive" name="is_active" checked>
+                                <label class="form-check-label" for="isActive">
+                                    Active
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="isDefault" name="is_default">
+                                <label class="form-check-label" for="isDefault">
+                                    Default Shift
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveConfiguration()">Save Configuration</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Defaults Modal -->
+<div class="modal fade" id="defaultsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Default Shift Configurations</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-4">
+                    <p class="text-muted">Select a pattern to create default shift configurations for the selected team. This will help you get started quickly with standard shift patterns.</p>
+                </div>
+                
+                <div id="patternsContainer">
+                    <div class="pattern-card" data-pattern="standard">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-2">Standard (Day/Evening/Night)</h6>
+                                <p class="text-muted mb-2">Basic 3-shift pattern suitable for most operations</p>
+                                <div class="pattern-shifts">
+                                    <span class="pattern-shift">Day: 06:30 - 15:30</span>
+                                    <span class="pattern-shift">Evening: 15:00 - 00:00</span>
+                                    <span class="pattern-shift">Night: 22:00 - 07:00</span>
+                                </div>
+                            </div>
+                            <input type="radio" name="pattern" value="standard" class="form-check-input">
+                        </div>
+                    </div>
+                    
+                    <div class="pattern-card" data-pattern="devops">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-2">DevOps (Onshore/Offshore)</h6>
+                                <p class="text-muted mb-2">24/7 coverage with onshore and offshore teams</p>
+                                <div class="pattern-shifts">
+                                    <span class="pattern-shift">Onshore: 06:30 - 15:30</span>
+                                    <span class="pattern-shift">Offshore: 22:00 - 07:00</span>
+                                </div>
+                            </div>
+                            <input type="radio" name="pattern" value="devops" class="form-check-input">
+                        </div>
+                    </div>
+                    
+                    <div class="pattern-card" data-pattern="extended">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-2">Extended (5 Shifts)</h6>
+                                <p class="text-muted mb-2">Comprehensive shift pattern with maximum flexibility</p>
+                                <div class="pattern-shifts">
+                                    <span class="pattern-shift">Day: 06:30 - 15:30</span>
+                                    <span class="pattern-shift">Evening: 15:00 - 00:00</span>
+                                    <span class="pattern-shift">Night: 22:00 - 07:00</span>
+                                    <span class="pattern-shift">Late Evening: 18:00 - 03:00</span>
+                                    <span class="pattern-shift">General: 10:00 - 19:00</span>
+                                </div>
+                            </div>
+                            <input type="radio" name="pattern" value="extended" class="form-check-input">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createDefaults()">Create Configurations</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentAccountId = null;
+let currentTeamId = null;
+let configurations = [];
+let isEditing = false;
+let editingConfigId = null;
+
+// Global data storage
+let accounts = [];
+let teams = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Shift Configuration page initialized');
+    
+    // Load initial data
+    loadAccountsAndTeams();
+    
+    // Pattern selection handler
+    document.querySelectorAll('.pattern-card').forEach(card => {
+        card.addEventListener('click', function() {
+            // Remove selected class from all cards
+            document.querySelectorAll('.pattern-card').forEach(c => c.classList.remove('selected'));
+            // Add selected class to clicked card
+            this.classList.add('selected');
+            // Select the radio button
+            this.querySelector('input[type="radio"]').checked = true;
+        });
+    });
+    
+    // Make shift code uppercase
+    document.getElementById('shiftCode').addEventListener('input', function() {
+        this.value = this.value.toUpperCase();
+    });
+    
+    // Modal account selection handler
+    document.getElementById('modalAccountSelect').addEventListener('change', function() {
+        const accountId = this.value;
+        populateModalTeams(accountId);
+    });
+});
+
+function loadAccountsAndTeams() {
+    // Load accounts first
+    fetch('/admin/shift-config/api/accounts')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                accounts = data.accounts;
+                
+                // Populate main account dropdown
+                const accountSelect = document.getElementById('accountSelect');
+                accountSelect.innerHTML = '<option value="">Select Account</option>';
+                accounts.forEach(account => {
+                    const option = document.createElement('option');
+                    option.value = account.id;
+                    option.textContent = account.name;
+                    accountSelect.appendChild(option);
+                });
+                
+                console.log('Accounts loaded:', accounts.length);
+            } else {
+                showAlert('Error loading accounts: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading accounts:', error);
+            showAlert('Error loading accounts: ' + error.message, 'error');
+        });
+}
+
+function loadTeams() {
+    const accountSelect = document.getElementById('accountSelect');
+    const teamSelect = document.getElementById('teamSelect');
+    
+    // Reset team selection
+    teamSelect.innerHTML = '<option value="">Select Team</option>';
+    
+    if (!accountSelect.value) {
+        resetConfigurations();
+        return;
+    }
+    
+    currentAccountId = parseInt(accountSelect.value);
+    
+    fetch(`/admin/shift-config/api/accounts/${currentAccountId}/teams`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Store teams globally for modal use
+                teams = data.teams;
+                
+                data.teams.forEach(team => {
+                    const option = document.createElement('option');
+                    option.value = team.id;
+                    option.textContent = team.name;
+                    teamSelect.appendChild(option);
+                });
+            } else {
+                showAlert('Error loading teams: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showAlert('Error loading teams: ' + error.message, 'error');
+        });
+}
+
+function loadConfigurations() {
+    const teamSelect = document.getElementById('teamSelect');
+    
+    if (!currentAccountId || !teamSelect.value) {
+        resetConfigurations();
+        return;
+    }
+    
+    currentTeamId = parseInt(teamSelect.value);
+    
+    fetch(`/admin/shift-config/api/shifts/${currentAccountId}/${currentTeamId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                configurations = data.configurations;
+                renderConfigurations(data);
+            } else {
+                showAlert('Error loading configurations: ' + data.error, 'error');
+                renderEmptyState('Error loading configurations');
+            }
+        })
+        .catch(error => {
+            showAlert('Error loading configurations: ' + error.message, 'error');
+            renderEmptyState('Error loading configurations');
+        });
+}
+
+function renderConfigurations(data) {
+    const container = document.getElementById('configurationsContent');
+    
+    if (!data.configurations || data.configurations.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-clock"></i>
+                <h4>No Shift Configurations Found</h4>
+                <p>No shift configurations have been created for <strong>${data.team.name}</strong> yet.</p>
+                {% if can_manage %}
+                <button type="button" class="btn btn-primary mt-3" onclick="openAddModal()">
+                    <i class="fas fa-plus"></i> Add First Configuration
+                </button>
+                <button type="button" class="btn btn-outline-primary mt-3 ms-2" onclick="openDefaultsModal()">
+                    <i class="fas fa-magic"></i> Create Defaults
+                </button>
+                {% endif %}
+            </div>
+        `;
+        return;
+    }
+    
+    let tableHtml = `
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Shift Code</th>
+                        <th>Shift Name</th>
+                        <th>Time Range</th>
+                        <th>Status</th>
+                        {% if can_manage %}
+                        <th>Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    data.configurations.forEach(config => {
+        const statusClass = config.is_active ? 'status-active' : 'status-inactive';
+        const statusText = config.is_active ? 'Active' : 'Inactive';
+        const overnightIndicator = config.is_overnight_shift ? '<i class="fas fa-moon overnight-indicator" title="Overnight shift"></i>' : '';
+        
+        tableHtml += `
+            <tr>
+                <td>
+                    <span class="shift-badge" style="background-color: ${config.color_code}">${config.shift_code}</span>
+                    ${config.is_default ? '<i class="fas fa-star text-warning ms-1" title="Default shift"></i>' : ''}
+                </td>
+                <td>${config.shift_name}</td>
+                <td>
+                    <span class="time-range">${config.formatted_time_range}</span>
+                    ${overnightIndicator}
+                </td>
+                <td><span class="badge ${statusClass}">${statusText}</span></td>
+                {% if can_manage %}
+                <td>
+                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="editConfiguration(${config.id})" title="Edit">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteConfiguration(${config.id}, '${config.shift_name}')" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+                {% endif %}
+            </tr>
+        `;
+    });
+    
+    tableHtml += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    container.innerHTML = tableHtml;
+}
+
+function resetConfigurations() {
+    const container = document.getElementById('configurationsContent');
+    container.innerHTML = `
+        <div class="empty-state">
+            <i class="fas fa-clock"></i>
+            <h4>Select Account and Team</h4>
+            <p>Choose an account and team to view shift configurations</p>
+        </div>
+    `;
+}
+
+function resetFilters() {
+    document.getElementById('accountSelect').value = '';
+    document.getElementById('teamSelect').innerHTML = '<option value="">Select Team</option>';
+    currentAccountId = null;
+    currentTeamId = null;
+    resetConfigurations();
+}
+
+function populateModalAccounts() {
+    const modalAccountSelect = document.getElementById('modalAccountSelect');
+    modalAccountSelect.innerHTML = '<option value="">Select Account</option>';
+    
+    // Check if accounts are loaded
+    if (!accounts || accounts.length === 0) {
+        console.warn('Accounts not loaded yet, loading now...');
+        // Reload accounts if not available
+        fetch('/admin/shift-config/api/accounts')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    accounts = data.accounts;
+                    populateModalAccountsHelper();
+                }
+            })
+            .catch(error => {
+                console.error('Error loading accounts for modal:', error);
+            });
+        return;
+    }
+    
+    populateModalAccountsHelper();
+}
+
+function populateModalAccountsHelper() {
+    const modalAccountSelect = document.getElementById('modalAccountSelect');
+    accounts.forEach(account => {
+        const option = document.createElement('option');
+        option.value = account.id;
+        option.textContent = account.name;
+        modalAccountSelect.appendChild(option);
+    });
+}
+
+function populateModalTeams(accountId, selectedTeamId = null) {
+    const modalTeamSelect = document.getElementById('modalTeamSelect');
+    modalTeamSelect.innerHTML = '<option value="">Select Team</option>';
+    
+    if (!accountId) return;
+    
+    // Load teams for this account if not available
+    fetch(`/admin/shift-config/api/accounts/${accountId}/teams`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update global teams array with teams for this account
+                const accountTeams = data.teams;
+                
+                accountTeams.forEach(team => {
+                    const option = document.createElement('option');
+                    option.value = team.id;
+                    option.textContent = team.name;
+                    if (selectedTeamId && team.id == selectedTeamId) {
+                        option.selected = true;
+                    }
+                    modalTeamSelect.appendChild(option);
+                });
+            } else {
+                console.error('Error loading teams for account:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading teams for modal:', error);
+        });
+}
+
+function openAddModal() {
+    isEditing = false;
+    editingConfigId = null;
+    
+    document.getElementById('configModalTitle').textContent = 'Add Shift Configuration';
+    document.getElementById('configForm').reset();
+    document.getElementById('configId').value = '';
+    // Color code field removed
+    document.getElementById('isActive').checked = true;
+    
+    // Populate modal dropdowns
+    populateModalAccounts();
+    
+    // Pre-select current account and team if available
+    if (currentAccountId) {
+        document.getElementById('modalAccountSelect').value = currentAccountId;
+        populateModalTeams(currentAccountId, currentTeamId);
+    }
+    
+    new bootstrap.Modal(document.getElementById('configModal')).show();
+}
+
+function editConfiguration(configId) {
+    const config = configurations.find(c => c.id === configId);
+    if (!config) {
+        showAlert('Configuration not found', 'error');
+        return;
+    }
+    
+    isEditing = true;
+    editingConfigId = configId;
+    
+    document.getElementById('configModalTitle').textContent = 'Edit Shift Configuration';
+    document.getElementById('configId').value = config.id;
+    
+    // Populate modal dropdowns first
+    populateModalAccounts();
+    document.getElementById('modalAccountSelect').value = config.account_id;
+    populateModalTeams(config.account_id, config.team_id);
+    
+    // Populate other form fields
+    document.getElementById('shiftCode').value = config.shift_code;
+    document.getElementById('shiftName').value = config.shift_name;
+    document.getElementById('startTime').value = config.start_time;
+    document.getElementById('endTime').value = config.end_time;
+    // Color code and order index fields removed
+    document.getElementById('isActive').checked = config.is_active;
+    document.getElementById('isDefault').checked = config.is_default;
+    
+    new bootstrap.Modal(document.getElementById('configModal')).show();
+}
+
+function saveConfiguration() {
+    const form = document.getElementById('configForm');
+    const formData = new FormData(form);
+    
+    // Get values directly from elements to ensure accuracy
+    const accountId = document.getElementById('modalAccountSelect').value;
+    const teamId = document.getElementById('modalTeamSelect').value;
+    const shiftCode = document.getElementById('shiftCode').value;
+    const shiftName = document.getElementById('shiftName').value;
+    const startTime = document.getElementById('startTime').value;
+    const endTime = document.getElementById('endTime').value;
+    const colorCode = '#007bff'; // Default color
+    const orderIndex = 0; // Default order
+    const isActive = document.getElementById('isActive').checked;
+    const isDefault = document.getElementById('isDefault') ? document.getElementById('isDefault').checked : false;
+    
+    // Validation
+    if (!accountId || !teamId) {
+        showAlert('Please select both account and team', 'error');
+        return;
+    }
+    
+    if (!shiftCode || !shiftName || !startTime || !endTime) {
+        showAlert('Please fill in all required fields', 'error');
+        return;
+    }
+    
+    const data = {
+        account_id: parseInt(accountId),
+        team_id: parseInt(teamId),
+        shift_code: shiftCode.toUpperCase().trim(),
+        shift_name: shiftName.trim(),
+        start_time: startTime,
+        end_time: endTime,
+        color_code: colorCode || '#007bff',
+        order_index: parseInt(orderIndex) || 0,
+        is_active: isActive,
+        is_default: isDefault
+    };
+    
+    console.log('Sending shift configuration data:', data);
+    
+    const url = isEditing 
+        ? `/admin/shift-config/api/shifts/${editingConfigId}` 
+        : '/admin/shift-config/api/shifts';
+    
+    const method = isEditing ? 'PUT' : 'POST';
+    
+    fetch(url, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => {
+                throw new Error(`HTTP ${response.status}: ${err.error || err.message || 'Unknown error'}`);
+            });
+        }
+        return response.json();
+    })
+    .then(result => {
+        if (result.success) {
+            showAlert(result.message, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('configModal')).hide();
+            loadConfigurations(); // Reload configurations
+        } else {
+            showAlert('Error: ' + result.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Save configuration error:', error);
+        showAlert('Error saving configuration: ' + error.message, 'error');
+    });
+}
+
+function deleteConfiguration(configId, shiftName) {
+    if (!confirm(`Are you sure you want to delete the shift configuration "${shiftName}"?`)) {
+        return;
+    }
+    
+    fetch(`/admin/shift-config/api/shifts/${configId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            showAlert(result.message, 'success');
+            loadConfigurations(); // Reload configurations
+        } else {
+            showAlert('Error: ' + result.error, 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error deleting configuration: ' + error.message, 'error');
+    });
+}
+
+function openDefaultsModal() {
+    if (!currentAccountId || !currentTeamId) {
+        showAlert('Please select an account and team first', 'warning');
+        return;
+    }
+    
+    // Reset pattern selection
+    document.querySelectorAll('.pattern-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    document.querySelectorAll('input[name="pattern"]').forEach(radio => {
+        radio.checked = false;
+    });
+    
+    new bootstrap.Modal(document.getElementById('defaultsModal')).show();
+}
+
+function createDefaults() {
+    const selectedPattern = document.querySelector('input[name="pattern"]:checked');
+    if (!selectedPattern) {
+        showAlert('Please select a pattern', 'warning');
+        return;
+    }
+    
+    const data = {
+        account_id: currentAccountId,
+        team_id: currentTeamId,
+        pattern: selectedPattern.value
+    };
+    
+    fetch('/admin/shift-config/api/shifts/create-defaults', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            showAlert(result.message, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('defaultsModal')).hide();
+            loadConfigurations(); // Reload configurations
+        } else {
+            showAlert('Error: ' + result.error, 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error creating defaults: ' + error.message, 'error');
+    });
+}
+
+function showAlert(message, type) {
+    const alertContainer = document.getElementById('alertContainer');
+    const alertClass = type === 'success' ? 'alert-success' : 
+                     type === 'warning' ? 'alert-warning' : 'alert-danger';
+    
+    const alertHtml = `
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    alertContainer.innerHTML = alertHtml;
+    
+    // Auto-dismiss success alerts after 5 seconds
+    if (type === 'success') {
+        setTimeout(() => {
+            const alert = alertContainer.querySelector('.alert');
+            if (alert) {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }
+        }, 5000);
+    }
+}
+</script>
+{% endblock %}

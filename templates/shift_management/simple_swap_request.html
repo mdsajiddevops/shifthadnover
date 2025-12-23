@@ -4,58 +4,56 @@
 
 {% block content %}
 <style>
-/* Modern Shift Swap Request UI - Fixed Version */
+/* Modern Shift Swap Request UI */
 :root {
     --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     --text-primary: #2c3e50;
     --border-color: #dee2e6;
 }
 
-body {
-    background: #f8f9fa !important;
-    color: #2c3e50 !important;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+.swap-page-header {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #3498db 100%);
+    color: white;
+    padding: 2rem 2.5rem;
+    border-radius: 20px;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 10px 40px rgba(30, 60, 114, 0.3);
+    position: relative;
+    overflow: hidden;
 }
 
-.main-content {
-    padding: 20px;
+.swap-page-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 60%;
+    height: 200%;
+    background: radial-gradient(ellipse, rgba(255,255,255,0.1) 0%, transparent 70%);
+    pointer-events: none;
 }
 
-.page-header {
-    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%) !important;
-    color: white !important;
-    padding: 2rem 0;
-    margin-bottom: 2rem;
-    text-align: center;
-    border-radius: 15px;
-}
-
-.page-title {
-    font-size: 2.5rem !important;
-    font-weight: 700 !important;
-    color: white !important;
-    margin-bottom: 10px;
+.swap-page-header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 20px;
-    text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    gap: 0.75rem;
 }
 
-.page-subtitle {
-    font-size: 1.1rem !important;
-    color: rgba(255, 255, 255, 0.9) !important;
+.swap-page-header p {
+    opacity: 0.9;
+    font-size: 1rem;
     margin: 0;
-    font-weight: 400;
 }
 
 .swap-form-container {
-    background: white !important;
-    border-radius: 25px !important;
-    padding: 2.5rem !important;
-    margin-bottom: 2rem;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
-    border: 1px solid #e9ecef !important;
+    background: white;
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e9ecef;
     position: relative;
     overflow: hidden;
 }
@@ -71,11 +69,11 @@ body {
 }
 
 .form-section {
-    background: #f8f9fa !important;
-    border-radius: 15px !important;
-    padding: 2rem !important;
+    background: #f8f9fa;
+    border-radius: 15px;
+    padding: 1.5rem;
     margin-bottom: 1.5rem;
-    border: 1px solid #e9ecef !important;
+    border: 1px solid #e9ecef;
     position: relative;
 }
 
@@ -91,10 +89,10 @@ body {
 }
 
 .section-title {
-    font-size: 1.3rem !important;
-    font-weight: 700 !important;
-    color: #2c3e50 !important;
-    margin-bottom: 1.5rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 1.25rem;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -103,57 +101,60 @@ body {
 }
 
 .section-title i {
-    color: #4a90e2 !important;
-    font-size: 1.2rem;
+    color: #3498db;
+    font-size: 1.1rem;
 }
 
 .form-group {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.form-group:last-child {
+    margin-bottom: 0;
 }
 
 .form-label {
-    font-size: 1rem !important;
-    font-weight: 600 !important;
-    color: #2c3e50 !important;
-    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.5rem;
     display: block;
 }
 
 .required {
-    color: #dc3545 !important;
+    color: #dc3545;
     margin-left: 3px;
 }
 
-.form-control {
-    width: 100% !important;
-    padding: 12px 15px !important;
-    border: 2px solid #dee2e6 !important;
-    border-radius: 8px !important;
-    font-size: 1rem !important;
-    color: #2c3e50 !important;
-    background: white !important;
+.form-control, .form-select {
+    width: 100%;
+    padding: 0.7rem 1rem;
+    border: 2px solid #dee2e6;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    color: #2c3e50;
+    background: white;
     transition: all 0.3s ease;
-    box-sizing: border-box;
 }
 
-.form-control:focus {
-    outline: none !important;
-    border-color: #4a90e2 !important;
-    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1) !important;
+.form-control:focus, .form-select:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
 }
 
 .form-control:read-only {
-    background: #f8f9fa !important;
-    border-color: #dee2e6 !important;
-    color: #6c757d !important;
+    background: #f8f9fa;
+    border-color: #dee2e6;
+    color: #6c757d;
 }
 
 .shift-details-box {
-    background: rgba(74, 144, 226, 0.05) !important;
-    border: 2px solid rgba(74, 144, 226, 0.2) !important;
-    border-radius: 10px !important;
-    padding: 15px;
-    margin-top: 10px;
+    background: linear-gradient(135deg, rgba(52, 152, 219, 0.05) 0%, rgba(52, 152, 219, 0.1) 100%);
+    border: 2px solid rgba(52, 152, 219, 0.2);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-top: 0.75rem;
     display: none;
 }
 
@@ -165,245 +166,307 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 0;
+    padding: 0.5rem 0;
 }
 
 .shift-details-label {
-    font-weight: 600 !important;
-    color: #2c3e50 !important;
+    font-weight: 600;
+    color: #495057;
 }
 
 .shift-details-value {
-    font-weight: 700 !important;
-    color: #4a90e2 !important;
-    padding: 4px 8px;
-    background: rgba(74, 144, 226, 0.1);
-    border-radius: 5px;
+    font-weight: 700;
+    color: white;
+    padding: 0.4rem 1rem;
+    background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+    border-radius: 50px;
+    font-size: 0.9rem;
 }
 
 .submit-section {
     text-align: center;
-    margin-top: 2rem;
-    padding-top: 2rem;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
     border-top: 1px solid #dee2e6;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
 }
 
-.btn {
-    padding: 12px 30px !important;
-    border: none !important;
-    border-radius: 25px !important;
-    font-size: 1rem !important;
-    font-weight: 600 !important;
+.btn-submit {
+    background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%);
+    color: white;
+    padding: 0.8rem 2rem;
+    border: none;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: 600;
     cursor: pointer;
-    text-decoration: none;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 0.5rem;
     transition: all 0.3s ease;
-    margin: 0 10px;
+    box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
 }
 
-.btn-primary {
-    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%) !important;
-    color: white !important;
-    box-shadow: 0 4px 15px rgba(74, 144, 226, 0.3) !important;
-}
-
-.btn-primary:hover {
+.btn-submit:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(74, 144, 226, 0.4) !important;
-    color: white !important;
+    box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4);
+}
+
+.btn-submit:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-back {
+    background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+    color: white;
+    padding: 0.8rem 2rem;
+    border: none;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
     text-decoration: none;
+    box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
 }
 
-.btn-secondary {
-    background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%) !important;
-    color: white !important;
-    box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3) !important;
-}
-
-.btn-secondary:hover {
+.btn-back:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(108, 117, 125, 0.4) !important;
-    color: white !important;
+    box-shadow: 0 6px 20px rgba(108, 117, 125, 0.4);
+    color: white;
     text-decoration: none;
 }
 
 .alert {
-    padding: 15px 20px !important;
-    border-radius: 10px !important;
-    margin-bottom: 20px;
-    border: none !important;
+    padding: 1rem 1.25rem;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    border: none;
     font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
 }
 
 .alert-success {
-    background: #d4edda !important;
-    color: #155724 !important;
-    border-left: 4px solid #28a745 !important;
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    color: #155724;
+    border-left: 4px solid #28a745;
 }
 
-.alert-error {
-    background: #f8d7da !important;
-    color: #721c24 !important;
-    border-left: 4px solid #dc3545 !important;
+.alert-error, .alert-danger {
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+    color: #721c24;
+    border-left: 4px solid #dc3545;
 }
 
 .alert-warning {
-    background: #fff3cd !important;
-    color: #856404 !important;
-    border-left: 4px solid #ffc107 !important;
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    color: #856404;
+    border-left: 4px solid #ffc107;
 }
 
-/* Mobile responsive */
+.team-filter-info {
+    background: linear-gradient(135deg, #e8f4fd 0%, #d4edfc 100%);
+    border-left: 4px solid #3498db;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    color: #2c3e50;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.team-filter-info i {
+    color: #3498db;
+}
+
+/* Responsive */
 @media (max-width: 768px) {
-    .page-title {
-        font-size: 2rem !important;
-        flex-direction: column;
-        gap: 10px;
+    .swap-page-header {
+        padding: 1.5rem;
+    }
+    
+    .swap-page-header h1 {
+        font-size: 1.5rem;
     }
     
     .swap-form-container {
-        padding: 1.5rem !important;
-        margin: 10px;
+        padding: 1.5rem;
     }
     
     .form-section {
-        padding: 1.5rem !important;
+        padding: 1.25rem;
     }
     
-    .btn {
+    .submit-section {
+        flex-direction: column;
+    }
+    
+    .btn-submit, .btn-back {
         width: 100%;
-        margin: 5px 0;
+        justify-content: center;
     }
 }
 </style>
 
-<div class="main-content">
-    <div class="page-header">
-        <div class="container">
-            <h1 class="page-title">
-                <i class="fas fa-exchange-alt"></i>
-                Shift Swap Request
-            </h1>
-            <p class="page-subtitle">Request to swap shifts with team members</p>
-        </div>
+<div class="container-fluid px-3 py-3">
+    <!-- Page Header -->
+    <div class="swap-page-header">
+        <h1>
+            <i class="fas fa-exchange-alt"></i>
+            Shift Swap Request
+        </h1>
+        <p>Request to swap shifts with team members</p>
     </div>
 
-    <div class="container-fluid py-4">
-        <div class="row">
-            <div class="col-lg-10 mx-auto">
-                <div class="swap-form-container">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="swap-form-container">
+                
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'error' if category == 'error' else category }}">
+                                <i class="fas fa-{% if category == 'success' %}check-circle{% elif category == 'error' %}exclamation-circle{% else %}info-circle{% endif %}"></i>
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                <form id="swapRequestForm" method="POST">
+                    <!-- Team Selection Section -->
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-users-cog"></i>
+                            Team Selection
+                        </div>
+                        
+                        <div class="team-filter-info">
+                            <i class="fas fa-info-circle"></i>
+                            Select a team to filter engineers for the shift swap request.
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="team_filter" class="form-label">
+                                Select Team <span class="required">*</span>
+                            </label>
+                            <select id="team_filter" name="team_filter" class="form-select" required>
+                                <option value="">-- Select a Team --</option>
+                                <!-- Teams will be populated from user's team memberships -->
+                            </select>
+                        </div>
+                    </div>
                     
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <div class="alert alert-{{ 'error' if category == 'error' else category }}">
-                                    {{ message }}
-                                </div>
-                            {% endfor %}
+                    <!-- Basic Information Section -->
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-info-circle"></i>
+                            Basic Information
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="swap_date" class="form-label">
+                                Date <span class="required">*</span>
+                            </label>
+                            <input type="date" 
+                                   id="swap_date" 
+                                   name="swap_date" 
+                                   class="form-control" 
+                                   required
+                                   min="{{ min_date }}"
+                                   max="{{ max_date }}">
+                        </div>
+                    
+                        <div class="form-group">
+                            <label for="from_engineer" class="form-label">
+                                From Engineer <span class="required">*</span>
+                            </label>
+                        {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
+                            <select id="from_engineer" 
+                                    name="from_engineer_id" 
+                                    class="form-select" 
+                                    required>
+                                <option value="">Select engineer requesting swap</option>
+                                {% for member in team_members %}
+                                    <option value="{{ member.id }}">{{ member.full_name }}</option>
+                                {% endfor %}
+                            </select>
+                        {% else %}
+                            <input type="text" 
+                                   id="from_engineer" 
+                                   name="from_engineer_display" 
+                                   class="form-control" 
+                                   value="{{ (current_user.first_name + ' ' + current_user.last_name) if (current_user.first_name and current_user.last_name) else current_user.username }}" 
+                                   readonly>
+                            <input type="hidden" 
+                                   name="from_engineer_id" 
+                                   value="{{ current_user.id }}">
                         {% endif %}
-                    {% endwith %}
+                        </div>
+                    </div>
                     
-                    <form id="swapRequestForm" method="POST">
-                        <!-- Basic Information Card -->
-                        <div class="form-section">
-                            <div class="section-title">
-                                <i class="fas fa-info-circle"></i>
-                                Basic Information
-                            </div>
-                            
-                            <!-- Date Selection -->
-                            <div class="form-group">
-                                <label for="swap_date" class="form-label">
-                                    Date <span class="required">*</span>
-                                </label>
-                                <input type="date" 
-                                       id="swap_date" 
-                                       name="swap_date" 
-                                       class="form-control" 
-                                       required
-                                       min="{{ min_date }}"
-                                       max="{{ max_date }}">
-                            </div>
-                        
-                            <!-- From Engineer -->
-                            <div class="form-group">
-                                <label for="from_engineer" class="form-label">
-                                    From Engineer <span class="required">*</span>
-                                </label>
-                            {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
-                                <select id="from_engineer" 
-                                        name="from_engineer_id" 
-                                        class="form-control" 
-                                        required>
-                                    <option value="">Select engineer requesting swap</option>
-                                    {% for member in team_members %}
-                                        <option value="{{ member.id }}">{{ member.full_name }}</option>
-                                    {% endfor %}
-                                </select>
-                            {% else %}
-                                <input type="text" 
-                                       id="from_engineer" 
-                                       name="from_engineer_display" 
-                                       class="form-control" 
-                                       value="{{ (current_user.first_name + ' ' + current_user.last_name) if (current_user.first_name and current_user.last_name) else current_user.username }}" 
-                                       readonly>
-                                <input type="hidden" 
-                                       name="from_engineer_id" 
-                                       value="{{ current_user.id }}">
-                            {% endif %}
+                    <!-- Current Shift Details Section -->
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-clock"></i>
+                            Current Shift Details
+                        </div>
+                        <div id="shiftDetailsBox" class="shift-details-box">
+                            <div class="shift-details-item">
+                                <span class="shift-details-label">Shift Type:</span>
+                                <span id="shiftType" class="shift-details-value">-</span>
                             </div>
                         </div>
-                        
-                        <!-- Shift Details Section -->
-                        <div class="form-section">
-                            <div class="section-title">
-                                <i class="fas fa-clock"></i>
-                                Current Shift Details
-                            </div>
-                            <div id="shiftDetailsBox" class="shift-details-box">
-                                <div class="shift-details-item">
-                                    <span class="shift-details-label">Shift Type:</span>
-                                    <span id="shiftType" class="shift-details-value">-</span>
-                                </div>
-                            </div>
-                            <input type="hidden" id="original_shift_code" name="original_shift_code">
+                        <p id="noShiftMessage" class="text-muted small mt-2" style="display: none;">
+                            <i class="fas fa-info-circle me-1"></i>Select a date to view shift details
+                        </p>
+                        <input type="hidden" id="original_shift_code" name="original_shift_code">
+                    </div>
+                    
+                    <!-- Swap With Engineer Section -->
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-user-friends"></i>
+                            Swap With Engineer
                         </div>
-                        
-                        <!-- Swap With Engineer Section -->
-                        <div class="form-section">
-                            <div class="section-title">
-                                <i class="fas fa-users"></i>
-                                Swap With Engineer
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="swap_with_engineer">
-                                    Select Engineer <span class="required">*</span>
-                                </label>
-                                <select id="swap_with_engineer" 
-                                        name="swap_with_engineer_id" 
-                                        class="form-control" 
-                                        required>
-                                    <option value="">Select engineer to swap with</option>
-                                    <!-- Will be populated dynamically -->
-                                </select>
-                            </div>
+                        <div class="form-group">
+                            <label class="form-label" for="swap_with_engineer">
+                                Select Engineer <span class="required">*</span>
+                            </label>
+                            <select id="swap_with_engineer" 
+                                    name="swap_with_engineer_id" 
+                                    class="form-select" 
+                                    required
+                                    disabled>
+                                <option value="">First select a team and date</option>
+                            </select>
                         </div>
-                        
-                        <!-- Submit Section -->
-                        <div class="submit-section">
-                            <button type="submit" class="btn btn-primary" id="submitBtn">
-                                <i class="fas fa-paper-plane"></i>
-                                Submit Request
-                            </button>
-                            <a href="{{ url_for('shift_swap_leave.dashboard') }}" class="btn btn-secondary">
-                                <i class="fas fa-arrow-left"></i>
-                                Back to Dashboard
-                            </a>
-                        </div>
-                    </form>
-                </div>
+                    </div>
+                    
+                    <!-- Submit Section -->
+                    <div class="submit-section">
+                        <button type="submit" class="btn-submit" id="submitBtn" disabled>
+                            <i class="fas fa-paper-plane"></i>
+                            Submit Request
+                        </button>
+                        <a href="{{ url_for('shift_swap_leave.dashboard') }}" class="btn-back">
+                            <i class="fas fa-arrow-left"></i>
+                            Back to Dashboard
+                        </a>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -411,9 +474,11 @@ body {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const teamFilterSelect = document.getElementById('team_filter');
     const swapDateInput = document.getElementById('swap_date');
     const fromEngineerSelect = document.getElementById('from_engineer');
     const shiftDetailsBox = document.getElementById('shiftDetailsBox');
+    const noShiftMessage = document.getElementById('noShiftMessage');
     const shiftType = document.getElementById('shiftType');
     const originalShiftCodeInput = document.getElementById('original_shift_code');
     const swapWithSelect = document.getElementById('swap_with_engineer');
@@ -421,6 +486,52 @@ document.addEventListener('DOMContentLoaded', function() {
     
     let currentUserId = {{ current_user.id }};
     let isAdmin = {{ 'true' if current_user.role in ['super_admin', 'account_admin', 'team_admin'] else 'false' }};
+    let selectedTeamId = null;
+    
+    // Load user's teams on page load
+    loadUserTeams();
+    
+    async function loadUserTeams() {
+        try {
+            const response = await fetch('/shift-management/api/user-teams');
+            const data = await response.json();
+            
+            if (data.success && data.teams) {
+                teamFilterSelect.innerHTML = '<option value="">-- Select a Team --</option>';
+                data.teams.forEach(team => {
+                    const option = document.createElement('option');
+                    option.value = team.id;
+                    option.textContent = team.name + (team.is_primary ? ' (Primary)' : '');
+                    teamFilterSelect.appendChild(option);
+                });
+                
+                // Auto-select primary team if available
+                const primaryTeam = data.teams.find(t => t.is_primary);
+                if (primaryTeam) {
+                    teamFilterSelect.value = primaryTeam.id;
+                    selectedTeamId = primaryTeam.id;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading teams:', error);
+            teamFilterSelect.innerHTML = '<option value="">Error loading teams</option>';
+        }
+    }
+    
+    // Team filter change handler
+    teamFilterSelect.addEventListener('change', function() {
+        selectedTeamId = this.value;
+        
+        // Reset swap engineer dropdown
+        swapWithSelect.innerHTML = '<option value="">Select a team and date first</option>';
+        swapWithSelect.disabled = true;
+        submitBtn.disabled = true;
+        
+        // If date is already selected, reload engineers
+        if (swapDateInput.value && selectedTeamId) {
+            loadShiftDetails();
+        }
+    });
     
     // Set minimum date to today
     const today = new Date();
@@ -432,18 +543,25 @@ document.addEventListener('DOMContentLoaded', function() {
     maxDate.setMonth(maxDate.getMonth() + 3);
     swapDateInput.max = maxDate.toISOString().split('T')[0];
     
-    // Load shift details when date and engineer are selected
+    // Load shift details when date and team are selected
     async function loadShiftDetails() {
         const selectedDate = swapDateInput.value;
-        const selectedEngineerId = isAdmin ? fromEngineerSelect.value : currentUserId;
+        const selectedEngineerId = isAdmin && fromEngineerSelect ? fromEngineerSelect.value : currentUserId;
         
-        if (!selectedDate || !selectedEngineerId) {
+        if (!selectedDate || !selectedTeamId) {
             shiftDetailsBox.classList.remove('show');
+            noShiftMessage.style.display = 'block';
+            swapWithSelect.innerHTML = '<option value="">Select a team and date first</option>';
+            swapWithSelect.disabled = true;
+            submitBtn.disabled = true;
             return;
         }
         
+        noShiftMessage.style.display = 'none';
+        
         try {
-            const url = `/shift-management/api/user-shift-details?date=${selectedDate}&user_id=${selectedEngineerId}`;
+            // Load shift details for current user
+            const url = `/shift-management/api/user-shift-details?date=${selectedDate}&user_id=${selectedEngineerId}&team_id=${selectedTeamId}`;
             const response = await fetch(url);
             const data = await response.json();
             
@@ -451,28 +569,37 @@ document.addEventListener('DOMContentLoaded', function() {
                 shiftType.textContent = data.shift.shift_code;
                 originalShiftCodeInput.value = data.shift.shift_code;
                 shiftDetailsBox.classList.add('show');
-                await loadAvailableEngineers(selectedDate, selectedEngineerId);
             } else {
                 shiftType.textContent = 'Off';
                 originalShiftCodeInput.value = 'OFF';
                 shiftDetailsBox.classList.add('show');
-                await loadAvailableEngineers(selectedDate, selectedEngineerId);
             }
+            
+            // Load available engineers from the selected team
+            await loadAvailableEngineers(selectedDate, selectedEngineerId);
+            
         } catch (error) {
             console.error('Error loading shift details:', error);
             showAlert('Error loading shift details. Please try again.', 'error');
         }
     }
     
-    // Load available engineers to swap with
+    // Load available engineers to swap with (filtered by team)
     async function loadAvailableEngineers(date, fromEngineerId) {
+        if (!selectedTeamId) {
+            swapWithSelect.innerHTML = '<option value="">Please select a team first</option>';
+            swapWithSelect.disabled = true;
+            return;
+        }
+        
         try {
-            const url = `/shift-management/api/available-engineers?date=${date}&exclude_user_id=${fromEngineerId}`;
+            const url = `/shift-management/api/available-engineers?date=${date}&exclude_user_id=${fromEngineerId}&team_id=${selectedTeamId}`;
             const response = await fetch(url);
             const data = await response.json();
             
             if (data.success) {
                 swapWithSelect.innerHTML = '<option value="">Select engineer to swap with</option>';
+                swapWithSelect.disabled = false;
                 
                 data.engineers.forEach(engineer => {
                     const option = document.createElement('option');
@@ -482,20 +609,31 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 
                 if (data.engineers.length === 0) {
-                    swapWithSelect.innerHTML = '<option value="">No engineers available for swap</option>';
+                    swapWithSelect.innerHTML = '<option value="">No engineers available in this team</option>';
+                    swapWithSelect.disabled = true;
                 }
+                
+                updateSubmitButton();
             } else {
                 console.error('Available engineers API error:', data.error);
-                showAlert(data.error || 'Error loading available engineers', 'error');
+                swapWithSelect.innerHTML = `<option value="">Error: ${data.error || 'Failed to load'}</option>`;
+                swapWithSelect.disabled = true;
             }
         } catch (error) {
             console.error('Error loading available engineers:', error);
-            showAlert('Error loading available engineers. Please try again.', 'error');
+            swapWithSelect.innerHTML = '<option value="">Error loading engineers</option>';
+            swapWithSelect.disabled = true;
         }
+    }
+    
+    function updateSubmitButton() {
+        const isValid = selectedTeamId && swapDateInput.value && swapWithSelect.value;
+        submitBtn.disabled = !isValid;
     }
     
     // Event listeners
     swapDateInput.addEventListener('change', loadShiftDetails);
+    swapWithSelect.addEventListener('change', updateSubmitButton);
     
     if (isAdmin && fromEngineerSelect) {
         fromEngineerSelect.addEventListener('change', loadShiftDetails);
@@ -505,8 +643,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('swapRequestForm').addEventListener('submit', function(e) {
         e.preventDefault();
         
-        // Validate form
-        if (!swapDateInput.value || !swapWithSelect.value) {
+        if (!selectedTeamId || !swapDateInput.value || !swapWithSelect.value) {
             showAlert('Please fill in all required fields.', 'error');
             return;
         }
@@ -528,22 +665,21 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const alert = document.createElement('div');
         alert.className = `alert alert-${type}`;
-        alert.textContent = message;
+        alert.innerHTML = `<i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle"></i> ${message}`;
         
         const form = document.getElementById('swapRequestForm');
         form.parentNode.insertBefore(alert, form);
         
-        // Auto-remove after 5 seconds
         setTimeout(() => {
             if (alert.parentNode) {
                 alert.remove();
             }
         }, 5000);
     }
+    
+    // Show no shift message initially
+    noShiftMessage.style.display = 'block';
 });
 </script>
 
-{% endblock %}
-
-{% block scripts %}
 {% endblock %}
