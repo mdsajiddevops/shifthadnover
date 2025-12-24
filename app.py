@@ -155,6 +155,7 @@ from routes.dashboard import dashboard_bp
 from routes.roster import roster_bp
 from routes.team_simple import team_bp
 from routes.roster_upload import roster_upload_bp
+from routes.shift_allowance import shift_allowance_bp
 from routes.reports import reports_bp
 from routes.team_roster import team_roster_bp
 from routes.team_utils import team_utils_bp
@@ -169,6 +170,7 @@ app.register_blueprint(dashboard_bp)
 app.register_blueprint(roster_bp)
 app.register_blueprint(team_bp)
 app.register_blueprint(roster_upload_bp)
+app.register_blueprint(shift_allowance_bp)
 app.register_blueprint(reports_bp)
 app.register_blueprint(team_roster_bp)
 app.register_blueprint(team_utils_bp)

@@ -188,6 +188,29 @@ def keypoints():
     key_points = list(kp_map.values())
     print(f"🔧 KEYPOINTS: Deduplication reduced {len(all_key_points)} to {len(key_points)} unique key points")
     
+    # Populate submitted_by_name for key points that don't have created_by
+    from models.handover_enhanced import HandoverRequest
+    from models.models import User, Shift
+    for kp in key_points:
+        kp.submitted_by_name = None  # Default
+        if not kp.created_by and kp.shift_id:
+            try:
+                # Find the HandoverRequest for this shift to get the submitter
+                shift = Shift.query.get(kp.shift_id)
+                if shift:
+                    handover_req = HandoverRequest.query.filter_by(
+                        shift_date=shift.date,
+                        current_shift_type=shift.current_shift_type,
+                        account_id=shift.account_id,
+                        team_id=shift.team_id
+                    ).first()
+                    if handover_req and handover_req.created_by_id:
+                        user = User.query.get(handover_req.created_by_id)
+                        if user:
+                            kp.submitted_by_name = user.display_name or user.username
+            except Exception as e:
+                print(f"🔧 KEYPOINTS: Error getting submitter for KP {kp.id}: {e}")
+    
     updates_by_kp = {}
     for kp in key_points:
         updates_query = ShiftKeyPointUpdate.query.filter_by(key_point_id=kp.id)

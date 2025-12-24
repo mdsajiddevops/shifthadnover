@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Teams Roster{% endblock %}
+{% block title %}On-Call Dashboard{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -409,8 +409,8 @@
     <div class="page-header">
         <div class="page-header-content">
             <div class="page-header-left">
-                <h1><i class="bi bi-people-fill"></i>Teams Roster</h1>
-                <p>View team schedules and member availability across all teams</p>
+                <h1><i class="bi bi-people-fill"></i>On-Call Dashboard</h1>
+                <p>View on-call engineers and team availability at a glance</p>
             </div>
         </div>
     </div>
@@ -421,6 +421,13 @@
         <!-- Dashboard-style Stats Overview -->
         {% if accounts_data %}
         <div class="stats-overview">
+            <div class="stat-card">
+                <div class="stat-number" style="color: #1e40af;">
+                    <i class="bi bi-building" style="font-size: 1.5rem; margin-right: 0.5rem;"></i>
+                    {{ accounts_data[0].account.name if accounts_data and accounts_data[0].account else 'N/A' }}
+                </div>
+                <div class="stat-label">Account</div>
+            </div>
             <div class="stat-card">
                 <div class="stat-number">{{ accounts_data|sum(attribute='team_count') }}</div>
                 <div class="stat-label">Total Teams</div>
@@ -436,15 +443,6 @@
                 {% endfor %}
                 <div class="stat-number">{{ total_on_duty.count }}</div>
                 <div class="stat-label">On Duty Now</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{{ current_time.strftime('%H:%M') }}</div>
-                <div class="stat-label">Current Time</div>
-            </div>
-            <div class="stat-card">
-                {% set current_shift = 'Morning' if current_time.hour >= 6 and current_time.hour < 14 else 'Evening' if current_time.hour >= 14 and current_time.hour < 22 else 'Night' %}
-                <div class="stat-number">{{ current_shift }}</div>
-                <div class="stat-label">Current Shift</div>
             </div>
         </div>
         {% endif %}
@@ -605,7 +603,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Enhanced console logging for debugging
-console.log('🎯 Teams Roster - Dashboard Style View Loaded');
+console.log('🎯 On-Call Dashboard - View Loaded');
 console.log('📊 Total teams displayed:', document.querySelectorAll('.team-card').length);
 console.log('👥 Total members on duty:', document.querySelectorAll('.member-tile').length);
 </script>

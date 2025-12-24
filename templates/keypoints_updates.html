@@ -205,8 +205,10 @@
                                             <i class="bi bi-calendar-date me-1 text-success"></i>Created on
                                         </label>
                                         <div class="fw-normal text-muted">
-                                            {% if kp.shift %}
-                                                {{ kp.shift.date }}
+                                            {% if kp.created_at %}
+                                                {{ kp.created_at.strftime('%d-%m-%Y') }}
+                                            {% elif kp.shift %}
+                                                {{ kp.shift.date.strftime('%d-%m-%Y') if kp.shift.date else 'Unknown' }}
                                             {% else %}
                                                 <span class="text-muted">Unknown</span>
                                             {% endif %}
@@ -217,26 +219,12 @@
                                             <i class="bi bi-person me-1 text-info"></i>Created by
                                         </label>
                                         <div class="fw-normal text-muted">
-                                            {% if kp.shift and kp.shift.current_engineers and kp.shift.current_engineers|length > 0 %}
-                                                {% for engineer in kp.shift.current_engineers %}
-                                                    {{ engineer.name }}{% if not loop.last %}, {% endif %}
-                                                {% endfor %}
+                                            {% if kp.created_by %}
+                                                {{ kp.created_by.display_name or kp.created_by.username }}
+                                            {% elif kp.submitted_by_name %}
+                                                {{ kp.submitted_by_name }}
                                             {% else %}
                                                 <span class="text-muted">Unknown</span>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <label class="form-label fw-semibold mb-1">
-                                            <i class="bi bi-stopwatch me-1 text-warning"></i>Priority
-                                        </label>
-                                        <div class="fw-normal">
-                                            {% if kp.status in ['On Hold', 'Escalated'] %}
-                                                <span class="badge bg-danger">High</span>
-                                            {% elif kp.status in ['Pending with Another Team', 'Waiting for Approval'] %}
-                                                <span class="badge bg-warning">Medium</span>
-                                            {% else %}
-                                                <span class="badge bg-success">Normal</span>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -300,20 +288,13 @@
                             </h6>
                             <form method="post" action="{{ url_for('keypoints.add_keypoint_update', key_point_id=kp.id) }}">
                                 <div class="row align-items-end">
-                                    <div class="col-md-7">
+                                    <div class="col-md-10">
                                         <label for="update_text_{{ kp.id }}" class="form-label fw-semibold text-secondary">
                                             <i class="bi bi-chat-text me-1"></i>Update Details
                                         </label>
                                         <textarea name="update_text" id="update_text_{{ kp.id }}" 
                                                   class="form-control" rows="2" 
                                                   placeholder="Describe the progress, changes, blocking issues, or status update..." required></textarea>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label for="update_date_{{ kp.id }}" class="form-label fw-semibold text-secondary">
-                                            <i class="bi bi-calendar3 me-1"></i>Date
-                                        </label>
-                                        <input type="date" name="update_date" id="update_date_{{ kp.id }}" 
-                                               class="form-control" value="{{ date.today().strftime('%Y-%m-%d') }}">
                                     </div>
                                     <div class="col-md-2">
                                         <button type="submit" class="btn btn-success w-100">

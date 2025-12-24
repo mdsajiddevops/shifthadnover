@@ -359,6 +359,7 @@ class UserTeamMembership(db.Model):
 class TeamMember(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    employee_id = db.Column(db.String(32), nullable=True)  # Employee ID / UID for reports
     name = db.Column(db.String(64), nullable=False)
     email = db.Column(db.String(120), nullable=False)
     contact_number = db.Column(db.String(32), nullable=False)
@@ -469,6 +470,12 @@ class ShiftKeyPoint(db.Model):
     updates = db.relationship('ShiftKeyPointUpdate', backref='key_point', lazy=True)
     account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=True, default=db.func.current_timestamp())  # When key point was created
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Who created it
+    # Relationships
+    responsible_engineer = db.relationship('TeamMember', foreign_keys=[responsible_engineer_id], lazy='joined')
+    shift = db.relationship('Shift', backref='key_points_list', lazy='joined')  # Link to shift for date/engineer info
+    created_by = db.relationship('User', foreign_keys=[created_by_id], lazy='joined')  # Who created the key point
 
 # Daily updates for key points
 class ShiftKeyPointUpdate(db.Model):

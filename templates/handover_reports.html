@@ -1045,7 +1045,7 @@
                                             {% for kp in entry.key_points %}
                                             <tr>
                                                 <td>{{ kp.description }}</td>
-                                                <td class="text-muted small">{{ kp.responsible_engineer.name if kp.responsible_engineer else '-' }}</td>
+                                                <td class="text-muted small">{{ kp.responsible if kp.responsible and kp.responsible != 'N/A' else '-' }}</td>
                                                 <td>
                                                     <span class="table-status-badge {{ 'closed' if kp.status == 'Closed' else 'in-progress' if kp.status == 'In Progress' else 'open' }}">
                                                         {{ kp.status or 'Open' }}

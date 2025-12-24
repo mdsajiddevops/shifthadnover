@@ -1368,14 +1368,21 @@ def edit_handover(shift_id):
                         break
                 
                 # Get responsible engineer ID
+                print(f"🔧 DEBUG [EDIT MODE] assigned_to value: '{assigned_to}' (type: {type(assigned_to)})")
                 responsible_engineer_id = None
                 if assigned_to:
-                    if assigned_to.isdigit():
+                    if str(assigned_to).isdigit():
                         responsible_engineer_id = int(assigned_to)
+                        print(f"🔧 DEBUG [EDIT MODE]: Converted assigned_to to integer: {responsible_engineer_id}")
                     else:
                         user = TeamMember.query.filter_by(name=assigned_to).first()
                         if user:
                             responsible_engineer_id = user.id
+                            print(f"🔧 DEBUG [EDIT MODE]: Found user by name '{assigned_to}' -> ID: {responsible_engineer_id}")
+                        else:
+                            print(f"🔧 DEBUG [EDIT MODE]: Could not find user by name '{assigned_to}'")
+                else:
+                    print(f"🔧 DEBUG [EDIT MODE]: assigned_to is empty/None, no assignment")
                 
                 if existing_kp:
                     # Update existing key point
@@ -1393,10 +1400,11 @@ def edit_handover(shift_id):
                         shift_id=shift.id,
                         jira_id=None,  # JIRA ID removed to prevent duplicates
                         account_id=shift.account_id,
-                        team_id=shift.team_id
+                        team_id=shift.team_id,
+                        created_by_id=current_user.id  # Track who created the key point
                     )
                     db.session.add(new_kp)
-                    print(f"🔧 Created new key point for shift {shift.id}")
+                    print(f"🔧 Created new key point for shift {shift.id} by user {current_user.id}")
         
         # Remove key points that weren't updated (they were deleted from form)
         keypoints_to_delete = [kp for kp in existing_keypoints if kp.id not in updated_keypoint_ids]
@@ -2588,14 +2596,18 @@ def handover():
         
         print(f"Found {len(kb_app_names)} KB update entries to process")
         for i in range(len(kb_app_names)):
-            if i < len(kb_numbers) and kb_numbers[i].strip():
-                app_name = kb_app_names[i] if i < len(kb_app_names) else ''
-                kb_number = kb_numbers[i] if i < len(kb_numbers) else ''
-                description = kb_descriptions[i] if i < len(kb_descriptions) else ''
+            # 🔧 FIX: Allow KB updates even without KB number - check if any field has content
+            app_name = kb_app_names[i].strip() if i < len(kb_app_names) else ''
+            kb_number = kb_numbers[i].strip() if i < len(kb_numbers) else ''
+            kb_desc = kb_descriptions[i].strip() if i < len(kb_descriptions) else ''
+            
+            # Save if app_name OR kb_number OR description is provided
+            if app_name or kb_number or kb_desc:
+                description = kb_desc
                 person_id = kb_persons[i] if i < len(kb_persons) else ''
-                status = kb_statuses[i] if i < len(kb_statuses) else 'New'
+                status = kb_statuses[i].strip() if i < len(kb_statuses) and kb_statuses[i] else 'New'
                 
-                print(f"Creating KB Update {i+1}: {app_name} - {kb_number}")
+                print(f"Creating KB Update {i+1}: {app_name} - {kb_number} - {description[:30]}...")
                 
                 # Convert person_id to integer
                 responsible_person_id = None
@@ -2636,11 +2648,16 @@ def handover():
             keypoint_statuses = request.form.getlist('keypoint_status[]')
             keypoint_jira_ids = request.form.getlist('keypoint_jira_id[]')
         
-        print(f"Key point form data:")
+        print(f"🚨🚨🚨 KEY POINT FORM DATA DEBUG 🚨🚨🚨")
+        print(f"  Total descriptions: {len(key_point_descriptions)}")
+        print(f"  Total assigned_to: {len(keypoint_assigned_to)}")
         print(f"  Descriptions: {key_point_descriptions}")
-        print(f"  Assigned to: {keypoint_assigned_to}")
+        print(f"  Assigned to (RAW): {keypoint_assigned_to}")
+        for idx, assigned in enumerate(keypoint_assigned_to):
+            print(f"    assigned_to[{idx}] = '{assigned}' (type: {type(assigned)}, len: {len(assigned) if assigned else 0})")
         print(f"  Statuses: {keypoint_statuses}")
         print(f"  JIRA IDs: {keypoint_jira_ids}")
+        print(f"🚨🚨🚨 END KEY POINT FORM DATA 🚨🚨🚨")
         
         print(f"🔍 DUPLICATION PREVENTION: Processing {len(key_point_descriptions)} key points from form")
         for i in range(len(key_point_descriptions)):
@@ -2748,6 +2765,8 @@ def handover():
                 else:
                     jira_filter = ShiftKeyPoint.jira_id == normalized_jira_id
                 
+                # 🔧 FIX: Always create a new key point for each handover, even if carried forward
+                # This ensures each handover report shows exactly what was submitted
                 existing_kp_other_shift = ShiftKeyPoint.query.filter(
                     ShiftKeyPoint.description == description,
                     jira_filter,
@@ -2758,42 +2777,36 @@ def handover():
                 ).order_by(ShiftKeyPoint.id.desc()).first()  # Get the most recent one
                 
                 if existing_kp_other_shift:
-                    # Found existing open/in-progress key point from another shift - UPDATE IT instead of creating duplicate
-                    print(f"🔄 UPDATING EXISTING KEY POINT from shift {existing_kp_other_shift.shift_id}: '{description[:50]}...' (ID: {existing_kp_other_shift.id})")
+                    # Found existing open/in-progress key point from another shift
+                    # 🔧 NEW BEHAVIOR: Create a copy for this shift instead of updating the old one
+                    # This ensures each handover report shows exactly what was submitted
+                    print(f"📋 CARRYFORWARD KEY POINT from shift {existing_kp_other_shift.shift_id}: '{description[:50]}...' (ID: {existing_kp_other_shift.id})")
                     
-                    # Update the existing key point instead of creating a new one
-                    if existing_kp_other_shift.status != status:
-                        print(f"🔄 UPDATING STATUS: {existing_kp_other_shift.status} → {status}")
-                        existing_kp_other_shift.status = status
-                        
-                    # Update assignment if changed
-                    new_responsible_id = None
-                    if responsible_id:
-                        if responsible_id.isdigit():
-                            new_responsible_id = int(responsible_id)
-                        else:
-                            user = TeamMember.query.filter_by(name=responsible_id).first()
-                            if user:
-                                new_responsible_id = user.id
+                    # If status is being changed to Closed, also close the original
+                    if status == 'Closed' and existing_kp_other_shift.status != 'Closed':
+                        print(f"🔒 Also closing original key point ID {existing_kp_other_shift.id}")
+                        existing_kp_other_shift.status = 'Closed'
+                        db.session.add(existing_kp_other_shift)
                     
-                    if existing_kp_other_shift.responsible_engineer_id != new_responsible_id:
-                        print(f"🔄 UPDATING ASSIGNMENT: {existing_kp_other_shift.responsible_engineer_id} → {new_responsible_id}")
-                        existing_kp_other_shift.responsible_engineer_id = new_responsible_id
-                        
-                    db.session.add(existing_kp_other_shift)
-                    print(f"🔄 REUSED existing key point ID {existing_kp_other_shift.id} - no duplicate created")
-                    continue  # Skip to next key point without creating duplicate
+                    # Create a new copy for this shift - DON'T skip, fall through to create new
                 
                 # No existing key point found, create a new one
                 print(f"🆕 CREATING NEW KEY POINT: '{description[:50]}...' with status '{status}'")
+                print(f"🔧 DEBUG responsible_id value: '{responsible_id}' (type: {type(responsible_id)})")
                 responsible_engineer_id = None
                 if responsible_id:
-                    if responsible_id.isdigit():
+                    if str(responsible_id).isdigit():
                         responsible_engineer_id = int(responsible_id)
+                        print(f"🔧 DEBUG: Converted responsible_id to integer: {responsible_engineer_id}")
                     else:
                         user = TeamMember.query.filter_by(name=responsible_id).first()
                         if user:
                             responsible_engineer_id = user.id
+                            print(f"🔧 DEBUG: Found user by name '{responsible_id}' -> ID: {responsible_engineer_id}")
+                        else:
+                            print(f"🔧 DEBUG: Could not find user by name '{responsible_id}'")
+                else:
+                    print(f"🔧 DEBUG: responsible_id is empty/None, no assignment")
                 
                 # 🔧 AUTOFLUSH FIX: Use no_autoflush context to prevent premature session flush
                 # 🛡️ BULLETPROOF SAFETY: Use the shift object that was already created by main function
@@ -2809,10 +2822,11 @@ def handover():
                         shift_id=shift_id_to_use,
                         jira_id=normalized_jira_id,
                         account_id=account_id,
-                        team_id=team_id
+                        team_id=team_id,
+                        created_by_id=current_user.id  # Track who created the key point
                     )
                     db.session.add(new_kp)
-                    print(f"🆕 SUCCESSFULLY CREATED NEW KEY POINT: ID will be assigned after commit, shift_id={shift_id_to_use}")
+                    print(f"🆕 SUCCESSFULLY CREATED NEW KEY POINT: ID will be assigned after commit, shift_id={shift_id_to_use}, created_by={current_user.id}")
                     # Defer audit logging until after commit to avoid autoflush issues
                     
                 except Exception as shift_error:
@@ -2829,10 +2843,11 @@ def handover():
                                 shift_id=latest_shift.id,
                                 jira_id=normalized_jira_id,
                                 account_id=account_id,
-                                team_id=team_id
+                                team_id=team_id,
+                                created_by_id=current_user.id  # Track who created the key point
                             )
                             db.session.add(new_kp)
-                            print(f"[EMERGENCY] Created key point with fallback shift {latest_shift.id}")
+                            print(f"[EMERGENCY] Created key point with fallback shift {latest_shift.id}, created_by={current_user.id}")
                     else:
                         print(f"[EMERGENCY] No shifts available at all! Skipping key point creation.")
                         continue
@@ -3146,15 +3161,16 @@ def handover():
     if recent_shift_ids_for_changes:
         current_datetime = datetime.now()
         
+        # 🔧 FIX: Show all pending/in-progress changes (not just future ones)
+        # User might want to carry forward changes that are still being tracked
         raw_change_infos = ShiftChangeInfo.query.filter(
             ShiftChangeInfo.account_id == current_user.account_id,
             ShiftChangeInfo.team_id == query_team_id,
             ShiftChangeInfo.shift_id.in_(recent_shift_ids_for_changes),
-            ShiftChangeInfo.change_datetime > current_datetime,  # Only future changes
-            ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled'])  # Exclude completed/cancelled changes
+            ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])  # Exclude completed/cancelled/implemented
         ).order_by(ShiftChangeInfo.id.desc()).all()
         
-        print(f"[DEBUG] Found {len(raw_change_infos)} future change requests with active status (not Completed/Cancelled)")
+        print(f"[DEBUG] Found {len(raw_change_infos)} pending/in-progress change requests to carry forward")
         
         # Debug each change before deduplication
         for i, change in enumerate(raw_change_infos):
@@ -3224,10 +3240,16 @@ def handover():
         for i, kb in enumerate(raw_kb_updates):
             print(f"[DEBUG]   KB {i+1}: {kb.kb_number} - {kb.app_name} (Status: {kb.status})")
         
-        # Deduplicate by kb_number - keep most recent version of each unique KB
+        # Deduplicate by kb_number OR app_name+description - keep most recent version
+        # 🔧 FIX: Allow KB updates without kb_number to be carried forward
         kb_map = {}
         for kb in raw_kb_updates:
-            kb_key = kb.kb_number.strip().lower() if kb.kb_number else ''
+            # Use kb_number if available, otherwise use app_name + description hash
+            if kb.kb_number and kb.kb_number.strip():
+                kb_key = kb.kb_number.strip().lower()
+            else:
+                kb_key = f"{kb.app_name or ''}_{(kb.description or '')[:50]}".strip().lower()
+            
             if kb_key and (kb_key not in kb_map or kb.id > kb_map[kb_key].id):
                 kb_map[kb_key] = kb
                 print(f"[DEBUG]     Added/Updated KB {kb_key}: ID {kb.id}")

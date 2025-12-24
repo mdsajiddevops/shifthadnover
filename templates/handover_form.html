@@ -786,7 +786,7 @@
                                             <select class="form-select keypoint-team-member-dropdown" name="keypoint_assigned_to[]">
                                                 <option value="">Select Team Member</option>
                                                 {% for member in team_members %}
-                                                <option value="{{ member.name }}">{{ member.name }}</option>
+                                                <option value="{{ member.id }}">{{ member.name }}</option>
                                                 {% endfor %}
                                             </select>
                                         </div>
@@ -1430,6 +1430,7 @@ function updateKeypointTeamMembersDropdowns() {
     
     // If template data exists, don't override it unless we get fresh API data
     if (hasTemplateData) {
+        console.log('🔧 Keypoint dropdowns already have template data, skipping API refresh');
         return;
     }
     
@@ -1437,8 +1438,9 @@ function updateKeypointTeamMembersDropdowns() {
         .then(response => response.json())
         .then(data => {
             teamMemberSelects.forEach(select => {
-                // Store current value
-                const currentValue = select.value;
+                // Store current value as string for comparison
+                const currentValue = String(select.value);
+                console.log(`🔧 Updating keypoint dropdown, current value: '${currentValue}'`);
                 
                 // Clear and populate options
                 select.innerHTML = '<option value="">Select Team Member</option>';
@@ -1446,14 +1448,21 @@ function updateKeypointTeamMembersDropdowns() {
                 if (data.team_members && data.team_members.length > 0) {
                     data.team_members.forEach(member => {
                         const option = document.createElement('option');
-                        option.value = member.id || member.name; // Use ID if available, fallback to name
+                        // Always use member.id as string for consistency
+                        option.value = String(member.id);
                         option.textContent = member.name;
                         select.appendChild(option);
                     });
                     
-                    // Restore previous selection if it still exists
-                    if (currentValue && data.team_members.some(member => (member.id || member.name) === currentValue)) {
-                        select.value = currentValue;
+                    // Restore previous selection if it still exists (compare as strings)
+                    if (currentValue && currentValue !== '') {
+                        const matchFound = data.team_members.some(member => String(member.id) === currentValue);
+                        if (matchFound) {
+                            select.value = currentValue;
+                            console.log(`🔧 Restored selection: ${currentValue}`);
+                        } else {
+                            console.log(`🔧 Previous selection ${currentValue} not found in new options`);
+                        }
                     }
                 } else {
                     const option = document.createElement('option');
@@ -2041,18 +2050,22 @@ function addKeyPoint() {
     // Populate team member dropdowns for the newly added keypoint
     const newDropdown = container.lastElementChild.querySelector('.keypoint-team-member-dropdown');
     if (newDropdown) {
+        console.log('🔧 Populating dropdown for new keypoint...');
         fetch('/api/get_all_team_members')
             .then(response => response.json())
             .then(data => {
                 newDropdown.innerHTML = '<option value="">Select Team Member</option>';
                 
                 if (data.team_members && data.team_members.length > 0) {
+                    console.log(`🔧 Adding ${data.team_members.length} team members to dropdown`);
                     data.team_members.forEach(member => {
                         const option = document.createElement('option');
-                        option.value = member.id;
+                        option.value = String(member.id); // Ensure ID is string
                         option.textContent = member.name;
                         newDropdown.appendChild(option);
                     });
+                } else {
+                    console.log('🔧 No team members returned from API');
                 }
             })
             .catch(error => {

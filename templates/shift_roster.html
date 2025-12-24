@@ -444,6 +444,79 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.12);
 }
 
+/* Editable shift cells for admins */
+.shift-cell.editable {
+    cursor: pointer;
+    position: relative;
+}
+
+.shift-cell.editable:hover {
+    transform: scale(1.12);
+    box-shadow: 0 3px 12px rgba(0,0,0,0.2);
+}
+
+.shift-cell.editable::after {
+    content: '✎';
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    font-size: 0.6rem;
+    background: #3498db;
+    color: white;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.shift-cell.editable:hover::after {
+    display: flex;
+}
+
+/* Shift selector dropdown */
+.shift-selector {
+    display: none;
+    position: absolute;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+    padding: 0.5rem;
+    z-index: 1000;
+    min-width: 180px;
+}
+
+.shift-selector.show {
+    display: block;
+}
+
+.shift-option {
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background 0.2s;
+    font-size: 0.85rem;
+}
+
+.shift-option:hover {
+    background: #f0f0f0;
+}
+
+.shift-option .shift-preview {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
 .shift-D {
     background: #fff8e1;
     color: #e65100;
@@ -619,6 +692,16 @@
             </div>
         </div>
     </div>
+
+    <!-- Admin Actions -->
+    {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
+    <div class="d-flex justify-content-end mb-3">
+        <button type="button" class="btn btn-success btn-lg" onclick="showShiftAllowanceModal()" 
+                style="border-radius: 12px; padding: 0.75rem 1.5rem; font-weight: 600; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.35); background: linear-gradient(135deg, #28a745 0%, #20c997 100%); border: none;">
+            <i class="bi bi-file-earmark-excel me-2"></i>Shift Allowance Report
+        </button>
+    </div>
+    {% endif %}
 
     <!-- Admin Filter Section -->
     {% if current_user.role in ['super_admin', 'account_admin'] %}
@@ -922,7 +1005,7 @@
                     </thead>
                     <tbody>
                         {% for member in all_members %}
-                        <tr>
+                        <tr data-member-id="{{ member.id }}">
                             <td>
                                 <div class="member-info">
                                     <div class="member-avatar avatar-{{ loop.index % 8 + 1 }}">
@@ -934,8 +1017,13 @@
                             {% for date in all_dates %}
                                 {% set shift_code = roster_data[member.name][date] %}
                                 <td>
-                                    <div class="shift-cell shift-{{ shift_code or 'empty' }}" 
-                                         title="{% if shift_code %}{{ shift_code }} Shift{% else %}Off Duty{% endif %} - {{ date }}">
+                                    <div class="shift-cell shift-{{ shift_code or 'empty' }} {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}editable{% endif %}" 
+                                         data-member-id="{{ member.id }}"
+                                         data-member-name="{{ member.name }}"
+                                         data-date="{{ date }}"
+                                         data-shift="{{ shift_code or '' }}"
+                                         {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}onclick="openShiftEditor(this)"{% endif %}
+                                         title="{% if shift_code %}{{ shift_code }} Shift{% else %}Off Duty{% endif %} - {{ date }}{% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %} (Click to edit){% endif %}">
                                         {% if shift_code %}
                                             {{ shift_code }}
                                         {% else %}
@@ -995,8 +1083,726 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// ========================================
+// ROSTER EDIT FUNCTIONS (Admin Only)
+// ========================================
+
+// Available shift codes with display info
+const SHIFT_CODES = [
+    { code: 'D', name: 'Day Shift', class: 'shift-D', icon: '☀️' },
+    { code: 'E', name: 'Evening Shift', class: 'shift-E', icon: '🌅' },
+    { code: 'N', name: 'Night Shift', class: 'shift-N', icon: '🌙' },
+    { code: 'LE', name: 'Late Evening', class: 'shift-LE', icon: '🌃' },
+    { code: 'G', name: 'General/Flex', class: 'shift-G', icon: '⏰' },
+    { code: 'VL', name: 'Vacation Leave', class: 'shift-VL', icon: '🏖️' },
+    { code: 'HL', name: 'Holiday Leave', class: 'shift-HL', icon: '🎉' },
+    { code: 'CO', name: 'Comp Off', class: 'shift-CO', icon: '💤' },
+    { code: 'SL', name: 'Sick Leave', class: 'shift-SL', icon: '🤒' },
+    { code: 'OS', name: 'OnShore', class: 'shift-OS', icon: '🏢' },
+    { code: 'OF', name: 'OffShore', class: 'shift-OF', icon: '🌊' },
+    { code: '', name: 'Off Duty (Clear)', class: 'shift-empty', icon: '–' }
+];
+
+let currentEditCell = null;
+
+function openShiftEditor(cell) {
+    // Store reference to current cell
+    currentEditCell = cell;
+    
+    const memberId = cell.dataset.memberId;
+    const memberName = cell.dataset.memberName;
+    const dateStr = cell.dataset.date;
+    const currentShift = cell.dataset.shift;
+    
+    // Format date for display
+    const dateObj = new Date(dateStr);
+    const options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
+    const formattedDate = dateObj.toLocaleDateString('en-US', options);
+    
+    // Update modal content
+    document.getElementById('editMemberName').textContent = memberName;
+    document.getElementById('editDate').textContent = formattedDate;
+    document.getElementById('editMemberId').value = memberId;
+    document.getElementById('editDateValue').value = dateStr;
+    document.getElementById('editCurrentShift').textContent = currentShift || 'None';
+    
+    // Highlight current selection in shift buttons
+    document.querySelectorAll('.shift-btn').forEach(btn => {
+        btn.classList.remove('active', 'btn-primary');
+        btn.classList.add('btn-outline-secondary');
+        if (btn.dataset.shift === currentShift) {
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('active', 'btn-primary');
+        }
+    });
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('shiftEditModal'));
+    modal.show();
+}
+
+function selectShift(shiftCode) {
+    // Update button states
+    document.querySelectorAll('.shift-btn').forEach(btn => {
+        btn.classList.remove('active', 'btn-primary');
+        btn.classList.add('btn-outline-secondary');
+        if (btn.dataset.shift === shiftCode) {
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('active', 'btn-primary');
+        }
+    });
+}
+
+function saveShiftChange() {
+    const memberId = document.getElementById('editMemberId').value;
+    const dateStr = document.getElementById('editDateValue').value;
+    
+    // Get selected shift from active button
+    const activeBtn = document.querySelector('.shift-btn.active');
+    const shiftCode = activeBtn ? activeBtn.dataset.shift : '';
+    
+    // Show loading state
+    const saveBtn = document.getElementById('saveShiftBtn');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+    saveBtn.disabled = true;
+    
+    // Send update request
+    fetch('/api/roster/update', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            member_id: parseInt(memberId),
+            date: dateStr,
+            shift_code: shiftCode
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update the cell in the UI
+            updateCellDisplay(currentEditCell, shiftCode);
+            
+            // Close modal
+            bootstrap.Modal.getInstance(document.getElementById('shiftEditModal')).hide();
+            
+            // Show success toast
+            showToast('Shift updated successfully', 'success');
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to update shift. Please try again.');
+    })
+    .finally(() => {
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+    });
+}
+
+function updateCellDisplay(cell, shiftCode) {
+    // Remove old shift classes
+    cell.className = cell.className.replace(/shift-\S+/g, '');
+    
+    // Add new classes
+    if (shiftCode) {
+        cell.classList.add('shift-cell', 'editable', `shift-${shiftCode}`);
+        cell.textContent = shiftCode;
+    } else {
+        cell.classList.add('shift-cell', 'editable', 'shift-empty');
+        cell.textContent = '–';
+    }
+    
+    // Update data attribute
+    cell.dataset.shift = shiftCode;
+    
+    // Update title
+    const shiftInfo = SHIFT_CODES.find(s => s.code === shiftCode);
+    const shiftName = shiftInfo ? shiftInfo.name : 'Off Duty';
+    cell.title = `${shiftName} - ${cell.dataset.date} (Click to edit)`;
+}
+
+function showToast(message, type) {
+    // Create toast container if it doesn't exist
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        container.style.zIndex = '1100';
+        document.body.appendChild(container);
+    }
+    
+    const toastId = 'toast-' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : (type === 'error' ? 'bg-danger' : 'bg-info');
+    
+    const toastHtml = `
+        <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="bi ${type === 'success' ? 'bi-check-circle' : 'bi-info-circle'} me-2"></i>
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+    
+    container.insertAdjacentHTML('beforeend', toastHtml);
+    const toast = new bootstrap.Toast(document.getElementById(toastId), { delay: 3000 });
+    toast.show();
+    
+    document.getElementById(toastId).addEventListener('hidden.bs.toast', function() {
+        this.remove();
+    });
+}
+
+// Quick shift change via keyboard when modal is open
+document.addEventListener('keydown', function(e) {
+    const modal = document.getElementById('shiftEditModal');
+    if (!modal || !modal.classList.contains('show')) return;
+    
+    const key = e.key.toUpperCase();
+    const shiftMap = {
+        'D': 'D', 'E': 'E', 'N': 'N', 'G': 'G', 'O': 'O',
+        'L': 'LE', 'V': 'VL', 'H': 'HL', 'C': 'CO',
+        'ESCAPE': '', 'BACKSPACE': '', 'DELETE': ''
+    };
+    
+    if (shiftMap.hasOwnProperty(key)) {
+        selectShift(shiftMap[key]);
+    }
+    
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        saveShiftChange();
+    }
+});
+
+// ========================================
+// SHIFT ALLOWANCE REPORT FUNCTIONS
+// ========================================
+
+function showShiftAllowanceModal() {
+    const modal = new bootstrap.Modal(document.getElementById('shiftAllowanceModal'));
+    
+    // Pre-select current month/year
+    const now = new Date();
+    document.getElementById('allowanceMonth').value = now.getMonth() + 1;
+    document.getElementById('allowanceYear').value = now.getFullYear();
+    
+    // Pre-select current account/team if available
+    const accountSelect = document.getElementById('account_id');
+    const teamSelect = document.getElementById('team_id');
+    
+    if (accountSelect && accountSelect.value) {
+        document.getElementById('allowanceAccount').value = accountSelect.value;
+        loadAllowanceTeams(accountSelect.value);
+    }
+    
+    if (teamSelect && teamSelect.value) {
+        setTimeout(() => {
+            document.getElementById('allowanceTeam').value = teamSelect.value;
+        }, 500);
+    }
+    
+    modal.show();
+}
+
+function loadAllowanceTeams(accountId) {
+    const teamSelect = document.getElementById('allowanceTeam');
+    
+    // Hide member selection when account changes
+    document.getElementById('memberSelectionSection').style.display = 'none';
+    
+    if (!accountId) {
+        teamSelect.innerHTML = '<option value="">-- Select Team --</option>';
+        return;
+    }
+    
+    teamSelect.innerHTML = '<option value="">Loading teams...</option>';
+    teamSelect.disabled = true;
+    
+    fetch('/get_teams?account_id=' + accountId)
+        .then(response => response.json())
+        .then(data => {
+            teamSelect.innerHTML = '<option value="">-- Select Team --</option>';
+            data.teams.forEach(team => {
+                teamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
+            });
+        })
+        .catch(error => {
+            console.error('Error loading teams:', error);
+            teamSelect.innerHTML = '<option value="">Error loading teams</option>';
+        })
+        .finally(() => {
+            teamSelect.disabled = false;
+        });
+}
+
+function loadTeamMembersForAllowance() {
+    const teamId = document.getElementById('allowanceTeam').value;
+    const accountId = document.getElementById('allowanceAccount')?.value || '';
+    const memberSection = document.getElementById('memberSelectionSection');
+    const rdContainer = document.getElementById('rdMembersContainer');
+    const exceptionContainer = document.getElementById('exceptionMembersContainer');
+    
+    if (!teamId) {
+        memberSection.style.display = 'none';
+        return;
+    }
+    
+    // Show loading state
+    rdContainer.innerHTML = '<small class="text-muted">Loading members...</small>';
+    exceptionContainer.innerHTML = '<small class="text-muted">Loading members...</small>';
+    memberSection.style.display = 'block';
+    
+    // Fetch team members
+    let url = `/api/roster/team-members?team_id=${teamId}`;
+    if (accountId) {
+        url += `&account_id=${accountId}`;
+    }
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.members.length > 0) {
+                // Build RD checkboxes
+                rdContainer.innerHTML = data.members.map(member => `
+                    <div class="form-check">
+                        <input class="form-check-input rd-checkbox" type="checkbox" 
+                               value="${member.id}" id="rd_${member.id}" 
+                               data-name="${member.name}">
+                        <label class="form-check-label" for="rd_${member.id}">
+                            ${member.name} ${member.employee_id ? '(' + member.employee_id + ')' : ''}
+                        </label>
+                    </div>
+                `).join('');
+                
+                // Build Exception checkboxes
+                exceptionContainer.innerHTML = data.members.map(member => `
+                    <div class="form-check">
+                        <input class="form-check-input exception-checkbox" type="checkbox" 
+                               value="${member.id}" id="exc_${member.id}"
+                               data-name="${member.name}">
+                        <label class="form-check-label" for="exc_${member.id}">
+                            ${member.name} ${member.employee_id ? '(' + member.employee_id + ')' : ''}
+                        </label>
+                    </div>
+                `).join('');
+                
+                // Add select all / deselect all buttons
+                rdContainer.innerHTML = `
+                    <div class="mb-2 d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="toggleAllCheckboxes('rd', true)">Select All</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAllCheckboxes('rd', false)">Clear All</button>
+                    </div>
+                ` + rdContainer.innerHTML;
+                
+                exceptionContainer.innerHTML = `
+                    <div class="mb-2 d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="toggleAllCheckboxes('exception', true)">Select All</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAllCheckboxes('exception', false)">Clear All</button>
+                    </div>
+                ` + exceptionContainer.innerHTML;
+                
+            } else {
+                rdContainer.innerHTML = '<small class="text-muted">No members found</small>';
+                exceptionContainer.innerHTML = '<small class="text-muted">No members found</small>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading members:', error);
+            rdContainer.innerHTML = '<small class="text-danger">Error loading members</small>';
+            exceptionContainer.innerHTML = '<small class="text-danger">Error loading members</small>';
+        });
+}
+
+function toggleAllCheckboxes(type, checked) {
+    const className = type === 'rd' ? 'rd-checkbox' : 'exception-checkbox';
+    document.querySelectorAll('.' + className).forEach(cb => {
+        cb.checked = checked;
+    });
+}
+
+function getSelectedMemberIds(type) {
+    const className = type === 'rd' ? 'rd-checkbox' : 'exception-checkbox';
+    const selected = [];
+    document.querySelectorAll('.' + className + ':checked').forEach(cb => {
+        selected.push(parseInt(cb.value));
+    });
+    return selected;
+}
+
+function getSelectedMemberNames(type) {
+    const className = type === 'rd' ? 'rd-checkbox' : 'exception-checkbox';
+    const selected = [];
+    document.querySelectorAll('.' + className + ':checked').forEach(cb => {
+        selected.push(cb.dataset.name);
+    });
+    return selected;
+}
+
+function downloadShiftAllowance() {
+    const month = document.getElementById('allowanceMonth').value;
+    const year = document.getElementById('allowanceYear').value;
+    const accountId = document.getElementById('allowanceAccount')?.value || '';
+    const teamId = document.getElementById('allowanceTeam').value;
+    
+    if (!month || !year) {
+        alert('Please select month and year');
+        return;
+    }
+    
+    if (!teamId) {
+        alert('Please select a team');
+        return;
+    }
+    
+    // Get selected RDs and exceptions
+    const rdMemberIds = getSelectedMemberIds('rd');
+    const exceptionMemberIds = getSelectedMemberIds('exception');
+    const rdMemberNames = getSelectedMemberNames('rd');
+    
+    // Show loading state
+    const btn = document.getElementById('downloadAllowanceBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
+    btn.disabled = true;
+    
+    // Send POST request with member selections
+    fetch('/api/shift-allowance/download', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            month: parseInt(month),
+            year: parseInt(year),
+            account_id: accountId ? parseInt(accountId) : null,
+            team_id: parseInt(teamId),
+            rd_member_ids: rdMemberIds,
+            rd_member_names: rdMemberNames,
+            exception_member_ids: exceptionMemberIds
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Failed to generate report');
+            });
+        }
+        return response.blob();
+    })
+    .then(blob => {
+        // Create download link
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        
+        // Get filename from content-disposition or generate one
+        const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 
+                           'July', 'August', 'September', 'October', 'November', 'December'];
+        a.download = `Shift_Allowance_${monthNames[parseInt(month)]}_${year}.xlsx`;
+        
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(downloadUrl);
+        
+        // Close modal
+        bootstrap.Modal.getInstance(document.getElementById('shiftAllowanceModal')).hide();
+    })
+    .catch(error => {
+        console.error('Error downloading report:', error);
+        alert('Error: ' + error.message);
+    })
+    .finally(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    });
+}
 </script>
+
+<!-- Shift Edit Modal (Admin Only) -->
+{% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
+<div class="modal fade" id="shiftEditModal" tabindex="-1" aria-labelledby="shiftEditModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border: none; border-radius: 16px; overflow: hidden;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; border: none;">
+                <h5 class="modal-title" id="shiftEditModalLabel">
+                    <i class="bi bi-pencil-square me-2"></i>Edit Shift
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- Hidden fields -->
+                <input type="hidden" id="editMemberId">
+                <input type="hidden" id="editDateValue">
+                
+                <!-- Member & Date Info -->
+                <div class="mb-4 p-3" style="background: #f8f9fa; border-radius: 10px;">
+                    <div class="row">
+                        <div class="col-6">
+                            <small class="text-muted d-block">Team Member</small>
+                            <strong id="editMemberName" class="fs-6">-</strong>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Date</small>
+                            <strong id="editDate" class="fs-6">-</strong>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">Current Shift: </small>
+                        <span id="editCurrentShift" class="badge bg-secondary">None</span>
+                    </div>
+                </div>
+                
+                <!-- Shift Selection -->
+                <label class="form-label fw-semibold mb-3">
+                    <i class="bi bi-calendar-check me-1"></i>Select New Shift
+                </label>
+                
+                <!-- Work Shifts -->
+                <div class="mb-3">
+                    <small class="text-muted d-block mb-2">Work Shifts</small>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-outline-secondary shift-btn" data-shift="D" onclick="selectShift('D')" style="min-width: 90px;">
+                            <span class="d-block" style="font-size: 1.2rem;">☀️</span>
+                            <span class="small">Day (D)</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary shift-btn" data-shift="E" onclick="selectShift('E')" style="min-width: 90px;">
+                            <span class="d-block" style="font-size: 1.2rem;">🌅</span>
+                            <span class="small">Evening (E)</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary shift-btn" data-shift="N" onclick="selectShift('N')" style="min-width: 90px;">
+                            <span class="d-block" style="font-size: 1.2rem;">🌙</span>
+                            <span class="small">Night (N)</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary shift-btn" data-shift="LE" onclick="selectShift('LE')" style="min-width: 90px;">
+                            <span class="d-block" style="font-size: 1.2rem;">🌃</span>
+                            <span class="small">Late Eve (LE)</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary shift-btn" data-shift="G" onclick="selectShift('G')" style="min-width: 90px;">
+                            <span class="d-block" style="font-size: 1.2rem;">⏰</span>
+                            <span class="small">General (G)</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Location Shifts -->
+                <div class="mb-3">
+                    <small class="text-muted d-block mb-2">Location</small>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-outline-secondary shift-btn" data-shift="OS" onclick="selectShift('OS')" style="min-width: 90px;">
+                            <span class="d-block" style="font-size: 1.2rem;">🏢</span>
+                            <span class="small">OnShore (OS)</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary shift-btn" data-shift="OF" onclick="selectShift('OF')" style="min-width: 90px;">
+                            <span class="d-block" style="font-size: 1.2rem;">🌊</span>
+                            <span class="small">OffShore (OF)</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Leave Types -->
+                <div class="mb-3">
+                    <small class="text-muted d-block mb-2">Leave Types</small>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-outline-secondary shift-btn" data-shift="VL" onclick="selectShift('VL')" style="min-width: 90px;">
+                            <span class="d-block" style="font-size: 1.2rem;">🏖️</span>
+                            <span class="small">Vacation (VL)</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary shift-btn" data-shift="HL" onclick="selectShift('HL')" style="min-width: 90px;">
+                            <span class="d-block" style="font-size: 1.2rem;">🎉</span>
+                            <span class="small">Holiday (HL)</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary shift-btn" data-shift="CO" onclick="selectShift('CO')" style="min-width: 90px;">
+                            <span class="d-block" style="font-size: 1.2rem;">💤</span>
+                            <span class="small">Comp Off (CO)</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary shift-btn" data-shift="SL" onclick="selectShift('SL')" style="min-width: 90px;">
+                            <span class="d-block" style="font-size: 1.2rem;">🤒</span>
+                            <span class="small">Sick (SL)</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Off Day / Clear Shift -->
+                <div class="mb-0">
+                    <small class="text-muted d-block mb-2">Off Day / Clear</small>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-outline-secondary shift-btn" data-shift="O" onclick="selectShift('O')" style="min-width: 90px;">
+                            <span class="d-block" style="font-size: 1.2rem;">🔘</span>
+                            <span class="small">Off (O)</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-danger shift-btn" data-shift="" onclick="selectShift('')" style="min-width: 120px;">
+                            <span class="d-block" style="font-size: 1.2rem;">❌</span>
+                            <span class="small">Clear Entry</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Keyboard Shortcuts Info -->
+                <div class="mt-4 pt-3 border-top">
+                    <small class="text-muted">
+                        <i class="bi bi-keyboard me-1"></i>
+                        <strong>Keyboard shortcuts:</strong> D, E, N, G, O for shifts • Enter to save • Esc to clear
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius: 8px;">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="saveShiftBtn" onclick="saveShiftChange()" style="border-radius: 8px;">
+                    <i class="bi bi-check-lg me-1"></i>Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Shift Allowance Modal -->
+{% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
+<div class="modal fade" id="shiftAllowanceModal" tabindex="-1" aria-labelledby="shiftAllowanceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border: none; border-radius: 16px; overflow: hidden;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border: none;">
+                <h5 class="modal-title" id="shiftAllowanceModalLabel">
+                    <i class="bi bi-file-earmark-excel me-2"></i>Generate Shift Allowance Report
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="text-muted mb-3">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Generate an Excel report with shift allowance data. 
+                    The report includes two sheets: <strong>SC RD's</strong> and <strong>SC Team</strong>.
+                </p>
+                
+                <div class="row g-3">
+                    {% if current_user.role == 'super_admin' %}
+                    <div class="col-12">
+                        <label for="allowanceAccount" class="form-label fw-semibold">
+                            <i class="bi bi-building me-1"></i>Account
+                        </label>
+                        <select id="allowanceAccount" class="form-select" onchange="loadAllowanceTeams(this.value)">
+                            <option value="">-- Select Account --</option>
+                            {% for account in accounts %}
+                            <option value="{{ account.id }}">{{ account.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="col-12">
+                        <label for="allowanceTeam" class="form-label fw-semibold">
+                            <i class="bi bi-people me-1"></i>Team
+                        </label>
+                        <select id="allowanceTeam" class="form-select" required onchange="loadTeamMembersForAllowance()">
+                            <option value="">-- Select Team --</option>
+                            {% for team in teams %}
+                            <option value="{{ team.id }}">{{ team.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-6">
+                        <label for="allowanceMonth" class="form-label fw-semibold">
+                            <i class="bi bi-calendar-month me-1"></i>Month
+                        </label>
+                        <select id="allowanceMonth" class="form-select" required>
+                            <option value="1">January</option>
+                            <option value="2">February</option>
+                            <option value="3">March</option>
+                            <option value="4">April</option>
+                            <option value="5">May</option>
+                            <option value="6">June</option>
+                            <option value="7">July</option>
+                            <option value="8">August</option>
+                            <option value="9">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-6">
+                        <label for="allowanceYear" class="form-label fw-semibold">
+                            <i class="bi bi-calendar me-1"></i>Year
+                        </label>
+                        <select id="allowanceYear" class="form-select" required>
+                            {% for y in years %}
+                            <option value="{{ y }}">{{ y }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- RD & Exception Selection Section -->
+                <div id="memberSelectionSection" class="mt-4 pt-3 border-top" style="display: none;">
+                    <h6 class="mb-3 text-primary">
+                        <i class="bi bi-person-gear me-1"></i>Member Selection
+                    </h6>
+                    
+                    <!-- RD Members Multi-Select -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            <i class="bi bi-star me-1 text-warning"></i>RD Members (Report Directors)
+                            <small class="text-muted fw-normal ms-1">- Will have E→UK mapping</small>
+                        </label>
+                        <div id="rdMembersContainer" class="border rounded p-2" style="max-height: 150px; overflow-y: auto; background: #f8f9fa;">
+                            <small class="text-muted">Select team first...</small>
+                        </div>
+                        <small class="text-muted">Select members who should appear in the "SC RD's" sheet with UK shift mapping for Evening shifts.</small>
+                    </div>
+                    
+                    <!-- Exception Members Multi-Select -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            <i class="bi bi-person-dash me-1 text-danger"></i>Exception Members (Exclude from Report)
+                            <small class="text-muted fw-normal ms-1">- Will not be included</small>
+                        </label>
+                        <div id="exceptionMembersContainer" class="border rounded p-2" style="max-height: 150px; overflow-y: auto; background: #f8f9fa;">
+                            <small class="text-muted">Select team first...</small>
+                        </div>
+                        <small class="text-muted">Select members who should be completely excluded from the report (e.g., leads who don't work night shifts).</small>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info mt-4 mb-0" style="border-radius: 10px; border: none; background: #e7f5ff;">
+                    <h6 class="alert-heading mb-2">
+                        <i class="bi bi-lightbulb me-1"></i>Shift Mapping Rules
+                    </h6>
+                    <ul class="mb-0 small">
+                        <li><strong>Night (N)</strong> and <strong>Late Evening (LE)</strong> → Counted as Night Shift</li>
+                        <li><strong>Evening (E)</strong> → Shown as <strong>UK</strong> (for SC RD's only)</li>
+                        <li>All other shift codes → Left blank</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius: 8px;">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-success" id="downloadAllowanceBtn" onclick="downloadShiftAllowance()" style="border-radius: 8px;">
+                    <i class="bi bi-download me-1"></i>Download Report
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% endblock %}
+
 
 
 
