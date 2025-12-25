@@ -72,12 +72,42 @@ def vendor_details():
     # Build query based on user role
     query = VendorDetail.query.filter_by(is_active=True)
     
-    # Filter by account for non-super_admin users
-    if current_user.role != 'super_admin':
-        # Get user's account
+    # Filter based on user role
+    if current_user.role == 'super_admin':
+        # Super admin can see all vendors - no filtering needed
+        pass
+    elif current_user.role == 'account_admin':
+        # Account admin can see vendors for their account (all teams)
         user_account_id = current_user.account_id
         if user_account_id:
-            # Show vendors for user's account OR vendors with no account (global)
+            query = query.filter(
+                db.or_(
+                    VendorDetail.account_id == user_account_id,
+                    VendorDetail.account_id.is_(None)
+                )
+            )
+    else:
+        # Regular users can ONLY see vendors for their specific team
+        user_account_id = current_user.account_id
+        user_team_id = current_user.team_id
+        
+        if user_account_id and user_team_id:
+            # Show vendors for user's specific team OR vendors with no team but in same account
+            query = query.filter(
+                db.or_(
+                    db.and_(
+                        VendorDetail.account_id == user_account_id,
+                        VendorDetail.team_id == user_team_id
+                    ),
+                    db.and_(
+                        VendorDetail.account_id == user_account_id,
+                        VendorDetail.team_id.is_(None)
+                    ),
+                    VendorDetail.account_id.is_(None)  # Global vendors
+                )
+            )
+        elif user_account_id:
+            # Fallback: filter by account only if no team assigned
             query = query.filter(
                 db.or_(
                     VendorDetail.account_id == user_account_id,
@@ -240,19 +270,53 @@ def get_vendors_api():
     application = request.args.get('application', '')
     search = request.args.get('search', '')
     account_id = request.args.get('account_id', '')
+    team_id = request.args.get('team_id', '')
     
     query = VendorDetail.query.filter_by(is_active=True)
     
-    # Filter by account
+    # Apply filters based on request parameters or user role
     if account_id:
         query = query.filter_by(account_id=int(account_id))
-    elif current_user.role != 'super_admin' and current_user.account_id:
-        query = query.filter(
-            db.or_(
-                VendorDetail.account_id == current_user.account_id,
-                VendorDetail.account_id.is_(None)
+        if team_id:
+            query = query.filter_by(team_id=int(team_id))
+    elif current_user.role == 'super_admin':
+        # Super admin can see all - no filtering
+        pass
+    elif current_user.role == 'account_admin':
+        # Account admin sees their account's vendors
+        if current_user.account_id:
+            query = query.filter(
+                db.or_(
+                    VendorDetail.account_id == current_user.account_id,
+                    VendorDetail.account_id.is_(None)
+                )
             )
-        )
+    else:
+        # Regular users can ONLY see vendors for their specific team
+        user_account_id = current_user.account_id
+        user_team_id = current_user.team_id
+        
+        if user_account_id and user_team_id:
+            query = query.filter(
+                db.or_(
+                    db.and_(
+                        VendorDetail.account_id == user_account_id,
+                        VendorDetail.team_id == user_team_id
+                    ),
+                    db.and_(
+                        VendorDetail.account_id == user_account_id,
+                        VendorDetail.team_id.is_(None)
+                    ),
+                    VendorDetail.account_id.is_(None)
+                )
+            )
+        elif user_account_id:
+            query = query.filter(
+                db.or_(
+                    VendorDetail.account_id == user_account_id,
+                    VendorDetail.account_id.is_(None)
+                )
+            )
     
     db_vendors = query.all()
     vendors = [v.to_dict() for v in db_vendors]
