@@ -569,9 +569,16 @@
                     <div class="item-card change-card">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <h6 class="mb-1 fw-bold">{{ change.app_name }}</h6>
-                            {% if change.change_number %}
-                                <code class="bg-light px-2 py-1 rounded">{{ change.change_number }}</code>
-                            {% endif %}
+                            <div class="d-flex align-items-center gap-2">
+                                {% if change.change_number %}
+                                    <code class="bg-light px-2 py-1 rounded">{{ change.change_number }}</code>
+                                {% endif %}
+                                {% if change.status %}
+                                    <span class="status-badge status-{{ 'closed' if change.status in ['Completed', 'Implemented'] else 'open' if change.status == 'Cancelled' else 'in-progress' }}">
+                                        {{ change.status }}
+                                    </span>
+                                {% endif %}
+                            </div>
                         </div>
                         
                         {% if change.description %}

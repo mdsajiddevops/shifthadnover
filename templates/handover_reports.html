@@ -735,6 +735,10 @@
 .table-status-badge.in-progress { background: #fff3e0; color: #ef6c00; }
 .table-status-badge.closed { background: #e8f5e9; color: #2e7d32; }
 .table-status-badge.published { background: #e8f5e9; color: #2e7d32; }
+.table-status-badge.completed { background: #e8f5e9; color: #2e7d32; }
+.table-status-badge.implemented { background: #e0f2f1; color: #00796b; }
+.table-status-badge.cancelled { background: #ffebee; color: #c62828; }
+.table-status-badge.new { background: #e3f2fd; color: #1565c0; }
 .table-status-badge.in-review { background: #fff3e0; color: #ef6c00; }
 .table-status-badge.draft { background: #f5f5f5; color: #616161; }
 
@@ -1004,6 +1008,7 @@
                                                 <th>Description</th>
                                                 <th style="width: 120px;">Engineer</th>
                                                 <th style="width: 160px;">Scheduled</th>
+                                                <th style="width: 110px;">Status</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1014,6 +1019,13 @@
                                                 <td class="table-description">{{ change.description[:80] if change.description else '-' }}{% if change.description and change.description|length > 80 %}...{% endif %}</td>
                                                 <td class="text-muted small">{{ change.responsible or '-' }}</td>
                                                 <td class="text-muted small">{{ change.change_datetime.strftime('%b %d, %Y %I:%M %p') if change.change_datetime else '-' }}</td>
+                                                <td>
+                                                    {% if change.status %}
+                                                    <span class="table-status-badge {{ 'completed' if change.status == 'Completed' else 'cancelled' if change.status == 'Cancelled' else 'implemented' if change.status == 'Implemented' else 'in-progress' if change.status == 'In Progress' else 'new' }}">
+                                                        {{ change.status }}
+                                                    </span>
+                                                    {% else %}-{% endif %}
+                                                </td>
                                             </tr>
                                             {% endfor %}
                                         </tbody>

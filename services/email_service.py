@@ -485,12 +485,10 @@ def send_handover_email(shift):
     <head>
         <style>
             body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; }}
-            .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
             .summary-table {{ border-collapse: collapse; width: 100%; margin-bottom: 20px; }}
             .summary-table th {{ background-color: #e9ecef; padding: 12px; text-align: left; border: 1px solid #dee2e6; }}
             .summary-table td {{ padding: 12px; border: 1px solid #dee2e6; }}
-            h2 {{ color: white; margin: 0; }}
-            h3 {{ color: #495057; border-bottom: 2px solid #007bff; padding-bottom: 10px; }}
+            h3 {{ color: #495057; border-bottom: 2px solid #007bff; padding-bottom: 10px; text-align: center; }}
             h4 {{ color: #495057; margin-top: 25px; margin-bottom: 15px; }}
             .footer {{ margin-top: 30px; padding: 15px; background-color: #f8f9fa; border-radius: 5px; font-size: 0.9em; color: #6c757d; }}
             .alert {{ padding: 10px; margin: 10px 0; border-radius: 5px; }}
@@ -499,11 +497,6 @@ def send_handover_email(shift):
         </style>
     </head>
     <body>
-        <div class="header">
-            <h2>Shift Handover Report</h2>
-            <p style="margin: 10px 0 0 0;"><strong>Team:</strong> {team_name} | <strong>Date:</strong> {shift.date} | <strong>Transition:</strong> {shift.current_shift_type} → {shift.next_shift_type}</p>
-        </div>
-        
         <h3>📋 Shift Handover Details</h3>
         <table class="summary-table">
             <tr><th style="width: 30%;">Date</th><td>{shift.date}</td></tr>

@@ -258,7 +258,6 @@ class FlaskUNSEmailIntegration:
             <meta charset="UTF-8">
             <style>
                 body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-                .header {{ background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 20px; text-align: center; }}
                 .content {{ padding: 20px; }}
                 .section {{ margin-bottom: 30px; }}
                 .incident {{ background: #f8f9fa; border-left: 4px solid #007bff; padding: 15px; margin: 10px 0; }}
@@ -266,19 +265,14 @@ class FlaskUNSEmailIntegration:
                 .priority-critical {{ border-left-color: #6f42c1; }}
                 .keypoint {{ background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 10px 0; }}
                 .footer {{ background: #f8f9fa; padding: 15px; text-align: center; font-size: 0.9em; color: #6c757d; }}
-                h2 {{ color: #495057; border-bottom: 2px solid #007bff; padding-bottom: 10px; }}
+                h2 {{ color: #495057; border-bottom: 2px solid #007bff; padding-bottom: 10px; text-align: center; }}
                 h3 {{ color: #495057; margin-top: 25px; }}
             </style>
         </head>
         <body>
-            <div class="header">
-                <h1>🔄 Shift Handover Report</h1>
-                <p><strong>{shift.current_shift_type} → {shift.next_shift_type}</strong> | {shift.date}</p>
-            </div>
-            
             <div class="content">
                 <div class="section">
-                    <h2>📊 Summary</h2>
+                    <h2>📊 Shift Handover Summary</h2>
                     <p><strong>Date:</strong> {shift.date}</p>
                     <p><strong>Shift Transition:</strong> {shift.current_shift_type} to {shift.next_shift_type}</p>
                     <p><strong>Total Incidents:</strong> {len(open_incidents)}</p>

@@ -140,10 +140,16 @@ def change_info_reports():
     # Order by most recent first (MySQL doesn't support NULLS LAST)
     raw_change_infos = query.order_by(Shift.date.desc(), ShiftChangeInfo.change_datetime.desc()).all()
     
-    # Deduplicate by change_number - keep most recent version of each unique change (matching carryforward logic)
+    # Deduplicate by change_number OR app_name+description - keep most recent version of each unique change
     change_map = {}
     for change_info, shift_date in raw_change_infos:
-        change_key = change_info.change_number.strip().lower() if change_info.change_number else ''
+        # Use change_number if available, otherwise use app_name + description hash
+        if change_info.change_number and change_info.change_number.strip():
+            change_key = change_info.change_number.strip().lower()
+        else:
+            # Use a combination of app_name and description for deduplication if change_number is missing
+            change_key = f"{change_info.app_name or ''}_{(change_info.description or '')[:50]}".strip().lower()
+        
         if change_key and (change_key not in change_map or change_info.id > change_map[change_key][0].id):
             change_map[change_key] = (change_info, shift_date)
     
@@ -276,10 +282,17 @@ def kb_update_reports():
     # Order by most recent first
     raw_kb_updates = query.order_by(Shift.date.desc(), ShiftKBUpdate.id.desc()).all()
     
-    # Deduplicate by kb_number - keep most recent version of each unique KB (matching carryforward logic)
+    # 🔧 FIX: Improved deduplication - keep most recent version of each unique KB
+    # Handle KBs with and without kb_number
     kb_map = {}
     for kb_update, shift_date in raw_kb_updates:
-        kb_key = kb_update.kb_number.strip().lower() if kb_update.kb_number else ''
+        # Use kb_number if available, otherwise use app_name + description hash (like carryforward)
+        if kb_update.kb_number and kb_update.kb_number.strip():
+            kb_key = kb_update.kb_number.strip().lower()
+        else:
+            kb_key = f"{kb_update.app_name or ''}_{(kb_update.description or '')[:50]}".strip().lower()
+        
+        # Keep the most recent version (highest ID) of each unique KB
         if kb_key and (kb_key not in kb_map or kb_update.id > kb_map[kb_key][0].id):
             kb_map[kb_key] = (kb_update, shift_date)
     
@@ -1025,7 +1038,8 @@ def handover_reports():
                     'change_number': change_info.change_number,
                     'description': change_info.description,
                     'change_datetime': change_info.change_datetime,
-                    'responsible': engineer.name if engineer else 'N/A'
+                    'responsible': engineer.name if engineer else 'N/A',
+                    'status': change_info.status  # Include status for display in reports
                 })
             
             kb_updates = ShiftKBUpdate.query.filter_by(shift_id=shift.id).all()

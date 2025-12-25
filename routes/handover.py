@@ -2,7 +2,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
 from flask import session
-from models.models import TeamMember, Shift, Incident, ShiftKeyPoint, ShiftRoster, ShiftChangeInfo, ShiftKBUpdate, db
+from models.models import TeamMember, Shift, Incident, ShiftKeyPoint, ShiftRoster, ShiftChangeInfo, ShiftKBUpdate, Team, db
 from sqlalchemy import or_
 from models.handover_enhanced import HandoverRequest
 from models.audit_log import AuditLog
@@ -374,6 +374,14 @@ def get_engineers():
     if not shift_code:
         return jsonify({'error': 'Invalid shift_type'}), 400
     
+    # 🔧 ENHANCED: Additional shift codes mapping (same as dashboard)
+    # G (General) shows with Morning, LE (Late Evening) shows with Night
+    additional_shift_codes = {
+        'Morning': ['G', 'OS'],  # General and Onshore show in Morning section
+        'Evening': [],           # No additional codes for Evening currently
+        'Night': ['LE', 'OF']   # Late Evening and Offshore show in Night section
+    }
+    
     # Calculate the correct date for engineer lookup based on shift transition logic
     lookup_date = handover_date
     
@@ -403,14 +411,28 @@ def get_engineers():
         account_id = current_user.account_id
         team_id = current_user.team_id
     
-    query = ShiftRoster.query.filter_by(date=date, shift_code=shift_code)
-    if account_id and team_id:
-        query = query.filter_by(account_id=account_id, team_id=team_id)
-    elif account_id:
-        query = query.filter_by(account_id=account_id)
+    def get_roster_entries(target_date, target_shift_code):
+        """Helper to get roster entries with filtering"""
+        q = ShiftRoster.query.filter_by(date=target_date, shift_code=target_shift_code)
+        if account_id and team_id:
+            q = q.filter_by(account_id=account_id, team_id=team_id)
+        elif account_id:
+            q = q.filter_by(account_id=account_id)
+        return q.all()
     
-    entries = query.all()
-    member_ids = [e.team_member_id for e in entries]
+    # Get primary shift entries
+    entries = get_roster_entries(date, shift_code)
+    member_ids = set(e.team_member_id for e in entries)
+    
+    # 🔧 ENHANCED: Also get engineers from additional shift codes
+    for add_code in additional_shift_codes.get(shift_type, []):
+        add_entries = get_roster_entries(date, add_code)
+        for entry in add_entries:
+            if entry.team_member_id not in member_ids:
+                member_ids.add(entry.team_member_id)
+                print(f"[SHIFT FIX API] Added member {entry.team_member_id} from additional shift code {add_code}")
+    
+    member_ids = list(member_ids)
     
     if not member_ids:
         return jsonify({'engineers': []})
@@ -908,22 +930,54 @@ def edit_handover(shift_id):
         current_shift_code = shift_map[shift.current_shift_type]
         next_shift_code = shift_map[shift.next_shift_type]
         ist_now = datetime.now(pytz.timezone('Asia/Kolkata'))
+        
+        # 🔧 ENHANCED: Additional shift codes mapping (same as dashboard)
+        additional_shift_codes = {
+            'Morning': ['G', 'OS'],  # General and Onshore show in Morning section
+            'Evening': [],           # No additional codes for Evening currently
+            'Night': ['LE', 'OF']   # Late Evening and Offshore show in Night section
+        }
+        
         def get_engineers_for_shift(date, shift_code):
             entries = ShiftRoster.query.filter_by(date=date, shift_code=shift_code).all()
             member_ids = [e.team_member_id for e in entries]
             return TeamMember.query.filter(TeamMember.id.in_(member_ids)).all() if member_ids else []
+        
+        def get_all_engineers_for_shift_type(lookup_date, shift_type, primary_code):
+            """Get engineers for primary shift code AND all additional shift codes"""
+            all_engineers = []
+            seen_ids = set()
+            
+            # Get primary shift engineers
+            primary_engineers = get_engineers_for_shift(lookup_date, primary_code)
+            for eng in primary_engineers:
+                if eng.id not in seen_ids:
+                    all_engineers.append(eng)
+                    seen_ids.add(eng.id)
+            
+            # Get additional shift engineers (G for Morning, LE for Night, etc.)
+            for add_code in additional_shift_codes.get(shift_type, []):
+                add_engineers = get_engineers_for_shift(lookup_date, add_code)
+                for eng in add_engineers:
+                    if eng.id not in seen_ids:
+                        all_engineers.append(eng)
+                        seen_ids.add(eng.id)
+                        print(f"[SHIFT EDIT FIX] Added engineer {eng.name} from additional shift code {add_code}")
+            
+            return all_engineers
+        
         # Get engineers for current shift (always use the shift date)
-        current_engineers_objs = get_engineers_for_shift(shift.date, current_shift_code)
-        print(f"[SHIFT EDIT FIX] Current shift ({shift.current_shift_type}) engineers from date: {shift.date}")
+        current_engineers_objs = get_all_engineers_for_shift_type(shift.date, shift.current_shift_type, current_shift_code)
+        print(f"[SHIFT EDIT FIX] Current shift ({shift.current_shift_type}) engineers from date: {shift.date}, total: {len(current_engineers_objs)}")
         
         # Get engineers for next shift
         # For Night->Morning transitions, Morning engineers should come from next day
         if shift.current_shift_type == 'Night' and shift.next_shift_type == 'Morning':
             next_date = shift.date + timedelta(days=1)
-            next_engineers_objs = get_engineers_for_shift(next_date, next_shift_code)
+            next_engineers_objs = get_all_engineers_for_shift_type(next_date, shift.next_shift_type, next_shift_code)
             print(f"[SHIFT EDIT FIX] Night->Morning transition: Next shift ({shift.next_shift_type}) engineers from date: {next_date}")
         else:
-            next_engineers_objs = get_engineers_for_shift(shift.date, next_shift_code)
+            next_engineers_objs = get_all_engineers_for_shift_type(shift.date, shift.next_shift_type, next_shift_code)
             print(f"[SHIFT EDIT FIX] Regular transition: Next shift ({shift.next_shift_type}) engineers from date: {shift.date}")
         for member in current_engineers_objs:
             shift.current_engineers.append(member)
@@ -2287,6 +2341,14 @@ def handover():
         current_shift_code = shift_map[current_shift_type]
         next_shift_code = shift_map[next_shift_type]
         
+        # 🔧 ENHANCED: Additional shift codes mapping (same as dashboard)
+        # G (General) shows with Morning, LE (Late Evening) shows with Night
+        additional_shift_codes = {
+            'Morning': ['G', 'OS'],  # General and Onshore show in Morning section
+            'Evening': [],           # No additional codes for Evening currently
+            'Night': ['LE', 'OF']   # Late Evening and Offshore show in Night section
+        }
+        
         def get_engineers_for_shift(date, shift_code):
             query = ShiftRoster.query.filter_by(date=date, shift_code=shift_code)
             if account_id and team_id:
@@ -2297,18 +2359,41 @@ def handover():
             member_ids = [e.team_member_id for e in entries]
             return TeamMember.query.filter(TeamMember.id.in_(member_ids)).all() if member_ids else []
         
+        def get_all_engineers_for_shift_type(lookup_date, shift_type, primary_code):
+            """Get engineers for primary shift code AND all additional shift codes"""
+            all_engineers = []
+            seen_ids = set()
+            
+            # Get primary shift engineers
+            primary_engineers = get_engineers_for_shift(lookup_date, primary_code)
+            for eng in primary_engineers:
+                if eng.id not in seen_ids:
+                    all_engineers.append(eng)
+                    seen_ids.add(eng.id)
+            
+            # Get additional shift engineers (G for Morning, LE for Night, etc.)
+            for add_code in additional_shift_codes.get(shift_type, []):
+                add_engineers = get_engineers_for_shift(lookup_date, add_code)
+                for eng in add_engineers:
+                    if eng.id not in seen_ids:
+                        all_engineers.append(eng)
+                        seen_ids.add(eng.id)
+                        print(f"[SHIFT FIX] Added engineer {eng.name} from additional shift code {add_code}")
+            
+            return all_engineers
+        
         # Get engineers for current shift (always use the handover date)
-        current_engineers_objs = get_engineers_for_shift(date, current_shift_code)
-        print(f"[SHIFT FIX] Current shift ({current_shift_type}) engineers from date: {date}")
+        current_engineers_objs = get_all_engineers_for_shift_type(date, current_shift_type, current_shift_code)
+        print(f"[SHIFT FIX] Current shift ({current_shift_type}) engineers from date: {date}, total: {len(current_engineers_objs)}")
         
         # Get engineers for next shift
         # For Night->Morning transitions, Morning engineers should come from next day
         if current_shift_type == 'Night' and next_shift_type == 'Morning':
             next_date = date + timedelta(days=1)
-            next_engineers_objs = get_engineers_for_shift(next_date, next_shift_code)
+            next_engineers_objs = get_all_engineers_for_shift_type(next_date, next_shift_type, next_shift_code)
             print(f"[SHIFT FIX] Night->Morning transition: Next shift ({next_shift_type}) engineers from date: {next_date}")
         else:
-            next_engineers_objs = get_engineers_for_shift(date, next_shift_code)
+            next_engineers_objs = get_all_engineers_for_shift_type(date, next_shift_type, next_shift_code)
             print(f"[SHIFT FIX] Regular transition: Next shift ({next_shift_type}) engineers from date: {date}")
             
         # Assign engineers to shift
@@ -3157,6 +3242,24 @@ def handover():
     ).all()
     recent_shift_ids_for_changes = [s.id for s in recent_shifts_for_changes] if recent_shifts_for_changes else []
     
+    # 🔧 FIX: First, get ALL change_numbers that have been completed/cancelled (anywhere in the system for this team)
+    # This prevents older copies of completed/cancelled changes from being carried forward
+    completed_change_numbers = set()
+    completed_changes = ShiftChangeInfo.query.filter(
+        ShiftChangeInfo.account_id == current_user.account_id,
+        ShiftChangeInfo.team_id == query_team_id,
+        ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
+    ).all()
+    for change in completed_changes:
+        if change.change_number and change.change_number.strip():
+            completed_change_numbers.add(change.change_number.strip().lower())
+        # Also track by app_name + description for changes without change_number
+        change_key = f"{change.app_name or ''}_{(change.description or '')[:50]}".strip().lower()
+        if change_key:
+            completed_change_numbers.add(change_key)
+    
+    print(f"[DEBUG] Found {len(completed_change_numbers)} completed/cancelled change identifiers to exclude")
+    
     carryforward_change_infos = []
     if recent_shift_ids_for_changes:
         current_datetime = datetime.now()
@@ -3170,22 +3273,29 @@ def handover():
             ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])  # Exclude completed/cancelled/implemented
         ).order_by(ShiftChangeInfo.id.desc()).all()
         
-        print(f"[DEBUG] Found {len(raw_change_infos)} pending/in-progress change requests to carry forward")
-        
-        # Debug each change before deduplication
-        for i, change in enumerate(raw_change_infos):
-            print(f"[DEBUG]   Change {i+1}: {change.change_number} - {change.app_name} (Status: {change.status}, DateTime: {change.change_datetime})")
+        print(f"[DEBUG] Found {len(raw_change_infos)} pending/in-progress change requests before exclusion")
         
         # Deduplicate by change_number - keep most recent version of each unique change
+        # 🔧 FIX: Also exclude any change that has a completed/cancelled version
         change_map = {}
         for change in raw_change_infos:
-            change_key = change.change_number.strip().lower() if change.change_number else ''
+            # Use change_number if available, otherwise use app_name + description hash
+            if change.change_number and change.change_number.strip():
+                change_key = change.change_number.strip().lower()
+            else:
+                change_key = f"{change.app_name or ''}_{(change.description or '')[:50]}".strip().lower()
+            
+            # 🔧 FIX: Skip if this change has been completed/cancelled anywhere
+            if change_key in completed_change_numbers:
+                print(f"[DEBUG]     Skipping change {change_key} - already completed/cancelled elsewhere")
+                continue
+            
             if change_key and (change_key not in change_map or change.id > change_map[change_key].id):
                 change_map[change_key] = change
-                print(f"[DEBUG]     Added/Updated change {change_key}: ID {change.id}")
+                print(f"[DEBUG]     Added/Updated change {change_key}: ID {change.id}, Status: {change.status}")
         
         carryforward_change_infos = list(change_map.values())[:10]  # Limit to 10 changes
-        print(f"[DEBUG] After deduplication: {len(carryforward_change_infos)} unique future changes to carry forward")
+        print(f"[DEBUG] After deduplication and exclusion: {len(carryforward_change_infos)} unique pending changes to carry forward")
         
         # Debug final list
         for i, change in enumerate(carryforward_change_infos):
@@ -3224,6 +3334,24 @@ def handover():
     # 🆕 CARRYFORWARD: Load KB Updates that are not yet Published
     print(f"[DEBUG] Loading KB updates for carryforward (account {current_user.account_id}, team {query_team_id})")
     
+    # 🔧 FIX: First, get ALL kb_numbers that have been published (anywhere in the system for this team)
+    # This prevents older copies of published KBs from being carried forward
+    published_kb_numbers = set()
+    published_kbs = ShiftKBUpdate.query.filter(
+        ShiftKBUpdate.account_id == current_user.account_id,
+        ShiftKBUpdate.team_id == query_team_id,
+        ShiftKBUpdate.status == 'Published'
+    ).all()
+    for kb in published_kbs:
+        if kb.kb_number and kb.kb_number.strip():
+            published_kb_numbers.add(kb.kb_number.strip().lower())
+        # Also track by app_name + description for KBs without kb_number
+        kb_key = f"{kb.app_name or ''}_{(kb.description or '')[:50]}".strip().lower()
+        if kb_key:
+            published_kb_numbers.add(kb_key)
+    
+    print(f"[DEBUG] Found {len(published_kb_numbers)} published KB identifiers to exclude")
+    
     # Get KB updates from recent shifts (last 30 days) where status is not "Published"
     carryforward_kb_updates = []
     if recent_shift_ids_for_changes:  # Reuse the same recent shifts
@@ -3234,14 +3362,10 @@ def handover():
             ShiftKBUpdate.status != 'Published'  # Exclude published KB updates
         ).order_by(ShiftKBUpdate.id.desc()).all()
         
-        print(f"[DEBUG] Found {len(raw_kb_updates)} unpublished KB updates")
-        
-        # Debug each KB before deduplication
-        for i, kb in enumerate(raw_kb_updates):
-            print(f"[DEBUG]   KB {i+1}: {kb.kb_number} - {kb.app_name} (Status: {kb.status})")
+        print(f"[DEBUG] Found {len(raw_kb_updates)} unpublished KB updates before exclusion")
         
         # Deduplicate by kb_number OR app_name+description - keep most recent version
-        # 🔧 FIX: Allow KB updates without kb_number to be carried forward
+        # 🔧 FIX: Also exclude any KB that has a published version
         kb_map = {}
         for kb in raw_kb_updates:
             # Use kb_number if available, otherwise use app_name + description hash
@@ -3250,12 +3374,17 @@ def handover():
             else:
                 kb_key = f"{kb.app_name or ''}_{(kb.description or '')[:50]}".strip().lower()
             
+            # 🔧 FIX: Skip if this KB has been published anywhere
+            if kb_key in published_kb_numbers:
+                print(f"[DEBUG]     Skipping KB {kb_key} - already published elsewhere")
+                continue
+            
             if kb_key and (kb_key not in kb_map or kb.id > kb_map[kb_key].id):
                 kb_map[kb_key] = kb
-                print(f"[DEBUG]     Added/Updated KB {kb_key}: ID {kb.id}")
+                print(f"[DEBUG]     Added/Updated KB {kb_key}: ID {kb.id}, Status: {kb.status}")
         
         carryforward_kb_updates = list(kb_map.values())[:10]  # Limit to 10 KB updates
-        print(f"[DEBUG] After deduplication: {len(carryforward_kb_updates)} unique unpublished KB updates to carry forward")
+        print(f"[DEBUG] After deduplication and exclusion: {len(carryforward_kb_updates)} unique unpublished KB updates to carry forward")
         
         # Debug final list
         for i, kb in enumerate(carryforward_kb_updates):
