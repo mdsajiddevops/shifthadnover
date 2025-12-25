@@ -98,6 +98,25 @@ def handle_notification_response():
             # Create new log entry with all required fields
             try:
                 logger.info(f"Creating new HandoverIncidentResponseLog for notification {notification_id}")
+                
+                # Try to get the original assigner's information
+                assigner_id = current_user.id  # Default to current user
+                assigner_name = current_user.display_name or current_user.username or 'Unknown'
+                from_shift = 'Current'
+                to_shift = 'Incoming'
+                
+                # Try to get assigner info from the handover request
+                if notification.handover_request_id:
+                    from models.handover_enhanced import HandoverRequest
+                    handover_req = HandoverRequest.query.get(notification.handover_request_id)
+                    if handover_req and handover_req.created_by:
+                        assigner_id = handover_req.created_by_id
+                        assigner_name = handover_req.created_by.display_name or handover_req.created_by.username or 'Unknown'
+                    # Get shift info from the handover request's shift
+                    if handover_req and handover_req.shift:
+                        from_shift = handover_req.shift.current_shift_type or 'Current'
+                        to_shift = handover_req.shift.next_shift_type or 'Incoming'
+                
                 log_entry = HandoverIncidentResponseLog(
                     response_date=datetime.utcnow().date(),
                     response_datetime=datetime.utcnow(),
@@ -105,9 +124,9 @@ def handle_notification_response():
                     incident_number=incident_number or f"NOTIF-{notification_id}",
                     incident_description=notification.message or 'Assignment from notification',
                     accepted_by_id=current_user.id,
-                    accepted_by_name=current_user.username,
-                    assigned_by_id=current_user.id,  # Use current user as fallback for system assignments
-                    assigned_by_name=current_user.username or 'System',
+                    accepted_by_name=current_user.display_name or current_user.username or 'Unknown',
+                    assigned_by_id=assigner_id,
+                    assigned_by_name=assigner_name,
                     assigned_at=notification.created_at,
                     responded_at=datetime.utcnow(),  # Set initial value to avoid null constraint
                     handover_request_id=notification.handover_request_id,
@@ -118,8 +137,8 @@ def handle_notification_response():
                     incident_priority='Medium',
                     assignment_status='pending',
                     response_status='pending',
-                    from_shift_type='System',
-                    to_shift_type='System'
+                    from_shift_type=from_shift,
+                    to_shift_type=to_shift
                 )
                 logger.info(f"HandoverIncidentResponseLog created successfully")
                 db.session.add(log_entry)

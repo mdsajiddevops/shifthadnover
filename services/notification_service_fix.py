@@ -209,8 +209,32 @@ class NotificationServiceFix:
                 return {'success': False, 'error': f"Could not find assigned user: {incident.assigned_to}"}
             
             # Get the current user who is submitting the handover
-            current_user_id = current_user.id if current_user and current_user.is_authenticated else 1
-            current_username = current_user.username if current_user and current_user.is_authenticated else 'System'
+            # Try multiple sources to get the submitter's information
+            submitter_id = 1  # Default fallback
+            submitter_name = 'Unknown'
+            
+            # First try: current_user from Flask-Login
+            if current_user and current_user.is_authenticated:
+                submitter_id = current_user.id
+                submitter_name = current_user.display_name or current_user.username or current_user.email or 'Unknown'
+            else:
+                # Second try: Get from shift's current engineers
+                if shift.current_engineers:
+                    first_engineer = shift.current_engineers[0]
+                    if first_engineer.user_id:
+                        from models.models import User
+                        engineer_user = User.query.get(first_engineer.user_id)
+                        if engineer_user:
+                            submitter_id = engineer_user.id
+                            submitter_name = engineer_user.display_name or engineer_user.username or first_engineer.name
+                        else:
+                            submitter_name = first_engineer.name
+                    else:
+                        submitter_name = first_engineer.name
+                # Third try: Get from HandoverRequest if available
+                elif hasattr(shift, 'handover_request') and shift.handover_request and shift.handover_request.created_by:
+                    submitter_id = shift.handover_request.created_by_id
+                    submitter_name = shift.handover_request.created_by.display_name or shift.handover_request.created_by.username
             
             # Create log entry
             log_entry = HandoverIncidentResponseLog(
@@ -220,8 +244,8 @@ class NotificationServiceFix:
                 to_shift_type=shift.next_shift_type,
                 from_shift_id=shift.id,
                 to_shift_id=None,  # Will be set when next shift responds
-                assigned_by_id=current_user_id,  # Use current authenticated user
-                assigned_by_name=current_username,  # Use current authenticated user's name
+                assigned_by_id=submitter_id,  # Use submitter
+                assigned_by_name=submitter_name,  # Use submitter's name
                 accepted_by_id=assigned_user.id,
                 accepted_by_name=assigned_user.username,
                 incident_number=incident.title,
@@ -305,8 +329,28 @@ class NotificationServiceFix:
                         db.session.add(notification)
                         
                         # Get the current user who is submitting the handover
-                        current_user_id = current_user.id if current_user and current_user.is_authenticated else 1
-                        current_username = current_user.username if current_user and current_user.is_authenticated else 'System'
+                        # Try multiple sources to get the submitter's information
+                        submitter_id = 1  # Default fallback
+                        submitter_name = 'Unknown'
+                        
+                        # First try: current_user from Flask-Login
+                        if current_user and current_user.is_authenticated:
+                            submitter_id = current_user.id
+                            submitter_name = current_user.display_name or current_user.username or current_user.email or 'Unknown'
+                        else:
+                            # Second try: Get from shift's current engineers
+                            if shift.current_engineers:
+                                first_engineer = shift.current_engineers[0]
+                                if first_engineer.user_id:
+                                    from models.models import User
+                                    engineer_user = User.query.get(first_engineer.user_id)
+                                    if engineer_user:
+                                        submitter_id = engineer_user.id
+                                        submitter_name = engineer_user.display_name or engineer_user.username or first_engineer.name
+                                    else:
+                                        submitter_name = first_engineer.name
+                                else:
+                                    submitter_name = first_engineer.name
                         
                         # Create incident response log
                         log_entry = HandoverIncidentResponseLog(
@@ -315,8 +359,8 @@ class NotificationServiceFix:
                             from_shift_type=shift.current_shift_type,
                             to_shift_type=shift.next_shift_type,
                             from_shift_id=shift.id,
-                            assigned_by_id=current_user_id,  # Use current authenticated user
-                            assigned_by_name=current_username,  # Use current authenticated user's name
+                            assigned_by_id=submitter_id,  # Use submitter
+                            assigned_by_name=submitter_name,  # Use submitter's name
                             accepted_by_id=assigned_user.id,
                             accepted_by_name=assigned_user.username,
                             incident_number=incident_id,
