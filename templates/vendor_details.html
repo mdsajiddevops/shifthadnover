@@ -48,18 +48,22 @@
                 </div>
                 {% endif %}
                 <!-- Team Filter -->
+                {% if teams|length > 0 %}
                 <div class="col-md-{% if accounts|length > 1 %}2{% else %}3{% endif %}">
                     <select 
                         id="teamFilter"
                         class="form-select"
                         onchange="filterVendors()"
                     >
-                        <option value="">All Teams</option>
+                        {% if teams|length > 1 %}
+                        <option value="">All Teams ({{ teams|length }})</option>
+                        {% endif %}
                         {% for team in teams %}
-                        <option value="{{ team.id }}" data-account="{{ team.account_id }}">{{ team.name }}</option>
+                        <option value="{{ team.id }}" data-account="{{ team.account_id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
+                {% endif %}
                 <!-- Application Filter -->
                 <div class="col-md-{% if accounts|length > 1 %}3{% else %}3{% endif %}">
                     <select 

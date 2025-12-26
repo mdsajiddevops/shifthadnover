@@ -138,6 +138,17 @@
                     {% endfor %}
                 </select>
             </div>
+            {% elif teams|length > 1 %}
+            <!-- Team filter for multi-team users -->
+            <div class="col-md-4">
+                <label for="filterTeam" class="form-label">Team</label>
+                <select id="filterTeam" class="form-select" onchange="loadApplications()">
+                    <option value="">All My Teams ({{ teams|length }})</option>
+                    {% for team in teams %}
+                    <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             {% endif %}
             
             <div class="col-md-3">
@@ -540,6 +551,8 @@ function loadApplications() {
                     appSelect.innerHTML += `<option value="${app}">${app}</option>`;
                 });
             }
+            // Also reload entries when team filter changes
+            loadEntries();
         })
         .catch(error => {
             console.error('Error loading applications:', error);

@@ -407,9 +407,29 @@ def get_engineers():
         account_id = current_user.account_id
         team_id = request.args.get('team_id') or session.get('selected_team_id')
     else:
-        # Team admin/user can only see their team
+        # Team admin/user - support multi-team users
+        # First try to get team_id from request (for multi-team dropdown selection)
         account_id = current_user.account_id
-        team_id = current_user.team_id
+        requested_team_id = request.args.get('team_id')
+        
+        if requested_team_id:
+            # Validate user has access to requested team
+            from services.team_access_service import TeamAccessService
+            user_team_ids = TeamAccessService.get_user_team_ids()
+            try:
+                requested_team_id_int = int(requested_team_id)
+                if requested_team_id_int in user_team_ids:
+                    team_id = requested_team_id_int
+                    print(f"[GET_ENGINEERS] Multi-team user selected team_id={team_id}")
+                else:
+                    # User doesn't have access to this team, fallback to primary
+                    team_id = current_user.team_id
+                    print(f"[GET_ENGINEERS] User doesn't have access to team {requested_team_id}, using primary team {team_id}")
+            except (ValueError, TypeError):
+                team_id = current_user.team_id
+        else:
+            # No team specified, use primary team
+            team_id = current_user.team_id
     
     def get_roster_entries(target_date, target_shift_code):
         """Helper to get roster entries with filtering"""
@@ -2000,9 +2020,32 @@ def handover():
                     account_id = None
             else:
                 account_id = request.args.get('account_id') or session.get('selected_account_id')
-        else:
+        elif current_user.role == 'account_admin':
+            # Account admin: check URL parameter first, fallback to session or None
             account_id = current_user.account_id
-            team_id_raw = current_user.team_id
+            team_id_raw = request.args.get('team_id') or session.get('selected_team_id')
+        else:
+            # Regular users (team_admin/user): Support multi-team selection from URL parameter
+            account_id = current_user.account_id
+            requested_team_id = request.args.get('team_id')
+            
+            if requested_team_id:
+                # Validate user has access to requested team
+                try:
+                    requested_team_id_int = int(requested_team_id)
+                    user_team_ids = TeamAccessService.get_user_team_ids()
+                    if requested_team_id_int in user_team_ids:
+                        team_id_raw = requested_team_id_int
+                        print(f"[HANDOVER-GET] Multi-team user selected team_id={team_id_raw} from URL")
+                    else:
+                        # User doesn't have access to this team, fallback to primary
+                        team_id_raw = current_user.team_id
+                        print(f"[HANDOVER-GET] User doesn't have access to team {requested_team_id}, using primary team {team_id_raw}")
+                except (ValueError, TypeError):
+                    team_id_raw = current_user.team_id
+            else:
+                # No team specified in URL, use primary team
+                team_id_raw = current_user.team_id
         
     # Validate account_id for non-super-admin users
     if current_user.role != 'super_admin':

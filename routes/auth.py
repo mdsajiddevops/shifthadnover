@@ -335,27 +335,3 @@ def check_reset_token():
             'message': result['message']
         })
 
-
-# Test route for enhanced login page - remove this after testing
-@auth_bp.route('/login-enhanced', methods=['GET', 'POST'])
-def login_enhanced():
-    """Test route for enhanced login UI - redirects POST to actual login"""
-    if request.method == 'POST':
-        # Redirect to actual login handler
-        return redirect(url_for('auth.login'), code=307)
-    
-    accounts = Account.query.filter_by(is_active=True).all()
-    selected_account_id = request.args.get('account_id')
-    selected_team_id = request.args.get('team_id')
-    selected_account_id_int = int(selected_account_id) if selected_account_id and selected_account_id.isdigit() else None
-    selected_team_id_int = int(selected_team_id) if selected_team_id and selected_team_id.isdigit() else None
-    teams = []
-    if selected_account_id_int:
-        teams = Team.query.filter_by(account_id=selected_account_id_int, is_active=True).all()
-    
-    return render_template('login_enhanced.html', 
-                          accounts=accounts, 
-                          teams=teams,
-                          selected_account_id=selected_account_id_int,
-                          selected_team_id=selected_team_id_int)
-

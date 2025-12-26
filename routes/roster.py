@@ -110,27 +110,41 @@ def roster():
             else:
                 query = query.filter(ShiftRoster.team_id.in_([-1]))  # No teams = no results
     else:
-        # Regular users: Show ONLY their own team's roster (not all teams in account)
+        # Regular users: Support multi-team filtering
         account_id = current_user.account_id
-        team_id = current_user.team_id  # Use user's assigned team
-        
         accounts = [Account.query.get(account_id)] if account_id else []
         
-        # Only show user's own team
-        if team_id:
-            user_team = Team.query.filter_by(id=team_id, account_id=account_id, is_active=True).first()
-            teams = [user_team] if user_team else []
-        else:
-            teams = []
+        # Get user's teams using TeamAccessService
+        user_team_ids = TeamAccessService.get_user_team_ids()
+        teams = Team.query.filter(Team.id.in_(user_team_ids), Team.is_active == True).all() if user_team_ids else []
         
-        # Check if user has a team assigned
+        # Check for team_id from URL parameter first
+        requested_team_id = request.args.get('team_id', type=int)
+        
+        if requested_team_id and requested_team_id in user_team_ids:
+            # User selected a specific team they have access to
+            team_id = requested_team_id
+            logger.info(f"[ROSTER] Multi-team user {current_user.username} selected team_id={team_id}")
+        elif user_team_ids:
+            # Default to primary team or first team
+            primary_team_id = TeamAccessService.get_primary_team_id()
+            team_id = primary_team_id if primary_team_id in user_team_ids else user_team_ids[0]
+            logger.info(f"[ROSTER] Multi-team user {current_user.username} defaulting to team_id={team_id}")
+        else:
+            team_id = None
+        
+        # Check if user has any teams assigned
         if not teams:
             flash('No team assigned to your account. Please contact your administrator.', 'info')
             return redirect(url_for('main.dashboard'))
         
-        # Filter by account AND user's specific team only
+        # Filter by account AND selected team
         query = query.filter(ShiftRoster.account_id == account_id)
-        query = query.filter(ShiftRoster.team_id == team_id)
+        if team_id:
+            query = query.filter(ShiftRoster.team_id == team_id)
+        elif user_team_ids:
+            # Show all user's teams if no specific team selected
+            query = query.filter(ShiftRoster.team_id.in_(user_team_ids))
         
         # Log access for security monitoring
         from flask import current_app
@@ -177,15 +191,29 @@ def roster():
             else:
                 tm_query = tm_query.filter(TeamMember.team_id.in_([-1]))  # No teams = no results
     else:
-        # Regular users: show ONLY their own team members
+        # Regular users: Support multi-team filtering for team members
         account_id = current_user.account_id
-        team_id = current_user.team_id  # Use user's assigned team
+        user_team_ids = TeamAccessService.get_user_team_ids()
+        
+        # Check for team_id from URL parameter
+        requested_team_id = request.args.get('team_id', type=int)
+        
+        if requested_team_id and requested_team_id in user_team_ids:
+            team_id = requested_team_id
+        elif user_team_ids:
+            primary_team_id = TeamAccessService.get_primary_team_id()
+            team_id = primary_team_id if primary_team_id in user_team_ids else user_team_ids[0]
+        else:
+            team_id = None
         
         tm_query = tm_query.filter_by(account_id=account_id)
         if team_id:
             tm_query = tm_query.filter_by(team_id=team_id)
+        elif user_team_ids:
+            # Show members from all user's teams
+            tm_query = tm_query.filter(TeamMember.team_id.in_(user_team_ids))
         else:
-            # No team assigned = no results
+            # No teams assigned = no results
             tm_query = tm_query.filter(TeamMember.team_id.in_([-1]))
     all_members_all = tm_query.all()
     # Only include members with at least one shift entry
@@ -232,18 +260,28 @@ def roster():
                 base_roster_query = base_roster_query.filter(ShiftRoster.team_id == team_id)
                 
         else:
-            # Regular users - show ONLY their own team
+            # Regular users - support multi-team filtering
             user_account_id = current_user.account_id
-            user_team_id = current_user.team_id
+            user_team_ids = TeamAccessService.get_user_team_ids()
             
-            if not user_account_id or not user_team_id:
+            # Get selected team from URL parameter or use default
+            selected_team_id = request.args.get('team_id', type=int)
+            if selected_team_id and selected_team_id in user_team_ids:
+                filter_team_id = selected_team_id
+            elif user_team_ids:
+                primary_team_id = TeamAccessService.get_primary_team_id()
+                filter_team_id = primary_team_id if primary_team_id in user_team_ids else user_team_ids[0]
+            else:
+                filter_team_id = None
+            
+            if not user_account_id or not filter_team_id:
                 # No account/team assigned = no results
                 base_roster_query = ShiftRoster.query.filter(ShiftRoster.id == -1)
             else:
                 base_roster_query = ShiftRoster.query.filter(
                     ShiftRoster.date == date_obj,
                     ShiftRoster.account_id == user_account_id,
-                    ShiftRoster.team_id == user_team_id  # Only user's team
+                    ShiftRoster.team_id == filter_team_id  # Selected team
                 )
         
         if filter_shift is not None and filter_shift != '':
@@ -259,8 +297,8 @@ def roster():
                 elif current_user.role == 'account_admin':
                     allowed_team_ids = [t.id for t in teams]
                 else:
-                    # Regular users: ONLY their own team
-                    allowed_team_ids = [current_user.team_id] if current_user.team_id else []
+                    # Regular users: Use the selected team from filter
+                    allowed_team_ids = [filter_team_id] if filter_team_id else []
                 
                 present_members = TeamMember.query.filter(
                     TeamMember.id.in_(present_member_ids),
@@ -283,8 +321,8 @@ def roster():
                     elif current_user.role == 'account_admin':
                         allowed_team_ids = [t.id for t in teams]
                     else:
-                        # Regular users: ONLY their own team
-                        allowed_team_ids = [current_user.team_id] if current_user.team_id else []
+                        # Regular users: Use the selected team from filter
+                        allowed_team_ids = [filter_team_id] if filter_team_id else []
                     
                     members = TeamMember.query.filter(
                         TeamMember.id.in_(member_ids),
@@ -310,7 +348,8 @@ def roster():
 
     # Set team filter context for template
     if current_user.role not in ['super_admin', 'account_admin']:
-        team_filter_context = TeamAccessService.get_team_filter_context()
+        url_team_id = request.args.get('team_id', type=int)
+        team_filter_context = TeamAccessService.get_team_filter_context(url_team_id=url_team_id)
     else:
         team_filter_context = None
     

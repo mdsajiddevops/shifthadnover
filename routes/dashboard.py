@@ -212,6 +212,16 @@ def dashboard():
         session['dashboard_selected_account_id'] = request.args.get('account_id')
     if request.args.get('team_id'):
         session['dashboard_selected_team_id'] = request.args.get('team_id')
+        # Also update the TeamAccessService session key for multi-team users
+        try:
+            team_id_int = int(request.args.get('team_id'))
+            # Validate user has access to this team before setting in session
+            user_team_ids = TeamAccessService.get_user_team_ids()
+            if team_id_int in user_team_ids:
+                session['selected_team_id'] = team_id_int
+                print(f"[DASHBOARD] Updated selected_team_id in session to {team_id_int}")
+        except (ValueError, TypeError):
+            pass
     
     if current_user.role == 'super_admin':
         # Super Admin: Can filter by any account and team
@@ -249,12 +259,28 @@ def dashboard():
         filter_account_id = current_user.account_id
         accounts = [Account.query.get(filter_account_id)] if filter_account_id else []
         
+        # Check if URL explicitly requests a team
+        url_team_id = request.args.get('team_id')
+        if url_team_id:
+            try:
+                url_team_id_int = int(url_team_id)
+                user_team_ids = TeamAccessService.get_user_team_ids()
+                if url_team_id_int in user_team_ids:
+                    # Force update session before getting team_filter_context
+                    session['selected_team_id'] = url_team_id_int
+                    print(f"[DASHBOARD] Regular user explicitly selected team_id={url_team_id_int} from URL")
+            except (ValueError, TypeError):
+                pass
+        
         # Get team filter context using team access service
-        team_filter_context = TeamAccessService.get_team_filter_context()
+        url_team_id = request.args.get('team_id', type=int)
+        team_filter_context = TeamAccessService.get_team_filter_context(url_team_id=url_team_id)
         
         teams = team_filter_context['user_teams']
         selected_account_id = filter_account_id
         selected_team_id = team_filter_context['selected_team_id']
+        
+        print(f"[DASHBOARD] Regular user {current_user.username}: selected_team_id={selected_team_id}, primary_team_id={team_filter_context.get('primary_team_id')}")
         
         # Set filter team ID - None means show all user's teams
         filter_team_id = selected_team_id

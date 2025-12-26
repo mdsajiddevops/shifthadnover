@@ -137,7 +137,11 @@ def get_entries_api():
     else:
         # Team admin or user - filter by their teams
         user_team_ids = TeamAccessService.get_user_team_ids()
-        if user_team_ids:
+        if team_id and team_id in user_team_ids:
+            # User selected a specific team they have access to
+            query = query.filter(EscalationMatrixEntry.team_id == team_id)
+        elif user_team_ids:
+            # Show all their teams if no specific team selected
             query = query.filter(EscalationMatrixEntry.team_id.in_(user_team_ids))
     
     if application:
@@ -335,8 +339,12 @@ def get_applications():
         if team_id:
             query = query.filter_by(team_id=team_id)
     else:
+        # Team admin or user - filter by their teams
         user_team_ids = TeamAccessService.get_user_team_ids()
-        if user_team_ids:
+        team_id = request.args.get('team_id', type=int)
+        if team_id and team_id in user_team_ids:
+            query = query.filter(EscalationMatrixEntry.team_id == team_id)
+        elif user_team_ids:
             query = query.filter(EscalationMatrixEntry.team_id.in_(user_team_ids))
     
     applications = query.with_entities(EscalationMatrixEntry.application_name).distinct().all()
@@ -370,12 +378,20 @@ def escalation_matrix():
         accounts = [Account.query.get(account_id)] if account_id else []
         teams = Team.query.filter_by(account_id=account_id, is_active=True).order_by(Team.name).all()
     else:
-        # Team admin or user
-        team_filter_context = TeamAccessService.get_team_filter_context()
+        # Team admin or user - support multi-team filtering
+        url_team_id = request.args.get('team_id', type=int)
+        team_filter_context = TeamAccessService.get_team_filter_context(url_team_id=url_team_id)
         account_id = team_filter_context.get('selected_account_id')
         accounts = [Account.query.get(account_id)] if account_id else []
         teams = team_filter_context.get('user_teams', [])
-        if not team_id:
+        
+        # Use URL param team_id if provided, otherwise use selected from context
+        if team_id:
+            # Validate user has access to this team
+            user_team_ids = [t.id for t in teams]
+            if team_id not in user_team_ids:
+                team_id = team_filter_context.get('selected_team_id')
+        else:
             team_id = team_filter_context.get('selected_team_id')
     
     # Build query for entries
@@ -391,8 +407,12 @@ def escalation_matrix():
         if team_id:
             query = query.filter_by(team_id=team_id)
     else:
+        # Regular users - filter by selected team or all their teams
         user_team_ids = TeamAccessService.get_user_team_ids()
-        if user_team_ids:
+        if team_id and team_id in user_team_ids:
+            # Specific team selected from filter
+            query = query.filter(EscalationMatrixEntry.team_id == team_id)
+        elif user_team_ids:
             query = query.filter(EscalationMatrixEntry.team_id.in_(user_team_ids))
     
     # Get unique application names for filter

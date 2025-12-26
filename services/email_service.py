@@ -406,13 +406,12 @@ def send_handover_email(shift):
         
         section = '<h4 style="margin-top: 20px;">🎯 Key Points</h4>'
         section += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
-        section += '<tr style="background-color: #f8f9fa;"><th>Description</th><th>Status</th><th>Responsible</th><th>JIRA ID</th></tr>'
+        section += '<tr style="background-color: #f8f9fa;"><th>Description</th><th>Status</th><th>Responsible</th></tr>'
         
         for kp in key_points:
             responsible = TeamMember.query.get(kp.responsible_engineer_id).name if kp.responsible_engineer_id else "-"
-            jira_id = kp.jira_id or "-"
             status_color = "#198754" if kp.status == "Closed" else "#ffc107" if kp.status == "In Progress" else "#dc3545"
-            section += f'<tr><td>{kp.description}</td><td style="color: {status_color}; font-weight: bold;">{kp.status}</td><td>{responsible}</td><td>{jira_id}</td></tr>'
+            section += f'<tr><td>{kp.description}</td><td style="color: {status_color}; font-weight: bold;">{kp.status}</td><td>{responsible}</td></tr>'
         
         section += '</table>'
         return section

@@ -180,8 +180,13 @@ class TeamAccessService:
         return query
     
     @staticmethod
-    def get_team_filter_context():
-        """Get context data for team filter UI components"""
+    def get_team_filter_context(url_team_id=None, default_to_primary=True):
+        """Get context data for team filter UI components
+        
+        Args:
+            url_team_id: Team ID from URL parameter (takes precedence if valid)
+            default_to_primary: If True, default to primary team when no selection
+        """
         if not current_user.is_authenticated:
             return {
                 'show_team_filter': False,
@@ -193,17 +198,25 @@ class TeamAccessService:
         
         account_id = TeamAccessService.get_effective_account_id()
         user_teams = TeamAccessService.get_user_teams_for_account(account_id) if account_id else []
-        selected_team_id = TeamAccessService.get_selected_team_id()
+        user_team_ids = [t.id for t in user_teams]
         primary_team_id = TeamAccessService.get_primary_team_id(account_id=account_id)
         
-        # If no team is selected in session, default to primary team
-        if selected_team_id is None and primary_team_id:
-            selected_team_id = primary_team_id
-            # Set it in session for consistency
-            session['selected_team_id'] = primary_team_id
+        # Determine selected team with priority:
+        # 1. URL parameter (if valid)
+        # 2. Primary team (if default_to_primary is True)
+        # 3. First team
+        selected_team_id = None
         
-        # If user has only one team, auto-select it
-        if len(user_teams) == 1 and not selected_team_id:
+        if url_team_id and url_team_id in user_team_ids:
+            # URL parameter takes precedence
+            selected_team_id = url_team_id
+            session['selected_team_id'] = url_team_id
+        elif default_to_primary and primary_team_id and primary_team_id in user_team_ids:
+            # Default to primary team
+            selected_team_id = primary_team_id
+            session['selected_team_id'] = primary_team_id
+        elif len(user_teams) == 1:
+            # Single team user - auto-select it
             selected_team_id = user_teams[0].id
             session['selected_team_id'] = selected_team_id
         

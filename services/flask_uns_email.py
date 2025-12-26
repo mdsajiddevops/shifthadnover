@@ -318,7 +318,6 @@ class FlaskUNSEmailIntegration:
                         <p><strong>{kp.description}</strong></p>
                         <p><strong>Status:</strong> {kp.status}</p>
                         <p><strong>Responsible:</strong> {getattr(kp, 'responsible_engineer', 'Unassigned')}</p>
-                        {f'<p><strong>JIRA ID:</strong> {kp.jira_id}</p>' if hasattr(kp, 'jira_id') and kp.jira_id else ''}
                     </div>
                 """
             

@@ -135,7 +135,8 @@ def keypoints():
         accounts = [Account.query.get(filter_account_id)] if filter_account_id else []
         
         # Get team filter context using team access service (SAME AS DASHBOARD)
-        team_filter_context = TeamAccessService.get_team_filter_context()
+        url_team_id = request.args.get('team_id', type=int)
+        team_filter_context = TeamAccessService.get_team_filter_context(url_team_id=url_team_id)
         
         teams = team_filter_context['user_teams']
         selected_account_id = filter_account_id

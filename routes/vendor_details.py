@@ -4,6 +4,7 @@ from flask import Blueprint, render_template, request, jsonify, flash, redirect,
 from flask_login import login_required, current_user
 from models.vendor_detail import VendorDetail
 from models.models import db, Account, Team
+from services.team_access_service import TeamAccessService
 
 bp = Blueprint('vendor_details', __name__)
 
@@ -87,17 +88,35 @@ def vendor_details():
                 )
             )
     else:
-        # Regular users can ONLY see vendors for their specific team
+        # Regular users - support multi-team filtering
         user_account_id = current_user.account_id
-        user_team_id = current_user.team_id
+        user_team_ids = TeamAccessService.get_user_team_ids()
         
-        if user_account_id and user_team_id:
-            # Show vendors for user's specific team OR vendors with no team but in same account
+        # Check if specific team requested via URL
+        filter_team_id = request.args.get('team_id', type=int)
+        
+        if filter_team_id and filter_team_id in user_team_ids:
+            # User selected a specific team - show only that team's vendors
             query = query.filter(
                 db.or_(
                     db.and_(
                         VendorDetail.account_id == user_account_id,
-                        VendorDetail.team_id == user_team_id
+                        VendorDetail.team_id == filter_team_id
+                    ),
+                    db.and_(
+                        VendorDetail.account_id == user_account_id,
+                        VendorDetail.team_id.is_(None)
+                    ),
+                    VendorDetail.account_id.is_(None)  # Global vendors
+                )
+            )
+        elif user_team_ids:
+            # Show vendors for all user's teams
+            query = query.filter(
+                db.or_(
+                    db.and_(
+                        VendorDetail.account_id == user_account_id,
+                        VendorDetail.team_id.in_(user_team_ids)
                     ),
                     db.and_(
                         VendorDetail.account_id == user_account_id,
@@ -107,7 +126,7 @@ def vendor_details():
                 )
             )
         elif user_account_id:
-            # Fallback: filter by account only if no team assigned
+            # Fallback: filter by account only if no teams assigned
             query = query.filter(
                 db.or_(
                     VendorDetail.account_id == user_account_id,
@@ -172,6 +191,7 @@ def vendor_details():
     # Get accounts list for admin filter
     accounts = []
     teams = []
+    selected_team_id = request.args.get('team_id', type=int)
     
     if current_user.role == 'super_admin':
         accounts = Account.query.filter_by(is_active=True).order_by(Account.name).all()
@@ -184,9 +204,12 @@ def vendor_details():
                 accounts = [account]
             teams = Team.query.filter_by(account_id=current_user.account_id, is_active=True).order_by(Team.name).all()
     else:
-        # Regular user - get teams for their account
-        if current_user.account_id:
-            teams = Team.query.filter_by(account_id=current_user.account_id, is_active=True).order_by(Team.name).all()
+        # Regular user - get their teams using TeamAccessService
+        url_team_id = request.args.get('team_id', type=int)
+        team_filter_context = TeamAccessService.get_team_filter_context(url_team_id=url_team_id)
+        teams = team_filter_context.get('user_teams', [])
+        if not selected_team_id:
+            selected_team_id = team_filter_context.get('selected_team_id')
     
     return render_template(
         'vendor_details.html',
@@ -194,6 +217,7 @@ def vendor_details():
         applications=applications,
         accounts=accounts,
         teams=teams,
+        selected_team_id=selected_team_id,
         total_vendors=len(vendors),
         is_admin=is_admin()
     )
