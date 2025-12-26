@@ -285,9 +285,22 @@ def send_handover_email(shift):
     key_points = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
     
     # Query additional handover data for complete email content
+    # 🔧 FIX: Filter out Published KBs and Completed/Cancelled Change Infos
+    # These statuses indicate the item is "done" and shouldn't appear in new handover emails
     from models.models import ShiftChangeInfo, ShiftKBUpdate
-    change_infos = ShiftChangeInfo.query.filter_by(shift_id=shift.id).all()
-    kb_updates = ShiftKBUpdate.query.filter_by(shift_id=shift.id).all()
+    
+    # Filter change_infos - exclude Completed, Cancelled, Implemented statuses
+    change_infos = ShiftChangeInfo.query.filter(
+        ShiftChangeInfo.shift_id == shift.id,
+        ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
+    ).all()
+    
+    # Filter kb_updates - exclude Published status
+    kb_updates = ShiftKBUpdate.query.filter(
+        ShiftKBUpdate.shift_id == shift.id,
+        ShiftKBUpdate.status != 'Published'
+    ).all()
+    
     additional_notes = getattr(shift, 'additional_notes', None) or getattr(shift, 'notes', None) or ''
     
     # Get team name for context

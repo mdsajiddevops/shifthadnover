@@ -517,16 +517,23 @@ def detailed_shift_report(shift_id):
             key_points = list(kp_map.values())
             print(f"🔍 After dashboard-style filtering and deduplication: {len(key_points)} unique key points", flush=True)
         
-        change_infos = ShiftChangeInfo.query.filter_by(shift_id=shift_id).all()
-        kb_updates = ShiftKBUpdate.query.filter_by(shift_id=shift_id).all()
+        # 🔧 FIX: Filter out Completed/Cancelled/Implemented changes and Published KBs
+        change_infos = ShiftChangeInfo.query.filter(
+            ShiftChangeInfo.shift_id == shift_id,
+            ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
+        ).all()
+        kb_updates = ShiftKBUpdate.query.filter(
+            ShiftKBUpdate.shift_id == shift_id,
+            ShiftKBUpdate.status != 'Published'
+        ).all()
         
         # 🔍 DEBUG: Check what data we're getting for the detailed report
         print(f"🔍 DETAILED REPORT DEBUG for shift {shift_id}:", flush=True)
         print(f"  - Shift status: {shift.status}", flush=True)
         print(f"  - Incidents found: {len(incidents)}", flush=True)
         print(f"  - Key Points found (after processing): {len(key_points)}", flush=True)
-        print(f"  - Change Infos found: {len(change_infos)}", flush=True)
-        print(f"  - KB Updates found: {len(kb_updates)}", flush=True)
+        print(f"  - Change Infos found (excluding Completed/Cancelled): {len(change_infos)}", flush=True)
+        print(f"  - KB Updates found (excluding Published): {len(kb_updates)}", flush=True)
         
         # Debug first few key points
         for i, kp in enumerate(key_points[:3]):
@@ -1026,7 +1033,11 @@ def handover_reports():
                 submitted_by = 'Unknown'
             
             # Get Change Info and KB Updates for this shift
-            change_infos = ShiftChangeInfo.query.filter_by(shift_id=shift.id).all()
+            # 🔧 FIX: Filter out Completed/Cancelled/Implemented changes - they shouldn't appear in handover reports
+            change_infos = ShiftChangeInfo.query.filter(
+                ShiftChangeInfo.shift_id == shift.id,
+                ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
+            ).all()
             change_infos_data = []
             for change_info in change_infos:
                 engineer = None
@@ -1042,7 +1053,11 @@ def handover_reports():
                     'status': change_info.status  # Include status for display in reports
                 })
             
-            kb_updates = ShiftKBUpdate.query.filter_by(shift_id=shift.id).all()
+            # 🔧 FIX: Filter out Published KBs - they shouldn't appear in handover reports
+            kb_updates = ShiftKBUpdate.query.filter(
+                ShiftKBUpdate.shift_id == shift.id,
+                ShiftKBUpdate.status != 'Published'
+            ).all()
             kb_updates_data = []
             for kb_update in kb_updates:
                 engineer = None
