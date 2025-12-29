@@ -109,9 +109,26 @@ class User(db.Model, UserMixin):
     # Onboarding and login tracking fields
     first_login = db.Column(db.Boolean, default=True, nullable=False)  # True for users who haven't completed onboarding
     last_login = db.Column(db.DateTime, nullable=True)  # Track last login time
+    last_activity = db.Column(db.DateTime, nullable=True)  # Track last activity time for active session monitoring
     onboarding_completed = db.Column(db.Boolean, default=False, nullable=False)  # Track if onboarding flow is completed
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp(), nullable=False)
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    
+    @property
+    def is_online(self):
+        """Check if user is currently online (active in last 5 minutes)"""
+        if not self.last_activity:
+            return False
+        from datetime import datetime, timedelta
+        return datetime.now() - self.last_activity < timedelta(minutes=5)
+    
+    @property 
+    def is_recently_active(self):
+        """Check if user was active in last 30 minutes"""
+        if not self.last_activity:
+            return False
+        from datetime import datetime, timedelta
+        return datetime.now() - self.last_activity < timedelta(minutes=30)
     
     @property
     def display_name(self):

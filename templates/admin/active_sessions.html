@@ -1,0 +1,332 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="mb-1"><i class="bi bi-people-fill text-primary me-2"></i>Active Sessions</h1>
+                <p class="text-muted mb-0">Monitor currently logged in users and their session activity</p>
+            </div>
+            <div>
+                <button class="btn btn-outline-primary" onclick="refreshSessions()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #28a745 !important;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                                <i class="bi bi-circle-fill text-success fs-4"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h2 class="mb-0 fw-bold" id="online-count">{{ stats.online_count }}</h2>
+                            <small class="text-muted">Online Now</small>
+                            <br><small class="text-success">(Last 5 min)</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #ffc107 !important;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="rounded-circle bg-warning bg-opacity-10 p-3">
+                                <i class="bi bi-clock-history text-warning fs-4"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h2 class="mb-0 fw-bold">{{ stats.recently_active_count }}</h2>
+                            <small class="text-muted">Recently Active</small>
+                            <br><small class="text-warning">(5-30 min ago)</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #17a2b8 !important;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="rounded-circle bg-info bg-opacity-10 p-3">
+                                <i class="bi bi-calendar-check text-info fs-4"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h2 class="mb-0 fw-bold">{{ stats.active_today_count }}</h2>
+                            <small class="text-muted">Active Today</small>
+                            <br><small class="text-info">(30 min - 24 hr)</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #6c757d !important;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="rounded-circle bg-secondary bg-opacity-10 p-3">
+                                <i class="bi bi-people text-secondary fs-4"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h2 class="mb-0 fw-bold">{{ stats.total_users }}</h2>
+                            <small class="text-muted">Total Users</small>
+                            <br><small class="text-secondary">(Active accounts)</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Online Users Section -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-circle-fill me-2"></i>Online Now ({{ online_users|length }})</h5>
+        </div>
+        <div class="card-body p-0">
+            {% if online_users %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>User</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Team</th>
+                            <th>Account</th>
+                            <th>Last Activity</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in online_users %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-success rounded-circle p-1 me-2" style="width: 10px; height: 10px;"></span>
+                                    <strong>{{ user.display_name }}</strong>
+                                </div>
+                            </td>
+                            <td>{{ user.email }}</td>
+                            <td><span class="badge bg-primary">{{ user.role }}</span></td>
+                            <td>{{ user.team.name if user.team else 'N/A' }}</td>
+                            <td>{{ user.account.name if user.account else 'N/A' }}</td>
+                            <td>
+                                {% if user.last_activity %}
+                                    {{ user.last_activity.strftime('%H:%M:%S') }}
+                                    <small class="text-muted">({{ ((now - user.last_activity).total_seconds() / 60)|int }} min ago)</small>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td><span class="badge bg-success">Online</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-person-x fs-1"></i>
+                <p class="mt-2">No users currently online</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Recently Active Users Section -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recently Active ({{ recently_active_users|length }})</h5>
+        </div>
+        <div class="card-body p-0">
+            {% if recently_active_users %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>User</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Team</th>
+                            <th>Last Activity</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in recently_active_users %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-warning rounded-circle p-1 me-2" style="width: 10px; height: 10px;"></span>
+                                    <strong>{{ user.display_name }}</strong>
+                                </div>
+                            </td>
+                            <td>{{ user.email }}</td>
+                            <td><span class="badge bg-primary">{{ user.role }}</span></td>
+                            <td>{{ user.team.name if user.team else 'N/A' }}</td>
+                            <td>
+                                {% if user.last_activity %}
+                                    {{ user.last_activity.strftime('%H:%M:%S') }}
+                                    <small class="text-muted">({{ ((now - user.last_activity).total_seconds() / 60)|int }} min ago)</small>
+                                {% endif %}
+                            </td>
+                            <td><span class="badge bg-warning text-dark">Away</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-clock fs-1"></i>
+                <p class="mt-2">No recently active users</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Active Today Section -->
+    {% if active_today_users %}
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-calendar-check me-2"></i>Active Earlier Today ({{ active_today_users|length }})</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>User</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Team</th>
+                            <th>Last Activity</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in active_today_users %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-secondary rounded-circle p-1 me-2" style="width: 10px; height: 10px;"></span>
+                                    {{ user.display_name }}
+                                </div>
+                            </td>
+                            <td>{{ user.email }}</td>
+                            <td><span class="badge bg-primary">{{ user.role }}</span></td>
+                            <td>{{ user.team.name if user.team else 'N/A' }}</td>
+                            <td>
+                                {% if user.last_activity %}
+                                    {{ user.last_activity.strftime('%Y-%m-%d %H:%M') }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Inactive Users Section (Collapsed by default) -->
+    {% if inactive_users %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-secondary text-white" data-bs-toggle="collapse" data-bs-target="#inactiveUsers" style="cursor: pointer;">
+            <h5 class="mb-0">
+                <i class="bi bi-person-dash me-2"></i>Inactive Users ({{ inactive_users|length }})
+                <i class="bi bi-chevron-down float-end"></i>
+            </h5>
+        </div>
+        <div id="inactiveUsers" class="collapse">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>User</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Last Login</th>
+                                <th>Last Activity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in inactive_users %}
+                            <tr class="text-muted">
+                                <td>{{ user.display_name }}</td>
+                                <td>{{ user.email }}</td>
+                                <td><span class="badge bg-secondary">{{ user.role }}</span></td>
+                                <td>
+                                    {% if user.last_login %}
+                                        {{ user.last_login.strftime('%Y-%m-%d %H:%M') }}
+                                    {% else %}
+                                        <span class="text-muted">Never</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if user.last_activity %}
+                                        {{ user.last_activity.strftime('%Y-%m-%d %H:%M') }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Auto-refresh every 30 seconds
+let autoRefreshInterval;
+
+function refreshSessions() {
+    location.reload();
+}
+
+function startAutoRefresh() {
+    autoRefreshInterval = setInterval(function() {
+        fetch('/admin/api/active-sessions')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('online-count').textContent = data.online_count;
+            })
+            .catch(err => console.log('Auto-refresh failed:', err));
+    }, 30000);
+}
+
+// Start auto-refresh on page load
+document.addEventListener('DOMContentLoaded', startAutoRefresh);
+</script>
+
+<style>
+.card-header[data-bs-toggle="collapse"]:hover {
+    opacity: 0.9;
+}
+.table td, .table th {
+    vertical-align: middle;
+}
+</style>
+{% endblock %}
+

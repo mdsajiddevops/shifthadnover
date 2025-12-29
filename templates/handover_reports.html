@@ -296,6 +296,34 @@
 .status-badge.completed { background: #e8f5e9; color: #2e7d32; }
 .status-badge.draft { background: #fff3e0; color: #ef6c00; }
 
+/* Draft Edit Button - Prominent styling */
+.draft-edit-btn {
+    background: linear-gradient(135deg, #f39c12, #e67e22) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 600;
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(243, 156, 18, 0.4);
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    animation: pulse-draft 2s infinite;
+}
+
+.draft-edit-btn:hover {
+    background: linear-gradient(135deg, #e67e22, #d35400) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(243, 156, 18, 0.5);
+    color: white !important;
+}
+
+@keyframes pulse-draft {
+    0%, 100% { box-shadow: 0 2px 8px rgba(243, 156, 18, 0.4); }
+    50% { box-shadow: 0 2px 15px rgba(243, 156, 18, 0.7); }
+}
+
 .shift-summary-badges {
     display: flex;
     gap: 0.5rem;
@@ -928,6 +956,14 @@
                                     </span>
                                     {% endif %}
                                 </div>
+                                {% if entry.shift['status'] == 'draft' %}
+                                <a href="{{ url_for('handover.edit_handover', shift_id=entry.shift['id']) }}" 
+                                   class="btn btn-warning btn-sm draft-edit-btn" 
+                                   onclick="event.stopPropagation();"
+                                   title="Edit Draft">
+                                    <i class="bi bi-pencil-square me-1"></i>Edit Draft
+                                </a>
+                                {% endif %}
                                 <div class="expand-icon" id="shift-expand-{{ entry.shift['id'] }}">
                                     <i class="bi bi-chevron-down"></i>
                                 </div>

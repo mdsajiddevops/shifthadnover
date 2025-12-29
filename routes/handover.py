@@ -959,7 +959,13 @@ def edit_handover(shift_id):
         }
         
         def get_engineers_for_shift(date, shift_code):
-            entries = ShiftRoster.query.filter_by(date=date, shift_code=shift_code).all()
+            # 🔧 FIX: Add account_id and team_id filtering to match handover() route
+            query = ShiftRoster.query.filter_by(date=date, shift_code=shift_code)
+            if shift.account_id and shift.team_id:
+                query = query.filter_by(account_id=shift.account_id, team_id=shift.team_id)
+            elif shift.account_id:
+                query = query.filter_by(account_id=shift.account_id)
+            entries = query.all()
             member_ids = [e.team_member_id for e in entries]
             return TeamMember.query.filter(TeamMember.id.in_(member_ids)).all() if member_ids else []
         
@@ -1694,9 +1700,15 @@ def edit_handover(shift_id):
             email_success = [False]  # Use list for mutable reference
             email_error = [None]
             
+            # 🔧 FIX: Capture Flask app context for use in background thread
+            # Use _get_current_object() to get the actual app, not the proxy
+            flask_app = current_app._get_current_object()
+            
             def send_email_thread():
                 try:
-                    send_handover_email(shift)
+                    # 🔧 FIX: Push application context in background thread
+                    with flask_app.app_context():
+                        send_handover_email(shift)
                     email_success[0] = True
                     print(f"[EMAIL_DEBUG] ✅ Email sent successfully for shift_id={shift.id}")
                     logging.debug(f"[EMAIL] Email sent successfully for shift_id={shift.id}")
@@ -1793,9 +1805,13 @@ def edit_handover(shift_id):
         print(f"🔧 EDIT SENT: Showing {len(open_key_points)} actual key points from shift {shift.id}")
     else:
         # DRAFT EDIT or NEW HANDOVER: Deduplicate to avoid showing same key point multiple times
+        # 🔧 FIX: Use CASE-INSENSITIVE matching for description to prevent duplicates
         kp_map = {}
         for kp in all_kps:
-            key = (kp.description, kp.jira_id)
+            # Normalize JIRA ID
+            normalized_jira = kp.jira_id if kp.jira_id and kp.jira_id.lower() not in ['none', 'null', ''] else None
+            # Use lowercase description for case-insensitive deduplication
+            key = (kp.description.strip().lower(), normalized_jira)
             if key not in kp_map or kp.id > kp_map[key].id:
                 kp_map[key] = kp
         open_key_points = list(kp_map.values())
@@ -3309,13 +3325,15 @@ def handover():
         print(f"   ID {kp.id}: '{kp.description[:40]}...' | JIRA: {repr(kp.jira_id)} | Status: {kp.status}")
     
     # Deduplicate: keep only the latest (by id) for each (description, normalized_jira_id) pair
+    # 🔧 FIX: Use CASE-INSENSITIVE matching for description to prevent duplicates
     kp_map = {}
     for kp in all_prev_kps:
         if kp.status == 'Closed':
             continue
         # Normalize JIRA ID: treat None, NULL, empty string, and 'None' as equivalent
         normalized_jira = kp.jira_id if kp.jira_id and kp.jira_id.lower() not in ['none', 'null', ''] else None
-        key = (kp.description, normalized_jira)
+        # 🔧 FIX: Use lowercase description for case-insensitive deduplication
+        key = (kp.description.strip().lower(), normalized_jira)
         if key not in kp_map or kp.id > kp_map[key].id:
             kp_map[key] = kp
     open_key_points = list(kp_map.values())

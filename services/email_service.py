@@ -8,9 +8,17 @@ def send_handover_email(shift):
     from flask import current_app
     import os
     import logging
+    import time
     from models.models import Team, User, Incident
     from models.models import Incident, ShiftKeyPoint, TeamMember, Team, User, Account
     from models.app_config import AppConfig
+    from models.email_delivery_log import EmailDeliveryLog
+    from models.models import db
+    from datetime import datetime
+    
+    # Initialize email log variable for tracking
+    email_log = None
+    email_start_time = time.time()
     
     # Fix Flask-Mail configuration by loading SMTP settings from database
     mail = None
@@ -271,9 +279,52 @@ def send_handover_email(shift):
         logging.warning("No email recipients found for handover notification - please configure email recipients in admin settings")
         return
 
-    # Gather details with correct incident types
-    current_engineers = ', '.join([e.name for e in shift.current_engineers]) if shift.current_engineers else 'None assigned'
-    next_engineers = ', '.join([e.name for e in shift.next_engineers]) if shift.next_engineers else 'None assigned'
+    # 🔧 FIX: Query engineers from roster with proper team filtering
+    # Instead of using stored shift.current_engineers/next_engineers which may include all teams
+    from models.models import ShiftRoster
+    from datetime import timedelta
+    
+    def get_roster_engineers_for_email(shift_date, shift_type, account_id, team_id):
+        """Get engineers from roster for a specific shift with team filtering"""
+        shift_map = {'Morning': 'D', 'Evening': 'E', 'Night': 'N', 'OnShore': 'OS', 'OffShore': 'OF'}
+        shift_code = shift_map.get(shift_type)
+        if not shift_code:
+            return []
+        
+        # Query roster with account and team filtering
+        query = ShiftRoster.query.filter_by(date=shift_date, shift_code=shift_code)
+        if account_id and team_id:
+            query = query.filter_by(account_id=account_id, team_id=team_id)
+        elif account_id:
+            query = query.filter_by(account_id=account_id)
+        
+        entries = query.all()
+        member_ids = [e.team_member_id for e in entries]
+        
+        if member_ids:
+            engineers = TeamMember.query.filter(TeamMember.id.in_(member_ids)).all()
+            return [e.name for e in engineers]
+        return []
+    
+    # Get current shift engineers from roster
+    current_engineer_names = get_roster_engineers_for_email(
+        shift.date, shift.current_shift_type, shift.account_id, shift.team_id
+    )
+    current_engineers = ', '.join(current_engineer_names) if current_engineer_names else 'None assigned'
+    
+    # Get next shift engineers from roster
+    # For Night->Morning transition, morning engineers come from next day
+    next_shift_date = shift.date
+    if shift.current_shift_type == 'Night' and shift.next_shift_type == 'Morning':
+        next_shift_date = shift.date + timedelta(days=1)
+    
+    next_engineer_names = get_roster_engineers_for_email(
+        next_shift_date, shift.next_shift_type, shift.account_id, shift.team_id
+    )
+    next_engineers = ', '.join(next_engineer_names) if next_engineer_names else 'None assigned'
+    
+    print(f"[EMAIL_SERVICE] 👥 Current shift engineers ({shift.current_shift_type}): {len(current_engineer_names)} found")
+    print(f"[EMAIL_SERVICE] 👥 Next shift engineers ({shift.next_shift_type}): {len(next_engineer_names)} found")
     
     # Fix incident type queries (using correct types from database)
     open_incidents = Incident.query.filter_by(shift_id=shift.id, type='Open').all()
@@ -355,6 +406,34 @@ def send_handover_email(shift):
         print(f"[EMAIL_SERVICE] ⚠️ Error finding submitter: {e}")
         submitted_by = "Unknown"
 
+    def parse_incident_title(title):
+        """
+        Parse incident title to extract application name and incident ID.
+        Handles multiple formats:
+        - "[AppName] INC123456" - bracket format from edit mode
+        - "AppName - INC123456" - dash format from create mode
+        - "INC123456" - incident ID only
+        """
+        import re
+        
+        if not title:
+            return '-', '-'
+        
+        title = title.strip()
+        
+        # Format 1: [AppName] IncidentID
+        bracket_match = re.match(r'^\[([^\]]+)\]\s*(.+)$', title)
+        if bracket_match:
+            return bracket_match.group(1).strip(), bracket_match.group(2).strip()
+        
+        # Format 2: AppName - IncidentID
+        if ' - ' in title:
+            parts = title.split(' - ', 1)
+            return parts[0].strip(), parts[1].strip()
+        
+        # Format 3: Just incident ID or unformatted title
+        return '-', title
+
     def detailed_incidents_section():
         sections = ""
         
@@ -364,7 +443,7 @@ def send_handover_email(shift):
             sections += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
             sections += '<tr style="background-color: #f8f9fa;"><th>Application</th><th>Incident ID</th><th>Priority</th><th>Assigned To</th><th>Description</th></tr>'
             for inc in open_incidents:
-                app_name, inc_id = inc.title.split(' - ', 1) if ' - ' in inc.title else ('-', inc.title)
+                app_name, inc_id = parse_incident_title(inc.title)
                 sections += f'<tr><td>{app_name}</td><td>{inc_id}</td><td>{inc.priority or "Medium"}</td><td>{inc.assigned_to or "-"}</td><td>{inc.description or "-"}</td></tr>'
             sections += '</table>'
         
@@ -374,7 +453,7 @@ def send_handover_email(shift):
             sections += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
             sections += '<tr style="background-color: #f8f9fa;"><th>Application</th><th>Incident ID</th><th>Resolution</th></tr>'
             for inc in closed_incidents:
-                app_name, inc_id = inc.title.split(' - ', 1) if ' - ' in inc.title else ('-', inc.title)
+                app_name, inc_id = parse_incident_title(inc.title)
                 sections += f'<tr><td>{app_name}</td><td>{inc_id}</td><td>{inc.description or "Resolved"}</td></tr>'
             sections += '</table>'
         
@@ -384,7 +463,7 @@ def send_handover_email(shift):
             sections += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
             sections += '<tr style="background-color: #f8f9fa;"><th>Application</th><th>Incident ID</th><th>Priority Level</th><th>Escalated To</th><th>Impact</th></tr>'
             for inc in priority_incidents:
-                app_name, inc_id = inc.title.split(' - ', 1) if ' - ' in inc.title else ('-', inc.title)
+                app_name, inc_id = parse_incident_title(inc.title)
                 sections += f'<tr><td>{app_name}</td><td>{inc_id}</td><td>{inc.priority or "High"}</td><td>{inc.escalated_to or "-"}</td><td>{inc.description or "-"}</td></tr>'
             sections += '</table>'
         
@@ -394,7 +473,7 @@ def send_handover_email(shift):
             sections += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
             sections += '<tr style="background-color: #f8f9fa;"><th>Application</th><th>Incident ID</th><th>Priority Level</th><th>Escalated To</th><th>Impact</th></tr>'
             for inc in escalated_incidents:
-                app_name, inc_id = inc.title.split(' - ', 1) if ' - ' in inc.title else ('-', inc.title)
+                app_name, inc_id = parse_incident_title(inc.title)
                 sections += f'<tr><td>{app_name}</td><td>{inc_id}</td><td>{inc.priority or "High"}</td><td>{inc.escalated_to or "-"}</td><td>{inc.description or "-"}</td></tr>'
             sections += '</table>'
         
@@ -404,7 +483,7 @@ def send_handover_email(shift):
             sections += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; margin-bottom: 15px;">'
             sections += '<tr style="background-color: #f8f9fa;"><th>Application</th><th>Incident ID</th><th>Status</th><th>Next Action By</th><th>Notes</th></tr>'
             for inc in handover_incidents:
-                app_name, inc_id = inc.title.split(' - ', 1) if ' - ' in inc.title else ('-', inc.title)
+                app_name, inc_id = parse_incident_title(inc.title)
                 sections += f'<tr><td>{app_name}</td><td>{inc_id}</td><td>{inc.status or "Active"}</td><td>{inc.assigned_to or "-"}</td><td>{inc.description or "-"}</td></tr>'
             sections += '</table>'
         
@@ -650,6 +729,28 @@ Configure email recipients in Admin > Secrets Management > Email Recipients.
     print(f"[EMAIL_SERVICE] Sending handover email to {len(recipients)} recipients via configured settings")
     logging.debug(f"[EMAIL_SERVICE] Enhanced handover email details - Recipients: {recipients}, Team: {team_name}")
     
+    # 📊 Create email delivery log entry for monitoring
+    try:
+        smtp_server = current_app.config.get('MAIL_SERVER')
+        smtp_port = current_app.config.get('MAIL_PORT')
+        
+        email_log = EmailDeliveryLog.log_email_attempt(
+            subject=subject,
+            recipients=recipients,
+            source_type='handover',
+            source_id=shift.id,
+            sender=sender,
+            account_id=shift.account_id,
+            team_id=shift.team_id,
+            triggered_by_id=None,  # Will be updated if we can get current user
+            smtp_server=smtp_server,
+            smtp_port=smtp_port
+        )
+        print(f"[EMAIL_SERVICE] 📊 Email delivery log created: ID={email_log.id}")
+    except Exception as log_error:
+        print(f"[EMAIL_SERVICE] ⚠️ Could not create email log: {log_error}")
+        email_log = None
+    
     try:
         import time
         
@@ -695,6 +796,17 @@ Configure email recipients in Admin > Secrets Management > Email Recipients.
         elapsed = time.time() - start_time
         print(f"[EMAIL_SERVICE] ✅ Enhanced handover email sent successfully to {len(recipients)} recipients in {elapsed:.2f}s")
         logging.debug(f"[EMAIL_SERVICE] ✅ Enhanced handover email sent successfully")
+        
+        # 📊 Mark email as sent in delivery log
+        if email_log:
+            try:
+                email_log.mark_sent(duration=elapsed)
+                print(f"[EMAIL_SERVICE] 📊 Email delivery log updated: SENT (ID={email_log.id})")
+            except Exception as log_error:
+                print(f"[EMAIL_SERVICE] ⚠️ Could not update email log: {log_error}")
+        
+        return  # Success - exit function
+        
     except (Exception, TimeoutError) as e:
         error_message = str(e)
         elapsed = time.time() - start_time if 'start_time' in locals() else 0
@@ -733,12 +845,35 @@ Configure email recipients in Admin > Secrets Management > Email Recipients.
             if uns_result.get('success'):
                 print(f"[EMAIL_SERVICE] ✅ UNS Email fallback successful! Sent to {len(recipients)} recipients")
                 logging.info(f"[EMAIL_SERVICE] ✅ UNS Email fallback successful")
+                
+                # 📊 Mark email as sent via UNS fallback
+                if email_log:
+                    try:
+                        total_elapsed = time.time() - email_start_time
+                        email_log.status = 'sent'
+                        email_log.sent_at = datetime.now()
+                        email_log.duration_seconds = total_elapsed
+                        email_log.error_message = f"Flask-Mail failed, sent via UNS fallback. Original error: {error_message[:500]}"
+                        db.session.commit()
+                        print(f"[EMAIL_SERVICE] 📊 Email delivery log updated: SENT via UNS (ID={email_log.id})")
+                    except Exception as log_error:
+                        print(f"[EMAIL_SERVICE] ⚠️ Could not update email log: {log_error}")
+                
                 return  # Success with UNS Email - don't raise exception
             else:
                 print(f"[EMAIL_SERVICE] ❌ UNS Email fallback also failed: {uns_result.get('error', 'Unknown error')}")
                 
         except Exception as uns_e:
             print(f"[EMAIL_SERVICE] ❌ UNS Email fallback error: {uns_e}")
+        
+        # 📊 Mark email as failed in delivery log
+        if email_log:
+            try:
+                total_elapsed = time.time() - email_start_time
+                email_log.mark_failed(f"Flask-Mail and UNS fallback both failed. Error: {error_message}", duration=total_elapsed)
+                print(f"[EMAIL_SERVICE] 📊 Email delivery log updated: FAILED (ID={email_log.id})")
+            except Exception as log_error:
+                print(f"[EMAIL_SERVICE] ⚠️ Could not update email log: {log_error}")
         
         print(f"[EMAIL_SERVICE] 💡 All email methods failed - handover data saved successfully anyway")
         raise

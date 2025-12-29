@@ -1,0 +1,397 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="mb-1"><i class="bi bi-envelope-check text-primary me-2"></i>Email Delivery Monitoring</h1>
+                <p class="text-muted mb-0">Track and monitor all email deliveries from the system</p>
+            </div>
+            <div>
+                <button class="btn btn-outline-primary" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-2">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #28a745 !important;">
+                <div class="card-body text-center">
+                    <h2 class="mb-0 fw-bold text-success">{{ stats.total_sent }}</h2>
+                    <small class="text-muted">Total Sent</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #dc3545 !important;">
+                <div class="card-body text-center">
+                    <h2 class="mb-0 fw-bold text-danger">{{ stats.total_failed }}</h2>
+                    <small class="text-muted">Total Failed</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #ffc107 !important;">
+                <div class="card-body text-center">
+                    <h2 class="mb-0 fw-bold text-warning">{{ stats.total_pending }}</h2>
+                    <small class="text-muted">Pending</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #17a2b8 !important;">
+                <div class="card-body text-center">
+                    <h2 class="mb-0 fw-bold text-info">{{ stats.sent_24h }}</h2>
+                    <small class="text-muted">Sent (24h)</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #6f42c1 !important;">
+                <div class="card-body text-center">
+                    <h2 class="mb-0 fw-bold" style="color: #6f42c1;">{{ stats.failed_24h }}</h2>
+                    <small class="text-muted">Failed (24h)</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #20c997 !important;">
+                <div class="card-body text-center">
+                    <h2 class="mb-0 fw-bold" style="color: #20c997;">{{ stats.success_rate }}%</h2>
+                    <small class="text-muted">Success Rate</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label"><i class="bi bi-filter me-1"></i>Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Status</option>
+                        <option value="sent" {{ 'selected' if status_filter == 'sent' }}>✅ Sent</option>
+                        <option value="failed" {{ 'selected' if status_filter == 'failed' }}>❌ Failed</option>
+                        <option value="pending" {{ 'selected' if status_filter == 'pending' }}>⏳ Pending</option>
+                        <option value="skipped" {{ 'selected' if status_filter == 'skipped' }}>⏭️ Skipped</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label"><i class="bi bi-tag me-1"></i>Source</label>
+                    <select name="source" class="form-select">
+                        <option value="">All Sources</option>
+                        {% for source in source_types %}
+                        <option value="{{ source }}" {{ 'selected' if source_filter == source }}>{{ source|title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label"><i class="bi bi-calendar me-1"></i>From Date</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label"><i class="bi bi-calendar me-1"></i>To Date</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search me-1"></i>Filter
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <a href="{{ url_for('admin.email_monitoring') }}" class="btn btn-outline-secondary w-100">
+                        <i class="bi bi-x-lg me-1"></i>Clear
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Email Logs Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Email Delivery Logs</h5>
+        </div>
+        <div class="card-body p-0">
+            {% if email_logs %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>UNS Event ID</th>
+                            <th>Status</th>
+                            <th>Subject</th>
+                            <th>Recipients</th>
+                            <th>Source</th>
+                            <th>Team</th>
+                            <th>Created</th>
+                            <th>Duration</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in email_logs %}
+                        <tr>
+                            <td><code>{{ log.id }}</code></td>
+                            <td>
+                                {% if log.uns_event_id %}
+                                <code class="small text-primary" style="font-size: 0.75rem; word-break: break-all;" title="Click to copy" onclick="navigator.clipboard.writeText('{{ log.uns_event_id }}'); this.classList.add('text-success'); setTimeout(() => this.classList.remove('text-success'), 1000);">
+                                    {{ log.uns_event_id[:8] }}...
+                                </code>
+                                <button class="btn btn-link btn-sm p-0 ms-1" onclick="navigator.clipboard.writeText('{{ log.uns_event_id }}')" title="Copy full ID">
+                                    <i class="bi bi-clipboard text-muted" style="font-size: 0.7rem;"></i>
+                                </button>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if log.status == 'sent' %}
+                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Sent</span>
+                                {% elif log.status == 'failed' %}
+                                <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Failed</span>
+                                {% elif log.status == 'pending' %}
+                                <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>Pending</span>
+                                {% elif log.status == 'skipped' %}
+                                <span class="badge bg-secondary"><i class="bi bi-skip-forward me-1"></i>Skipped</span>
+                                {% else %}
+                                <span class="badge bg-light text-dark">{{ log.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="text-truncate d-inline-block" style="max-width: 250px;" title="{{ log.subject }}">
+                                    {{ log.subject[:50] }}{% if log.subject|length > 50 %}...{% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">{{ log.recipient_count }} recipient{{ 's' if log.recipient_count != 1 }}</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-info text-dark">{{ log.source_type|title }}</span>
+                                {% if log.source_id %}
+                                <small class="text-muted">#{{ log.source_id }}</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ log.team.name if log.team else 'N/A' }}</td>
+                            <td>
+                                <small>{{ log.created_at.strftime('%Y-%m-%d %H:%M') if log.created_at else '-' }}</small>
+                            </td>
+                            <td>
+                                {% if log.duration_seconds %}
+                                <small>{{ "%.2f"|format(log.duration_seconds) }}s</small>
+                                {% else %}
+                                <small class="text-muted">-</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="showEmailDetail({{ log.id }})" title="View Details">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% if log.status == 'failed' and log.error_message %}
+                        <tr class="table-danger">
+                            <td colspan="10" class="py-1">
+                                <small class="text-danger">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>
+                                    <strong>Error:</strong> {{ log.error_message[:200] }}{% if log.error_message|length > 200 %}...{% endif %}
+                                </small>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            {% if pagination.pages > 1 %}
+            <div class="card-footer bg-white">
+                <nav aria-label="Email logs pagination">
+                    <ul class="pagination mb-0 justify-content-center">
+                        {% if pagination.has_prev %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('admin.email_monitoring', page=pagination.prev_num, status=status_filter, source=source_filter, date_from=date_from, date_to=date_to) }}">
+                                <i class="bi bi-chevron-left"></i>
+                            </a>
+                        </li>
+                        {% endif %}
+                        
+                        {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if p %}
+                            <li class="page-item {{ 'active' if p == pagination.page }}">
+                                <a class="page-link" href="{{ url_for('admin.email_monitoring', page=p, status=status_filter, source=source_filter, date_from=date_from, date_to=date_to) }}">{{ p }}</a>
+                            </li>
+                            {% else %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if pagination.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('admin.email_monitoring', page=pagination.next_num, status=status_filter, source=source_filter, date_from=date_from, date_to=date_to) }}">
+                                <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+            
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-envelope fs-1"></i>
+                <p class="mt-2">No email delivery logs found</p>
+                <small>Email logs will appear here once emails are sent from the system</small>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Email Detail Modal -->
+<div class="modal fade" id="emailDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-envelope-open me-2"></i>Email Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="emailDetailContent">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2">Loading...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showEmailDetail(logId) {
+    const modal = new bootstrap.Modal(document.getElementById('emailDetailModal'));
+    const content = document.getElementById('emailDetailContent');
+    
+    content.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>';
+    modal.show();
+    
+    fetch(`/admin/email-monitoring/${logId}`)
+        .then(response => response.json())
+        .then(data => {
+            let statusBadge = '';
+            if (data.status === 'sent') {
+                statusBadge = '<span class="badge bg-success fs-6"><i class="bi bi-check-circle me-1"></i>Sent</span>';
+            } else if (data.status === 'failed') {
+                statusBadge = '<span class="badge bg-danger fs-6"><i class="bi bi-x-circle me-1"></i>Failed</span>';
+            } else if (data.status === 'pending') {
+                statusBadge = '<span class="badge bg-warning text-dark fs-6"><i class="bi bi-clock me-1"></i>Pending</span>';
+            } else {
+                statusBadge = `<span class="badge bg-secondary fs-6">${data.status}</span>`;
+            }
+            
+            let recipientsList = data.recipients.map(r => `<li>${r}</li>`).join('');
+            let ccList = data.cc_recipients && data.cc_recipients.length > 0 
+                ? data.cc_recipients.map(r => `<li>${r}</li>`).join('') 
+                : '<li class="text-muted">None</li>';
+            
+            content.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted">Status</h6>
+                        <p>${statusBadge}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted">Source</h6>
+                        <p><span class="badge bg-info">${data.source_type}</span> ${data.source_id ? '#' + data.source_id : ''}</p>
+                    </div>
+                </div>
+                
+                ${data.uns_event_id ? `
+                <div class="alert alert-primary py-2 mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <small class="text-muted">UNS Event ID</small><br>
+                            <code class="user-select-all">${data.uns_event_id}</code>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="navigator.clipboard.writeText('${data.uns_event_id}')">
+                            <i class="bi bi-clipboard"></i> Copy
+                        </button>
+                    </div>
+                </div>
+                ` : ''}
+                
+                <hr>
+                <h6 class="text-muted">Subject</h6>
+                <p class="fw-bold">${data.subject}</p>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted">Recipients (${data.recipient_count})</h6>
+                        <ul class="small">${recipientsList}</ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted">CC Recipients</h6>
+                        <ul class="small">${ccList}</ul>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted">Sender</h6>
+                        <p><code>${data.sender || 'N/A'}</code></p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted">SMTP Server</h6>
+                        <p><code>${data.smtp_server || 'N/A'}:${data.smtp_port || ''}</code></p>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6 class="text-muted">Created</h6>
+                        <p>${data.created_at || 'N/A'}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-muted">Sent</h6>
+                        <p>${data.sent_at || 'N/A'}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-muted">Duration</h6>
+                        <p>${data.duration_seconds ? data.duration_seconds.toFixed(2) + 's' : 'N/A'}</p>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted">Account</h6>
+                        <p>${data.account}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted">Team</h6>
+                        <p>${data.team}</p>
+                    </div>
+                </div>
+                
+                ${data.error_message ? `
+                <div class="alert alert-danger mt-3">
+                    <h6><i class="bi bi-exclamation-triangle me-1"></i>Error Message</h6>
+                    <pre class="mb-0 small" style="white-space: pre-wrap;">${data.error_message}</pre>
+                </div>
+                ` : ''}
+            `;
+        })
+        .catch(err => {
+            content.innerHTML = '<div class="alert alert-danger">Failed to load email details</div>';
+        });
+}
+</script>
+{% endblock %}
+

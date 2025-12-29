@@ -1,8 +1,9 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from models.models import db, Account, Team, User
 from models.handover_enhanced import HandoverIncidentResponseLog
 from werkzeug.security import generate_password_hash
+from datetime import datetime, timedelta
 
 def admin_required(f):
     from functools import wraps
@@ -312,6 +313,252 @@ def delete_user(user_id):
     db.session.commit()
     flash('User deleted.')
     return redirect(url_for('admin.users'))
+
+# --- Active Sessions Management ---
+@admin_bp.route('/active-sessions')
+@login_required
+@admin_required
+def active_sessions():
+    """View currently active users and their session information"""
+    
+    # Get time thresholds
+    now = datetime.now()
+    online_threshold = now - timedelta(minutes=5)  # Online: active in last 5 minutes
+    recently_active_threshold = now - timedelta(minutes=30)  # Recently active: last 30 minutes
+    today_threshold = now - timedelta(hours=24)  # Active today: last 24 hours
+    
+    # Role-based filtering
+    if current_user.role == 'super_admin':
+        base_query = User.query.filter(User.status == 'active')
+    elif current_user.role == 'account_admin':
+        base_query = User.query.filter(User.account_id == current_user.account_id, User.status == 'active')
+    else:  # team_admin
+        base_query = User.query.filter(
+            User.account_id == current_user.account_id,
+            User.team_id == current_user.team_id,
+            User.status == 'active'
+        )
+    
+    # Get users by activity status
+    online_users = base_query.filter(User.last_activity >= online_threshold).order_by(User.last_activity.desc()).all()
+    recently_active_users = base_query.filter(
+        User.last_activity >= recently_active_threshold,
+        User.last_activity < online_threshold
+    ).order_by(User.last_activity.desc()).all()
+    active_today_users = base_query.filter(
+        User.last_activity >= today_threshold,
+        User.last_activity < recently_active_threshold
+    ).order_by(User.last_activity.desc()).all()
+    
+    # Get users who logged in but no recent activity
+    inactive_users = base_query.filter(
+        db.or_(
+            User.last_activity.is_(None),
+            User.last_activity < today_threshold
+        )
+    ).order_by(User.last_login.desc()).limit(50).all()
+    
+    # Statistics
+    stats = {
+        'online_count': len(online_users),
+        'recently_active_count': len(recently_active_users),
+        'active_today_count': len(active_today_users),
+        'total_users': base_query.count()
+    }
+    
+    return render_template('admin/active_sessions.html',
+                         online_users=online_users,
+                         recently_active_users=recently_active_users,
+                         active_today_users=active_today_users,
+                         inactive_users=inactive_users,
+                         stats=stats,
+                         now=now)
+
+@admin_bp.route('/api/active-sessions')
+@login_required
+@admin_required
+def active_sessions_api():
+    """API endpoint for real-time active session updates"""
+    now = datetime.now()
+    online_threshold = now - timedelta(minutes=5)
+    
+    # Role-based filtering
+    if current_user.role == 'super_admin':
+        base_query = User.query.filter(User.status == 'active')
+    elif current_user.role == 'account_admin':
+        base_query = User.query.filter(User.account_id == current_user.account_id, User.status == 'active')
+    else:
+        base_query = User.query.filter(
+            User.account_id == current_user.account_id,
+            User.team_id == current_user.team_id,
+            User.status == 'active'
+        )
+    
+    online_users = base_query.filter(User.last_activity >= online_threshold).all()
+    
+    return jsonify({
+        'online_count': len(online_users),
+        'users': [{
+            'id': u.id,
+            'name': u.display_name,
+            'email': u.email,
+            'role': u.role,
+            'team': u.team.name if u.team else 'N/A',
+            'last_activity': u.last_activity.strftime('%Y-%m-%d %H:%M:%S') if u.last_activity else None
+        } for u in online_users]
+    })
+
+# --- Email Delivery Monitoring ---
+@admin_bp.route('/email-monitoring')
+@login_required
+@admin_required
+def email_monitoring():
+    """View email delivery logs and statistics"""
+    from models.email_delivery_log import EmailDeliveryLog
+    
+    # Get filter parameters
+    status_filter = request.args.get('status', '')
+    source_filter = request.args.get('source', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
+    
+    # Build query with role-based filtering
+    query = EmailDeliveryLog.query
+    
+    if current_user.role == 'account_admin':
+        query = query.filter(EmailDeliveryLog.account_id == current_user.account_id)
+    elif current_user.role == 'team_admin':
+        query = query.filter(
+            EmailDeliveryLog.account_id == current_user.account_id,
+            EmailDeliveryLog.team_id == current_user.team_id
+        )
+    # super_admin sees all
+    
+    # Apply filters
+    if status_filter:
+        query = query.filter(EmailDeliveryLog.status == status_filter)
+    if source_filter:
+        query = query.filter(EmailDeliveryLog.source_type == source_filter)
+    if date_from:
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+            query = query.filter(EmailDeliveryLog.created_at >= date_from_obj)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+            query = query.filter(EmailDeliveryLog.created_at < date_to_obj)
+        except ValueError:
+            pass
+    
+    # Order by most recent first
+    query = query.order_by(EmailDeliveryLog.created_at.desc())
+    
+    # Paginate
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    email_logs = pagination.items
+    
+    # Calculate statistics
+    stats_query = EmailDeliveryLog.query
+    if current_user.role == 'account_admin':
+        stats_query = stats_query.filter(EmailDeliveryLog.account_id == current_user.account_id)
+    elif current_user.role == 'team_admin':
+        stats_query = stats_query.filter(
+            EmailDeliveryLog.account_id == current_user.account_id,
+            EmailDeliveryLog.team_id == current_user.team_id
+        )
+    
+    # Get stats for last 24 hours
+    last_24h = datetime.now() - timedelta(hours=24)
+    stats = {
+        'total_sent': stats_query.filter(EmailDeliveryLog.status == 'sent').count(),
+        'total_failed': stats_query.filter(EmailDeliveryLog.status == 'failed').count(),
+        'total_pending': stats_query.filter(EmailDeliveryLog.status == 'pending').count(),
+        'total_skipped': stats_query.filter(EmailDeliveryLog.status == 'skipped').count(),
+        'sent_24h': stats_query.filter(EmailDeliveryLog.status == 'sent', EmailDeliveryLog.created_at >= last_24h).count(),
+        'failed_24h': stats_query.filter(EmailDeliveryLog.status == 'failed', EmailDeliveryLog.created_at >= last_24h).count(),
+    }
+    stats['total'] = stats['total_sent'] + stats['total_failed'] + stats['total_pending'] + stats['total_skipped']
+    stats['success_rate'] = round((stats['total_sent'] / stats['total'] * 100), 1) if stats['total'] > 0 else 0
+    
+    # Get unique source types for filter dropdown
+    source_types = db.session.query(EmailDeliveryLog.source_type).distinct().all()
+    source_types = [s[0] for s in source_types if s[0]]
+    
+    return render_template('admin/email_monitoring.html',
+                         email_logs=email_logs,
+                         pagination=pagination,
+                         stats=stats,
+                         source_types=source_types,
+                         status_filter=status_filter,
+                         source_filter=source_filter,
+                         date_from=date_from,
+                         date_to=date_to)
+
+@admin_bp.route('/api/email-monitoring/stats')
+@login_required
+@admin_required
+def email_monitoring_stats_api():
+    """API endpoint for real-time email stats"""
+    from models.email_delivery_log import EmailDeliveryLog
+    
+    stats_query = EmailDeliveryLog.query
+    if current_user.role == 'account_admin':
+        stats_query = stats_query.filter(EmailDeliveryLog.account_id == current_user.account_id)
+    elif current_user.role == 'team_admin':
+        stats_query = stats_query.filter(
+            EmailDeliveryLog.account_id == current_user.account_id,
+            EmailDeliveryLog.team_id == current_user.team_id
+        )
+    
+    last_24h = datetime.now() - timedelta(hours=24)
+    
+    return jsonify({
+        'sent_24h': stats_query.filter(EmailDeliveryLog.status == 'sent', EmailDeliveryLog.created_at >= last_24h).count(),
+        'failed_24h': stats_query.filter(EmailDeliveryLog.status == 'failed', EmailDeliveryLog.created_at >= last_24h).count(),
+        'pending': stats_query.filter(EmailDeliveryLog.status == 'pending').count()
+    })
+
+@admin_bp.route('/email-monitoring/<int:log_id>')
+@login_required
+@admin_required
+def email_log_detail(log_id):
+    """View detailed information about a specific email delivery"""
+    from models.email_delivery_log import EmailDeliveryLog
+    
+    log = EmailDeliveryLog.query.get_or_404(log_id)
+    
+    # Check access permissions
+    if current_user.role == 'account_admin' and log.account_id != current_user.account_id:
+        flash('Access denied.')
+        return redirect(url_for('admin.email_monitoring'))
+    elif current_user.role == 'team_admin' and (log.account_id != current_user.account_id or log.team_id != current_user.team_id):
+        flash('Access denied.')
+        return redirect(url_for('admin.email_monitoring'))
+    
+    return jsonify({
+        'id': log.id,
+        'uns_event_id': log.uns_event_id,
+        'subject': log.subject,
+        'recipients': log.get_recipients_list(),
+        'cc_recipients': log.get_cc_list(),
+        'sender': log.sender,
+        'source_type': log.source_type,
+        'source_id': log.source_id,
+        'status': log.status,
+        'error_message': log.error_message,
+        'smtp_server': log.smtp_server,
+        'smtp_port': log.smtp_port,
+        'created_at': log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else None,
+        'sent_at': log.sent_at.strftime('%Y-%m-%d %H:%M:%S') if log.sent_at else None,
+        'duration_seconds': log.duration_seconds,
+        'account': log.account.name if log.account else 'N/A',
+        'team': log.team.name if log.team else 'N/A',
+        'recipient_count': log.recipient_count
+    })
 
 # --- Handover Incident Response Logs (Admin Only) ---
 @admin_bp.route('/incident-response-logs')

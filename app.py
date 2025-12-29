@@ -58,8 +58,19 @@ def after_request(response):
 @app.before_request
 def log_page_visit():
     from flask_login import current_user
+    from datetime import datetime
     if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
         log_action('Page Visit', f'Visited {request.path}')
+        
+        # 🔧 Track user activity for active session monitoring
+        # Only update if last activity was more than 1 minute ago (to reduce DB writes)
+        if not current_user.last_activity or (datetime.now() - current_user.last_activity).total_seconds() > 60:
+            try:
+                from models.models import db
+                current_user.last_activity = datetime.now()
+                db.session.commit()
+            except Exception as e:
+                print(f"[ACTIVITY] Failed to update last_activity: {e}")
 
 
 # Initialize extensions
