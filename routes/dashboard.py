@@ -605,9 +605,9 @@ def dashboard():
             # Check if this key point's shift was submitted and this key point was marked closed
             shift = Shift.query.get(kp.shift_id)
             if shift and shift.status == 'sent':
-                # This is from a submitted handover - check if there's a newer version that closed this key point
+                # This is from a submitted handover - check if there's a newer version that closed this key point (CASE-INSENSITIVE)
                 newer_closed = ShiftKeyPoint.query.filter(
-                    ShiftKeyPoint.description == kp.description,
+                    func.lower(ShiftKeyPoint.description) == kp.description.lower(),
                     ShiftKeyPoint.jira_id == kp.jira_id,
                     ShiftKeyPoint.status == 'Closed',
                     ShiftKeyPoint.id > kp.id

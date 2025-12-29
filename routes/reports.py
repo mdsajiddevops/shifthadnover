@@ -492,9 +492,9 @@ def detailed_shift_report(shift_id):
             for kp in all_key_points:
                 shift = Shift.query.get(kp.shift_id)
                 if shift and shift.status == 'sent':
-                    # Check if there's a newer version that closed this key point
+                    # Check if there's a newer version that closed this key point (CASE-INSENSITIVE)
                     newer_closed = ShiftKeyPoint.query.filter(
-                        ShiftKeyPoint.description == kp.description,
+                        func.lower(ShiftKeyPoint.description) == kp.description.lower(),
                         ShiftKeyPoint.jira_id == kp.jira_id,
                         ShiftKeyPoint.status == 'Closed',
                         ShiftKeyPoint.id > kp.id

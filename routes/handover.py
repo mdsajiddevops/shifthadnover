@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from flask import session
 from models.models import TeamMember, Shift, Incident, ShiftKeyPoint, ShiftRoster, ShiftChangeInfo, ShiftKBUpdate, Team, db
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from models.handover_enhanced import HandoverRequest
 from models.audit_log import AuditLog
 from services.audit_service import log_action
@@ -2775,10 +2775,16 @@ def handover():
             keypoint_assigned_to = request.form.getlist('keypoint_assigned_to[]')
             keypoint_statuses = request.form.getlist('keypoint_status[]')
             keypoint_jira_ids = request.form.getlist('keypoint_jira_id[]')
+            # 🔧 NEW: Get original key point IDs and descriptions for proper updates
+            keypoint_ids = request.form.getlist('keypoint_id[]')
+            keypoint_original_descriptions = request.form.getlist('keypoint_original_description[]')
         
         print(f"🚨🚨🚨 KEY POINT FORM DATA DEBUG 🚨🚨🚨")
         print(f"  Total descriptions: {len(key_point_descriptions)}")
         print(f"  Total assigned_to: {len(keypoint_assigned_to)}")
+        print(f"  Total IDs (for updates): {len(keypoint_ids)}")
+        print(f"  IDs: {keypoint_ids}")
+        print(f"  Original Descriptions: {keypoint_original_descriptions}")
         print(f"  Descriptions: {key_point_descriptions}")
         print(f"  Assigned to (RAW): {keypoint_assigned_to}")
         for idx, assigned in enumerate(keypoint_assigned_to):
@@ -2793,14 +2799,72 @@ def handover():
             jira_id = keypoint_jira_ids[i].strip() if i < len(keypoint_jira_ids) else ''
             responsible_id = keypoint_assigned_to[i] if i < len(keypoint_assigned_to) else ''
             status = keypoint_statuses[i] if i < len(keypoint_statuses) else 'Open'
+            # 🔧 NEW: Get original key point ID and description for proper updates
+            original_kp_id = keypoint_ids[i].strip() if i < len(keypoint_ids) else ''
+            original_description = keypoint_original_descriptions[i].strip() if i < len(keypoint_original_descriptions) else ''
             
             print(f"\n🔍 Processing key point {i+1}/{len(key_point_descriptions)}:")
-            print(f"   Description: '{description[:50]}{'...' if len(description) > 50 else ''}'")
+            print(f"   Original ID: '{original_kp_id}'")
+            print(f"   Original Description: '{original_description[:50] if original_description else 'NEW'}{'...' if original_description and len(original_description) > 50 else ''}'")
+            print(f"   New Description: '{description[:50]}{'...' if len(description) > 50 else ''}'")
             print(f"   JIRA ID: '{jira_id}'")
             print(f"   Responsible: '{responsible_id}'")
             print(f"   Status: '{status}'")
             
             if description:
+                # 🔧 NEW: Check if this is an EDIT of an existing key point (description changed)
+                # If the description has changed, update the original and all duplicates
+                if original_kp_id and original_description and original_description.lower() != description.lower():
+                    print(f"📝 TITLE EDIT DETECTED: Updating key point ID {original_kp_id} and all duplicates")
+                    print(f"   From: '{original_description[:50]}...'")
+                    print(f"   To:   '{description[:50]}...'")
+                    
+                    # Update ALL key points with the same original description (case-insensitive)
+                    all_matching_kps = ShiftKeyPoint.query.filter(
+                        func.lower(ShiftKeyPoint.description) == original_description.lower(),
+                        ShiftKeyPoint.account_id == account_id,
+                        ShiftKeyPoint.team_id == team_id
+                    ).all()
+                    
+                    updated_count = 0
+                    for matching_kp in all_matching_kps:
+                        matching_kp.description = description
+                        # Also update status and responsible engineer
+                        matching_kp.status = status
+                        if responsible_id and str(responsible_id).isdigit():
+                            matching_kp.responsible_engineer_id = int(responsible_id)
+                        db.session.add(matching_kp)
+                        updated_count += 1
+                        print(f"   ✓ Updated key point ID {matching_kp.id} (shift_id={matching_kp.shift_id})")
+                    
+                    print(f"📝 TITLE EDIT COMPLETE: Updated {updated_count} key point entries")
+                    continue  # Skip to next key point - no need to create new one
+                
+                # 🔧 NEW: If original_kp_id exists and description is the same, update existing key point
+                # This handles status changes without creating duplicates
+                if original_kp_id and original_description and original_description.lower() == description.lower():
+                    print(f"📝 STATUS/ASSIGNMENT UPDATE: Updating existing key point ID {original_kp_id}")
+                    
+                    # Update ALL key points with the same description (case-insensitive) 
+                    all_matching_kps = ShiftKeyPoint.query.filter(
+                        func.lower(ShiftKeyPoint.description) == description.lower(),
+                        ShiftKeyPoint.account_id == account_id,
+                        ShiftKeyPoint.team_id == team_id
+                    ).all()
+                    
+                    updated_count = 0
+                    for matching_kp in all_matching_kps:
+                        # Update status and responsible engineer on all duplicates
+                        matching_kp.status = status
+                        if responsible_id and str(responsible_id).isdigit():
+                            matching_kp.responsible_engineer_id = int(responsible_id)
+                        db.session.add(matching_kp)
+                        updated_count += 1
+                        print(f"   ✓ Updated key point ID {matching_kp.id} status to '{status}' (shift_id={matching_kp.shift_id})")
+                    
+                    print(f"📝 STATUS UPDATE COMPLETE: Updated {updated_count} key point entries")
+                    continue  # Skip to next key point - no need to create new one
+                
                 # If status is being set to Closed, close the most recent open/in-progress key point with same description and jira_id
                 if status == 'Closed':
                     print(f"🔒 CLOSING KEY POINT: Looking for open/in-progress key point with description='{description}', jira_id='{jira_id}'")
@@ -2809,9 +2873,9 @@ def handover():
                     # Normalize jira_id - treat 'None', '', and actual None the same
                     normalized_jira_id = None if (not jira_id or jira_id == 'None' or jira_id == '') else jira_id
                     
-                    # Find the most recent open/in-progress key point to close
+                    # Find the most recent open/in-progress key point to close (CASE-INSENSITIVE)
                     query = ShiftKeyPoint.query.filter(
-                        ShiftKeyPoint.description == description,
+                        func.lower(ShiftKeyPoint.description) == description.lower(),
                         ShiftKeyPoint.status.in_(['Open', 'In Progress'])
                     )
                     
@@ -2863,8 +2927,9 @@ def handover():
                 else:
                     same_shift_jira_filter = ShiftKeyPoint.jira_id == normalized_jira_id
                 
+                # 🔧 CASE-INSENSITIVE matching for same shift key points
                 existing_kp_same_shift = ShiftKeyPoint.query.filter(
-                    ShiftKeyPoint.description == description,
+                    func.lower(ShiftKeyPoint.description) == description.lower(),
                     same_shift_jira_filter,
                     ShiftKeyPoint.shift_id == shift.id  # Same handover
                 ).first()
@@ -2893,10 +2958,10 @@ def handover():
                 else:
                     jira_filter = ShiftKeyPoint.jira_id == normalized_jira_id
                 
-                # 🔧 FIX: Always create a new key point for each handover, even if carried forward
-                # This ensures each handover report shows exactly what was submitted
+                # 🔧 FIX: CASE-INSENSITIVE matching for existing key points from other shifts
+                # Check if there's an existing key point that should be updated instead of creating a new one
                 existing_kp_other_shift = ShiftKeyPoint.query.filter(
-                    ShiftKeyPoint.description == description,
+                    func.lower(ShiftKeyPoint.description) == description.lower(),
                     jira_filter,
                     ShiftKeyPoint.status.in_(['Open', 'In Progress']),
                     ShiftKeyPoint.account_id == account_id,
@@ -3221,9 +3286,9 @@ def handover():
         # Check if this key point's shift was submitted and this key point was marked closed
         shift = Shift.query.get(kp.shift_id)
         if shift and shift.status == 'sent':
-            # This is from a submitted handover - check if there's a newer version that closed this key point
+            # This is from a submitted handover - check if there's a newer version that closed this key point (CASE-INSENSITIVE)
             newer_closed = ShiftKeyPoint.query.filter(
-                ShiftKeyPoint.description == kp.description,
+                func.lower(ShiftKeyPoint.description) == kp.description.lower(),
                 ShiftKeyPoint.jira_id == kp.jira_id,
                 ShiftKeyPoint.status == 'Closed',
                 ShiftKeyPoint.id > kp.id

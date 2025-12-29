@@ -1,6 +1,7 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_login import login_required, current_user
 from models.models import ShiftKeyPoint, ShiftKeyPointUpdate, db
+from sqlalchemy import func
 from datetime import date
 
 keypoints_bp = Blueprint('keypoints', __name__)
@@ -10,6 +11,62 @@ VALID_STATUSES = [
     'Open', 'In Progress', 'Pending with Another Team', 'On Hold', 
     'Under Review', 'Escalated', 'Waiting for Approval', 'Closed'
 ]
+
+# 🔧 NEW: Edit key point description/title route
+@keypoints_bp.route('/keypoints/edit/<int:key_point_id>', methods=['GET', 'POST'])
+@login_required
+def edit_keypoint(key_point_id):
+    """Edit key point description - also updates all duplicates with same description"""
+    key_point = ShiftKeyPoint.query.get_or_404(key_point_id)
+    
+    if request.method == 'POST':
+        new_description = request.form.get('description', '').strip()
+        
+        if not new_description:
+            flash('Description is required.', 'danger')
+            return redirect(url_for('keypoints.keypoints'))
+        
+        old_description = key_point.description
+        
+        # Check if description actually changed
+        if new_description.lower() == old_description.lower():
+            flash('No changes detected.', 'info')
+            return redirect(url_for('keypoints.keypoints'))
+        
+        # 🔧 FIX: Update ALL key points with the same description (case-insensitive)
+        # This ensures consistency across all carried-forward duplicates
+        duplicates_updated = 0
+        all_duplicates = ShiftKeyPoint.query.filter(
+            func.lower(ShiftKeyPoint.description) == old_description.lower(),
+            ShiftKeyPoint.account_id == key_point.account_id,
+            ShiftKeyPoint.team_id == key_point.team_id
+        ).all()
+        
+        for dup_kp in all_duplicates:
+            dup_kp.description = new_description
+            db.session.add(dup_kp)
+            duplicates_updated += 1
+            print(f"🔧 KEYPOINTS: Updated key point ID {dup_kp.id} description from '{old_description[:30]}...' to '{new_description[:30]}...'")
+        
+        # Add an update entry to track the change
+        status_update = ShiftKeyPointUpdate(
+            key_point_id=key_point_id,
+            update_text=f"Title updated from '{old_description}' to '{new_description}' by {current_user.username}",
+            update_date=date.today(),
+            updated_by=current_user.username
+        )
+        db.session.add(status_update)
+        db.session.commit()
+        
+        flash(f'Key point title updated! {duplicates_updated} entries updated across all shifts.', 'success')
+        return redirect(url_for('keypoints.keypoints'))
+    
+    # GET request - return JSON for modal
+    return jsonify({
+        'id': key_point.id,
+        'description': key_point.description,
+        'status': key_point.status
+    })
 
 @keypoints_bp.route('/keypoints/update/edit/<int:update_id>', methods=['GET', 'POST'])
 @login_required
@@ -61,12 +118,12 @@ def update_keypoint_status(key_point_id):
             'Closed': 'Task has been completed successfully'
         }
         
-        # 🔧 FIX: When closing a key point, also close ALL duplicate entries with same description
+        # 🔧 FIX: When closing a key point, also close ALL duplicate entries with same description (CASE-INSENSITIVE)
         # This ensures older carried-forward entries are also marked as closed
         closed_duplicates = 0
         if new_status == 'Closed':
             duplicate_kps = ShiftKeyPoint.query.filter(
-                ShiftKeyPoint.description == key_point.description,
+                func.lower(ShiftKeyPoint.description) == key_point.description.lower(),
                 ShiftKeyPoint.account_id == key_point.account_id,
                 ShiftKeyPoint.team_id == key_point.team_id,
                 ShiftKeyPoint.status.in_(['Open', 'In Progress']),
@@ -208,9 +265,9 @@ def keypoints():
         if status_filter != 'all' and kp.status != status_filter:
             continue
             
-        # Check if this key point has been closed in a newer entry
+        # Check if this key point has been closed in a newer entry (CASE-INSENSITIVE matching)
         newer_closed = ShiftKeyPoint.query.filter(
-            ShiftKeyPoint.description == kp.description,
+            func.lower(ShiftKeyPoint.description) == kp.description.lower(),
             ShiftKeyPoint.status == 'Closed',
             ShiftKeyPoint.id > kp.id,
             ShiftKeyPoint.account_id == kp.account_id,

@@ -742,10 +742,13 @@
                             <div id="keypoints-container">
                                 {% for kp in open_key_points %}
                                 <div class="keypoint-entry mb-3 border p-3 rounded">
+                                    <!-- Hidden field to track original key point ID for proper updates -->
+                                    <input type="hidden" name="keypoint_id[]" value="{{ kp.id if kp else '' }}">
+                                    <input type="hidden" name="keypoint_original_description[]" value="{{ kp.description if kp else '' }}">
                                     <div class="row">
                                         <div class="col-md-6 mb-2">
                                             <label class="form-label">Key Point Details</label>
-                                            <textarea class="form-control" name="keypoint_description[]" style="height: 38px; resize: vertical; min-height: 38px;" placeholder="Describe the key point details">{{ kp.description if kp else '' }}</textarea>
+                                            <textarea class="form-control keypoint-auto-resize" name="keypoint_description[]" style="min-height: 60px; overflow: hidden; resize: none; line-height: 1.5;" placeholder="Describe the key point details">{{ kp.description if kp else '' }}</textarea>
                                         </div>
                                         <div class="col-md-2 mb-2">
                                             <label class="form-label">Assigned To</label>
@@ -776,10 +779,13 @@
                                 <!-- Add at least one empty keypoint if none exist -->
                                 {% if not open_key_points %}
                                 <div class="keypoint-entry mb-3 border p-3 rounded">
+                                    <!-- Hidden fields for new key points (empty ID = new key point) -->
+                                    <input type="hidden" name="keypoint_id[]" value="">
+                                    <input type="hidden" name="keypoint_original_description[]" value="">
                                     <div class="row">
                                         <div class="col-md-6 mb-2">
                                             <label class="form-label">Key Point Details</label>
-                                            <textarea class="form-control" name="keypoint_description[]" style="height: 38px; resize: vertical; min-height: 38px;" placeholder="Describe the key point details"></textarea>
+                                            <textarea class="form-control keypoint-auto-resize" name="keypoint_description[]" style="min-height: 60px; overflow: hidden; resize: none; line-height: 1.5;" placeholder="Describe the key point details"></textarea>
                                         </div>
                                         <div class="col-md-2 mb-2">
                                             <label class="form-label">Assigned To</label>
@@ -848,6 +854,67 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Add section counters to accordion headers
     updateSectionCounters();
+    
+    // 🔧 Auto-resize textareas for key points - FULLY EXPANDED on load
+    function autoResizeTextarea(textarea) {
+        // Reset height to auto first to get proper scrollHeight
+        textarea.style.height = 'auto';
+        // Set height to scrollHeight (minimum 60px for better visibility)
+        const newHeight = Math.max(60, textarea.scrollHeight + 2);
+        textarea.style.height = newHeight + 'px';
+    }
+    
+    // Apply auto-resize to all existing key point textareas with a small delay
+    // to ensure content is fully rendered
+    setTimeout(function() {
+        document.querySelectorAll('.keypoint-auto-resize').forEach(function(textarea) {
+            // Force recalculation by setting to auto first
+            textarea.style.height = 'auto';
+            // Calculate proper height based on content
+            const scrollHeight = textarea.scrollHeight;
+            const newHeight = Math.max(60, scrollHeight + 2);
+            textarea.style.height = newHeight + 'px';
+            
+            // Resize on input
+            textarea.addEventListener('input', function() {
+                autoResizeTextarea(this);
+            });
+        });
+    }, 100);
+    
+    // Also resize when accordion is opened (content may be hidden initially)
+    document.querySelectorAll('.accordion-button').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            setTimeout(function() {
+                document.querySelectorAll('.keypoint-auto-resize').forEach(function(textarea) {
+                    autoResizeTextarea(textarea);
+                });
+            }, 300);
+        });
+    });
+    
+    // Use MutationObserver to handle dynamically added key point textareas
+    const keypointsContainer = document.getElementById('keypoints-container');
+    if (keypointsContainer) {
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                mutation.addedNodes.forEach(function(node) {
+                    if (node.nodeType === 1) { // Element node
+                        const newTextareas = node.querySelectorAll ? node.querySelectorAll('.keypoint-auto-resize') : [];
+                        newTextareas.forEach(function(textarea) {
+                            setTimeout(function() {
+                                autoResizeTextarea(textarea);
+                            }, 50);
+                            textarea.addEventListener('input', function() {
+                                autoResizeTextarea(this);
+                            });
+                        });
+                    }
+                });
+            });
+        });
+        observer.observe(keypointsContainer, { childList: true, subtree: true });
+    }
     
     // Add accordion event listeners
     const accordionButtons = document.querySelectorAll('.handover-accordion .accordion-button');
@@ -2017,10 +2084,13 @@ function addKeyPoint() {
     });
     const keypointHTML = `
         <div class="keypoint-entry mb-3 border p-3 rounded">
+            <!-- Hidden fields for new key points (empty ID = new key point) -->
+            <input type="hidden" name="keypoint_id[]" value="">
+            <input type="hidden" name="keypoint_original_description[]" value="">
             <div class="row">
                 <div class="col-md-5 mb-2">
                     <label class="form-label">Key Point Details</label>
-                    <textarea class="form-control" name="keypoint_description[]" style="height: 38px; resize: vertical; min-height: 38px;" placeholder="Describe the key point details"></textarea>
+                    <textarea class="form-control keypoint-auto-resize" name="keypoint_description[]" style="min-height: 60px; overflow: hidden; resize: none; line-height: 1.5;" placeholder="Describe the key point details"></textarea>
                 </div>
                 <div class="col-md-2 mb-2">
                     <label class="form-label">Assigned To</label>

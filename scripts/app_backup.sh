@@ -42,3 +42,6 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Cleaned up backups older than $RETENTION_DA
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Application backup process completed." >> $LOG_FILE
 echo "----------------------------------------" >> $LOG_FILE
 
+
+
+

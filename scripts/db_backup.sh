@@ -45,3 +45,6 @@ BACKUP_COUNT=$(ls -1 $BACKUP_DIR/db_backup_*.sql.gz 2>/dev/null | wc -l)
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Database backup process completed. Total backups: $BACKUP_COUNT" >> $LOG_FILE
 echo "----------------------------------------" >> $LOG_FILE
 
+
+
+
