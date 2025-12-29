@@ -61,6 +61,24 @@ def update_keypoint_status(key_point_id):
             'Closed': 'Task has been completed successfully'
         }
         
+        # 🔧 FIX: When closing a key point, also close ALL duplicate entries with same description
+        # This ensures older carried-forward entries are also marked as closed
+        closed_duplicates = 0
+        if new_status == 'Closed':
+            duplicate_kps = ShiftKeyPoint.query.filter(
+                ShiftKeyPoint.description == key_point.description,
+                ShiftKeyPoint.account_id == key_point.account_id,
+                ShiftKeyPoint.team_id == key_point.team_id,
+                ShiftKeyPoint.status.in_(['Open', 'In Progress']),
+                ShiftKeyPoint.id != key_point.id  # Exclude the current one
+            ).all()
+            
+            for dup_kp in duplicate_kps:
+                dup_kp.status = 'Closed'
+                db.session.add(dup_kp)
+                closed_duplicates += 1
+                print(f"🔧 KEYPOINTS: Auto-closed duplicate key point ID {dup_kp.id} (shift_id={dup_kp.shift_id})")
+        
         # Add an automatic update entry for status change with enhanced message
         status_update = ShiftKeyPointUpdate(
             key_point_id=key_point_id,
@@ -72,7 +90,10 @@ def update_keypoint_status(key_point_id):
         db.session.add(status_update)
         db.session.commit()
         
-        flash(f'Key point status updated to "{new_status}"! {status_messages.get(new_status, "")}', 'success')
+        if closed_duplicates > 0:
+            flash(f'Key point status updated to "{new_status}"! Also closed {closed_duplicates} duplicate entries. {status_messages.get(new_status, "")}', 'success')
+        else:
+            flash(f'Key point status updated to "{new_status}"! {status_messages.get(new_status, "")}', 'success')
     else:
         flash('Invalid status value.', 'danger')
     
@@ -173,21 +194,44 @@ def keypoints():
             query = query.filter(ShiftKeyPoint.team_id.in_(user_team_ids))
         elif current_user.team_id:
             query = query.filter_by(team_id=current_user.team_id)
-    if status_filter != 'all':
-        query = query.filter_by(status=status_filter)
+    # NOTE: Do NOT apply status filter here - we need to check all statuses for proper filtering
+    # The status filtering will be done after we exclude key points that have been closed
     
-    # Get all key points and deduplicate by description to prevent showing duplicates
+    # Get all key points (before status filtering) to properly handle closed status
     all_key_points = query.all()
+    
+    # 🔧 FIX: For each key point, check if there's a NEWER version with "Closed" status
+    # If so, exclude this key point from results (it has been resolved)
+    filtered_key_points = []
+    for kp in all_key_points:
+        # Skip if already Closed and we're filtering for Open/In Progress
+        if status_filter != 'all' and kp.status != status_filter:
+            continue
+            
+        # Check if this key point has been closed in a newer entry
+        newer_closed = ShiftKeyPoint.query.filter(
+            ShiftKeyPoint.description == kp.description,
+            ShiftKeyPoint.status == 'Closed',
+            ShiftKeyPoint.id > kp.id,
+            ShiftKeyPoint.account_id == kp.account_id,
+            ShiftKeyPoint.team_id == kp.team_id
+        ).first()
+        
+        if newer_closed:
+            print(f"🔧 KEYPOINTS: Excluding key point ID {kp.id} - found newer closed version ID {newer_closed.id}")
+            continue
+            
+        filtered_key_points.append(kp)
     
     # Deduplicate key points by description, keeping the most recent one
     kp_map = {}
-    for kp in all_key_points:
+    for kp in filtered_key_points:
         key = kp.description.strip().lower() if kp.description else ''
         if key not in kp_map or kp.id > kp_map[key].id:
             kp_map[key] = kp
     
     key_points = list(kp_map.values())
-    print(f"🔧 KEYPOINTS: Deduplication reduced {len(all_key_points)} to {len(key_points)} unique key points")
+    print(f"🔧 KEYPOINTS: Deduplication reduced {len(all_key_points)} to {len(key_points)} unique key points (after filtering closed)")
     
     # Populate submitted_by_name for key points that don't have created_by
     from models.handover_enhanced import HandoverRequest
