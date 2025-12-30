@@ -156,7 +156,16 @@ def update_keypoint_status(key_point_id):
     else:
         flash('Invalid status value.', 'danger')
     
-    return redirect(url_for('keypoints.keypoints'))
+    # Preserve filter parameters when redirecting back
+    filter_params = {}
+    if request.form.get('filter_status'):
+        filter_params['status'] = request.form.get('filter_status')
+    if request.form.get('filter_date'):
+        filter_params['date'] = request.form.get('filter_date')
+    if request.form.get('filter_team_id'):
+        filter_params['team_id'] = request.form.get('filter_team_id')
+    
+    return redirect(url_for('keypoints.keypoints', **filter_params))
 
 @keypoints_bp.route('/keypoints', methods=['GET', 'POST'])
 @login_required
@@ -351,4 +360,14 @@ def add_keypoint_update(key_point_id):
         flash('Update added!', 'success')
     else:
         flash('Update text required.', 'danger')
-    return redirect(url_for('keypoints.keypoints'))
+    
+    # Preserve filter parameters when redirecting back
+    filter_params = {}
+    if request.form.get('filter_status'):
+        filter_params['status'] = request.form.get('filter_status')
+    if request.form.get('filter_date'):
+        filter_params['date'] = request.form.get('filter_date')
+    if request.form.get('filter_team_id'):
+        filter_params['team_id'] = request.form.get('filter_team_id')
+    
+    return redirect(url_for('keypoints.keypoints', **filter_params))

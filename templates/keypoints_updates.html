@@ -178,6 +178,10 @@
                                             <i class="bi bi-arrow-repeat me-1 text-primary"></i>Update Status
                                         </label>
                                         <form method="post" action="{{ url_for('keypoints.update_keypoint_status', key_point_id=kp.id) }}" style="display:inline;">
+                                            <!-- Preserve current filter values -->
+                                            <input type="hidden" name="filter_status" value="{{ request.args.get('status', '') }}">
+                                            <input type="hidden" name="filter_date" value="{{ request.args.get('date', '') }}">
+                                            <input type="hidden" name="filter_team_id" value="{{ request.args.get('team_id', '') }}">
                                             <div class="input-group">
                                                 <select name="new_status" class="form-select" required>
                                                     <option value="Open" {% if kp.status == 'Open' %}selected{% endif %}>Open</option>
@@ -294,6 +298,10 @@
                                 <i class="bi bi-plus-circle me-1"></i>Add New Update
                             </h6>
                             <form method="post" action="{{ url_for('keypoints.add_keypoint_update', key_point_id=kp.id) }}">
+                                <!-- Preserve current filter values -->
+                                <input type="hidden" name="filter_status" value="{{ request.args.get('status', '') }}">
+                                <input type="hidden" name="filter_date" value="{{ request.args.get('date', '') }}">
+                                <input type="hidden" name="filter_team_id" value="{{ request.args.get('team_id', '') }}">
                                 <div class="row align-items-end">
                                     <div class="col-md-10">
                                         <label for="update_text_{{ kp.id }}" class="form-label fw-semibold text-secondary">
