@@ -1471,6 +1471,21 @@ def edit_handover(shift_id):
                     existing_kp.responsible_engineer_id = responsible_engineer_id
                     updated_keypoint_ids.add(existing_kp.id)
                     print(f"🔧 Updated existing key point {existing_kp.id}")
+                    
+                    # 🔧 SYNC STATUS to all other instances with same description (for consistency)
+                    other_instances = ShiftKeyPoint.query.filter(
+                        func.lower(ShiftKeyPoint.description) == description.lower(),
+                        ShiftKeyPoint.account_id == shift.account_id,
+                        ShiftKeyPoint.team_id == shift.team_id,
+                        ShiftKeyPoint.id != existing_kp.id
+                    ).all()
+                    for other_kp in other_instances:
+                        other_kp.status = status
+                        if responsible_engineer_id:
+                            other_kp.responsible_engineer_id = responsible_engineer_id
+                        db.session.add(other_kp)
+                    if other_instances:
+                        print(f"🔧 Synced status to {len(other_instances)} other instances")
                 else:
                     # Create new key point
                     new_kp = ShiftKeyPoint(
@@ -1485,6 +1500,20 @@ def edit_handover(shift_id):
                     )
                     db.session.add(new_kp)
                     print(f"🔧 Created new key point for shift {shift.id} by user {current_user.id}")
+                    
+                    # 🔧 SYNC STATUS to all existing key points with same description
+                    existing_others = ShiftKeyPoint.query.filter(
+                        func.lower(ShiftKeyPoint.description) == description.lower(),
+                        ShiftKeyPoint.account_id == shift.account_id,
+                        ShiftKeyPoint.team_id == shift.team_id
+                    ).all()
+                    for other_kp in existing_others:
+                        other_kp.status = status
+                        if responsible_engineer_id:
+                            other_kp.responsible_engineer_id = responsible_engineer_id
+                        db.session.add(other_kp)
+                    if existing_others:
+                        print(f"🔧 Synced status to {len(existing_others)} existing instances")
         
         # Remove key points that weren't updated (they were deleted from form)
         keypoints_to_delete = [kp for kp in existing_keypoints if kp.id not in updated_keypoint_ids]
@@ -2828,194 +2857,66 @@ def handover():
             print(f"   Status: '{status}'")
             
             if description:
-                # 🔧 NEW: Check if this is an EDIT of an existing key point (description changed)
-                # If the description has changed, update the original and all duplicates
-                if original_kp_id and original_description and original_description.lower() != description.lower():
-                    print(f"📝 TITLE EDIT DETECTED: Updating key point ID {original_kp_id} and all duplicates")
-                    print(f"   From: '{original_description[:50]}...'")
-                    print(f"   To:   '{description[:50]}...'")
-                    
-                    # Update ALL key points with the same original description (case-insensitive)
-                    all_matching_kps = ShiftKeyPoint.query.filter(
-                        func.lower(ShiftKeyPoint.description) == original_description.lower(),
-                        ShiftKeyPoint.account_id == account_id,
-                        ShiftKeyPoint.team_id == team_id
-                    ).all()
-                    
-                    updated_count = 0
-                    for matching_kp in all_matching_kps:
-                        matching_kp.description = description
-                        # Also update status and responsible engineer
-                        matching_kp.status = status
-                        if responsible_id and str(responsible_id).isdigit():
-                            matching_kp.responsible_engineer_id = int(responsible_id)
-                        db.session.add(matching_kp)
-                        updated_count += 1
-                        print(f"   ✓ Updated key point ID {matching_kp.id} (shift_id={matching_kp.shift_id})")
-                    
-                    print(f"📝 TITLE EDIT COMPLETE: Updated {updated_count} key point entries")
-                    continue  # Skip to next key point - no need to create new one
-                
-                # 🔧 NEW: If original_kp_id exists and description is the same, update existing key point
-                # This handles status changes without creating duplicates
-                if original_kp_id and original_description and original_description.lower() == description.lower():
-                    print(f"📝 STATUS/ASSIGNMENT UPDATE: Updating existing key point ID {original_kp_id}")
-                    
-                    # Update ALL key points with the same description (case-insensitive) 
-                    all_matching_kps = ShiftKeyPoint.query.filter(
-                        func.lower(ShiftKeyPoint.description) == description.lower(),
-                        ShiftKeyPoint.account_id == account_id,
-                        ShiftKeyPoint.team_id == team_id
-                    ).all()
-                    
-                    updated_count = 0
-                    for matching_kp in all_matching_kps:
-                        # Update status and responsible engineer on all duplicates
-                        matching_kp.status = status
-                        if responsible_id and str(responsible_id).isdigit():
-                            matching_kp.responsible_engineer_id = int(responsible_id)
-                        db.session.add(matching_kp)
-                        updated_count += 1
-                        print(f"   ✓ Updated key point ID {matching_kp.id} status to '{status}' (shift_id={matching_kp.shift_id})")
-                    
-                    print(f"📝 STATUS UPDATE COMPLETE: Updated {updated_count} key point entries")
-                    continue  # Skip to next key point - no need to create new one
-                
-                # If status is being set to Closed, close the most recent open/in-progress key point with same description and jira_id
-                if status == 'Closed':
-                    print(f"🔒 CLOSING KEY POINT: Looking for open/in-progress key point with description='{description}', jira_id='{jira_id}'")
-                    
-                    # 🔧 ENHANCED CLOSURE LOGIC: Handle different JIRA ID formats
-                    # Normalize jira_id - treat 'None', '', and actual None the same
-                    normalized_jira_id = None if (not jira_id or jira_id == 'None' or jira_id == '') else jira_id
-                    
-                    # Find the most recent open/in-progress key point to close (CASE-INSENSITIVE)
-                    query = ShiftKeyPoint.query.filter(
-                        func.lower(ShiftKeyPoint.description) == description.lower(),
-                        ShiftKeyPoint.status.in_(['Open', 'In Progress'])
-                    )
-                    
-                    # Handle JIRA ID matching with multiple possible null representations
-                    if normalized_jira_id is None:
-                        # Look for key points with null, empty, or 'None' jira_id
-                        query = query.filter(
-                            or_(
-                                ShiftKeyPoint.jira_id.is_(None),
-                                ShiftKeyPoint.jira_id == '',
-                                ShiftKeyPoint.jira_id == 'None'
-                            )
-                        )
-                    else:
-                        # Exact JIRA ID match
-                        query = query.filter(ShiftKeyPoint.jira_id == normalized_jira_id)
-                    
-                    most_recent_kp = query.order_by(ShiftKeyPoint.id.desc()).first()
-                    
-                    if most_recent_kp:
-                        print(f"🔒 FOUND KEY POINT TO CLOSE: ID={most_recent_kp.id}, current_status='{most_recent_kp.status}', description='{most_recent_kp.description[:50]}'")
-                        most_recent_kp.status = 'Closed'
-                        db.session.add(most_recent_kp)
-                        print(f"🔒 SUCCESSFULLY CLOSED KEY POINT: {most_recent_kp.id} - Status changed to 'Closed'")
-                        log_action('Close KeyPoint', f'ID: {most_recent_kp.id}, Description: {description}, Shift: {shift.id}')
-                        
-                        # 🔧 CRITICAL FIX: Do NOT create a new 'Closed' key point - just update existing one
-                        print(f"🔒 SKIPPING NEW KEY POINT CREATION - Updated existing key point to 'Closed' status")
-                        continue  # Skip to next key point without creating duplicate
-                    else:
-                        print(f"🔒 NO OPEN KEY POINT FOUND to close with description='{description}', jira_id='{jira_id}'")
-                        print(f"🔒 CREATING NEW 'Closed' KEY POINT since no existing one found to close")
-                        # Will proceed to create new closed key point below
-                
-                # 🔧 FIXED DUPLICATION ISSUE: Check for existing key points across all shifts
-                # to prevent creating duplicates when the same key points are carried forward
-                
-                # 🔧 NORMALIZE JIRA ID for consistent checking
+                # 🔧 NORMALIZE JIRA ID for consistent checking throughout
                 normalized_jira_id = None if (not jira_id or jira_id == 'None' or jira_id == '') else jira_id
                 
-                # First check if we're editing an existing key point in the current handover
-                # Handle None JIRA ID matching properly for same shift
-                if normalized_jira_id is None:
-                    same_shift_jira_filter = or_(
-                        ShiftKeyPoint.jira_id.is_(None),
-                        ShiftKeyPoint.jira_id == '',
-                        ShiftKeyPoint.jira_id == 'None'
-                    )
-                else:
-                    same_shift_jira_filter = ShiftKeyPoint.jira_id == normalized_jira_id
+                # Convert responsible_id to integer once
+                responsible_engineer_id = None
+                if responsible_id and str(responsible_id).isdigit():
+                    responsible_engineer_id = int(responsible_id)
                 
-                # 🔧 CASE-INSENSITIVE matching for same shift key points
+                # 🔧 STEP 1: Check if key point already exists for THIS shift (prevent duplicates within same shift)
                 existing_kp_same_shift = ShiftKeyPoint.query.filter(
                     func.lower(ShiftKeyPoint.description) == description.lower(),
-                    same_shift_jira_filter,
-                    ShiftKeyPoint.shift_id == shift.id  # Same handover
+                    ShiftKeyPoint.shift_id == shift.id,
+                    ShiftKeyPoint.account_id == account_id,
+                    ShiftKeyPoint.team_id == team_id
                 ).first()
                 
                 if existing_kp_same_shift:
-                    # This is an edit of an existing key point in the same handover
-                    if existing_kp_same_shift.status != status:
-                        existing_kp_same_shift.status = status
-                        db.session.add(existing_kp_same_shift)
-                        print(f"Updated existing key point {existing_kp_same_shift.id} status from {existing_kp_same_shift.status} to {status}")
-                    else:
-                        print(f"No changes for key point: '{description}', keeping existing ID {existing_kp_same_shift.id}")
+                    # Key point already exists for this shift - just update it
+                    print(f"📝 KEY POINT EXISTS FOR THIS SHIFT: Updating ID {existing_kp_same_shift.id}")
+                    existing_kp_same_shift.status = status
+                    if responsible_engineer_id:
+                        existing_kp_same_shift.responsible_engineer_id = responsible_engineer_id
+                    db.session.add(existing_kp_same_shift)
+                    
+                    # Also sync status to all other instances with same description
+                    other_instances = ShiftKeyPoint.query.filter(
+                        func.lower(ShiftKeyPoint.description) == description.lower(),
+                        ShiftKeyPoint.account_id == account_id,
+                        ShiftKeyPoint.team_id == team_id,
+                        ShiftKeyPoint.id != existing_kp_same_shift.id
+                    ).all()
+                    for other_kp in other_instances:
+                        other_kp.status = status
+                        if responsible_engineer_id:
+                            other_kp.responsible_engineer_id = responsible_engineer_id
+                        db.session.add(other_kp)
+                    print(f"   ✓ Synced status to {len(other_instances)} other instances")
                     continue  # Skip to next key point
                 
-                # 🔧 NORMALIZE JIRA ID for consistent checking
-                normalized_jira_id = None if (not jira_id or jira_id == 'None' or jira_id == '') else jira_id
-                
-                # Check for existing open/in-progress key points from other shifts to prevent duplication
-                # Handle None JIRA ID matching properly
-                if normalized_jira_id is None:
-                    jira_filter = or_(
-                        ShiftKeyPoint.jira_id.is_(None),
-                        ShiftKeyPoint.jira_id == '',
-                        ShiftKeyPoint.jira_id == 'None'
-                    )
-                else:
-                    jira_filter = ShiftKeyPoint.jira_id == normalized_jira_id
-                
-                # 🔧 FIX: CASE-INSENSITIVE matching for existing key points from other shifts
-                # Check if there's an existing key point that should be updated instead of creating a new one
-                existing_kp_other_shift = ShiftKeyPoint.query.filter(
+                # 🔧 STEP 2: Check for existing key points from OTHER shifts (for status sync)
+                existing_kp_other_shifts = ShiftKeyPoint.query.filter(
                     func.lower(ShiftKeyPoint.description) == description.lower(),
-                    jira_filter,
-                    ShiftKeyPoint.status.in_(['Open', 'In Progress']),
                     ShiftKeyPoint.account_id == account_id,
                     ShiftKeyPoint.team_id == team_id,
-                    ShiftKeyPoint.shift_id != shift.id  # Different handover
-                ).order_by(ShiftKeyPoint.id.desc()).first()  # Get the most recent one
+                    ShiftKeyPoint.shift_id != shift.id
+                ).all()
                 
-                if existing_kp_other_shift:
-                    # Found existing open/in-progress key point from another shift
-                    # 🔧 NEW BEHAVIOR: Create a copy for this shift instead of updating the old one
-                    # This ensures each handover report shows exactly what was submitted
-                    print(f"📋 CARRYFORWARD KEY POINT from shift {existing_kp_other_shift.shift_id}: '{description[:50]}...' (ID: {existing_kp_other_shift.id})")
-                    
-                    # If status is being changed to Closed, also close the original
-                    if status == 'Closed' and existing_kp_other_shift.status != 'Closed':
-                        print(f"🔒 Also closing original key point ID {existing_kp_other_shift.id}")
-                        existing_kp_other_shift.status = 'Closed'
-                        db.session.add(existing_kp_other_shift)
-                    
-                    # Create a new copy for this shift - DON'T skip, fall through to create new
+                # 🔧 STEP 3: Update all existing key points with same description (status sync)
+                if existing_kp_other_shifts:
+                    print(f"📋 FOUND {len(existing_kp_other_shifts)} EXISTING KEY POINTS from other shifts - syncing status")
+                    for other_kp in existing_kp_other_shifts:
+                        other_kp.status = status
+                        if responsible_engineer_id:
+                            other_kp.responsible_engineer_id = responsible_engineer_id
+                        db.session.add(other_kp)
+                        print(f"   ✓ Synced key point ID {other_kp.id} (shift_id={other_kp.shift_id}) to status '{status}'")
                 
-                # No existing key point found, create a new one
-                print(f"🆕 CREATING NEW KEY POINT: '{description[:50]}...' with status '{status}'")
-                print(f"🔧 DEBUG responsible_id value: '{responsible_id}' (type: {type(responsible_id)})")
-                responsible_engineer_id = None
-                if responsible_id:
-                    if str(responsible_id).isdigit():
-                        responsible_engineer_id = int(responsible_id)
-                        print(f"🔧 DEBUG: Converted responsible_id to integer: {responsible_engineer_id}")
-                    else:
-                        user = TeamMember.query.filter_by(name=responsible_id).first()
-                        if user:
-                            responsible_engineer_id = user.id
-                            print(f"🔧 DEBUG: Found user by name '{responsible_id}' -> ID: {responsible_engineer_id}")
-                        else:
-                            print(f"🔧 DEBUG: Could not find user by name '{responsible_id}'")
-                else:
-                    print(f"🔧 DEBUG: responsible_id is empty/None, no assignment")
+                # 🔧 STEP 4: ALWAYS create a new key point for THIS shift (for email inclusion)
+                # This ensures the handover email includes all key points that were part of this submission
+                print(f"🆕 CREATING KEY POINT FOR SHIFT {shift.id}: '{description[:50]}...' with status '{status}'")
                 
                 # 🔧 AUTOFLUSH FIX: Use no_autoflush context to prevent premature session flush
                 # 🛡️ BULLETPROOF SAFETY: Use the shift object that was already created by main function
