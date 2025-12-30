@@ -227,6 +227,12 @@
                         <span class="nav-text">KB Updates</span>
                     </a>
                 </div>
+                <div class="modern-nav-item">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/keypoints') else '' }}" href="/keypoints" data-tooltip="Key Points">
+                        <i class="nav-icon bi bi-lightbulb"></i>
+                        <span class="nav-text">Key Points</span>
+                    </a>
+                </div>
             </div>
             
             <!-- Team Management Section -->
@@ -283,12 +289,14 @@
                         <span class="nav-text">Escalation Matrix</span>
                     </a>
                 </div>
+                {% if is_tab_enabled('tab_vendor_details') %}
                 <div class="modern-nav-item">
-                    <a class="modern-nav-link {{ 'active' if is_nav_active('/keypoints') else '' }}" href="/keypoints" data-tooltip="Key Points">
-                        <i class="nav-icon bi bi-lightbulb"></i>
-                        <span class="nav-text">Key Points</span>
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/vendor-details') else '' }}" href="/vendor-details" data-tooltip="Vendor Details">
+                        <i class="nav-icon bi bi-building"></i>
+                        <span class="nav-text">Vendor Details</span>
                     </a>
                 </div>
+                {% endif %}
                 {% if is_feature_enabled('feature_ctask_assignment') and current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/ctask-assignment') else '' }}" href="/ctask-assignment" data-tooltip="CTask Assignment">
@@ -387,7 +395,7 @@
             {% endif %}
             
             <!-- Knowledge Base Section -->
-            {% if is_tab_enabled('tab_kb_articles') or is_tab_enabled('tab_vendor_details') or is_tab_enabled('tab_applications') %}
+            {% if is_tab_enabled('tab_kb_articles') or is_tab_enabled('tab_applications') %}
             <div class="nav-section">
                 <div class="section-title">
                     <span class="section-icon">📚</span>
@@ -398,14 +406,6 @@
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/kb-details') else '' }}" href="/kb-details" data-tooltip="KB Articles">
                         <i class="nav-icon bi bi-book"></i>
                         <span class="nav-text">KB Articles</span>
-                    </a>
-                </div>
-                {% endif %}
-                {% if is_tab_enabled('tab_vendor_details') %}
-                <div class="modern-nav-item">
-                    <a class="modern-nav-link {{ 'active' if is_nav_active('/vendor-details') else '' }}" href="/vendor-details" data-tooltip="Vendor Details">
-                        <i class="nav-icon bi bi-building"></i>
-                        <span class="nav-text">Vendor Details</span>
                     </a>
                 </div>
                 {% endif %}
@@ -528,12 +528,17 @@
     <!-- Main Content Area -->
     <main class="main-content-modern" id="mainContent">
         <div class="container-fluid p-4">
-            {% with messages = get_flashed_messages() %}
+            {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     <div class="mb-3">
-                        {% for message in messages %}
-                            <div class="alert alert-info alert-dismissible fade show" role="alert">
-                                {{ message }}
+                        {% for category, message in messages %}
+                            {% set alert_class = 'alert-danger' if category == 'error' else ('alert-success' if category == 'success' else ('alert-warning' if category == 'warning' else 'alert-info')) %}
+                            {% set icon_class = 'fa-times-circle' if category == 'error' else ('fa-check-circle' if category == 'success' else ('fa-exclamation-triangle' if category == 'warning' else 'fa-info-circle')) %}
+                            <div class="alert {{ alert_class }} alert-dismissible fade show shadow-sm" role="alert" style="border-radius: 8px; border-left: 4px solid;">
+                                <div class="d-flex align-items-start">
+                                    <i class="fas {{ icon_class }} me-2 mt-1"></i>
+                                    <div class="flex-grow-1">{{ message | safe }}</div>
+                                </div>
                                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                             </div>
                         {% endfor %}

@@ -188,29 +188,7 @@
                         </div>
                     </div>
                     
-                    <!-- Flash Message Container -->
-                    <div id="flash-messages" class="mb-3" style="display: none;">
-                        <!-- Flash messages will be inserted here -->
-                    </div>
-                    
-                    <!-- Display Flask Flash Messages -->
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' if category == 'success' else 'info' }} alert-dismissible fade show" role="alert">
-                                    {% if category == 'error' %}
-                                        <i class="fas fa-exclamation-circle me-2"></i>
-                                    {% elif category == 'success' %}
-                                        <i class="fas fa-check-circle me-2"></i>
-                                    {% else %}
-                                        <i class="fas fa-info-circle me-2"></i>
-                                    {% endif %}
-                                    {{ message }}
-                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                                </div>
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
+                    <!-- Flash messages are rendered in base.html - no duplicate needed here -->
                     
                     <form method="POST" action="{% if is_edit_mode %}/handover/edit/{{ shift.id }}{% else %}/handover{% endif %}" id="handover-form">
                         <!-- Basic Information -->
@@ -281,6 +259,96 @@
                                 {% endif %}
                             </div>
                         </div>
+
+                        <!-- Shift Validation Alert Banner -->
+                        {% if user_shift_info %}
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                {% if user_shift_info.is_scheduled %}
+                                    <!-- User is scheduled for a shift -->
+                                    <div class="alert alert-info border-0 shadow-sm" id="shift-info-banner" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);">
+                                        <div class="d-flex align-items-center">
+                                            <div class="me-3">
+                                                <i class="fas fa-calendar-check fa-2x text-primary"></i>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <strong><i class="fas fa-user me-1"></i>{{ user_shift_info.team_member_name }}</strong>
+                                                <span class="ms-2">You are scheduled for the <span class="badge bg-primary fs-6">{{ user_shift_info.shift_type }}</span> shift today.</span>
+                                                <div class="small text-muted mt-1">
+                                                    <i class="fas fa-info-circle me-1"></i>
+                                                    The form has been pre-filled with your shift. You can only submit handover for your scheduled shift.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% elif user_shift_info.shift_code %}
+                                    <!-- User has a roster entry but not working shift (leave, off, etc.) -->
+                                    <div class="alert alert-warning border-0 shadow-sm" style="background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);">
+                                        <div class="d-flex align-items-center">
+                                            <div class="me-3">
+                                                <i class="fas fa-calendar-times fa-2x text-warning"></i>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <strong><i class="fas fa-exclamation-triangle me-1"></i>Not On Shift</strong>
+                                                <div>{{ user_shift_info.message }}</div>
+                                                <div class="small text-muted mt-1">
+                                                    <i class="fas fa-info-circle me-1"></i>
+                                                    You won't be able to submit a handover. Please contact your team admin if this is incorrect.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <!-- User is not scheduled at all -->
+                                    <div class="alert alert-danger border-0 shadow-sm" style="background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);">
+                                        <div class="d-flex align-items-center">
+                                            <div class="me-3">
+                                                <i class="fas fa-user-slash fa-2x text-danger"></i>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <strong><i class="fas fa-times-circle me-1"></i>Not Scheduled</strong>
+                                                <div>{{ user_shift_info.message }}</div>
+                                                {% if user_shift_info.is_admin %}
+                                                <div class="small text-success mt-1">
+                                                    <i class="fas fa-shield-alt me-1"></i>
+                                                    <strong>Admin Override:</strong> As an admin, you can still submit handovers on behalf of the team.
+                                                </div>
+                                                {% else %}
+                                                <div class="small text-muted mt-1">
+                                                    <i class="fas fa-info-circle me-1"></i>
+                                                    Contact your team admin to update the roster or submit on your behalf.
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Shift Mismatch Warning (hidden by default, shown via JS) -->
+                        <div class="row mb-3" id="shift-mismatch-warning" style="display: none;">
+                            <div class="col-12">
+                                <div class="alert alert-danger border-0 shadow-sm" style="background: linear-gradient(135deg, #ffebee 0%, #ef9a9a 100%);">
+                                    <div class="d-flex align-items-center">
+                                        <div class="me-3">
+                                            <i class="fas fa-exclamation-circle fa-2x text-danger"></i>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <strong><i class="fas fa-ban me-1"></i>Wrong Shift Selected!</strong>
+                                            <div id="shift-mismatch-message">
+                                                You have selected a different shift than your scheduled shift.
+                                            </div>
+                                            <div class="small mt-1">
+                                                <i class="fas fa-hand-point-right me-1"></i>
+                                                Please select <strong id="correct-shift-suggestion">your scheduled shift</strong> to submit this handover.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
 
                         <div class="row mb-4">
                             <div class="col-md-6">
@@ -3461,6 +3529,218 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, 2000); // Wait longer for all JS to load
 });
+
+// ============ SHIFT VALIDATION - Prevent Wrong Shift Submission ============
+{% if user_shift_info %}
+(function() {
+    // User's shift info from server
+    const userShiftInfo = {
+        isScheduled: {{ 'true' if user_shift_info.is_scheduled else 'false' }},
+        shiftType: "{{ user_shift_info.shift_type or '' }}",
+        teamMemberName: "{{ user_shift_info.team_member_name or '' }}",
+        isAdmin: {{ 'true' if user_shift_info.is_admin else 'false' }}
+    };
+    
+    // Shift sequence mapping
+    const nextShiftMap = {
+        'Morning': 'Evening',
+        'Evening': 'Night', 
+        'Night': 'Morning',
+        'OnShore': 'OffShore',
+        'OffShore': 'OnShore'
+    };
+    
+    console.log('🔒 SHIFT VALIDATION: User shift info:', userShiftInfo);
+    
+    function validateShiftSelection() {
+        const currentShiftSelect = document.getElementById('current_shift_type');
+        const nextShiftSelect = document.getElementById('next_shift_type');
+        const warningDiv = document.getElementById('shift-mismatch-warning');
+        const messageDiv = document.getElementById('shift-mismatch-message');
+        const suggestionSpan = document.getElementById('correct-shift-suggestion');
+        const infoBanner = document.getElementById('shift-info-banner');
+        
+        if (!currentShiftSelect || !warningDiv) return;
+        
+        const selectedShift = currentShiftSelect.value;
+        
+        // If user is admin, don't show warning (they can override)
+        if (userShiftInfo.isAdmin) {
+            warningDiv.style.display = 'none';
+            if (infoBanner) infoBanner.classList.remove('border-danger');
+            return;
+        }
+        
+        // If user is not scheduled for any shift, they can't submit
+        if (!userShiftInfo.isScheduled) {
+            warningDiv.style.display = 'none';
+            return;
+        }
+        
+        // Check if selected shift matches user's scheduled shift
+        if (selectedShift && selectedShift !== userShiftInfo.shiftType) {
+            // Show warning
+            warningDiv.style.display = 'block';
+            if (infoBanner) {
+                infoBanner.classList.add('border-3', 'border-danger');
+                infoBanner.style.background = 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)';
+            }
+            
+            const expectedNext = nextShiftMap[userShiftInfo.shiftType] || '';
+            messageDiv.innerHTML = `
+                <strong>${userShiftInfo.teamMemberName}</strong>, you selected <span class="badge bg-danger">${selectedShift}</span> shift, 
+                but you are scheduled for <span class="badge bg-success">${userShiftInfo.shiftType}</span> shift.
+                <br><small class="text-muted">Submitting the wrong shift will be blocked.</small>
+            `;
+            suggestionSpan.innerHTML = `<span class="badge bg-success">${userShiftInfo.shiftType} → ${expectedNext}</span>`;
+            
+            // Auto-correct next shift dropdown
+            if (nextShiftSelect && selectedShift === userShiftInfo.shiftType) {
+                nextShiftSelect.value = expectedNext;
+            }
+            
+            console.log('⚠️ SHIFT VALIDATION: Mismatch detected! User: ' + userShiftInfo.shiftType + ', Selected: ' + selectedShift);
+        } else {
+            // Hide warning - correct shift selected
+            warningDiv.style.display = 'none';
+            if (infoBanner) {
+                infoBanner.classList.remove('border-3', 'border-danger');
+                infoBanner.style.background = 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)';
+            }
+            
+            // Auto-set next shift
+            if (nextShiftSelect && selectedShift && nextShiftMap[selectedShift]) {
+                nextShiftSelect.value = nextShiftMap[selectedShift];
+            }
+            
+            console.log('✅ SHIFT VALIDATION: Correct shift selected');
+        }
+    }
+    
+    // Block form submission if wrong shift is selected
+    function blockWrongShiftSubmission(e) {
+        const currentShiftSelect = document.getElementById('current_shift_type');
+        const actionField = document.getElementById('clicked-action');
+        
+        // Only block on submit, not draft
+        const action = actionField ? actionField.value : 'submit';
+        if (action === 'draft') {
+            console.log('🔒 SHIFT VALIDATION: Draft mode - allowing submission');
+            return true;
+        }
+        
+        // Admins can override
+        if (userShiftInfo.isAdmin) {
+            console.log('🔒 SHIFT VALIDATION: Admin override - allowing submission');
+            return true;
+        }
+        
+        // User not scheduled - server will handle this
+        if (!userShiftInfo.isScheduled) {
+            console.log('🔒 SHIFT VALIDATION: User not scheduled - server will validate');
+            return true;
+        }
+        
+        const selectedShift = currentShiftSelect ? currentShiftSelect.value : '';
+        
+        if (selectedShift && selectedShift !== userShiftInfo.shiftType) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Show nice error modal
+            const expectedNext = nextShiftMap[userShiftInfo.shiftType] || '';
+            
+            // Create modal if doesn't exist
+            let modal = document.getElementById('shift-error-modal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'shift-error-modal';
+                modal.className = 'modal fade';
+                modal.innerHTML = `
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content border-0 shadow">
+                            <div class="modal-header bg-danger text-white">
+                                <h5 class="modal-title">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    Cannot Submit Handover
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body text-center py-4">
+                                <div class="mb-3">
+                                    <i class="fas fa-user-clock fa-4x text-danger"></i>
+                                </div>
+                                <h5 class="mb-3">Wrong Shift Selected!</h5>
+                                <p class="text-muted">
+                                    <strong>${userShiftInfo.teamMemberName}</strong>, you are trying to submit a 
+                                    <span class="badge bg-danger fs-6">${selectedShift}</span> handover, but you are 
+                                    scheduled for <span class="badge bg-success fs-6">${userShiftInfo.shiftType}</span> shift.
+                                </p>
+                                <div class="alert alert-info mt-3">
+                                    <i class="fas fa-lightbulb me-1"></i>
+                                    <strong>To fix:</strong> Change the <em>Current Shift</em> dropdown to 
+                                    <strong>${userShiftInfo.shiftType} → ${expectedNext}</strong>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                    <i class="fas fa-times me-1"></i>Close
+                                </button>
+                                <button type="button" class="btn btn-success" id="fix-shift-btn">
+                                    <i class="fas fa-check me-1"></i>Fix Shift Selection
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+                
+                // Add fix button handler
+                document.getElementById('fix-shift-btn').addEventListener('click', function() {
+                    const currentSelect = document.getElementById('current_shift_type');
+                    const nextSelect = document.getElementById('next_shift_type');
+                    if (currentSelect) currentSelect.value = userShiftInfo.shiftType;
+                    if (nextSelect) nextSelect.value = nextShiftMap[userShiftInfo.shiftType] || '';
+                    
+                    // Close modal
+                    const bsModal = bootstrap.Modal.getInstance(modal);
+                    if (bsModal) bsModal.hide();
+                    
+                    // Trigger validation update
+                    validateShiftSelection();
+                });
+            }
+            
+            // Show modal
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+            
+            console.log('🚫 SHIFT VALIDATION: Blocked submission - wrong shift');
+            return false;
+        }
+        
+        return true;
+    }
+    
+    // Add event listeners on DOM ready
+    document.addEventListener('DOMContentLoaded', function() {
+        const currentShiftSelect = document.getElementById('current_shift_type');
+        const form = document.getElementById('handover-form');
+        
+        if (currentShiftSelect) {
+            currentShiftSelect.addEventListener('change', validateShiftSelection);
+            // Initial validation
+            validateShiftSelection();
+        }
+        
+        if (form) {
+            form.addEventListener('submit', blockWrongShiftSubmission);
+        }
+        
+        console.log('🔒 SHIFT VALIDATION: Event listeners attached');
+    });
+})();
+{% endif %}
 
 </script>
 {% endblock %}

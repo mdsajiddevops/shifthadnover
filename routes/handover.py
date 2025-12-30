@@ -20,6 +20,91 @@ logger = logging.getLogger(__name__)
 
 handover_bp = Blueprint('handover', __name__)
 
+def detect_user_shift(user_id, account_id, team_id, date):
+    """
+    Detect user's current shift from the roster.
+    Returns dict with shift info: {
+        'is_scheduled': bool,
+        'shift_code': str or None,
+        'shift_type': str or None,  # 'Morning', 'Evening', 'Night', etc.
+        'team_member_id': int or None,
+        'team_member_name': str or None,
+        'message': str  # User-friendly message
+    }
+    """
+    from models.models import TeamMember, ShiftRoster
+    
+    # Shift code to type mapping
+    code_to_type = {
+        'D': 'Morning', 'E': 'Evening', 'N': 'Night',
+        'OS': 'OnShore', 'OF': 'OffShore'
+    }
+    
+    result = {
+        'is_scheduled': False,
+        'shift_code': None,
+        'shift_type': None,
+        'team_member_id': None,
+        'team_member_name': None,
+        'message': ''
+    }
+    
+    # Find user's TeamMember record
+    team_member = TeamMember.query.filter_by(
+        user_id=user_id,
+        account_id=account_id,
+        team_id=team_id
+    ).first()
+    
+    if not team_member:
+        result['message'] = 'Your profile is not linked to a team member record. Please contact admin.'
+        logger.debug(f"[SHIFT_DETECT] No TeamMember found for user_id={user_id}")
+        return result
+    
+    result['team_member_id'] = team_member.id
+    result['team_member_name'] = team_member.name
+    
+    # Find roster entry for this user today
+    roster_entry = ShiftRoster.query.filter_by(
+        date=date,
+        team_member_id=team_member.id,
+        account_id=account_id,
+        team_id=team_id
+    ).first()
+    
+    if not roster_entry:
+        result['message'] = f'You ({team_member.name}) are not scheduled for any shift on {date.strftime("%B %d, %Y")}.'
+        logger.debug(f"[SHIFT_DETECT] No roster entry for {team_member.name} on {date}")
+        return result
+    
+    # Check if it's a working shift (D, E, N, OS, OF) or leave/off
+    working_shifts = ['D', 'E', 'N', 'OS', 'OF']
+    if roster_entry.shift_code not in working_shifts:
+        result['message'] = f'You ({team_member.name}) are marked as "{roster_entry.shift_code}" (not on shift) on {date.strftime("%B %d, %Y")}.'
+        result['shift_code'] = roster_entry.shift_code
+        logger.debug(f"[SHIFT_DETECT] {team_member.name} has non-working shift code: {roster_entry.shift_code}")
+        return result
+    
+    # User is scheduled for a working shift
+    result['is_scheduled'] = True
+    result['shift_code'] = roster_entry.shift_code
+    result['shift_type'] = code_to_type.get(roster_entry.shift_code, roster_entry.shift_code)
+    result['message'] = f'You ({team_member.name}) are scheduled for the {result["shift_type"]} shift.'
+    
+    logger.debug(f"[SHIFT_DETECT] {team_member.name} is on {result['shift_type']} shift (code: {roster_entry.shift_code})")
+    return result
+
+def get_next_shift_type(current_shift_type):
+    """Get the expected next shift type based on current shift"""
+    shift_sequence = {
+        'Morning': 'Evening',
+        'Evening': 'Night',
+        'Night': 'Morning',
+        'OnShore': 'OffShore',
+        'OffShore': 'OnShore'
+    }
+    return shift_sequence.get(current_shift_type, None)
+
 def create_new_shift(date, current_shift_type, next_shift_type, account_id, team_id, action, additional_notes=None):
     """
     Creates a new shift record for each handover submission.
@@ -2291,6 +2376,88 @@ def handover():
                 return redirect(url_for('handover.handover'))
             else:
                 logger.debug(f"[DUPLICATE_CHECK] ✅ No existing submitted handover found for {current_shift_type}→{next_shift_type} on {date}")
+            
+            # 🔒 SHIFT ELIGIBILITY CHECK: Verify user is part of current shift roster
+            # Skip this check if user explicitly confirmed they want to submit anyway
+            skip_shift_check = request.form.get('confirm_not_in_shift') == 'yes'
+            
+            if not skip_shift_check:
+                # Get shift code mapping
+                shift_map = {'Morning': 'D', 'Evening': 'E', 'Night': 'N', 'OnShore': 'OS', 'OffShore': 'OF'}
+                current_shift_code = shift_map.get(current_shift_type)
+                
+                # Check if current user is in the current shift roster
+                user_in_shift = False
+                user_team_member = None
+                
+                # Find the TeamMember record for current user
+                user_team_member = TeamMember.query.filter_by(
+                    user_id=current_user.id,
+                    account_id=account_id,
+                    team_id=team_id
+                ).first()
+                
+                if user_team_member:
+                    # Check if this team member is in the shift roster for the current shift
+                    roster_entry = ShiftRoster.query.filter_by(
+                        date=date,
+                        team_member_id=user_team_member.id,
+                        shift_code=current_shift_code,
+                        account_id=account_id,
+                        team_id=team_id
+                    ).first()
+                    
+                    if roster_entry:
+                        user_in_shift = True
+                        logger.debug(f"[SHIFT_CHECK] ✅ User {current_user.username} is in {current_shift_type} shift roster")
+                    else:
+                        # Also check if user is scheduled for any shift on this date
+                        any_roster = ShiftRoster.query.filter_by(
+                            date=date,
+                            team_member_id=user_team_member.id,
+                            account_id=account_id,
+                            team_id=team_id
+                        ).first()
+                        if any_roster:
+                            logger.debug(f"[SHIFT_CHECK] ⚠️ User {current_user.username} is scheduled for {any_roster.shift_code} shift, not {current_shift_code}")
+                        else:
+                            logger.debug(f"[SHIFT_CHECK] ⚠️ User {current_user.username} is not scheduled for any shift today")
+                else:
+                    logger.debug(f"[SHIFT_CHECK] ⚠️ No TeamMember record found for user {current_user.username}")
+                
+                # Allow admins to submit without being in shift, but block regular users
+                is_admin = current_user.role in ['super_admin', 'account_admin', 'team_admin']
+                
+                if not user_in_shift and not is_admin:
+                    logger.warning(f"[SHIFT_CHECK] ❌ BLOCKED: User {current_user.username} attempted to submit {current_shift_type}→{next_shift_type} handover but is not in {current_shift_type} shift")
+                    
+                    # Get user's actual scheduled shift for helpful message
+                    user_shift = detect_user_shift(current_user.id, account_id, team_id, date)
+                    
+                    if user_shift['is_scheduled']:
+                        expected_next = get_next_shift_type(user_shift["shift_type"]) or "Next"
+                        error_msg = (
+                            f'<strong>Wrong Shift Selected!</strong> You selected "{current_shift_type} → {next_shift_type}" '
+                            f'but you ({user_shift["team_member_name"]}) are scheduled for <strong>{user_shift["shift_type"]}</strong> shift. '
+                            f'Please select "{user_shift["shift_type"]} → {expected_next}" to submit your handover.'
+                        )
+                    elif user_shift['shift_code']:
+                        error_msg = (
+                            f'<strong>Not On Active Shift!</strong> You ({user_shift["team_member_name"]}) are marked as '
+                            f'"{user_shift["shift_code"]}" on {date.strftime("%B %d, %Y")}. '
+                            f'Only engineers on active shifts can submit handovers. Contact your team admin if needed.'
+                        )
+                    else:
+                        error_msg = (
+                            f'<strong>Not Scheduled!</strong> You are not on the roster for {date.strftime("%B %d, %Y")}. '
+                            f'Please check the date or contact your team admin to update the roster.'
+                        )
+                    
+                    flash(error_msg, 'error')
+                    return redirect(url_for('handover.handover'))
+                elif not user_in_shift and is_admin:
+                    # Admin is submitting for a shift they're not in - log it
+                    logger.warning(f"[SHIFT_CHECK] ⚠️ Admin {current_user.username} submitting handover for shift they are not part of: {current_shift_type}→{next_shift_type}")
         
         # COMMENTED OUT FAST PATH - it was preventing full incident/keypoint processing
         # # FAST PATH: Create minimal handover immediately
@@ -3460,6 +3627,27 @@ def handover():
         assignment_groups_filter = []
         assignment_groups_filtered = False
     
+    # 🔒 SHIFT VALIDATION: Detect user's scheduled shift for validation
+    user_shift_info = detect_user_shift(
+        user_id=current_user.id,
+        account_id=account_id if account_id else current_user.account_id,
+        team_id=query_team_id,
+        date=handover_date
+    )
+    
+    # Auto-select shift based on user's roster if they're scheduled
+    detected_current_shift = current_shift_type  # Default from time-based detection
+    detected_next_shift = next_shift_type
+    
+    if user_shift_info['is_scheduled'] and user_shift_info['shift_type']:
+        detected_current_shift = user_shift_info['shift_type']
+        detected_next_shift = get_next_shift_type(detected_current_shift) or next_shift_type
+        logger.debug(f"[SHIFT_AUTO] Auto-detected shift: {detected_current_shift} → {detected_next_shift}")
+    
+    # Check if user is admin (can override shift validation)
+    is_admin = current_user.role in ['super_admin', 'account_admin', 'team_admin']
+    user_shift_info['is_admin'] = is_admin
+    
     # Always show at least one blank row for new key point entry in the form
     return render_template('handover_form.html',
         team_members=team_members,
@@ -3467,8 +3655,8 @@ def handover():
         default_team_id=default_team_id,
         current_engineers=current_engineers,
         next_engineers=next_engineers,
-        current_shift_type=current_shift_type,
-        next_shift_type=next_shift_type,
+        current_shift_type=detected_current_shift,  # Use auto-detected shift
+        next_shift_type=detected_next_shift,  # Use auto-detected next shift
         open_key_points=open_key_points,
         current_time=datetime.now(),
         shift=None,
@@ -3483,6 +3671,8 @@ def handover():
         show_team_error=show_team_error,
         # ServiceNow configuration for template
         assignment_groups_filter=assignment_groups_filter,
-        assignment_groups_filtered=assignment_groups_filtered
+        assignment_groups_filtered=assignment_groups_filtered,
+        # Shift validation info for frontend
+        user_shift_info=user_shift_info
     )
 
