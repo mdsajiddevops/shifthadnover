@@ -172,6 +172,24 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Shift Management Dashboard -->
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex justify-content-between align-items-center p-3 border rounded">
+                                    <div>
+                                        <strong>Shift Management Dashboard</strong>
+                                        <div class="config-description">Advanced shift management and scheduling</div>
+                                        {% set shift_mgmt_config = all_configs|selectattr('config_key', 'equalto', 'tab_shift_management')|first %}
+                                        <span class="config-status {{ 'status-enabled' if shift_mgmt_config and shift_mgmt_config.config_value == 'true' else 'status-disabled' }}">
+                                            {{ 'Enabled' if shift_mgmt_config and shift_mgmt_config.config_value == 'true' else 'Disabled' }}
+                                        </span>
+                                    </div>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input config-toggle" type="checkbox" name="tab_shift_management"
+                                               {% if shift_mgmt_config and shift_mgmt_config.config_value == 'true' %}checked{% endif %}>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

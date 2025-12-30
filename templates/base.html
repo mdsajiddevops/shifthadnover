@@ -303,12 +303,14 @@
                         <span class="nav-text">Audit Logs</span>
                     </a>
                 </div>
+                {% if is_tab_enabled('tab_shift_management') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/shift-management') else '' }}" href="/shift-management/dashboard" data-tooltip="Shift Management">
                         <i class="nav-icon bi bi-calendar-week"></i>
                         <span class="nav-text">Shift Management</span>
                     </a>
                 </div>
+                {% endif %}
             </div>
             
 

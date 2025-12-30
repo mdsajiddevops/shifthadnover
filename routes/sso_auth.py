@@ -7,9 +7,13 @@ from flask import Blueprint, request, redirect, url_for, flash, session, render_
 from flask_login import login_user, logout_user, current_user
 from urllib.parse import urlparse, urljoin
 import requests
+import logging
 from datetime import datetime
 from models.models import db, User, Account, Team, TeamMember
 from models.sso_config import SSOConfig
+
+# Module logger
+logger = logging.getLogger(__name__)
 # Remove audit import for now - will use Flask logging instead
 import xml.etree.ElementTree as ET
 import base64
@@ -18,6 +22,7 @@ import hashlib
 import secrets
 import re
 from difflib import SequenceMatcher
+import logging
 
 sso_auth = Blueprint('sso_auth', __name__, url_prefix='/auth/sso')
 

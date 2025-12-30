@@ -6,6 +6,12 @@ from models.password_reset import PasswordResetToken
 from services.password_reset_service import PasswordResetService
 from services.team_access_service import TeamAccessService
 from werkzeug.security import check_password_hash, generate_password_hash
+import logging
+
+# Module logger - must be defined before use
+logger = logging.getLogger(__name__)
+
+auth_bp = Blueprint('auth', __name__)
 
 
 def initialize_user_team_session(user):
@@ -15,26 +21,24 @@ def initialize_user_team_session(user):
         primary_team_id = TeamAccessService.get_primary_team_id(user=user, account_id=user.account_id)
         if primary_team_id:
             session['selected_team_id'] = primary_team_id
-            print(f"✅ [AUTH] Initialized session with primary team {primary_team_id} for user {user.username}")
+            logger.info(f"[AUTH] Initialized session with primary team {primary_team_id} for user {user.username}")
         else:
             # If no primary team, get first available team
             user_teams = user.get_teams(account_id=user.account_id, active_only=True)
             if user_teams:
                 session['selected_team_id'] = user_teams[0].team_id
-                print(f"✅ [AUTH] Initialized session with first team {user_teams[0].team_id} for user {user.username}")
+                logger.info(f"[AUTH] Initialized session with first team {user_teams[0].team_id} for user {user.username}")
             else:
                 # Fallback to legacy team_id
                 if user.team_id:
                     session['selected_team_id'] = user.team_id
-                    print(f"✅ [AUTH] Initialized session with legacy team_id {user.team_id} for user {user.username}")
+                    logger.info(f"[AUTH] Initialized session with legacy team_id {user.team_id} for user {user.username}")
         
         # Set account in session too
         if user.account_id:
             session['selected_account_id'] = user.account_id
     except Exception as e:
-        print(f"⚠️ [AUTH] Error initializing team session: {e}")
-
-auth_bp = Blueprint('auth', __name__)
+        logger.warning(f"[AUTH] Error initializing team session: {e}")
 
 # Add route to set account/team selection in session
 @auth_bp.route('/set_selection', methods=['POST'])
@@ -66,7 +70,7 @@ def set_team_filter():
             
         team_id = data.get('team_id')
         
-        print(f"🔄 [AUTH] Team filter change request: {team_id}")
+        logger.debug(f"🔄 [AUTH] Team filter change request: {team_id}")
         
         # Convert 'all' to None for all teams
         if team_id == 'all':
@@ -76,14 +80,14 @@ def set_team_filter():
         
         # Validate and set the team filter
         if TeamAccessService.set_selected_team(team_id):
-            print(f"✅ [AUTH] Team filter updated to: {team_id}")
+            logger.info(f"✅ [AUTH] Team filter updated to: {team_id}")
             return {'success': True, 'message': 'Team filter updated', 'team_id': team_id}
         else:
-            print(f"❌ [AUTH] Invalid team selection: {team_id}")
+            logger.error(f"❌ [AUTH] Invalid team selection: {team_id}")
             return {'success': False, 'message': 'Invalid team selection'}, 400
             
     except Exception as e:
-        print(f"❌ [AUTH] Error setting team filter: {e}")
+        logger.error(f"❌ [AUTH] Error setting team filter: {e}")
         return {'success': False, 'message': f'Error: {str(e)}'}, 500
 
 # Make accounts/teams available in all templates

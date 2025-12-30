@@ -1084,21 +1084,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     console.log('✅ Handover form initialization complete');
-    
-    // Add debug button for manual testing
-    const debugButton = document.createElement('button');
-    debugButton.innerHTML = '🔧 Force Reload Engineers';
-    debugButton.className = 'btn btn-warning btn-sm';
-    debugButton.style.position = 'fixed';
-    debugButton.style.top = '10px';
-    debugButton.style.right = '10px';
-    debugButton.style.zIndex = '9999';
-    debugButton.onclick = function(e) {
-        e.preventDefault();
-        console.log('🔧 Manual debug reload triggered');
-        updateEngineers();
-    };
-    document.body.appendChild(debugButton);
 });
 
 // Form Mode Toggle Function

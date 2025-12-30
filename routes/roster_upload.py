@@ -402,9 +402,9 @@ def download_wide_format_roster():
         sample_dir = os.path.join('static', 'samples')
         file_path = os.path.join(sample_dir, 'wide_format_roster_sample.xlsx')
         
-        print(f"DEBUG: Looking for file at: {file_path}")
-        print(f"DEBUG: File exists: {os.path.exists(file_path)}")
-        print(f"DEBUG: Current working directory: {os.getcwd()}")
+        logger.debug(f"DEBUG: Looking for file at: {file_path}")
+        logger.debug(f"DEBUG: File exists: {os.path.exists(file_path)}")
+        logger.debug(f"DEBUG: Current working directory: {os.getcwd()}")
         
         if not os.path.exists(file_path):
             flash(f'Sample file not found at: {file_path}', 'error')
@@ -418,6 +418,6 @@ def download_wide_format_roster():
         )
     except Exception as e:
         flash(f'Error downloading wide format sample file: {e}', 'error')
-        print(f"DEBUG: Exception details: {str(e)}")
+        logger.debug(f"DEBUG: Exception details: {str(e)}")
         return redirect(url_for('roster_upload.roster_upload'))
 

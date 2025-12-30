@@ -1,6 +1,8 @@
 from datetime import datetime, time
 from flask_sqlalchemy import SQLAlchemy
 from models.models import db
+import logging
+logger = logging.getLogger(__name__)
 
 class TeamShiftConfig(db.Model):
     """Configuration for team shift patterns"""
@@ -59,7 +61,7 @@ class TeamShiftConfig(db.Model):
             
         # Debug: Print current time and shift analysis
         time_str = current_time.time().strftime('%H:%M:%S') if isinstance(current_time, datetime) else current_time.strftime('%H:%M:%S')
-        print(f"[SHIFT DEBUG] Checking shifts for team {team_id} at time {time_str}")
+        logger.debug(f"[SHIFT DEBUG] Checking shifts for team {team_id} at time {time_str}")
         
         matched_shift = None
         for shift in shifts:
@@ -67,14 +69,14 @@ class TeamShiftConfig(db.Model):
             start_str = shift.start_time.strftime('%H:%M')
             end_str = shift.end_time.strftime('%H:%M')
             overnight = ' (overnight)' if shift.start_time > shift.end_time else ''
-            print(f"[SHIFT DEBUG]   {shift.shift_name} ({start_str}-{end_str}){overnight}: {'MATCH ✅' if is_match else 'no match ❌'}")
+            logger.debug(f"[SHIFT DEBUG]   {shift.shift_name} ({start_str}-{end_str}){overnight}: {'MATCH ✅' if is_match else 'no match ❌'}")
             
             if is_match:
                 matched_shift = shift
                 break
         
         if matched_shift:
-            print(f"[SHIFT DEBUG] Selected shift: {matched_shift.shift_name}")
+            logger.debug(f"[SHIFT DEBUG] Selected shift: {matched_shift.shift_name}")
             return matched_shift
         
         # Better fallback: find the most recent shift that has ended
@@ -89,16 +91,16 @@ class TeamShiftConfig(db.Model):
             if shift.start_time <= shift.end_time:
                 # Normal shift - check if current time is after this shift
                 if current_time_obj >= shift.end_time:
-                    print(f"[SHIFT DEBUG] Fallback: Using most recent ended shift: {shift.shift_name}")
+                    logger.debug(f"[SHIFT DEBUG] Fallback: Using most recent ended shift: {shift.shift_name}")
                     return shift
             else:
                 # Overnight shift - more complex logic
                 if current_time_obj <= shift.end_time:
-                    print(f"[SHIFT DEBUG] Fallback: Using overnight shift: {shift.shift_name}")
+                    logger.debug(f"[SHIFT DEBUG] Fallback: Using overnight shift: {shift.shift_name}")
                     return shift
         
         # Ultimate fallback: return first shift
-        print(f"[SHIFT DEBUG] Ultimate fallback: Using first shift: {sorted_shifts[0].shift_name}")
+        logger.debug(f"[SHIFT DEBUG] Ultimate fallback: Using first shift: {sorted_shifts[0].shift_name}")
         return sorted_shifts[0]
     
     @classmethod

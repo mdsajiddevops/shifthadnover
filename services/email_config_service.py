@@ -19,9 +19,9 @@ def log_action(user_id=None, action_type=None, details=None, ip_address=None):
     """Simple audit logging function."""
     try:
         if hasattr(current_user, 'id'):
-            print(f"AUDIT: User {current_user.id} - {action_type}: {details}")
+            logger.debug(f"AUDIT: User {current_user.id} - {action_type}: {details}")
     except:
-        print(f"AUDIT: {action_type}: {details}")
+        logger.debug(f"AUDIT: {action_type}: {details}")
 
 class EmailConfigService:
     """Service for managing team email configurations."""

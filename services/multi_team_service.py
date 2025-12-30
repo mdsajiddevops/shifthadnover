@@ -6,6 +6,8 @@ Provides utilities for managing multi-team user access and filtering
 from flask import session, request
 from flask_login import current_user
 from models.models import UserTeamMembership, Team, Account
+import logging
+logger = logging.getLogger(__name__)
 
 
 class MultiTeamService:
@@ -32,7 +34,7 @@ class MultiTeamService:
             
             return []
         except Exception as e:
-            print(f"[MultiTeamService] Error getting user teams: {str(e)}")
+            logger.debug(f"[MultiTeamService] Error getting user teams: {str(e)}")
             return []
     
     @staticmethod
@@ -114,7 +116,7 @@ class MultiTeamService:
             membership = membership.first()
             return membership.team_id if membership else None
         except Exception as e:
-            print(f"[MultiTeamService] Error getting primary team: {str(e)}")
+            logger.debug(f"[MultiTeamService] Error getting primary team: {str(e)}")
             return None
     
     @staticmethod

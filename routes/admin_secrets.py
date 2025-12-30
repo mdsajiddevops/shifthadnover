@@ -1155,7 +1155,7 @@ def api_get_smtp_configs():
 def api_get_smtp_configs_debug():
     """DEBUG ONLY: SMTP config without authentication - REMOVE IN PRODUCTION"""
     try:
-        print("[DEBUG API] ================= DEBUG SMTP CONFIG API CALLED =================")
+        logger.debug("[DEBUG] ================= DEBUG SMTP CONFIG API CALLED =================")
         logger.info("[DEBUG API] ================= DEBUG SMTP CONFIG API CALLED =================")
         
         # Just return the database values directly
@@ -1163,14 +1163,14 @@ def api_get_smtp_configs_debug():
         
         # Check all database entries to see what keys actually exist
         all_smtp_configs = SMTPConfig.query.all()
-        print(f"[DEBUG API] === ALL DATABASE ENTRIES ===")
+        logger.debug(f"[DEBUG API] === ALL DATABASE ENTRIES ===")
         logger.info(f"[DEBUG API] === ALL DATABASE ENTRIES ===")
         db_data = {}
         for config in all_smtp_configs:
-            print(f"[DEBUG API] DB Key: '{config.config_key}' = '{config.config_value}'")
+            logger.debug(f"[DEBUG API] DB Key: '{config.config_key}' = '{config.config_value}'")
             logger.info(f"[DEBUG API] DB Key: '{config.config_key}' = '{config.config_value}'")
             db_data[config.config_key] = config.config_value
-        print(f"[DEBUG API] === END DATABASE ENTRIES ===")
+        logger.debug(f"[DEBUG API] === END DATABASE ENTRIES ===")
         logger.info(f"[DEBUG API] === END DATABASE ENTRIES ===")
         
         # Create the legacy response format expected by JavaScript
@@ -1184,7 +1184,7 @@ def api_get_smtp_configs_debug():
             'smtp_enabled': db_data.get('smtp_enabled', 'false') == 'true'
         }
         
-        print(f"[DEBUG API] Returning debug response: {legacy_response}")
+        logger.debug(f"[DEBUG API] Returning debug response: {legacy_response}")
         logger.info(f"[DEBUG API] Returning debug response: {legacy_response}")
         
         return jsonify(legacy_response)
@@ -1768,7 +1768,7 @@ def save_email_recipients():
         
         # Debug logging
         logger.info(f"Received email recipients save request - data: {data}")
-        print(f"[DEBUG] Email recipients save - data: {data}")
+        logger.debug(f"[DEBUG] Email recipients save - data: {data}")
         
         from models.app_config import AppConfig
         
@@ -2056,13 +2056,13 @@ def test_email_recipients():
             try:
                 from models.smtp_config import SMTPConfig
                 sender = SMTPConfig.get_config('mail_default_sender')
-                print(f"[ADMIN] ✅ Loaded sender from SMTPConfig: {sender}")
+                logger.debug(f"[ADMIN] ✅ Loaded sender from SMTPConfig: {sender}")
             except Exception as e:
-                print(f"[ADMIN] ❌ Failed to load sender from SMTPConfig: {e}")
+                logger.debug(f"[ADMIN] ❌ Failed to load sender from SMTPConfig: {e}")
                 sender = 'noreply@shift-handover.local'  # Final fallback
-                print(f"[ADMIN] ⚠️ Using fallback sender: {sender}")
+                logger.debug(f"[ADMIN] ⚠️ Using fallback sender: {sender}")
         
-        print(f"[ADMIN] 📧 Using sender for test email: {sender}")
+        logger.debug(f"[ADMIN] 📧 Using sender for test email: {sender}")
         
         msg = Message(subject=subject, recipients=recipients_to_test, sender=sender)
         msg.body = text_content

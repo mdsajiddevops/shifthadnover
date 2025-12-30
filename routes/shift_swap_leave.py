@@ -1163,7 +1163,7 @@ def get_user_shift_for_date(date):
             })
         else:
             # Debug info to help troubleshoot
-            print(f"DEBUG: No roster entry found for user {current_user.id}, team_member {team_member.id}, date {leave_date}")
+            logger.debug(f"DEBUG: No roster entry found for user {current_user.id}, team_member {team_member.id}, date {leave_date}")
             
             return jsonify({
                 "success": True,

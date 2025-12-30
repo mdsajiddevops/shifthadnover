@@ -1,13 +1,15 @@
 from flask_mail import Message
 from flask import current_app
+import logging
+
+logger = logging.getLogger(__name__)
 
 def send_handover_email(shift):
-    print(f"[DEBUG] ✅ send_handover_email called from email_service.py for shift_id={shift.id}")
+    logger.debug(f"[DEBUG] ✅ send_handover_email called from email_service.py for shift_id={shift.id}")
     
     # Import mail here to avoid circular import
     from flask import current_app
     import os
-    import logging
     import time
     from models.models import Team, User, Incident
     from models.models import Incident, ShiftKeyPoint, TeamMember, Team, User, Account
@@ -27,27 +29,27 @@ def send_handover_email(shift):
         from models.models import db
         
         # Use the existing MySQL database connection
-        print(f"[EMAIL_SERVICE] 📍 Using MySQL database connection")
+        logger.debug(f"[EMAIL_SERVICE] 📍 Using MySQL database connection")
         
         # Query SMTP configuration from the database using SQLAlchemy
         try:
             # Try to get from smtp_config table first
             result = db.session.execute(db.text("SELECT config_key, config_value FROM smtp_config"))
             configs = dict(result.fetchall())
-            print(f"[EMAIL_SERVICE] 🔍 Loaded configs from MySQL smtp_config: {list(configs.keys())}")
+            logger.debug(f"[EMAIL_SERVICE] 🔍 Loaded configs from MySQL smtp_config: {list(configs.keys())}")
         except Exception as db_error:
             # Fallback: try to get from app_config table if smtp_config doesn't exist
-            print(f"[EMAIL_SERVICE] ⚠️ smtp_config table not found, trying app_config: {db_error}")
+            logger.debug(f"[EMAIL_SERVICE] ⚠️ smtp_config table not found, trying app_config: {db_error}")
             try:
                 result = db.session.execute(db.text("SELECT config_key, config_value FROM app_config WHERE config_key LIKE 'smtp_%' OR config_key LIKE 'mail_%'"))
                 configs = dict(result.fetchall())
-                print(f"[EMAIL_SERVICE] � Loaded configs from MySQL app_config: {list(configs.keys())}")
+                logger.debug(f"[EMAIL_SERVICE] � Loaded configs from MySQL app_config: {list(configs.keys())}")
             except Exception as fallback_error:
-                print(f"[EMAIL_SERVICE] ❌ Could not load SMTP config from database: {fallback_error}")
+                logger.debug(f"[EMAIL_SERVICE] ❌ Could not load SMTP config from database: {fallback_error}")
                 configs = {}
         
         if configs:
-            print(f"[EMAIL_SERVICE] 🔍 Loaded configs from database: {list(configs.keys())}")
+            logger.debug(f"[EMAIL_SERVICE] 🔍 Loaded configs from database: {list(configs.keys())}")
             
             # Update Flask app configuration with SMTP settings
             app = current_app._get_current_object()
@@ -60,7 +62,7 @@ def send_handover_email(shift):
             try:
                 smtp_port_int = int(smtp_port)
             except (ValueError, TypeError) as port_error:
-                print(f"[EMAIL_SERVICE] ⚠️ Invalid port value '{smtp_port}', using default 587: {port_error}")
+                logger.debug(f"[EMAIL_SERVICE] ⚠️ Invalid port value '{smtp_port}', using default 587: {port_error}")
                 smtp_port_int = 587
             
             smtp_mapping = {
@@ -79,15 +81,15 @@ def send_handover_email(shift):
                 'TESTING': False  # Not in testing mode
             }
             
-            print(f"[EMAIL_SERVICE] 🔍 Raw config values: {configs}")
-            print(f"[EMAIL_SERVICE] 🔍 Prepared SMTP mapping: {smtp_mapping}")
+            logger.debug(f"[EMAIL_SERVICE] 🔍 Raw config values: {configs}")
+            logger.debug(f"[EMAIL_SERVICE] 🔍 Prepared SMTP mapping: {smtp_mapping}")
             
             # Check for None values that might cause Flask-Mail issues
             for key, value in smtp_mapping.items():
                 if value is None:
-                    print(f"[EMAIL_SERVICE] ⚠️ WARNING: {key} is None!")
+                    logger.debug(f"[EMAIL_SERVICE] ⚠️ WARNING: {key} is None!")
                 else:
-                    print(f"[EMAIL_SERVICE] ✅ {key}: {value} (type: {type(value)})")
+                    logger.debug(f"[EMAIL_SERVICE] ✅ {key}: {value} (type: {type(value)})")
             
             # Only update if we have valid SMTP config
             if smtp_mapping['MAIL_SERVER'] and smtp_mapping['MAIL_USERNAME']:
@@ -96,19 +98,19 @@ def send_handover_email(shift):
                 missing_configs = [key for key in required_configs if smtp_mapping.get(key) is None]
                 
                 if missing_configs:
-                    print(f"[EMAIL_SERVICE] ❌ Missing required configs: {missing_configs}")
-                    print(f"[EMAIL_SERVICE] 🚫 Skipping Flask-Mail configuration due to missing values")
+                    logger.debug(f"[EMAIL_SERVICE] ❌ Missing required configs: {missing_configs}")
+                    logger.debug(f"[EMAIL_SERVICE] 🚫 Skipping Flask-Mail configuration due to missing values")
                 else:
-                    print(f"[EMAIL_SERVICE] ✅ All required SMTP configs present")
+                    logger.debug(f"[EMAIL_SERVICE] ✅ All required SMTP configs present")
                     
                     # Update app config directly
                     app.config.update(smtp_mapping)
                     
                     # Verify the values were set correctly
-                    print(f"[EMAIL_SERVICE] 📋 Final app config check:")
+                    logger.debug(f"[EMAIL_SERVICE] 📋 Final app config check:")
                     for key in required_configs:
                         value = app.config.get(key)
-                        print(f"[EMAIL_SERVICE]   {key}: {value} (type: {type(value)})")
+                        logger.debug(f"[EMAIL_SERVICE]   {key}: {value} (type: {type(value)})")
                     
                     # Reinitialize Mail object with new configuration
                     from flask_mail import Mail
@@ -118,18 +120,18 @@ def send_handover_email(shift):
                     # Update the current mail object in app extensions
                 app.extensions['mail'] = mail
                 
-                print(f"[EMAIL_SERVICE] ✅ Flask-Mail reconfigured with: {smtp_mapping['MAIL_SERVER']}:{smtp_mapping['MAIL_PORT']}")
+                logger.debug(f"[EMAIL_SERVICE] ✅ Flask-Mail reconfigured with: {smtp_mapping['MAIL_SERVER']}:{smtp_mapping['MAIL_PORT']}")
             else:
-                print(f"[EMAIL_SERVICE] ⚠️ Incomplete SMTP configuration in database - Server: {smtp_mapping['MAIL_SERVER']}, Username: {smtp_mapping['MAIL_USERNAME']}")
+                logger.debug(f"[EMAIL_SERVICE] ⚠️ Incomplete SMTP configuration in database - Server: {smtp_mapping['MAIL_SERVER']}, Username: {smtp_mapping['MAIL_USERNAME']}")
                 mail = current_app.extensions.get('mail')
         else:
-            print(f"[EMAIL_SERVICE] ⚠️ No SMTP configuration found in database")
+            logger.debug(f"[EMAIL_SERVICE] ⚠️ No SMTP configuration found in database")
             mail = current_app.extensions.get('mail')
             
     except Exception as e:
-        print(f"[EMAIL_SERVICE] ⚠️ Could not reconfigure Flask-Mail: {e}")
+        logger.debug(f"[EMAIL_SERVICE] ⚠️ Could not reconfigure Flask-Mail: {e}")
         import traceback
-        print(f"[EMAIL_SERVICE] 🔍 Full error details: {traceback.format_exc()}")
+        logger.debug(f"[EMAIL_SERVICE] 🔍 Full error details: {traceback.format_exc()}")
         mail = current_app.extensions.get('mail')
     
     # Fallback to existing mail if reconfiguration failed
@@ -138,22 +140,22 @@ def send_handover_email(shift):
     
     # Quick bypass for local development to avoid email delays
     if os.environ.get('LOCAL_DEVELOPMENT') == 'True' and os.environ.get('SKIP_EMAIL_FOR_SPEED', 'false').lower() == 'true':
-        print("[EMAIL_SERVICE] 🚀 Skipping email sending for local development (SKIP_EMAIL_FOR_SPEED=true)")
+        logger.debug("[EMAIL_SERVICE] 🚀 Skipping email sending for local development (SKIP_EMAIL_FOR_SPEED=true)")
         return
     
     # Check if email notifications are enabled in SMTP configuration
     from models.smtp_config import SMTPConfig
     smtp_enabled = SMTPConfig.get_config('smtp_enabled', 'false').lower() == 'true'
-    print(f"[EMAIL_SERVICE] 🔍 SMTP enabled check: {smtp_enabled}")
+    logger.debug(f"[EMAIL_SERVICE] 🔍 SMTP enabled check: {smtp_enabled}")
     if not smtp_enabled:
-        print("[EMAIL_SERVICE] 📧 Email sending is disabled in SMTP configuration (smtp_enabled=false)")
+        logger.debug("[EMAIL_SERVICE] 📧 Email sending is disabled in SMTP configuration (smtp_enabled=false)")
         return
     
     # Check if email notifications are enabled in app configuration (backward compatibility)
     notifications_enabled = AppConfig.get_config('email_notifications_enabled', 'true').lower() == 'true'
-    print(f"[EMAIL_SERVICE] 🔍 App notifications enabled: {notifications_enabled}")
+    logger.debug(f"[EMAIL_SERVICE] 🔍 App notifications enabled: {notifications_enabled}")
     if not notifications_enabled:
-        print("[EMAIL_SERVICE] 📧 Email notifications are disabled in app configuration")
+        logger.debug("[EMAIL_SERVICE] 📧 Email notifications are disabled in app configuration")
         logging.info("[EMAIL_SERVICE] Email notifications are disabled in app configuration")
         return
     
@@ -209,12 +211,12 @@ def send_handover_email(shift):
             if recipient_result['priority_recipients']:
                 priority_alert_recipients = f"{len(recipient_result['priority_recipients'])} priority recipients"
             
-            print(f"[EMAIL_SERVICE] ✅ Using new Email Configuration Service")
-            print(f"[EMAIL_SERVICE] 📧 Recipients from config: TO={len(recipient_result['to_recipients'])}, CC={len(recipient_result['cc_recipients'])}, Priority={len(recipient_result['priority_recipients'])}")
+            logger.debug(f"[EMAIL_SERVICE] ✅ Using new Email Configuration Service")
+            logger.debug(f"[EMAIL_SERVICE] 📧 Recipients from config: TO={len(recipient_result['to_recipients'])}, CC={len(recipient_result['cc_recipients'])}, Priority={len(recipient_result['priority_recipients'])}")
             
     except Exception as config_error:
-        print(f"[EMAIL_SERVICE] ⚠️ New Email Configuration Service failed: {config_error}")
-        print(f"[EMAIL_SERVICE] 🔄 Falling back to legacy recipient configuration...")
+        logger.debug(f"[EMAIL_SERVICE] ⚠️ New Email Configuration Service failed: {config_error}")
+        logger.debug(f"[EMAIL_SERVICE] 🔄 Falling back to legacy recipient configuration...")
         
         # 2. Fallback: Use legacy team-specific email recipients
         team_recipients = None
@@ -223,7 +225,7 @@ def send_handover_email(shift):
             if team and team.email_recipients:
                 team_recipients = team.email_recipients.strip()
                 configured_recipients = team_recipients  # Set for recipient_info() function
-                print(f"[EMAIL_SERVICE] 🏢 Using team-specific recipients for {team.name}: {team_recipients}")
+                logger.debug(f"[EMAIL_SERVICE] 🏢 Using team-specific recipients for {team.name}: {team_recipients}")
                 for email in team_recipients.split(','):
                     email = email.strip()
                     if email:
@@ -233,7 +235,7 @@ def send_handover_email(shift):
         if not recipients:
             configured_recipients = AppConfig.get_config('handover_email_recipients', '')
             if configured_recipients:
-                print(f"[EMAIL_SERVICE] 🌐 Using global recipients (no team-specific config): {configured_recipients}")
+                logger.debug(f"[EMAIL_SERVICE] 🌐 Using global recipients (no team-specific config): {configured_recipients}")
                 for email in configured_recipients.split(','):
                     email = email.strip()
                     if email:
@@ -270,12 +272,12 @@ def send_handover_email(shift):
     # Convert set to list
     recipients = list(recipients)
     
-    print(f"[EMAIL_SERVICE] 🔍 Final recipients list: {recipients}")
-    print(f"[EMAIL_SERVICE] 🔍 Total recipients count: {len(recipients)}")
+    logger.debug(f"[EMAIL_SERVICE] 🔍 Final recipients list: {recipients}")
+    logger.debug(f"[EMAIL_SERVICE] 🔍 Total recipients count: {len(recipients)}")
     
     if not recipients:
-        print("[EMAIL_SERVICE] ❌ No email recipients found for handover notification")
-        print("[EMAIL_SERVICE] 💡 Please configure email recipients in Admin > Secrets Management > Email Recipients")
+        logger.debug("[EMAIL_SERVICE] ❌ No email recipients found for handover notification")
+        logger.debug("[EMAIL_SERVICE] 💡 Please configure email recipients in Admin > Secrets Management > Email Recipients")
         logging.warning("No email recipients found for handover notification - please configure email recipients in admin settings")
         return
 
@@ -323,8 +325,8 @@ def send_handover_email(shift):
     )
     next_engineers = ', '.join(next_engineer_names) if next_engineer_names else 'None assigned'
     
-    print(f"[EMAIL_SERVICE] 👥 Current shift engineers ({shift.current_shift_type}): {len(current_engineer_names)} found")
-    print(f"[EMAIL_SERVICE] 👥 Next shift engineers ({shift.next_shift_type}): {len(next_engineer_names)} found")
+    logger.debug(f"[EMAIL_SERVICE] 👥 Current shift engineers ({shift.current_shift_type}): {len(current_engineer_names)} found")
+    logger.debug(f"[EMAIL_SERVICE] 👥 Next shift engineers ({shift.next_shift_type}): {len(next_engineer_names)} found")
     
     # Fix incident type queries (using correct types from database)
     open_incidents = Incident.query.filter_by(shift_id=shift.id, type='Open').all()
@@ -385,7 +387,7 @@ def send_handover_email(shift):
             user = User.query.get(handover_req.created_by_id)
             if user:
                 submitted_by = user.display_name or user.username
-                print(f"[EMAIL_SERVICE] 👤 Found submitter: {submitted_by}")
+                logger.debug(f"[EMAIL_SERVICE] 👤 Found submitter: {submitted_by}")
         else:
             # Fallback: Try to find from audit log
             from models.audit_log import AuditLog
@@ -403,7 +405,7 @@ def send_handover_email(shift):
                 submitted_by = audit_entry.username or 'Unknown User'
                 
     except Exception as e:
-        print(f"[EMAIL_SERVICE] ⚠️ Error finding submitter: {e}")
+        logger.debug(f"[EMAIL_SERVICE] ⚠️ Error finding submitter: {e}")
         submitted_by = "Unknown"
 
     def parse_incident_title(title):
@@ -669,20 +671,20 @@ Configure email recipients in Admin > Secrets Management > Email Recipients.
         try:
             from models.smtp_config import SMTPConfig
             sender = SMTPConfig.get_config('mail_default_sender')
-            print(f"[EMAIL_SERVICE] ✅ Loaded sender from SMTPConfig: {sender}")
+            logger.debug(f"[EMAIL_SERVICE] ✅ Loaded sender from SMTPConfig: {sender}")
         except Exception as e:
-            print(f"[EMAIL_SERVICE] ❌ Failed to load sender from SMTPConfig: {e}")
+            logger.debug(f"[EMAIL_SERVICE] ❌ Failed to load sender from SMTPConfig: {e}")
             sender = 'noreply@shift-handover.local'  # Final fallback
-            print(f"[EMAIL_SERVICE] ⚠️ Using fallback sender: {sender}")
+            logger.debug(f"[EMAIL_SERVICE] ⚠️ Using fallback sender: {sender}")
     
-    print(f"[EMAIL_SERVICE] 📧 Using sender: {sender}")
+    logger.debug(f"[EMAIL_SERVICE] 📧 Using sender: {sender}")
     
     # Debug the message parameters before creating the Message
-    print(f"[EMAIL_SERVICE] 🔍 Message parameters:")
-    print(f"  - Subject: {subject}")
-    print(f"  - Recipients: {recipients} (type: {type(recipients)})")
-    print(f"  - Sender: {sender} (type: {type(sender)})")
-    print(f"  - Recipients length: {len(recipients) if recipients else 'None'}")
+    logger.debug(f"[EMAIL_SERVICE] 🔍 Message parameters:")
+    logger.debug(f"  - Subject: {subject}")
+    logger.debug(f"  - Recipients: {recipients} (type: {type(recipients)})")
+    logger.debug(f"  - Sender: {sender} (type: {type(sender)})")
+    logger.debug(f"  - Recipients length: {len(recipients) if recipients else 'None'}")
     
     # Validate parameters before creating Message
     if not subject:
@@ -706,27 +708,27 @@ Configure email recipients in Admin > Secrets Management > Email Recipients.
         recipients = [str(recipient).strip() for recipient in recipients if recipient]
         
         # Create message step by step
-        print(f"[EMAIL_SERVICE] 🔧 Creating Message object...")
+        logger.debug(f"[EMAIL_SERVICE] 🔧 Creating Message object...")
         msg = Message()
         msg.subject = str(subject)
         msg.recipients = recipients
         msg.sender = str(sender)
         
-        print(f"[EMAIL_SERVICE] ✅ Message object created successfully")
-        print(f"[EMAIL_SERVICE]   Subject: '{msg.subject}'")
-        print(f"[EMAIL_SERVICE]   Recipients: {msg.recipients}")
-        print(f"[EMAIL_SERVICE]   Sender: '{msg.sender}'")
-        print(f"[EMAIL_SERVICE] ✅ Message object created successfully")
+        logger.debug(f"[EMAIL_SERVICE] ✅ Message object created successfully")
+        logger.debug(f"[EMAIL_SERVICE]   Subject: '{msg.subject}'")
+        logger.debug(f"[EMAIL_SERVICE]   Recipients: {msg.recipients}")
+        logger.debug(f"[EMAIL_SERVICE]   Sender: '{msg.sender}'")
+        logger.debug(f"[EMAIL_SERVICE] ✅ Message object created successfully")
     except Exception as msg_error:
-        print(f"[EMAIL_SERVICE] ❌ Failed to create Message object: {msg_error}")
-        print(f"[EMAIL_SERVICE] 🔍 Message creation error type: {type(msg_error)}")
+        logger.debug(f"[EMAIL_SERVICE] ❌ Failed to create Message object: {msg_error}")
+        logger.debug(f"[EMAIL_SERVICE] 🔍 Message creation error type: {type(msg_error)}")
         raise msg_error
     
     msg.body = text_content
     msg.html = html
     
     logging.basicConfig(level=logging.DEBUG, force=True)
-    print(f"[EMAIL_SERVICE] Sending handover email to {len(recipients)} recipients via configured settings")
+    logger.debug(f"[EMAIL_SERVICE] Sending handover email to {len(recipients)} recipients via configured settings")
     logging.debug(f"[EMAIL_SERVICE] Enhanced handover email details - Recipients: {recipients}, Team: {team_name}")
     
     # 📊 Create email delivery log entry for monitoring
@@ -746,16 +748,16 @@ Configure email recipients in Admin > Secrets Management > Email Recipients.
             smtp_server=smtp_server,
             smtp_port=smtp_port
         )
-        print(f"[EMAIL_SERVICE] 📊 Email delivery log created: ID={email_log.id}")
+        logger.debug(f"[EMAIL_SERVICE] 📊 Email delivery log created: ID={email_log.id}")
     except Exception as log_error:
-        print(f"[EMAIL_SERVICE] ⚠️ Could not create email log: {log_error}")
+        logger.debug(f"[EMAIL_SERVICE] ⚠️ Could not create email log: {log_error}")
         email_log = None
     
     try:
         import time
         
         # Set up timeout for Flask-Mail sending (5 seconds max for better UX)
-        print(f"[EMAIL_SERVICE] 🕐 Attempting Flask-Mail send with 5-second timeout...")
+        logger.debug(f"[EMAIL_SERVICE] 🕐 Attempting Flask-Mail send with 5-second timeout...")
         start_time = time.time()
         
         # Use simple socket-based timeout approach (works in any thread)
@@ -768,64 +770,64 @@ Configure email recipients in Admin > Secrets Management > Email Recipients.
             from flask import current_app
             app = current_app._get_current_object()
             critical_configs = ['MAIL_SERVER', 'MAIL_PORT', 'MAIL_USERNAME', 'MAIL_PASSWORD']
-            print(f"[EMAIL_SERVICE] 🔍 Pre-send config validation:")
+            logger.debug(f"[EMAIL_SERVICE] 🔍 Pre-send config validation:")
             for config in critical_configs:
                 value = app.config.get(config)
-                print(f"[EMAIL_SERVICE]   {config}: {value} (type: {type(value)})")
+                logger.debug(f"[EMAIL_SERVICE]   {config}: {value} (type: {type(value)})")
                 if value is None:
-                    print(f"[EMAIL_SERVICE] ❌ CRITICAL: {config} is None - this will cause Flask-Mail failure!")
+                    logger.debug(f"[EMAIL_SERVICE] ❌ CRITICAL: {config} is None - this will cause Flask-Mail failure!")
             
             # Also check all Flask-Mail related configs
             all_mail_configs = {k: v for k, v in app.config.items() if k.startswith('MAIL_')}
-            print(f"[EMAIL_SERVICE] 📋 All MAIL_ configurations:")
+            logger.debug(f"[EMAIL_SERVICE] 📋 All MAIL_ configurations:")
             for key, value in all_mail_configs.items():
-                print(f"[EMAIL_SERVICE]   {key}: {value} (type: {type(value)})")
+                logger.debug(f"[EMAIL_SERVICE]   {key}: {value} (type: {type(value)})")
             
             # Try recreating the mail instance to ensure it uses the latest config
             from flask_mail import Mail
             fresh_mail = Mail()
             fresh_mail.init_app(app)
-            print(f"[EMAIL_SERVICE] � Created fresh Mail instance")
+            logger.debug(f"[EMAIL_SERVICE] � Created fresh Mail instance")
             
             # Use the fresh mail instance
             fresh_mail.send(msg)
-            print(f"[EMAIL_SERVICE] ✅ Flask-Mail sent successfully after {time.time() - start_time:.2f}s")
+            logger.debug(f"[EMAIL_SERVICE] ✅ Flask-Mail sent successfully after {time.time() - start_time:.2f}s")
         finally:
             socket.setdefaulttimeout(original_timeout)  # Restore original timeout
         
         elapsed = time.time() - start_time
-        print(f"[EMAIL_SERVICE] ✅ Enhanced handover email sent successfully to {len(recipients)} recipients in {elapsed:.2f}s")
+        logger.debug(f"[EMAIL_SERVICE] ✅ Enhanced handover email sent successfully to {len(recipients)} recipients in {elapsed:.2f}s")
         logging.debug(f"[EMAIL_SERVICE] ✅ Enhanced handover email sent successfully")
         
         # 📊 Mark email as sent in delivery log
         if email_log:
             try:
                 email_log.mark_sent(duration=elapsed)
-                print(f"[EMAIL_SERVICE] 📊 Email delivery log updated: SENT (ID={email_log.id})")
+                logger.debug(f"[EMAIL_SERVICE] 📊 Email delivery log updated: SENT (ID={email_log.id})")
             except Exception as log_error:
-                print(f"[EMAIL_SERVICE] ⚠️ Could not update email log: {log_error}")
+                logger.debug(f"[EMAIL_SERVICE] ⚠️ Could not update email log: {log_error}")
         
         return  # Success - exit function
         
     except (Exception, TimeoutError) as e:
         error_message = str(e)
         elapsed = time.time() - start_time if 'start_time' in locals() else 0
-        print(f"[EMAIL_SERVICE] ❌ Flask-Mail failed to send enhanced handover email after {elapsed:.2f}s: {e}")
+        logger.debug(f"[EMAIL_SERVICE] ❌ Flask-Mail failed to send enhanced handover email after {elapsed:.2f}s: {e}")
         logging.error(f"[EMAIL_SERVICE] ❌ Flask-Mail failed to send enhanced handover email: {e}")
         
         # Provide helpful context for common network issues
         if "getaddrinfo failed" in error_message:
-            print(f"[EMAIL_SERVICE] 💡 Network Issue: Cannot resolve SMTP server hostname")
-            print(f"[EMAIL_SERVICE] 💡 This is common in local development when EPAM internal servers are not accessible")
-            print(f"[EMAIL_SERVICE] 💡 Handover data has been saved successfully - only email delivery failed")
+            logger.debug(f"[EMAIL_SERVICE] 💡 Network Issue: Cannot resolve SMTP server hostname")
+            logger.debug(f"[EMAIL_SERVICE] 💡 This is common in local development when EPAM internal servers are not accessible")
+            logger.debug(f"[EMAIL_SERVICE] 💡 Handover data has been saved successfully - only email delivery failed")
         elif "Authentication Required" in error_message:
-            print(f"[EMAIL_SERVICE] 💡 Auth Issue: SMTP authentication failed - check credentials")
+            logger.debug(f"[EMAIL_SERVICE] 💡 Auth Issue: SMTP authentication failed - check credentials")
         elif "Connection refused" in error_message or "timed out" in error_message or "Connection unexpectedly closed" in error_message:
-            print(f"[EMAIL_SERVICE] 💡 Connection Issue: Cannot reach SMTP server or service unavailable")
-            print(f"[EMAIL_SERVICE] 💡 For local development, this is expected if EPAM SMTP service is down")
+            logger.debug(f"[EMAIL_SERVICE] 💡 Connection Issue: Cannot reach SMTP server or service unavailable")
+            logger.debug(f"[EMAIL_SERVICE] 💡 For local development, this is expected if EPAM SMTP service is down")
         
         # Try UNS Email Service as fallback
-        print(f"[EMAIL_SERVICE] 🔄 Attempting UNS Email Service as fallback...")
+        logger.debug(f"[EMAIL_SERVICE] 🔄 Attempting UNS Email Service as fallback...")
         try:
             from services.flask_uns_email import FlaskUNSEmailIntegration
             from flask import current_app
@@ -843,7 +845,7 @@ Configure email recipients in Admin > Secrets Management > Email Recipients.
             )
             
             if uns_result.get('success'):
-                print(f"[EMAIL_SERVICE] ✅ UNS Email fallback successful! Sent to {len(recipients)} recipients")
+                logger.debug(f"[EMAIL_SERVICE] ✅ UNS Email fallback successful! Sent to {len(recipients)} recipients")
                 logging.info(f"[EMAIL_SERVICE] ✅ UNS Email fallback successful")
                 
                 # 📊 Mark email as sent via UNS fallback
@@ -855,27 +857,27 @@ Configure email recipients in Admin > Secrets Management > Email Recipients.
                         email_log.duration_seconds = total_elapsed
                         email_log.error_message = f"Flask-Mail failed, sent via UNS fallback. Original error: {error_message[:500]}"
                         db.session.commit()
-                        print(f"[EMAIL_SERVICE] 📊 Email delivery log updated: SENT via UNS (ID={email_log.id})")
+                        logger.debug(f"[EMAIL_SERVICE] 📊 Email delivery log updated: SENT via UNS (ID={email_log.id})")
                     except Exception as log_error:
-                        print(f"[EMAIL_SERVICE] ⚠️ Could not update email log: {log_error}")
+                        logger.debug(f"[EMAIL_SERVICE] ⚠️ Could not update email log: {log_error}")
                 
                 return  # Success with UNS Email - don't raise exception
             else:
-                print(f"[EMAIL_SERVICE] ❌ UNS Email fallback also failed: {uns_result.get('error', 'Unknown error')}")
+                logger.debug(f"[EMAIL_SERVICE] ❌ UNS Email fallback also failed: {uns_result.get('error', 'Unknown error')}")
                 
         except Exception as uns_e:
-            print(f"[EMAIL_SERVICE] ❌ UNS Email fallback error: {uns_e}")
+            logger.debug(f"[EMAIL_SERVICE] ❌ UNS Email fallback error: {uns_e}")
         
         # 📊 Mark email as failed in delivery log
         if email_log:
             try:
                 total_elapsed = time.time() - email_start_time
                 email_log.mark_failed(f"Flask-Mail and UNS fallback both failed. Error: {error_message}", duration=total_elapsed)
-                print(f"[EMAIL_SERVICE] 📊 Email delivery log updated: FAILED (ID={email_log.id})")
+                logger.debug(f"[EMAIL_SERVICE] 📊 Email delivery log updated: FAILED (ID={email_log.id})")
             except Exception as log_error:
-                print(f"[EMAIL_SERVICE] ⚠️ Could not update email log: {log_error}")
+                logger.debug(f"[EMAIL_SERVICE] ⚠️ Could not update email log: {log_error}")
         
-        print(f"[EMAIL_SERVICE] 💡 All email methods failed - handover data saved successfully anyway")
+        logger.debug(f"[EMAIL_SERVICE] 💡 All email methods failed - handover data saved successfully anyway")
         raise
 
 
@@ -883,7 +885,6 @@ def send_incident_assignment_notification(incident_id, incident_description, ass
     """Send notification email when an incident is assigned to an engineer"""
     from flask import current_app
     mail = current_app.extensions.get('mail')
-    import logging
     from models.models import TeamMember, User
     
     # Check if email is configured before attempting to send
@@ -979,13 +980,13 @@ def send_incident_assignment_notification(incident_id, incident_description, ass
             try:
                 from models.smtp_config import SMTPConfig
                 sender = SMTPConfig.get_config('mail_default_sender')
-                print(f"[EMAIL_SERVICE] ✅ Loaded sender from SMTPConfig: {sender}")
+                logger.debug(f"[EMAIL_SERVICE] ✅ Loaded sender from SMTPConfig: {sender}")
             except Exception as e:
-                print(f"[EMAIL_SERVICE] ❌ Failed to load sender from SMTPConfig: {e}")
+                logger.debug(f"[EMAIL_SERVICE] ❌ Failed to load sender from SMTPConfig: {e}")
                 sender = 'noreply@shift-handover.local'  # Final fallback
-                print(f"[EMAIL_SERVICE] ⚠️ Using fallback sender: {sender}")
+                logger.debug(f"[EMAIL_SERVICE] ⚠️ Using fallback sender: {sender}")
         
-        print(f"[EMAIL_SERVICE] 📧 Using sender for incident notification: {sender}")
+        logger.debug(f"[EMAIL_SERVICE] 📧 Using sender for incident notification: {sender}")
         
         msg = Message(subject=subject, recipients=recipients, sender=sender)
         msg.body = "Please view this email in HTML format."

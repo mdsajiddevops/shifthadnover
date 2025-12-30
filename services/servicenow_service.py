@@ -715,7 +715,7 @@ class ServiceNowService:
                 }
             
             self.logger.info(f"Fetching changes for assignment groups: {assignment_groups}")
-            print(f"DEBUG: ServiceNow method called with assignment groups: {assignment_groups}")
+            logger.debug(f"DEBUG: ServiceNow method called with assignment groups: {assignment_groups}")
             
             # Build query for change requests assigned to assignment groups
             cr_query_params = []
@@ -791,10 +791,10 @@ class ServiceNowService:
                 # Debug: Log first record to see structure
                 if len(change_requests) == 0:
                     self.logger.info(f"Sample CR record structure: {cr}")
-                    print(f"DEBUG: Sample CR keys: {list(cr.keys())}")
+                    logger.debug(f"DEBUG: Sample CR keys: {list(cr.keys())}")
                     for key in ['planned_start_date', 'planned_end_date', 'start_date', 'end_date', 'work_start', 'work_end']:
                         if key in cr:
-                            print(f"DEBUG: {key} = '{cr.get(key)}' (type: {type(cr.get(key))})")
+                            logger.debug(f"DEBUG: {key} = '{cr.get(key)}' (type: {type(cr.get(key))})")
                 
                 change_requests.append({
                     'number': cr.get('number', ''),
@@ -1081,9 +1081,9 @@ class ServiceNowService:
             
             self.logger.info(f"🎯 FINAL RESULTS: {len(filtered_change_requests)} change requests and {len(filtered_change_tasks)} change tasks for '{assignment_groups[0] if assignment_groups else 'Unknown'}'")
             
-            print(f"DEBUG FINAL: Returning {len(filtered_change_requests)} CRs to route:")
+            logger.debug(f"DEBUG FINAL: Returning {len(filtered_change_requests)} CRs to route:")
             for i, cr in enumerate(filtered_change_requests):
-                print(f"  {i+1}. {cr.get('number')} - Source: {cr.get('source', 'direct')}")
+                logger.debug(f"  {i+1}. {cr.get('number')} - Source: {cr.get('source', 'direct')}")
             
             # Apply pagination to the filtered results
             total_filtered_records = len(filtered_change_requests)

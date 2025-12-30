@@ -8,6 +8,8 @@ from datetime import datetime
 from cryptography.fernet import Fernet
 import os
 import base64
+import logging
+logger = logging.getLogger(__name__)
 
 class SSOConfig(db.Model):
     __tablename__ = 'sso_config'
@@ -102,12 +104,12 @@ class SSOConfig(db.Model):
                         if key:
                             return key.encode()
                 except Exception as e:
-                    print(f"Error reading SSO encryption key from {secret_path}: {e}")
+                    logger.debug(f"Error reading SSO encryption key from {secret_path}: {e}")
         
         # Generate a new key as last resort
         key = Fernet.generate_key()
-        print(f"⚠️  Generated new SSO encryption key: {key.decode()}")
-        print("⚠️  Please store this key securely in Docker secrets as 'sso_encryption_key'")
+        logger.warning(f"⚠️  Generated new SSO encryption key: {key.decode()}")
+        logger.warning("⚠️  Please store this key securely in Docker secrets as 'sso_encryption_key'")
         return key
     
     @staticmethod
@@ -121,7 +123,7 @@ class SSOConfig(db.Model):
             f = Fernet(key)
             return f.encrypt(value.encode()).decode()
         except Exception as e:
-            print(f"Encryption error: {e}")
+            logger.debug(f"Encryption error: {e}")
             return value
     
     @staticmethod
@@ -135,5 +137,5 @@ class SSOConfig(db.Model):
             f = Fernet(key)
             return f.decrypt(encrypted_value.encode()).decode()
         except Exception as e:
-            print(f"Decryption error: {e}")
+            logger.debug(f"Decryption error: {e}")
             return encrypted_value

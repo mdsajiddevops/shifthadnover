@@ -6,6 +6,8 @@ from flask_login import login_required, current_user
 from datetime import datetime
 from models.models import db, TeamMember, CheckInLog, User
 from sqlalchemy import and_
+import logging
+logger = logging.getLogger(__name__)
 
 checkin_bp = Blueprint('checkin', __name__)
 
@@ -44,7 +46,7 @@ def checkin():
             
             if shift_entry:
                 team_member = tm
-                print(f"🎯 Found TeamMember ID {tm.id} in shift roster for {today_date}")
+                logger.debug(f"🎯 Found TeamMember ID {tm.id} in shift roster for {today_date}")
                 break
         
         # Fallback to account_id matching if no shift roster entry found
@@ -64,7 +66,7 @@ def checkin():
         # Debug log which team member is being updated
         from models.models import Team
         team = Team.query.get(team_member.team_id)
-        print(f"🔧 Updating status for TeamMember ID: {team_member.id}, Team: {team.name if team else 'Unknown'}, Status: {status}")
+        logger.debug(f"🔧 Updating status for TeamMember ID: {team_member.id}, Team: {team.name if team else 'Unknown'}, Status: {status}")
         
         # Check if there's an active check-in session
         active_checkin = CheckInLog.query.filter(

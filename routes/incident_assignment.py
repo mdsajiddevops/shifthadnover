@@ -11,7 +11,11 @@ from models.handover_enhanced import IncidentAssignment, IncidentAssignmentRespo
 from services.handover_enhanced_service import HandoverWorkflowService
 from services.email_service import send_handover_email
 import json
+import logging
 
+
+# Module logger
+logger = logging.getLogger(__name__)
 incident_assignment_bp = Blueprint('incident_assignment', __name__)
 
 @incident_assignment_bp.route('/api/get_pending_assignments', methods=['GET'])
@@ -19,7 +23,7 @@ incident_assignment_bp = Blueprint('incident_assignment', __name__)
 def get_pending_assignments():
     """Get pending incident assignments for the current user"""
     try:
-        print(f"[DEBUG] get_pending_assignments called for user ID: {current_user.id}")
+        logger.debug(f"[DEBUG] get_pending_assignments called for user ID: {current_user.id}")
         
         # Get pending assignments from enhanced handover system
         pending_assignments = IncidentAssignment.query.filter_by(
@@ -27,9 +31,9 @@ def get_pending_assignments():
             assignment_status='pending'
         ).all()
         
-        print(f"[DEBUG] Found {len(pending_assignments)} pending assignments for user {current_user.id}")
+        logger.debug(f"[DEBUG] Found {len(pending_assignments)} pending assignments for user {current_user.id}")
         for assignment in pending_assignments:
-            print(f"[DEBUG] Assignment: {assignment.incident_id} - {assignment.incident_title}")
+            logger.debug(f"[DEBUG] Assignment: {assignment.incident_id} - {assignment.incident_title}")
         
         # Also check legacy incidents assigned to user by name
         team_member = TeamMember.query.filter_by(user_id=current_user.id).first()
@@ -40,7 +44,7 @@ def get_pending_assignments():
                 status='Active'
             ).filter(Incident.type.in_(['Open', 'Priority'])).all()
         
-        print(f"[DEBUG] Found {len(legacy_incidents)} legacy incidents for user {current_user.id}")
+        logger.debug(f"[DEBUG] Found {len(legacy_incidents)} legacy incidents for user {current_user.id}")
         
         assignments_data = []
         

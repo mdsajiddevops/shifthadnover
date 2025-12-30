@@ -301,18 +301,18 @@ def respond_to_assignment():
 def get_user_notifications():
     """Get current user's notifications - synchronized with dashboard logic"""
     try:
-        print(f"[AJAX DEBUG] User {current_user.username} (ID: {current_user.id}) requesting notifications via AJAX", flush=True)
+        logger.debug(f"[AJAX DEBUG] User {current_user.username} (ID: {current_user.id}) requesting notifications via AJAX")
         
         # Get ALL notifications for current user (both read and unread) - same as template route
         all_notifications = HandoverNotification.query.filter_by(
             recipient_id=current_user.id
         ).order_by(HandoverNotification.created_at.desc()).all()
         
-        print(f"[AJAX DEBUG] Found {len(all_notifications)} total notifications", flush=True)
+        logger.debug(f"[AJAX DEBUG] Found {len(all_notifications)} total notifications")
         
         # Get unread notifications for display
         unread_notifications = [n for n in all_notifications if not n.is_read]
-        print(f"[AJAX DEBUG] Found {len(unread_notifications)} unread notifications", flush=True)
+        logger.debug(f"[AJAX DEBUG] Found {len(unread_notifications)} unread notifications")
         
         notifications_data = []
         assignments_data = []
@@ -360,7 +360,7 @@ def get_user_notifications():
                     'notification_id': notification.id  # Add this for the Accept/Reject functionality
                 })
         
-        print(f"[AJAX DEBUG] Created {len(assignments_data)} pending assignment items (should match template route)", flush=True)
+        logger.debug(f"[AJAX DEBUG] Created {len(assignments_data)} pending assignment items (should match template route)")
         
         return jsonify({
             'success': True,

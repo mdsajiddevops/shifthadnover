@@ -5,6 +5,8 @@ Provides console-like output that can be displayed in chat/web interface
 from datetime import datetime
 from typing import List, Dict, Any
 import json
+import logging
+logger = logging.getLogger(__name__)
 
 class ConsoleOutput:
     def __init__(self):
@@ -27,9 +29,9 @@ class ConsoleOutput:
             self.messages = self.messages[-self.max_messages:]
         
         # Also print to console for debugging
-        print(f"[{timestamp}] {level}: {message}")
+        logger.debug(f"[{timestamp}] {level}: {message}")
         if data:
-            print(f"    Data: {json.dumps(data, indent=2, default=str)}")
+            logger.debug(f"    Data: {json.dumps(data, indent=2, default=str)}")
     
     def info(self, message: str, data: Dict = None):
         """Log info message"""

@@ -3,6 +3,8 @@ from flask_login import login_required, current_user
 from models.models import ShiftKeyPoint, ShiftKeyPointUpdate, db
 from sqlalchemy import func
 from datetime import date
+import logging
+logger = logging.getLogger(__name__)
 
 keypoints_bp = Blueprint('keypoints', __name__)
 
@@ -46,7 +48,7 @@ def edit_keypoint(key_point_id):
             dup_kp.description = new_description
             db.session.add(dup_kp)
             duplicates_updated += 1
-            print(f"🔧 KEYPOINTS: Updated key point ID {dup_kp.id} description from '{old_description[:30]}...' to '{new_description[:30]}...'")
+            logger.debug(f"🔧 KEYPOINTS: Updated key point ID {dup_kp.id} description from '{old_description[:30]}...' to '{new_description[:30]}...'")
         
         # Add an update entry to track the change
         status_update = ShiftKeyPointUpdate(
@@ -134,7 +136,7 @@ def update_keypoint_status(key_point_id):
                 dup_kp.status = 'Closed'
                 db.session.add(dup_kp)
                 closed_duplicates += 1
-                print(f"🔧 KEYPOINTS: Auto-closed duplicate key point ID {dup_kp.id} (shift_id={dup_kp.shift_id})")
+                logger.debug(f"🔧 KEYPOINTS: Auto-closed duplicate key point ID {dup_kp.id} (shift_id={dup_kp.shift_id})")
         
         # Add an automatic update entry for status change with enhanced message
         status_update = ShiftKeyPointUpdate(
@@ -275,7 +277,7 @@ def keypoints():
         ).first()
         
         if newer_closed:
-            print(f"🔧 KEYPOINTS: Excluding key point ID {kp.id} - found newer closed version ID {newer_closed.id}")
+            logger.debug(f"🔧 KEYPOINTS: Excluding key point ID {kp.id} - found newer closed version ID {newer_closed.id}")
             continue
             
         filtered_key_points.append(kp)
@@ -288,7 +290,7 @@ def keypoints():
             kp_map[key] = kp
     
     key_points = list(kp_map.values())
-    print(f"🔧 KEYPOINTS: Deduplication reduced {len(all_key_points)} to {len(key_points)} unique key points (after filtering closed)")
+    logger.debug(f"🔧 KEYPOINTS: Deduplication reduced {len(all_key_points)} to {len(key_points)} unique key points (after filtering closed)")
     
     # Populate submitted_by_name for key points that don't have created_by
     from models.handover_enhanced import HandoverRequest
@@ -311,7 +313,7 @@ def keypoints():
                         if user:
                             kp.submitted_by_name = user.display_name or user.username
             except Exception as e:
-                print(f"🔧 KEYPOINTS: Error getting submitter for KP {kp.id}: {e}")
+                logger.debug(f"🔧 KEYPOINTS: Error getting submitter for KP {kp.id}: {e}")
     
     updates_by_kp = {}
     for kp in key_points:

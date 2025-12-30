@@ -338,7 +338,8 @@ class User(db.Model, UserMixin):
                     teams_info.append(name)
             return '; '.join(teams_info) if teams_info else 'No Teams'
         except Exception as e:
-            print(f"[ERROR] all_teams_display for user {self.username}: {str(e)}")
+            import logging
+            logging.getLogger(__name__).error(f"all_teams_display for user {self.username}: {str(e)}")
             return 'Error loading teams'
 
 class UserTeamMembership(db.Model):

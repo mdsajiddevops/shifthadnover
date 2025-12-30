@@ -6,7 +6,11 @@ from models.team_shift_timing_config import TeamShiftTimingConfig
 from datetime import datetime, date, time as dt_time, timedelta
 from sqlalchemy.orm import joinedload
 import pytz
+import logging
 
+
+# Module logger
+logger = logging.getLogger(__name__)
 team_roster_bp = Blueprint('team_roster', __name__)
 
 def get_ist_now():
@@ -17,7 +21,7 @@ def get_ist_now():
 
 def get_engineers_for_shift(date, shift_code, account_id=None, team_id=None):
     """Get engineers assigned to a specific shift on a given date"""
-    print(f"[TEAM_ROSTER DEBUG] Getting engineers for date={date}, shift_code={shift_code}, account_id={account_id}, team_id={team_id}")
+    logger.debug(f"[TEAM_ROSTER DEBUG] Getting engineers for date={date}, shift_code={shift_code}, account_id={account_id}, team_id={team_id}")
     
     query = ShiftRoster.query.filter_by(date=date, shift_code=shift_code)
     
@@ -55,7 +59,7 @@ def get_engineers_for_shift(date, shift_code, account_id=None, team_id=None):
     member_ids = [e.team_member_id for e in entries]
     
     if not member_ids:
-        print(f"[TEAM_ROSTER DEBUG] No members found for shift")
+        logger.debug(f"[TEAM_ROSTER DEBUG] No members found for shift")
         return []
     
     # Get TeamMember objects with same filtering
@@ -86,7 +90,7 @@ def get_engineers_for_shift(date, shift_code, account_id=None, team_id=None):
                 tm_query = tm_query.filter_by(account_id=current_user.account_id, team_id=current_user.team_id)
     
     final_members = tm_query.all()
-    print(f"[TEAM_ROSTER DEBUG] Found {len(final_members)} team members")
+    logger.debug(f"[TEAM_ROSTER DEBUG] Found {len(final_members)} team members")
     return final_members
 
 def get_current_shift_type_and_next(now=None):
@@ -188,11 +192,11 @@ def teams_roster():
         for team in teams:
             # Get current and next shift using dashboard logic with IST time
             current_time = ist_now
-            print(f"[ROSTER DEBUG] Getting shifts for team {team.name} at {current_time.strftime('%H:%M:%S')} IST")
+            logger.debug(f"[ROSTER DEBUG] Getting shifts for team {team.name} at {current_time.strftime('%H:%M:%S')} IST")
             
             # Use dashboard's shift timing logic
             current_shift_type, next_shift_type = get_current_shift_type_and_next(current_time)
-            print(f"[ROSTER DEBUG] Dashboard logic: Current={current_shift_type}, Next={next_shift_type}")
+            logger.debug(f"[ROSTER DEBUG] Dashboard logic: Current={current_shift_type}, Next={next_shift_type}")
             
             # Enhanced shift mapping to support additional shift codes like dashboard
             shift_map = {'Morning': 'D', 'Evening': 'E', 'Night': 'N'}
@@ -220,7 +224,7 @@ def teams_roster():
                     next_shift_config = shift_config
             
             # Get members using enhanced dashboard's multi-shift logic
-            print(f"[ROSTER DEBUG] Current shift: {current_shift_type} -> primary code: {current_shift_code}")
+            logger.debug(f"[ROSTER DEBUG] Current shift: {current_shift_type} -> primary code: {current_shift_code}")
             
             # Get current shift members (primary + additional codes)
             current_shift_members = []
@@ -239,7 +243,7 @@ def teams_roster():
                     member.display_shift_code = add_shift_code
                     member.is_primary_shift = False
                 current_shift_members.extend(add_current)
-                print(f"[ROSTER DEBUG] Added {len(add_current)} members from current shift code {add_shift_code}")
+                logger.debug(f"[ROSTER DEBUG] Added {len(add_current)} members from current shift code {add_shift_code}")
             
             # Sort current shift members by availability status: oncall -> online -> offline
             def sort_by_availability(member):
@@ -253,7 +257,7 @@ def teams_roster():
             
             current_shift_members.sort(key=sort_by_availability)
             
-            print(f"[ROSTER DEBUG] Next shift: {next_shift_type} -> primary code: {next_shift_code}")
+            logger.debug(f"[ROSTER DEBUG] Next shift: {next_shift_type} -> primary code: {next_shift_code}")
             
             # Get next shift members (primary + additional codes)
             next_shift_members = []
@@ -278,7 +282,7 @@ def teams_roster():
                     member.display_shift_code = add_shift_code
                     member.is_primary_shift = False
                 next_shift_members.extend(add_next)
-                print(f"[ROSTER DEBUG] Added {len(add_next)} members from next shift code {add_shift_code}")
+                logger.debug(f"[ROSTER DEBUG] Added {len(add_next)} members from next shift code {add_shift_code}")
             
             # Sort next shift members by availability status: oncall -> online -> offline
             def sort_by_availability_next(member):

@@ -11,6 +11,7 @@ from models.models import db, User, Team, TeamMember
 from models.handover_enhanced import HandoverRequest, IncidentAssignment, IncidentAssignmentResponse, HandoverResponse, HandoverNotification, HandoverAuditLog
 from services.handover_enhanced_service import HandoverWorkflowService
 import json
+import logging
 
 def admin_required(f):
     """Decorator to require admin access"""
@@ -23,6 +24,9 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
+
+# Module logger
+logger = logging.getLogger(__name__)
 handover_enhanced_bp = Blueprint('handover_enhanced', __name__, url_prefix='/handover')
 
 workflow_service = HandoverWorkflowService()

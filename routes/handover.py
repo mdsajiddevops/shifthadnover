@@ -13,6 +13,10 @@ from services.team_access_service import TeamAccessService
 from datetime import datetime, timedelta, time as dt_time
 from sqlalchemy import or_, and_
 import pytz
+import logging
+
+# Module logger
+logger = logging.getLogger(__name__)
 
 handover_bp = Blueprint('handover', __name__)
 
@@ -21,8 +25,8 @@ def create_new_shift(date, current_shift_type, next_shift_type, account_id, team
     Creates a new shift record for each handover submission.
     This prevents overriding existing shifts and maintains proper data integrity.
     """
-    print(f"[NEW_SHIFT] Creating new shift: {date} {current_shift_type}→{next_shift_type} (action: '{action}')")
-    print(f"[NEW_SHIFT] Action type: {type(action)}, Will set status to: {'draft' if action == 'draft' else 'sent'}")
+    logger.debug(f"[NEW_SHIFT] Creating new shift: {date} {current_shift_type}→{next_shift_type} (action: '{action}')")
+    logger.debug(f"[NEW_SHIFT] Action type: {type(action)}, Will set status to: {'draft' if action == 'draft' else 'sent'}")
     
     # Always create a new shift for each handover submission
     new_shift = Shift(
@@ -42,9 +46,9 @@ def create_new_shift(date, current_shift_type, next_shift_type, account_id, team
     # Commit immediately to get the ID and ensure it exists
     try:
         db.session.commit()
-        print(f"[NEW_SHIFT] ✅ Created new shift ID: {new_shift.id} with status: {new_shift.status}")
+        logger.debug(f"[NEW_SHIFT] ✅ Created new shift ID: {new_shift.id} with status: {new_shift.status}")
     except Exception as commit_error:
-        print(f"[NEW_SHIFT] ❌ Failed to commit new shift: {commit_error}")
+        logger.debug(f"[NEW_SHIFT] ❌ Failed to commit new shift: {commit_error}")
         db.session.rollback()
         raise commit_error
     
@@ -55,7 +59,7 @@ def create_enhanced_incident_assignment(incident_title, incident_description, in
     """Create an enhanced incident assignment in the database"""
     
     try:
-        print(f"[DEBUG] create_enhanced_incident_assignment called for: {incident_title} → {assigned_to_name}")
+        logger.debug(f"[DEBUG] create_enhanced_incident_assignment called for: {incident_title} → {assigned_to_name}")
         from models.handover_enhanced import IncidentAssignment
         from models.models import User  # Move User import to top to fix scope issue
         
@@ -71,16 +75,16 @@ def create_enhanced_incident_assignment(incident_title, incident_description, in
             if assigned_member and assigned_member.user_id:
                 assigned_user_id = assigned_member.user_id
                 current_app.logger.info(f"[HANDOVER NOTIFICATION] Found team member by ID {team_member_id}: {assigned_member.name} → User ID {assigned_user_id}")
-                print(f"[HANDOVER NOTIFICATION] SUCCESS: TeamMember {team_member_id} ({assigned_member.name}) → User {assigned_user_id}")
+                logger.debug(f"[HANDOVER NOTIFICATION] SUCCESS: TeamMember {team_member_id} ({assigned_member.name}) → User {assigned_user_id}")
             else:
                 current_app.logger.warning(f"[HANDOVER NOTIFICATION] Could not find team member for ID: {team_member_id} or no user_id linked")
-                print(f"[HANDOVER NOTIFICATION] ERROR: TeamMember ID {team_member_id} not found or no user_id")
+                logger.debug(f"[HANDOVER NOTIFICATION] ERROR: TeamMember ID {team_member_id} not found or no user_id")
                 
                 # Try to find and create missing TeamMember record
                 if not assigned_member:
-                    print(f"[HANDOVER NOTIFICATION] TeamMember ID {team_member_id} does not exist")
+                    logger.debug(f"[HANDOVER NOTIFICATION] TeamMember ID {team_member_id} does not exist")
                 elif not assigned_member.user_id:
-                    print(f"[HANDOVER NOTIFICATION] TeamMember {assigned_member.name} has no user_id link")
+                    logger.debug(f"[HANDOVER NOTIFICATION] TeamMember {assigned_member.name} has no user_id link")
                     # Try to find matching user and link it
                     matching_user = User.query.filter_by(
                         username=assigned_member.name,
@@ -93,9 +97,9 @@ def create_enhanced_incident_assignment(incident_title, incident_description, in
                         # Use flush instead of commit to avoid losing pending incidents
                         db.session.flush()
                         assigned_user_id = matching_user.id
-                        print(f"[HANDOVER NOTIFICATION] FIXED: Linked TeamMember {assigned_member.name} to User {matching_user.username}")
+                        logger.debug(f"[HANDOVER NOTIFICATION] FIXED: Linked TeamMember {assigned_member.name} to User {matching_user.username}")
                     else:
-                        print(f"[HANDOVER NOTIFICATION] No matching user found for TeamMember {assigned_member.name}")
+                        logger.debug(f"[HANDOVER NOTIFICATION] No matching user found for TeamMember {assigned_member.name}")
                         return False
                 else:
                     return False
@@ -130,13 +134,13 @@ def create_enhanced_incident_assignment(incident_title, incident_description, in
         
         # Create a comprehensive log entry for the assignment
         try:
-            print(f"[DEBUG] Creating log entry for assignment ID: {assignment.id}")
+            logger.debug(f"[DEBUG] Creating log entry for assignment ID: {assignment.id}")
             from models.handover_enhanced import HandoverIncidentResponseLog
             
             # Get user details
             assigned_user = User.query.get(assigned_user_id)
             assigning_user = User.query.get(current_user.id)
-            print(f"[DEBUG] Users - Assigned: {assigned_user.username if assigned_user else 'None'}, Assigning: {assigning_user.username if assigning_user else 'None'}")
+            logger.debug(f"[DEBUG] Users - Assigned: {assigned_user.username if assigned_user else 'None'}, Assigning: {assigning_user.username if assigning_user else 'None'}")
             
             # Determine shift information from handover_context if available
             current_shift_type = "Current"  # Default
@@ -194,17 +198,17 @@ def create_enhanced_incident_assignment(incident_title, incident_description, in
             )
             
             db.session.add(log_entry)
-            print(f"[DEBUG] Log entry created successfully for incident: {incident_title}")
+            logger.debug(f"[DEBUG] Log entry created successfully for incident: {incident_title}")
             current_app.logger.info(f"Created incident response log entry for assignment: {incident_title}")
             
         except Exception as log_error:
-            print(f"[DEBUG] Failed to create log entry: {str(log_error)}")
+            logger.debug(f"[DEBUG] Failed to create log entry: {str(log_error)}")
             current_app.logger.error(f"Failed to create response log entry: {str(log_error)}")
             # Don't fail the whole assignment creation if log fails
         
         # 🔥 CRITICAL FIX: Create HandoverNotification for dashboard notifications
         try:
-            print(f"[DEBUG] Creating HandoverNotification for: {incident_title} → {assigned_to_name}")
+            logger.debug(f"[DEBUG] Creating HandoverNotification for: {incident_title} → {assigned_to_name}")
             from models.handover_enhanced import HandoverNotification
             
             # Create notification for the assigned user
@@ -224,11 +228,11 @@ def create_enhanced_incident_assignment(incident_title, incident_description, in
             )
             
             db.session.add(notification)
-            print(f"[DEBUG] ✅ HandoverNotification created for user {assigned_user_id} ({assigned_to_name})")
+            logger.debug(f"[DEBUG] ✅ HandoverNotification created for user {assigned_user_id} ({assigned_to_name})")
             current_app.logger.info(f"Created HandoverNotification for incident assignment: {incident_title} → {assigned_to_name}")
             
         except Exception as notif_error:
-            print(f"[DEBUG] Failed to create HandoverNotification: {str(notif_error)}")
+            logger.debug(f"[DEBUG] Failed to create HandoverNotification: {str(notif_error)}")
             current_app.logger.error(f"Failed to create HandoverNotification: {str(notif_error)}")
             # Don't fail the whole assignment creation if notification fails
         
@@ -389,7 +393,7 @@ def get_engineers():
     # Morning engineers should be from the next day
     if is_next_shift and current_shift_type == 'Night' and shift_type == 'Morning':
         lookup_date = handover_date + timedelta(days=1)
-        print(f"[SHIFT FIX] Night->Morning transition: Looking up Morning engineers for {lookup_date} instead of {handover_date}")
+        logger.debug(f"[SHIFT FIX] Night->Morning transition: Looking up Morning engineers for {lookup_date} instead of {handover_date}")
     
     # Use the calculated lookup_date for roster query
     date = lookup_date
@@ -420,11 +424,11 @@ def get_engineers():
                 requested_team_id_int = int(requested_team_id)
                 if requested_team_id_int in user_team_ids:
                     team_id = requested_team_id_int
-                    print(f"[GET_ENGINEERS] Multi-team user selected team_id={team_id}")
+                    logger.debug(f"[GET_ENGINEERS] Multi-team user selected team_id={team_id}")
                 else:
                     # User doesn't have access to this team, fallback to primary
                     team_id = current_user.team_id
-                    print(f"[GET_ENGINEERS] User doesn't have access to team {requested_team_id}, using primary team {team_id}")
+                    logger.debug(f"[GET_ENGINEERS] User doesn't have access to team {requested_team_id}, using primary team {team_id}")
             except (ValueError, TypeError):
                 team_id = current_user.team_id
         else:
@@ -450,7 +454,7 @@ def get_engineers():
         for entry in add_entries:
             if entry.team_member_id not in member_ids:
                 member_ids.add(entry.team_member_id)
-                print(f"[SHIFT FIX API] Added member {entry.team_member_id} from additional shift code {add_code}")
+                logger.debug(f"[SHIFT FIX API] Added member {entry.team_member_id} from additional shift code {add_code}")
     
     member_ids = list(member_ids)
     
@@ -510,7 +514,7 @@ def get_engineers():
         
         # Auto-create missing TeamMember records
         if users_without_tm:
-            print(f"[HANDOVER FIX] Creating {len(users_without_tm)} missing TeamMember records")
+            logger.debug(f"[HANDOVER FIX] Creating {len(users_without_tm)} missing TeamMember records")
             for user in users_without_tm:
                 new_tm = TeamMember(
                     name=user.username,
@@ -520,11 +524,11 @@ def get_engineers():
                     email=user.email or f'{user.username}@example.com'
                 )
                 db.session.add(new_tm)
-                print(f"[HANDOVER FIX] Created TeamMember for {user.username}")
+                logger.debug(f"[HANDOVER FIX] Created TeamMember for {user.username}")
             
             try:
                 db.session.commit()
-                print(f"[HANDOVER FIX] Successfully created missing TeamMember records")
+                logger.debug(f"[HANDOVER FIX] Successfully created missing TeamMember records")
                 
                 # Re-run the query to get the newly created engineers
                 tm_query = TeamMember.query.filter(TeamMember.id.in_(member_ids)) if member_ids else TeamMember.query.filter_by(account_id=account_id, team_id=team_id)
@@ -533,9 +537,9 @@ def get_engineers():
                 elif account_id:
                     tm_query = tm_query.filter_by(account_id=account_id)
                 engineers = tm_query.all()
-                print(f"[HANDOVER FIX] After auto-creation: found {len(engineers)} engineers")
+                logger.debug(f"[HANDOVER FIX] After auto-creation: found {len(engineers)} engineers")
             except Exception as e:
-                print(f"[HANDOVER FIX] Error creating TeamMember records: {e}")
+                logger.debug(f"[HANDOVER FIX] Error creating TeamMember records: {e}")
                 db.session.rollback()
     
     return jsonify({'engineers': [{'id': e.id, 'name': e.name} for e in engineers]})
@@ -544,9 +548,9 @@ def get_engineers():
 @handover_bp.route('/api/get_all_team_members', methods=['GET'])
 @login_required
 def get_all_team_members():
-    print(f"🔧 API_TEAM_MEMBERS: User role: {current_user.role}")
-    print(f"🔧 API_TEAM_MEMBERS: User account: {current_user.account_id}")
-    print(f"🔧 API_TEAM_MEMBERS: User team: {current_user.team_id}")
+    logger.debug(f"🔧 API_TEAM_MEMBERS: User role: {current_user.role}")
+    logger.debug(f"🔧 API_TEAM_MEMBERS: User account: {current_user.account_id}")
+    logger.debug(f"🔧 API_TEAM_MEMBERS: User team: {current_user.team_id}")
     
     # Use same team member filtering logic as team details route
     tm_query = TeamMember.query
@@ -555,7 +559,7 @@ def get_all_team_members():
         # Super admin can see all or use session-selected account/team
         account_id = request.args.get('account_id') or session.get('selected_account_id')
         team_id = request.args.get('team_id') or session.get('selected_team_id')
-        print(f"🔧 API_TEAM_MEMBERS: Super admin - account_id: {account_id}, team_id: {team_id}")
+        logger.debug(f"🔧 API_TEAM_MEMBERS: Super admin - account_id: {account_id}, team_id: {team_id}")
         if account_id:
             tm_query = tm_query.filter_by(account_id=account_id)
         if team_id:
@@ -564,7 +568,7 @@ def get_all_team_members():
         # Account admin can only see their account
         account_id = current_user.account_id
         team_id = request.args.get('team_id') or session.get('selected_team_id')
-        print(f"🔧 API_TEAM_MEMBERS: Account admin - account_id: {account_id}, team_id: {team_id}")
+        logger.debug(f"🔧 API_TEAM_MEMBERS: Account admin - account_id: {account_id}, team_id: {team_id}")
         tm_query = tm_query.filter_by(account_id=account_id)
         if team_id:
             tm_query = tm_query.filter_by(team_id=team_id)
@@ -572,17 +576,17 @@ def get_all_team_members():
         # Team admin/user can only see their team
         account_id = current_user.account_id
         team_id = current_user.team_id
-        print(f"🔧 API_TEAM_MEMBERS: Team user - account_id: {account_id}, team_id: {team_id}")
+        logger.debug(f"🔧 API_TEAM_MEMBERS: Team user - account_id: {account_id}, team_id: {team_id}")
         tm_query = tm_query.filter_by(account_id=account_id, team_id=team_id)
     
     # Get all team members (remove status filter since TeamMember model doesn't have status field)
     team_members = tm_query.all()
-    print(f"🔧 API_TEAM_MEMBERS: Found {len(team_members)} team members")
+    logger.debug(f"🔧 API_TEAM_MEMBERS: Found {len(team_members)} team members")
     for i, member in enumerate(team_members[:5]):  # Show first 5
-        print(f"🔧 API_TEAM_MEMBERS:   Member {i+1}: {member.name} (ID: {member.id}, Team: {member.team_id})")
+        logger.debug(f"🔧 API_TEAM_MEMBERS:   Member {i+1}: {member.name} (ID: {member.id}, Team: {member.team_id})")
     
     response_data = {'team_members': [{'name': member.name, 'id': member.id} for member in team_members]}
-    print(f"🔧 API_TEAM_MEMBERS: Returning {len(response_data['team_members'])} team members")
+    logger.debug(f"🔧 API_TEAM_MEMBERS: Returning {len(response_data['team_members'])} team members")
     return jsonify(response_data)
 
 @handover_bp.route('/api/debug_team_members')
@@ -592,11 +596,11 @@ def debug_team_members():
     try:
         # Direct query without filtering
         all_members = TeamMember.query.all()
-        print(f"🔍 DEBUG: Total team members in database: {len(all_members)}")
+        logger.debug(f"🔍 DEBUG: Total team members in database: {len(all_members)}")
         
         # User's team members
         user_members = TeamMember.query.filter_by(account_id=current_user.account_id, team_id=current_user.team_id).all()
-        print(f"🔍 DEBUG: User's team members: {len(user_members)}")
+        logger.debug(f"🔍 DEBUG: User's team members: {len(user_members)}")
         
         return jsonify({
             'total_members': len(all_members), 
@@ -607,7 +611,7 @@ def debug_team_members():
             'sample_members': [{'name': m.name, 'id': m.id, 'team_id': m.team_id} for m in all_members[:5]]
         })
     except Exception as e:
-        print(f"🔍 DEBUG: Error: {e}")
+        logger.debug(f"🔍 DEBUG: Error: {e}")
         return jsonify({'error': str(e)})
 
 @handover_bp.route('/handover/drafts')
@@ -667,21 +671,21 @@ def edit_handover(shift_id):
             flash('You do not have permission to edit this handover form.')
             return redirect(url_for('dashboard.dashboard'))
     # 🔧 CRITICAL FIX: For edit mode, include team members from the handover's team
-    print(f"🔧 EDIT_HANDOVER: User role: {current_user.role}")
-    print(f"🔧 EDIT_HANDOVER: User account: {current_user.account_id}")
-    print(f"🔧 EDIT_HANDOVER: Handover team: {shift.team_id}")
-    print(f"🔧 EDIT_HANDOVER: Handover account: {shift.account_id}")
+    logger.debug(f"🔧 EDIT_HANDOVER: User role: {current_user.role}")
+    logger.debug(f"🔧 EDIT_HANDOVER: User account: {current_user.account_id}")
+    logger.debug(f"🔧 EDIT_HANDOVER: Handover team: {shift.team_id}")
+    logger.debug(f"🔧 EDIT_HANDOVER: Handover account: {shift.account_id}")
     
     tm_query = TeamMember.query
     if current_user.role not in ['super_admin', 'admin']:
         # Use TeamAccessService for proper team filtering
         user_team_ids = TeamAccessService.get_user_team_ids()
-        print(f"🔧 EDIT_HANDOVER: User team IDs: {user_team_ids}")
+        logger.debug(f"🔧 EDIT_HANDOVER: User team IDs: {user_team_ids}")
         
         # CRITICAL FIX: Always include the handover's team for edit mode
         if shift.team_id not in user_team_ids:
             user_team_ids.append(shift.team_id)
-            print(f"🔧 EDIT_HANDOVER: Added handover team {shift.team_id} to accessible teams")
+            logger.debug(f"🔧 EDIT_HANDOVER: Added handover team {shift.team_id} to accessible teams")
         
         if user_team_ids:
             account_id = TeamAccessService.get_effective_account_id()
@@ -692,9 +696,9 @@ def edit_handover(shift_id):
         else:
             tm_query = tm_query.filter(False)  # No teams = no members
     team_members = tm_query.all()
-    print(f"🔧 EDIT_HANDOVER: Found {len(team_members)} team members")
+    logger.debug(f"🔧 EDIT_HANDOVER: Found {len(team_members)} team members")
     for i, member in enumerate(team_members[:5]):  # Show first 5
-        print(f"🔧 EDIT_HANDOVER:   Member {i+1}: {member.name} (ID: {member.id}, Team: {member.team_id})")
+        logger.debug(f"🔧 EDIT_HANDOVER:   Member {i+1}: {member.name} (ID: {member.id}, Team: {member.team_id})")
     
     # Get teams for the dropdown
     from models.models import Team
@@ -754,19 +758,19 @@ def edit_handover(shift_id):
                 engineer = TeamMember.query.get(int(assigned_to_value))
                 if engineer:
                     assigned_to_name = engineer.name
-                    print(f"🔧 SERIALIZE: Converted ID {assigned_to_value} to name '{assigned_to_name}'")
+                    logger.debug(f"🔧 SERIALIZE: Converted ID {assigned_to_value} to name '{assigned_to_name}'")
                 else:
-                    print(f"🔧 SERIALIZE: ID {assigned_to_value} not found, using as-is")
+                    logger.debug(f"🔧 SERIALIZE: ID {assigned_to_value} not found, using as-is")
                     assigned_to_name = assigned_to_value
             except Exception as e:
-                print(f"🔧 SERIALIZE: Error converting ID {assigned_to_value}: {e}")
+                logger.debug(f"🔧 SERIALIZE: Error converting ID {assigned_to_value}: {e}")
                 assigned_to_name = assigned_to_value
         
         # 🔧 DEBUG: Log assignment data during serialization
         if assigned_to_name:
-            print(f"🔧 SERIALIZE: Incident '{incident.title}' final assignment: '{assigned_to_name}'") 
+            logger.debug(f"🔧 SERIALIZE: Incident '{incident.title}' final assignment: '{assigned_to_name}'") 
         else:
-            print(f"🔧 SERIALIZE: Incident '{incident.title}' has NO assignment")
+            logger.debug(f"🔧 SERIALIZE: Incident '{incident.title}' has NO assignment")
         
         # Create the incident dictionary with all available fields
         # 🔧 FIX: Check both handover and description fields for description content
@@ -830,7 +834,7 @@ def edit_handover(shift_id):
             result['current_status'] = getattr(incident, 'status', '') or ''  # Stored in status field
         
         # 🔧 DEBUG: Log each serialized incident
-        print(f"[SERIALIZE_DEBUG] Incident {incident.id}: {result}")
+        logger.debug(f"[SERIALIZE_DEBUG] Incident {incident.id}: {result}")
         
         return result
     
@@ -850,12 +854,12 @@ def edit_handover(shift_id):
 
     if request.method == 'POST':
         # 🚨 IMMEDIATE DEBUG: Catch POST request entry
-        print(f"\n🚨🚨🚨 EDIT HANDOVER POST REQUEST RECEIVED 🚨🚨🚨")
-        print(f"   Shift ID: {shift_id}")
-        print(f"   User: {current_user.username}")
-        print(f"   Action: {request.form.get('action', 'UNKNOWN')}")
-        print(f"   Form fields count: {len(request.form)}")
-        print(f"   First 5 form keys: {list(request.form.keys())[:5]}")
+        logger.debug(f"🚨🚨🚨 EDIT HANDOVER POST REQUEST RECEIVED 🚨🚨🚨")
+        logger.debug(f"   Shift ID: {shift_id}")
+        logger.debug(f"   User: {current_user.username}")
+        logger.debug(f"   Action: {request.form.get('action', 'UNKNOWN')}")
+        logger.debug(f"   Form fields count: {len(request.form)}")
+        logger.debug(f"   First 5 form keys: {list(request.form.keys())[:5]}")
         
         # Audit log: editing handover
         db.session.add(AuditLog(
@@ -927,12 +931,12 @@ def edit_handover(shift_id):
             ).filter(Shift.id != shift.id).first()  # Exclude current shift being edited
             
             if existing_submission:
-                print(f"[EDIT_DUPLICATE_CHECK] Found existing submission: ID={existing_submission.id}")
+                logger.debug(f"[EDIT_DUPLICATE_CHECK] Found existing submission: ID={existing_submission.id}")
                 flash('❌ Cannot submit this draft! A handover for this shift has already been submitted. '
                       'Please check the Reports section to view the submitted handover.', 'error')
                 return redirect(url_for('handover.edit_handover', shift_id=shift_id))
             else:
-                print(f"[EDIT_DUPLICATE_CHECK] ✅ No existing submission found, can convert draft to submission")
+                logger.debug(f"[EDIT_DUPLICATE_CHECK] ✅ No existing submission found, can convert draft to submission")
         
         shift.status = 'draft' if action in ['save', 'draft'] else 'sent'
         
@@ -988,23 +992,23 @@ def edit_handover(shift_id):
                     if eng.id not in seen_ids:
                         all_engineers.append(eng)
                         seen_ids.add(eng.id)
-                        print(f"[SHIFT EDIT FIX] Added engineer {eng.name} from additional shift code {add_code}")
+                        logger.debug(f"[SHIFT EDIT FIX] Added engineer {eng.name} from additional shift code {add_code}")
             
             return all_engineers
         
         # Get engineers for current shift (always use the shift date)
         current_engineers_objs = get_all_engineers_for_shift_type(shift.date, shift.current_shift_type, current_shift_code)
-        print(f"[SHIFT EDIT FIX] Current shift ({shift.current_shift_type}) engineers from date: {shift.date}, total: {len(current_engineers_objs)}")
+        logger.debug(f"[SHIFT EDIT FIX] Current shift ({shift.current_shift_type}) engineers from date: {shift.date}, total: {len(current_engineers_objs)}")
         
         # Get engineers for next shift
         # For Night->Morning transitions, Morning engineers should come from next day
         if shift.current_shift_type == 'Night' and shift.next_shift_type == 'Morning':
             next_date = shift.date + timedelta(days=1)
             next_engineers_objs = get_all_engineers_for_shift_type(next_date, shift.next_shift_type, next_shift_code)
-            print(f"[SHIFT EDIT FIX] Night->Morning transition: Next shift ({shift.next_shift_type}) engineers from date: {next_date}")
+            logger.debug(f"[SHIFT EDIT FIX] Night->Morning transition: Next shift ({shift.next_shift_type}) engineers from date: {next_date}")
         else:
             next_engineers_objs = get_all_engineers_for_shift_type(shift.date, shift.next_shift_type, next_shift_code)
-            print(f"[SHIFT EDIT FIX] Regular transition: Next shift ({shift.next_shift_type}) engineers from date: {shift.date}")
+            logger.debug(f"[SHIFT EDIT FIX] Regular transition: Next shift ({shift.next_shift_type}) engineers from date: {shift.date}")
         for member in current_engineers_objs:
             shift.current_engineers.append(member)
         for member in next_engineers_objs:
@@ -1014,16 +1018,16 @@ def edit_handover(shift_id):
         existing_incidents = Incident.query.filter_by(shift_id=shift.id).all()
         existing_keypoints = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
         
-        print(f"🔧 EDIT MODE: Found {len(existing_incidents)} existing incidents, {len(existing_keypoints)} existing key points")
+        logger.debug(f"🔧 EDIT MODE: Found {len(existing_incidents)} existing incidents, {len(existing_keypoints)} existing key points")
         
         # 🔧 FIXED LOGIC: Only recreate if this is the FIRST edit (no existing data)
         # Or if explicitly requested to reset (add a flag later if needed)
         should_recreate = len(existing_incidents) == 0 and len(existing_keypoints) == 0
         
         if should_recreate:
-            print(f"🔧 EDIT MODE: No existing data found - will create from form")
+            logger.debug(f"🔧 EDIT MODE: No existing data found - will create from form")
         else:
-            print(f"🔧 EDIT MODE: Existing data found - will update shift properties only, not recreate incidents/keypoints")
+            logger.debug(f"🔧 EDIT MODE: Existing data found - will update shift properties only, not recreate incidents/keypoints")
             # Just update shift properties, don't recreate incidents/keypoints to prevent duplication
             # The incident/keypoint processing will be skipped below
         # Audit log: defer until final commit
@@ -1039,11 +1043,11 @@ def edit_handover(shift_id):
             # Handle different incident types with their specific fields
             incident_ids = request.form.getlist(f'{field_prefix}_incident_id[]')
             
-            print(f"\n🔧 PROCESSING {inc_type} INCIDENTS:")
-            print(f"   Found {len(incident_ids)} incident IDs for type '{inc_type}'")
-            print(f"   🔍 DEBUG: Raw incident_ids = {incident_ids}")
-            print(f"   🔍 DEBUG: Field prefix = '{field_prefix}'")
-            print(f"   🔍 DEBUG: All form fields with '{field_prefix}': {[k for k in request.form.keys() if field_prefix in k]}")
+            logger.debug(f"🔧 PROCESSING {inc_type} INCIDENTS:")
+            logger.debug(f"   Found {len(incident_ids)} incident IDs for type '{inc_type}'")
+            logger.debug(f"   🔍 DEBUG: Raw incident_ids = {incident_ids}")
+            logger.debug(f"   🔍 DEBUG: Field prefix = '{field_prefix}'")
+            logger.debug(f"   🔍 DEBUG: All form fields with '{field_prefix}': {[k for k in request.form.keys() if field_prefix in k]}")
             
             for i, incident_id in enumerate(incident_ids):
                 if incident_id.strip():
@@ -1063,7 +1067,7 @@ def edit_handover(shift_id):
                         assigned_tos = request.form.getlist('open_incident_assigned[]')
                         app_names = request.form.getlist('open_incident_app[]')
                         
-                        print(f"   🔧 OPEN INCIDENT {i+1}: assigned_to form data = '{assigned_tos[i] if i < len(assigned_tos) else 'MISSING'}'")
+                        logger.debug(f"   🔧 OPEN INCIDENT {i+1}: assigned_to form data = '{assigned_tos[i] if i < len(assigned_tos) else 'MISSING'}'")
                         
                         # Include application name in title
                         app_name = app_names[i] if i < len(app_names) and app_names[i].strip() else ''
@@ -1081,8 +1085,8 @@ def edit_handover(shift_id):
                         })
                         if assigned_engineer:
                             try:
-                                print(f"🔍 ASSIGNMENT DEBUG: About to create assignment for {assigned_engineer}")
-                                print(f"🔍   Session state before assignment: {len(db.session.new)} new objects")
+                                logger.debug(f"🔍 ASSIGNMENT DEBUG: About to create assignment for {assigned_engineer}")
+                                logger.debug(f"🔍   Session state before assignment: {len(db.session.new)} new objects")
                                 
                                 # Create enhanced incident assignment
                                 # Create or get HandoverRequest for edit mode
@@ -1095,9 +1099,9 @@ def edit_handover(shift_id):
                                         created_at=datetime.now()
                                     )
                                     db.session.add(handover_request)
-                                    print(f"🔍   Added HandoverRequest to session")
+                                    logger.debug(f"🔍   Added HandoverRequest to session")
                                     db.session.flush()  # Get ID without full commit
-                                    print(f"🔍   Session after handover request flush: {len(db.session.new)} new objects")
+                                    logger.debug(f"🔍   Session after handover request flush: {len(db.session.new)} new objects")
                                 
                                 # Don't let assignment errors affect the main incident creation
                                 assignment_result = create_enhanced_incident_assignment(
@@ -1111,8 +1115,8 @@ def edit_handover(shift_id):
                                     handover_request_id=handover_request.id
                                 )
                                 
-                                print(f"🔍   Session after assignment creation: {len(db.session.new)} new objects")
-                                print(f"🔍   Assignment result: {assignment_result}")
+                                logger.debug(f"🔍   Session after assignment creation: {len(db.session.new)} new objects")
+                                logger.debug(f"🔍   Assignment result: {assignment_result}")
                                 
                                 # Send incident assignment notification 
                                 try:
@@ -1123,13 +1127,13 @@ def edit_handover(shift_id):
                                         'Open Incident',
                                         str(shift.date)
                                     )
-                                    print(f"[DEBUG] Notification sent for incident assignment: {full_title} → {assigned_engineer}")
+                                    logger.debug(f"[DEBUG] Notification sent for incident assignment: {full_title} → {assigned_engineer}")
                                 except Exception as notify_error:
-                                    print(f"[DEBUG] Failed to send notification: {str(notify_error)}")
+                                    logger.debug(f"[DEBUG] Failed to send notification: {str(notify_error)}")
                                     # Don't fail handover creation if notification fails
                             except Exception as e:
-                                print(f"🚨 ASSIGNMENT ERROR: {e}")
-                                print(f"🔍   Session after assignment error: {len(db.session.new)} new objects")
+                                logger.warning(f"🚨 ASSIGNMENT ERROR: {e}")
+                                logger.debug(f"🔍   Session after assignment error: {len(db.session.new)} new objects")
                                 import logging
                                 logging.error(f"Failed to send incident assignment notification: {e}")
                                 # Continue processing - don't let assignment failures stop incident creation
@@ -1220,9 +1224,9 @@ def edit_handover(shift_id):
                                         'Handover Incident',
                                         str(shift.date)
                                     )
-                                    print(f"[DEBUG] Notification sent for handover incident: {full_title} → {next_action_by}")
+                                    logger.debug(f"[DEBUG] Notification sent for handover incident: {full_title} → {next_action_by}")
                                 except Exception as notify_error:
-                                    print(f"[DEBUG] Failed to send handover notification: {str(notify_error)}")
+                                    logger.debug(f"[DEBUG] Failed to send handover notification: {str(notify_error)}")
                                     # Don't fail handover creation if notification fails
                             except Exception as e:
                                 import logging
@@ -1260,21 +1264,21 @@ def edit_handover(shift_id):
                     
                     incident = Incident(**incident_data)
                     db.session.add(incident)
-                    print(f"🔍 DETAILED SESSION DEBUG: Just added {inc_type} incident to session")
-                    print(f"🔍   Incident object: {incident}")
-                    print(f"🔍   Session.new count: {len(db.session.new)}")
-                    print(f"🔍   All new objects: {list(db.session.new)}")
+                    logger.debug(f"🔍 DETAILED SESSION DEBUG: Just added {inc_type} incident to session")
+                    logger.debug(f"🔍   Incident object: {incident}")
+                    logger.debug(f"🔍   Session.new count: {len(db.session.new)}")
+                    logger.debug(f"🔍   All new objects: {list(db.session.new)}")
                     log_action('Add Incident', f'ID: {incident_id}, Type: {inc_type}, Shift ID: {shift.id}')
         
         # 🚨 CRITICAL FIX: ALWAYS process ALL incident types from form data
         # Delete all existing incidents first to ensure clean state
-        print(f"🔧 UNIVERSAL MODE: Syncing ALL incidents with form data")
-        print(f"   Deleting {len(existing_incidents)} existing incidents")
+        logger.debug(f"🔧 UNIVERSAL MODE: Syncing ALL incidents with form data")
+        logger.debug(f"   Deleting {len(existing_incidents)} existing incidents")
         for incident in existing_incidents:
             db.session.delete(incident)
         
         # Now create ALL incident types from current form data
-        print(f"   Creating ALL incident types from form data")
+        logger.debug(f"   Creating ALL incident types from form data")
         add_incident('open', 'Open')
         add_incident('closed', 'Closed')
         add_incident('priority', 'Priority')
@@ -1303,60 +1307,60 @@ def edit_handover(shift_id):
         kb_statuses = request.form.getlist('kb_status[]')
         
         # 🐛 DEBUG: Log all form data for Change Info and KB Updates
-        print("\n🐛🐛🐛 COMPREHENSIVE FORM SUBMISSION DEBUG 🐛🐛🐛")
-        print(f"   Total form fields: {len(request.form)}")
-        print(f"   Action: {action}")
-        print(f"   Shift: {shift.current_shift_type} → {shift.next_shift_type} on {shift.date}")
+        logger.debug("🐛🐛🐛 COMPREHENSIVE FORM SUBMISSION DEBUG 🐛🐛🐛")
+        logger.debug(f"   Total form fields: {len(request.form)}")
+        logger.debug(f"   Action: {action}")
+        logger.debug(f"   Shift: {shift.current_shift_type} → {shift.next_shift_type} on {shift.date}")
         
         # Log all form field names for debugging
         change_related_fields = [k for k in request.form.keys() if 'change' in k.lower()]
         kb_related_fields = [k for k in request.form.keys() if 'kb' in k.lower()]
         incident_related_fields = [k for k in request.form.keys() if 'incident' in k.lower()]
         
-        print(f"🔧 CHANGE RELATED FORM FIELDS ({len(change_related_fields)}):")
+        logger.debug(f"🔧 CHANGE RELATED FORM FIELDS ({len(change_related_fields)}):")
         for field in change_related_fields:
             values = request.form.getlist(field)
-            print(f"   {field}: {values}")
+            logger.debug(f"   {field}: {values}")
             
-        print(f"📚 KB RELATED FORM FIELDS ({len(kb_related_fields)}):")
+        logger.debug(f"📚 KB RELATED FORM FIELDS ({len(kb_related_fields)}):")
         for field in kb_related_fields:
             values = request.form.getlist(field)
-            print(f"   {field}: {values}")
+            logger.debug(f"   {field}: {values}")
             
-        print(f"🚨 INCIDENT RELATED FORM FIELDS ({len(incident_related_fields)}):")
+        logger.warning(f"🚨 INCIDENT RELATED FORM FIELDS ({len(incident_related_fields)}):")
         for field in incident_related_fields:
             values = request.form.getlist(field)
-            print(f"   {field}: {values}")
+            logger.debug(f"   {field}: {values}")
             
-        print(f"🔧 PARSED CHANGE INFO DATA:")
-        print(f"   App names ({len(change_app_names)}): {change_app_names}")
-        print(f"   Numbers ({len(change_numbers)}): {change_numbers}")
-        print(f"   Descriptions ({len(change_descriptions)}): {change_descriptions}")
-        print(f"   DateTimes ({len(change_datetimes)}): {change_datetimes}")
-        print(f"   Engineers ({len(change_responsible_persons)}): {change_responsible_persons}")
-        print(f"   Statuses ({len(change_statuses)}): {change_statuses}")  # 🆕 NEW: Log statuses
-        print(f"📚 PARSED KB UPDATES DATA:")
-        print(f"   App names ({len(kb_app_names)}): {kb_app_names}")
-        print(f"   Numbers ({len(kb_numbers)}): {kb_numbers}")
-        print(f"   Descriptions ({len(kb_descriptions)}): {kb_descriptions}")
-        print(f"   Persons ({len(kb_responsible_persons)}): {kb_responsible_persons}")
-        print(f"   Statuses ({len(kb_statuses)}): {kb_statuses}")
+        logger.debug(f"🔧 PARSED CHANGE INFO DATA:")
+        logger.debug(f"   App names ({len(change_app_names)}): {change_app_names}")
+        logger.debug(f"   Numbers ({len(change_numbers)}): {change_numbers}")
+        logger.debug(f"   Descriptions ({len(change_descriptions)}): {change_descriptions}")
+        logger.debug(f"   DateTimes ({len(change_datetimes)}): {change_datetimes}")
+        logger.debug(f"   Engineers ({len(change_responsible_persons)}): {change_responsible_persons}")
+        logger.debug(f"   Statuses ({len(change_statuses)}): {change_statuses}")  # 🆕 NEW: Log statuses
+        logger.debug(f"📚 PARSED KB UPDATES DATA:")
+        logger.debug(f"   App names ({len(kb_app_names)}): {kb_app_names}")
+        logger.debug(f"   Numbers ({len(kb_numbers)}): {kb_numbers}")
+        logger.debug(f"   Descriptions ({len(kb_descriptions)}): {kb_descriptions}")
+        logger.debug(f"   Persons ({len(kb_responsible_persons)}): {kb_responsible_persons}")
+        logger.debug(f"   Statuses ({len(kb_statuses)}): {kb_statuses}")
         change_kb_fields = {k: v for k, v in request.form.items() if 'change' in k.lower() or 'kb' in k.lower()}
-        print(f"🔍 ALL CHANGE/KB FORM FIELDS: {change_kb_fields}")
+        logger.debug(f"🔍 ALL CHANGE/KB FORM FIELDS: {change_kb_fields}")
         
         # 🔧 CRITICAL FIX: Don't clear existing keypoints in edit mode - let enhanced processing handle updates
         # The enhanced processing logic will update/reuse existing key points properly without deletion
         existing_keypoints = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
-        print(f"🔧 EDIT MODE: PRESERVING {len(existing_keypoints)} existing keypoints - enhanced processing will handle updates")
-        print(f"🔧 This prevents key point loss during submission - enhanced logic manages duplicates and updates")
+        logger.debug(f"🔧 EDIT MODE: PRESERVING {len(existing_keypoints)} existing keypoints - enhanced processing will handle updates")
+        logger.debug(f"🔧 This prevents key point loss during submission - enhanced logic manages duplicates and updates")
         
         # 🔧 CRITICAL DEBUG: Log all form data to diagnose missing key points
-        print(f"\n🔧 EDIT MODE FORM DATA ANALYSIS:")
-        print(f"   Total form fields: {len(request.form)}")
-        print(f"   Key point descriptions received: {len(key_point_descriptions)} items")
-        print(f"   Key point assigned_tos received: {len(keypoint_assigned_tos)} items")
-        print(f"   Key point statuses received: {len(keypoint_statuses)} items")
-        print(f"   Key point JIRA IDs received: {len(keypoint_jira_ids)} items")
+        logger.debug(f"🔧 EDIT MODE FORM DATA ANALYSIS:")
+        logger.debug(f"   Total form fields: {len(request.form)}")
+        logger.debug(f"   Key point descriptions received: {len(key_point_descriptions)} items")
+        logger.debug(f"   Key point assigned_tos received: {len(keypoint_assigned_tos)} items")
+        logger.debug(f"   Key point statuses received: {len(keypoint_statuses)} items")
+        logger.debug(f"   Key point JIRA IDs received: {len(keypoint_jira_ids)} items")
         
         # Show first few for debugging
         for i in range(min(5, len(key_point_descriptions))):
@@ -1364,64 +1368,64 @@ def edit_handover(shift_id):
             assigned = keypoint_assigned_tos[i] if i < len(keypoint_assigned_tos) else 'MISSING'
             status = keypoint_statuses[i] if i < len(keypoint_statuses) else 'MISSING'
             jira = keypoint_jira_ids[i] if i < len(keypoint_jira_ids) else 'MISSING'
-            print(f"   KP {i+1}: desc='{desc[:30]}...' assigned='{assigned}' status='{status}' jira='{jira}'")
+            logger.debug(f"   KP {i+1}: desc='{desc[:30]}...' assigned='{assigned}' status='{status}' jira='{jira}'")
         
         if len(key_point_descriptions) == 0:
-            print(f"   ⚠️  CRITICAL: NO KEY POINTS RECEIVED FROM FORM!")
-            print(f"   This will cause all key points to be deleted!")
+            logger.debug(f"   ⚠️  CRITICAL: NO KEY POINTS RECEIVED FROM FORM!")
+            logger.debug(f"   This will cause all key points to be deleted!")
         
         # ========== ENHANCED DEBUG LOGGING FOR USER ISSUE ==========
-        print(f"\n🔍 ENHANCED KEY POINT FORM SUBMISSION DEBUG - Shift ID: {shift.id}")
-        print(f"   🔹 User: {session.get('username', 'Unknown')}")
-        print(f"   🔹 Timestamp: {datetime.now()}")
-        print(f"   🔹 Raw form data received:")
-        print(f"      - Descriptions: {key_point_descriptions}")
-        print(f"      - Assigned Tos: {keypoint_assigned_tos}")
-        print(f"      - Statuses: {keypoint_statuses}")
-        print(f"      - JIRA IDs: {keypoint_jira_ids}")
-        print(f"   🔹 Total key points being processed: {len(key_point_descriptions)}")
+        logger.debug(f"🔍 ENHANCED KEY POINT FORM SUBMISSION DEBUG - Shift ID: {shift.id}")
+        logger.debug(f"   🔹 User: {session.get('username', 'Unknown')}")
+        logger.debug(f"   🔹 Timestamp: {datetime.now()}")
+        logger.debug(f"   🔹 Raw form data received:")
+        logger.debug(f"      - Descriptions: {key_point_descriptions}")
+        logger.debug(f"      - Assigned Tos: {keypoint_assigned_tos}")
+        logger.debug(f"      - Statuses: {keypoint_statuses}")
+        logger.debug(f"      - JIRA IDs: {keypoint_jira_ids}")
+        logger.debug(f"   🔹 Total key points being processed: {len(key_point_descriptions)}")
         
         # Log the complete form data for diagnosis
-        print(f"   🔹 ALL FORM DATA:")
+        logger.debug(f"   🔹 ALL FORM DATA:")
         for key, values in request.form.lists():
             if 'keypoint' in key or 'incident' in key:
-                print(f"      - {key}: {values}")
+                logger.debug(f"      - {key}: {values}")
         
         # Count how many are marked as closed
         closed_count = keypoint_statuses.count('Closed')
         open_count = keypoint_statuses.count('Open')
         progress_count = keypoint_statuses.count('In Progress')
         
-        print(f"   🔹 Status breakdown:")
-        print(f"      - 'Closed': {closed_count} key points")
-        print(f"      - 'Open': {open_count} key points")
-        print(f"      - 'In Progress': {progress_count} key points")
+        logger.debug(f"   🔹 Status breakdown:")
+        logger.debug(f"      - 'Closed': {closed_count} key points")
+        logger.debug(f"      - 'Open': {open_count} key points")
+        logger.debug(f"      - 'In Progress': {progress_count} key points")
         
         if closed_count == 0:
-            print(f"   ⚠️  USER ISSUE ALERT: No key points marked as 'Closed' in form submission!")
-            print(f"   ⚠️  This means user is NOT selecting 'Closed' status in the dropdown")
+            logger.debug(f"   ⚠️  USER ISSUE ALERT: No key points marked as 'Closed' in form submission!")
+            logger.debug(f"   ⚠️  This means user is NOT selecting 'Closed' status in the dropdown")
         else:
-            print(f"   ✅ User is correctly marking {closed_count} key points as 'Closed'")
-        print(f"   =========================================================\n")
+            logger.debug(f"   ✅ User is correctly marking {closed_count} key points as 'Closed'")
+        logger.debug(f"   =========================================================\n")
         
         # Debug logging for key point form data
-        print(f"🔍 KEY POINT FORM DATA DEBUG - Shift ID: {shift.id}")
-        print(f"   key_point_descriptions: {key_point_descriptions}")
-        print(f"   keypoint_assigned_tos: {keypoint_assigned_tos}")
-        print(f"   keypoint_statuses: {keypoint_statuses}")
-        print(f"   keypoint_jira_ids: {keypoint_jira_ids}")
-        print(f"   Total key points to process: {len(key_point_descriptions)}")
-        print(f"🚨 ENHANCED KEY POINT PROCESSING - VERSION 2.0 🚨")
+        logger.debug(f"🔍 KEY POINT FORM DATA DEBUG - Shift ID: {shift.id}")
+        logger.debug(f"   key_point_descriptions: {key_point_descriptions}")
+        logger.debug(f"   keypoint_assigned_tos: {keypoint_assigned_tos}")
+        logger.debug(f"   keypoint_statuses: {keypoint_statuses}")
+        logger.debug(f"   keypoint_jira_ids: {keypoint_jira_ids}")
+        logger.debug(f"   Total key points to process: {len(key_point_descriptions)}")
+        logger.warning(f"🚨 ENHANCED KEY POINT PROCESSING - VERSION 2.0 🚨")
         
         # 🔧 RESTORED: Key point processing for edit mode - this was completely missing!
-        print(f"🔧 PROCESSING KEY POINTS FOR EDIT MODE - Total: {len(key_point_descriptions)}")
+        logger.debug(f"🔧 PROCESSING KEY POINTS FOR EDIT MODE - Total: {len(key_point_descriptions)}")
         
         # First, get all existing key points for this shift
         existing_keypoints = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
-        print(f"🔧 Found {len(existing_keypoints)} existing key points for shift {shift.id}")
+        logger.debug(f"🔧 Found {len(existing_keypoints)} existing key points for shift {shift.id}")
         
         # JIRA ID mapping removed - use description-based matching only
-        print(f"🔧 Existing key points: {len(existing_keypoints)} total (description-based matching only)")
+        logger.debug(f"🔧 Existing key points: {len(existing_keypoints)} total (description-based matching only)")
         
         # Track which existing key points are updated so we don't delete them
         updated_keypoint_ids = set()
@@ -1437,32 +1441,32 @@ def edit_handover(shift_id):
                 if not description:  # Skip empty descriptions
                     continue
                 
-                print(f"🔧 Processing KP {i+1}: '{description[:40]}...' status='{status}'")
+                logger.debug(f"🔧 Processing KP {i+1}: '{description[:40]}...' status='{status}'")
                 
                 # Find existing key point by description only (no JIRA ID)
                 existing_kp = None
                 for kp in existing_keypoints:
                     if kp.id not in updated_keypoint_ids and kp.description.strip() == description:
                         existing_kp = kp
-                        print(f"🔧 Found existing KP by description: {existing_kp.id}")
+                        logger.debug(f"🔧 Found existing KP by description: {existing_kp.id}")
                         break
                 
                 # Get responsible engineer ID
-                print(f"🔧 DEBUG [EDIT MODE] assigned_to value: '{assigned_to}' (type: {type(assigned_to)})")
+                logger.debug(f"🔧 DEBUG [EDIT MODE] assigned_to value: '{assigned_to}' (type: {type(assigned_to)})")
                 responsible_engineer_id = None
                 if assigned_to:
                     if str(assigned_to).isdigit():
                         responsible_engineer_id = int(assigned_to)
-                        print(f"🔧 DEBUG [EDIT MODE]: Converted assigned_to to integer: {responsible_engineer_id}")
+                        logger.debug(f"🔧 DEBUG [EDIT MODE]: Converted assigned_to to integer: {responsible_engineer_id}")
                     else:
                         user = TeamMember.query.filter_by(name=assigned_to).first()
                         if user:
                             responsible_engineer_id = user.id
-                            print(f"🔧 DEBUG [EDIT MODE]: Found user by name '{assigned_to}' -> ID: {responsible_engineer_id}")
+                            logger.debug(f"🔧 DEBUG [EDIT MODE]: Found user by name '{assigned_to}' -> ID: {responsible_engineer_id}")
                         else:
-                            print(f"🔧 DEBUG [EDIT MODE]: Could not find user by name '{assigned_to}'")
+                            logger.debug(f"🔧 DEBUG [EDIT MODE]: Could not find user by name '{assigned_to}'")
                 else:
-                    print(f"🔧 DEBUG [EDIT MODE]: assigned_to is empty/None, no assignment")
+                    logger.debug(f"🔧 DEBUG [EDIT MODE]: assigned_to is empty/None, no assignment")
                 
                 if existing_kp:
                     # Update existing key point
@@ -1470,7 +1474,7 @@ def edit_handover(shift_id):
                     existing_kp.status = status
                     existing_kp.responsible_engineer_id = responsible_engineer_id
                     updated_keypoint_ids.add(existing_kp.id)
-                    print(f"🔧 Updated existing key point {existing_kp.id}")
+                    logger.debug(f"🔧 Updated existing key point {existing_kp.id}")
                     
                     # 🔧 SYNC STATUS to all other instances with same description (for consistency)
                     other_instances = ShiftKeyPoint.query.filter(
@@ -1485,7 +1489,7 @@ def edit_handover(shift_id):
                             other_kp.responsible_engineer_id = responsible_engineer_id
                         db.session.add(other_kp)
                     if other_instances:
-                        print(f"🔧 Synced status to {len(other_instances)} other instances")
+                        logger.debug(f"🔧 Synced status to {len(other_instances)} other instances")
                 else:
                     # Create new key point
                     new_kp = ShiftKeyPoint(
@@ -1499,7 +1503,7 @@ def edit_handover(shift_id):
                         created_by_id=current_user.id  # Track who created the key point
                     )
                     db.session.add(new_kp)
-                    print(f"🔧 Created new key point for shift {shift.id} by user {current_user.id}")
+                    logger.debug(f"🔧 Created new key point for shift {shift.id} by user {current_user.id}")
                     
                     # 🔧 SYNC STATUS to all existing key points with same description
                     existing_others = ShiftKeyPoint.query.filter(
@@ -1513,28 +1517,28 @@ def edit_handover(shift_id):
                             other_kp.responsible_engineer_id = responsible_engineer_id
                         db.session.add(other_kp)
                     if existing_others:
-                        print(f"🔧 Synced status to {len(existing_others)} existing instances")
+                        logger.debug(f"🔧 Synced status to {len(existing_others)} existing instances")
         
         # Remove key points that weren't updated (they were deleted from form)
         keypoints_to_delete = [kp for kp in existing_keypoints if kp.id not in updated_keypoint_ids]
         for kp in keypoints_to_delete:
-            print(f"🔧 Deleting removed key point {kp.id}: '{kp.description[:40]}...'")
+            logger.debug(f"🔧 Deleting removed key point {kp.id}: '{kp.description[:40]}...'")
             db.session.delete(kp)
         
-        print(f"🔧 KEY POINT PROCESSING COMPLETE: Updated {len(updated_keypoint_ids)}, Deleted {len(keypoints_to_delete)}")
+        logger.debug(f"🔧 KEY POINT PROCESSING COMPLETE: Updated {len(updated_keypoint_ids)}, Deleted {len(keypoints_to_delete)}")
         
         # 🔧 Process Change Info entries
-        print(f"🔍 CHANGE INFO PROCESSING - Total entries: {len(change_app_names)}")
+        logger.debug(f"🔍 CHANGE INFO PROCESSING - Total entries: {len(change_app_names)}")
         
         # Get existing Change Info records for this shift
         existing_change_infos = ShiftChangeInfo.query.filter_by(shift_id=shift.id).all()
-        print(f"🔧 Found {len(existing_change_infos)} existing change info records for shift {shift.id}")
+        logger.debug(f"🔧 Found {len(existing_change_infos)} existing change info records for shift {shift.id}")
         
         # Track which existing records are updated
         updated_change_info_ids = set()
         
         # 🐛 DEBUG: Log processing start
-        print(f"\n🔧 STARTING CHANGE INFO PROCESSING: {len(change_app_names)} entries")
+        logger.debug(f"🔧 STARTING CHANGE INFO PROCESSING: {len(change_app_names)} entries")
         
         # Process each Change Info entry from the form
         for i in range(len(change_app_names)):
@@ -1547,7 +1551,7 @@ def edit_handover(shift_id):
             if not app_name and not change_number and not description and not datetime_str and not responsible_person:  # Skip completely empty entries
                 continue
                 
-            print(f"🔧 Processing Change Info {i+1}: App={app_name}, Change#{change_number}")
+            logger.debug(f"🔧 Processing Change Info {i+1}: App={app_name}, Change#{change_number}")
             
             # Parse datetime if provided
             change_datetime = None
@@ -1555,7 +1559,7 @@ def edit_handover(shift_id):
                 try:
                     change_datetime = datetime.strptime(datetime_str, '%Y-%m-%dT%H:%M')
                 except ValueError:
-                    print(f"⚠️ Invalid datetime format for change {change_number}: {datetime_str}")
+                    logger.warning(f"⚠️ Invalid datetime format for change {change_number}: {datetime_str}")
             
             # Get responsible engineer ID
             responsible_engineer_id = None
@@ -1572,7 +1576,7 @@ def edit_handover(shift_id):
             for record in existing_change_infos:
                 if record.id not in updated_change_info_ids and record.change_number == change_number:
                     existing_record = record
-                    print(f"🔧 Found existing Change Info by change_number: {existing_record.id}")
+                    logger.debug(f"🔧 Found existing Change Info by change_number: {existing_record.id}")
                     break
             
             if existing_record:
@@ -1582,7 +1586,7 @@ def edit_handover(shift_id):
                 existing_record.change_datetime = change_datetime
                 existing_record.responsible_engineer_id = responsible_engineer_id
                 updated_change_info_ids.add(existing_record.id)
-                print(f"🔧 Updated existing Change Info {existing_record.id}")
+                logger.debug(f"🔧 Updated existing Change Info {existing_record.id}")
             else:
                 # Create new record
                 new_record = ShiftChangeInfo(
@@ -1596,28 +1600,28 @@ def edit_handover(shift_id):
                     team_id=shift.team_id
                 )
                 db.session.add(new_record)
-                print(f"🔧 Created new Change Info for shift {shift.id}")
+                logger.debug(f"🔧 Created new Change Info for shift {shift.id}")
         
         # Remove Change Info records that weren't updated (deleted from form)
         change_infos_to_delete = [record for record in existing_change_infos if record.id not in updated_change_info_ids]
         for record in change_infos_to_delete:
-            print(f"🔧 Deleting removed Change Info {record.id}: {record.app_name} - {record.change_number}")
+            logger.debug(f"🔧 Deleting removed Change Info {record.id}: {record.app_name} - {record.change_number}")
             db.session.delete(record)
         
-        print(f"🔧 CHANGE INFO PROCESSING COMPLETE: Updated {len(updated_change_info_ids)}, Deleted {len(change_infos_to_delete)}")
+        logger.debug(f"🔧 CHANGE INFO PROCESSING COMPLETE: Updated {len(updated_change_info_ids)}, Deleted {len(change_infos_to_delete)}")
         
         # 🔧 Process KB Update entries
-        print(f"🔍 KB UPDATE PROCESSING - Total entries: {len(kb_app_names)}")
+        logger.debug(f"🔍 KB UPDATE PROCESSING - Total entries: {len(kb_app_names)}")
         
         # Get existing KB Update records for this shift
         existing_kb_updates = ShiftKBUpdate.query.filter_by(shift_id=shift.id).all()
-        print(f"🔧 Found {len(existing_kb_updates)} existing KB update records for shift {shift.id}")
+        logger.debug(f"🔧 Found {len(existing_kb_updates)} existing KB update records for shift {shift.id}")
         
         # Track which existing records are updated
         updated_kb_update_ids = set()
         
         # 🐛 DEBUG: Log processing start
-        print(f"\n📚 STARTING KB UPDATES PROCESSING: {len(kb_app_names)} entries")
+        logger.debug(f"📚 STARTING KB UPDATES PROCESSING: {len(kb_app_names)} entries")
         
         # Process each KB Update entry from the form
         for i in range(len(kb_app_names)):
@@ -1630,7 +1634,7 @@ def edit_handover(shift_id):
             if not app_name and not kb_number and not description and not responsible_person and not status:  # Skip completely empty entries
                 continue
                 
-            print(f"🔧 Processing KB Update {i+1}: App={app_name}, KB#{kb_number}")
+            logger.debug(f"🔧 Processing KB Update {i+1}: App={app_name}, KB#{kb_number}")
             
             # Get responsible engineer ID
             responsible_engineer_id = None
@@ -1647,7 +1651,7 @@ def edit_handover(shift_id):
             for record in existing_kb_updates:
                 if record.id not in updated_kb_update_ids and record.kb_number == kb_number:
                     existing_record = record
-                    print(f"🔧 Found existing KB Update by kb_number: {existing_record.id}")
+                    logger.debug(f"🔧 Found existing KB Update by kb_number: {existing_record.id}")
                     break
             
             if existing_record:
@@ -1657,7 +1661,7 @@ def edit_handover(shift_id):
                 existing_record.responsible_engineer_id = responsible_engineer_id
                 existing_record.status = status
                 updated_kb_update_ids.add(existing_record.id)
-                print(f"🔧 Updated existing KB Update {existing_record.id}")
+                logger.debug(f"🔧 Updated existing KB Update {existing_record.id}")
             else:
                 # Create new record
                 new_record = ShiftKBUpdate(
@@ -1671,58 +1675,58 @@ def edit_handover(shift_id):
                     team_id=shift.team_id
                 )
                 db.session.add(new_record)
-                print(f"🔧 Created new KB Update for shift {shift.id}")
+                logger.debug(f"🔧 Created new KB Update for shift {shift.id}")
         
         # Remove KB Update records that weren't updated (deleted from form)
         kb_updates_to_delete = [record for record in existing_kb_updates if record.id not in updated_kb_update_ids]
         for record in kb_updates_to_delete:
-            print(f"🔧 Deleting removed KB Update {record.id}: {record.app_name} - {record.kb_number}")
+            logger.debug(f"🔧 Deleting removed KB Update {record.id}: {record.app_name} - {record.kb_number}")
             db.session.delete(record)
         
-        print(f"🔧 KB UPDATE PROCESSING COMPLETE: Updated {len(updated_kb_update_ids)}, Deleted {len(kb_updates_to_delete)}")
+        logger.debug(f"🔧 KB UPDATE PROCESSING COMPLETE: Updated {len(updated_kb_update_ids)}, Deleted {len(kb_updates_to_delete)}")
         
         db.session.commit()
         
         # 🔥🔥🔥 FINAL DATABASE STATE VERIFICATION 🔥🔥🔥
-        print(f"\n🎯🎯🎯 FINAL VERIFICATION: DATA SAVED TO DATABASE 🎯🎯🎯")
-        print(f"   Shift ID: {shift.id}")
-        print(f"   Date: {shift.date}")
-        print(f"   Shift: {shift.current_shift_type} → {shift.next_shift_type}")
-        print(f"   Status: {shift.status}")
+        logger.debug(f"🎯🎯🎯 FINAL VERIFICATION: DATA SAVED TO DATABASE 🎯🎯🎯")
+        logger.debug(f"   Shift ID: {shift.id}")
+        logger.debug(f"   Date: {shift.date}")
+        logger.debug(f"   Shift: {shift.current_shift_type} → {shift.next_shift_type}")
+        logger.debug(f"   Status: {shift.status}")
         
         # Verify incidents were saved
         final_incidents = Incident.query.filter_by(shift_id=shift.id).all()
-        print(f"   ✅ Incidents saved: {len(final_incidents)}")
+        logger.debug(f"   ✅ Incidents saved: {len(final_incidents)}")
         for i, inc in enumerate(final_incidents, 1):
-            print(f"      {i}. {inc.title} ({inc.type}) - Priority: {inc.priority}")
+            logger.debug(f"      {i}. {inc.title} ({inc.type}) - Priority: {inc.priority}")
         
         # Verify change_infos were saved
         final_change_infos = ShiftChangeInfo.query.filter_by(shift_id=shift.id).all()
-        print(f"   ✅ Change Infos saved: {len(final_change_infos)}")
+        logger.debug(f"   ✅ Change Infos saved: {len(final_change_infos)}")
         for i, ci in enumerate(final_change_infos, 1):
-            print(f"      {i}. {ci.app_name} - {ci.change_number}: {ci.description}")
+            logger.debug(f"      {i}. {ci.app_name} - {ci.change_number}: {ci.description}")
         
         # Verify kb_updates were saved
         final_kb_updates = ShiftKBUpdate.query.filter_by(shift_id=shift.id).all()
-        print(f"   ✅ KB Updates saved: {len(final_kb_updates)}")
+        logger.debug(f"   ✅ KB Updates saved: {len(final_kb_updates)}")
         for i, kb in enumerate(final_kb_updates, 1):
-            print(f"      {i}. {kb.app_name} - {kb.kb_number}: {kb.description}")
+            logger.debug(f"      {i}. {kb.app_name} - {kb.kb_number}: {kb.description}")
         
         # Verify key points were saved
         final_key_points = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
-        print(f"   ✅ Key Points saved: {len(final_key_points)}")
+        logger.debug(f"   ✅ Key Points saved: {len(final_key_points)}")
         for i, kp in enumerate(final_key_points, 1):
-            print(f"      {i}. {kp.description[:50]}... Status: {kp.status}")
+            logger.debug(f"      {i}. {kp.description[:50]}... Status: {kp.status}")
         
-        print(f"🎯🎯🎯 END FINAL VERIFICATION 🎯🎯🎯\n")
+        logger.debug(f"🎯🎯🎯 END FINAL VERIFICATION 🎯🎯🎯\n")
         
         if action in ['send', 'submit']:
             import logging
             import threading
             import time
             logging.basicConfig(level=logging.DEBUG)
-            print(f"[EMAIL_DEBUG] 📧 Attempting to send handover email for shift_id={shift.id}")
-            print(f"[EMAIL_DEBUG] 📧 Action: {action}, Date: {shift.date}, Type: {shift.current_shift_type}→{shift.next_shift_type}")
+            logger.debug(f"[EMAIL_DEBUG] 📧 Attempting to send handover email for shift_id={shift.id}")
+            logger.debug(f"[EMAIL_DEBUG] 📧 Action: {action}, Date: {shift.date}, Type: {shift.current_shift_type}→{shift.next_shift_type}")
             logging.debug(f"[EMAIL] Attempting to send handover email for shift_id={shift.id}, date={shift.date}, current_shift_type={shift.current_shift_type}, next_shift_type={shift.next_shift_type}")
             
             # Use threading to prevent UI blocking with timeout
@@ -1739,11 +1743,11 @@ def edit_handover(shift_id):
                     with flask_app.app_context():
                         send_handover_email(shift)
                     email_success[0] = True
-                    print(f"[EMAIL_DEBUG] ✅ Email sent successfully for shift_id={shift.id}")
+                    logger.debug(f"[EMAIL_DEBUG] ✅ Email sent successfully for shift_id={shift.id}")
                     logging.debug(f"[EMAIL] Email sent successfully for shift_id={shift.id}")
                 except Exception as e:
                     email_error[0] = str(e)
-                    print(f"[EMAIL_DEBUG] ❌ Failed to send email for shift_id={shift.id}: {e}")
+                    logger.debug(f"[EMAIL_DEBUG] ❌ Failed to send email for shift_id={shift.id}: {e}")
                     logging.error(f"[EMAIL] Failed to send email for shift_id={shift.id}: {e}")
             
             # Start email sending in background thread
@@ -1755,7 +1759,7 @@ def edit_handover(shift_id):
             email_thread.join(timeout=8.0)
             
             if email_thread.is_alive():
-                print(f"[EMAIL_DEBUG] ⏰ Email sending timed out after 8 seconds for shift_id={shift.id}")
+                logger.debug(f"[EMAIL_DEBUG] ⏰ Email sending timed out after 8 seconds for shift_id={shift.id}")
                 flash('Handover submitted successfully! Email delivery in progress...')
             elif email_success[0]:
                 flash('Handover submitted and email sent successfully!')
@@ -1787,15 +1791,15 @@ def edit_handover(shift_id):
                 ShiftKeyPoint.shift_id != shift.id  # Don't include current shift to avoid duplicates
             ).all()
             all_kps = direct_kps + active_kps
-            print(f"🔧 EDIT DRAFT: Found {len(direct_kps)} direct + {len(active_kps)} active = {len(all_kps)} total key points")
+            logger.debug(f"🔧 EDIT DRAFT: Found {len(direct_kps)} direct + {len(active_kps)} active = {len(all_kps)} total key points")
         else:
             # SENT HANDOVER EDIT: Only show direct key points from this shift
             all_kps = ShiftKeyPoint.query.filter(ShiftKeyPoint.shift_id == shift.id).all()
-            print(f"🔧 EDIT SENT: Found {len(all_kps)} key points for shift {shift.id} (ONLY from this shift)")
+            logger.debug(f"🔧 EDIT SENT: Found {len(all_kps)} key points for shift {shift.id} (ONLY from this shift)")
         
-        print(f"🔧 EDIT MODE: Key points loaded:")
+        logger.debug(f"🔧 EDIT MODE: Key points loaded:")
         for kp in all_kps:
-            print(f"   - ID {kp.id}: '{kp.description[:40]}...' status={kp.status} shift_id={kp.shift_id}")
+            logger.debug(f"   - ID {kp.id}: '{kp.description[:40]}...' status={kp.status} shift_id={kp.shift_id}")
     else:  # New handover mode - load UNIQUE recent open key points with smart deduplication        
         # Get recent key points from last 7 days to avoid very old duplicates
         recent_date = datetime.now().date() - timedelta(days=7)
@@ -1822,16 +1826,16 @@ def edit_handover(shift_id):
                     kp_map[desc_key] = kp
             
             all_kps = list(kp_map.values())[:8]  # Limit to 8 unique key points
-            print(f"🔧 NEW HANDOVER: Deduplicated {len(raw_kps)} raw key points to {len(all_kps)} unique ones from last 7 days")
+            logger.debug(f"🔧 NEW HANDOVER: Deduplicated {len(raw_kps)} raw key points to {len(all_kps)} unique ones from last 7 days")
         else:
             all_kps = []
-            print(f"🔧 NEW HANDOVER: No recent shifts found for deduplication, starting with empty key points")
+            logger.debug(f"🔧 NEW HANDOVER: No recent shifts found for deduplication, starting with empty key points")
     
     # 🔧 DEDUPLICATION LOGIC: Handle edit mode vs new handover differently
     if shift_id and shift.status != 'draft':
         # SENT HANDOVER EDIT: Show actual key points from this shift without deduplication
         open_key_points = all_kps
-        print(f"🔧 EDIT SENT: Showing {len(open_key_points)} actual key points from shift {shift.id}")
+        logger.debug(f"🔧 EDIT SENT: Showing {len(open_key_points)} actual key points from shift {shift.id}")
     else:
         # DRAFT EDIT or NEW HANDOVER: Deduplicate to avoid showing same key point multiple times
         # 🔧 FIX: Use CASE-INSENSITIVE matching for description to prevent duplicates
@@ -1844,7 +1848,7 @@ def edit_handover(shift_id):
             if key not in kp_map or kp.id > kp_map[key].id:
                 kp_map[key] = kp
         open_key_points = list(kp_map.values())
-        print(f"🔧 NEW HANDOVER: After deduplication, showing {len(open_key_points)} unique key points")
+        logger.debug(f"🔧 NEW HANDOVER: After deduplication, showing {len(open_key_points)} unique key points")
     
     # Enhance key points with assigned engineer names for template display
     for kp in open_key_points:
@@ -1855,7 +1859,7 @@ def edit_handover(shift_id):
             if engineer:
                 kp.assigned_to = engineer.name
             else:
-                print(f"[DEBUG] Edit handover - Key point has invalid engineer ID: {kp.responsible_engineer_id}")
+                logger.debug(f"[DEBUG] Edit handover - Key point has invalid engineer ID: {kp.responsible_engineer_id}")
     
     # 🔧 Load existing Change Info and KB Updates for edit mode
     def serialize_change_info(change_info):
@@ -1911,20 +1915,20 @@ def edit_handover(shift_id):
     kb_updates = [serialize_kb_update(kb) for kb in kb_updates_raw]
 
     # 🔧 DEBUG: Log edit mode data being sent to template
-    print(f"[EDIT_DEBUG] 📋 Edit mode for shift {shift.id} - passing data to template:")
-    print(f"[EDIT_DEBUG]   Open incidents: {len(open_incidents)} items")
+    logger.debug(f"[EDIT_DEBUG] 📋 Edit mode for shift {shift.id} - passing data to template:")
+    logger.debug(f"[EDIT_DEBUG]   Open incidents: {len(open_incidents)} items")
     if open_incidents:
-        print(f"[EDIT_DEBUG]     First open incident: {open_incidents[0]}")
-    print(f"[EDIT_DEBUG]   Closed incidents: {len(closed_incidents)} items") 
-    print(f"[EDIT_DEBUG]   Priority incidents: {len(priority_incidents)} items")
-    print(f"[EDIT_DEBUG]   Handover incidents: {len(handover_incidents)} items")
-    print(f"[EDIT_DEBUG]   Escalated incidents: {len(escalated_incidents)} items")
-    print(f"[EDIT_DEBUG]   Key points: {len(open_key_points)} items")
+        logger.debug(f"[EDIT_DEBUG]     First open incident: {open_incidents[0]}")
+    logger.debug(f"[EDIT_DEBUG]   Closed incidents: {len(closed_incidents)} items") 
+    logger.debug(f"[EDIT_DEBUG]   Priority incidents: {len(priority_incidents)} items")
+    logger.debug(f"[EDIT_DEBUG]   Handover incidents: {len(handover_incidents)} items")
+    logger.debug(f"[EDIT_DEBUG]   Escalated incidents: {len(escalated_incidents)} items")
+    logger.debug(f"[EDIT_DEBUG]   Key points: {len(open_key_points)} items")
     for i, kp in enumerate(open_key_points):
-        print(f"[EDIT_DEBUG]     KP {i+1}: ID {kp.id}, '{kp.description[:30]}...', status={kp.status}, engineer_id={kp.responsible_engineer_id}")
-    print(f"[EDIT_DEBUG]   Change infos: {len(change_infos)} items")
-    print(f"[EDIT_DEBUG]   KB updates: {len(kb_updates)} items")
-    print(f"[EDIT_DEBUG]   is_edit_mode flag: True")
+        logger.debug(f"[EDIT_DEBUG]     KP {i+1}: ID {kp.id}, '{kp.description[:30]}...', status={kp.status}, engineer_id={kp.responsible_engineer_id}")
+    logger.debug(f"[EDIT_DEBUG]   Change infos: {len(change_infos)} items")
+    logger.debug(f"[EDIT_DEBUG]   KB updates: {len(kb_updates)} items")
+    logger.debug(f"[EDIT_DEBUG]   is_edit_mode flag: True")
     
     return render_template('handover_form.html',
         team_members=team_members,
@@ -1968,7 +1972,7 @@ def get_team_members_api(team_id):
             # Regular users can only access their assigned teams
             user_team_ids = TeamAccessService.get_user_team_ids()
             if team_id not in user_team_ids:
-                print(f"❌ Access denied: team_id {team_id} not in user's teams {user_team_ids}")
+                logger.error(f"❌ Access denied: team_id {team_id} not in user's teams {user_team_ids}")
                 return jsonify({'error': 'Access denied'}), 403
         
         # Fetch team members
@@ -1991,7 +1995,7 @@ def get_team_members_api(team_id):
         })
         
     except Exception as e:
-        print(f"❌ Error fetching team members: {e}")
+        logger.error(f"❌ Error fetching team members: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -2001,10 +2005,10 @@ def handover():
     # Add timing for entire request
     import time
     request_start_time = time.time()
-    print(f"[DEBUG] Handover request started at {request_start_time}")
+    logger.debug(f"[DEBUG] Handover request started at {request_start_time}")
     
     # 🔥 CRITICAL: Identify which route is being used
-    print("🔥🔥🔥 FULL HANDOVER ROUTE FROM handover.py IS BEING USED 🔥🔥🔥")
+    logger.debug("🔥🔥🔥 FULL HANDOVER ROUTE FROM handover.py IS BEING USED 🔥🔥🔥")
     
     # Debug logging
     import logging
@@ -2032,7 +2036,7 @@ def handover():
                     flash('Selected team not found.', 'error')
                     return redirect(url_for('handover.handover'))
                 account_id = selected_team.account_id
-                print(f"[DEBUG] Super admin derived account_id {account_id} from team {team_id_int}")
+                logger.debug(f"[DEBUG] Super admin derived account_id {account_id} from team {team_id_int}")
             except (ValueError, TypeError):
                 flash('Invalid team selection.', 'error')
                 return redirect(url_for('handover.handover'))
@@ -2081,11 +2085,11 @@ def handover():
                     user_team_ids = TeamAccessService.get_user_team_ids()
                     if requested_team_id_int in user_team_ids:
                         team_id_raw = requested_team_id_int
-                        print(f"[HANDOVER-GET] Multi-team user selected team_id={team_id_raw} from URL")
+                        logger.debug(f"[HANDOVER-GET] Multi-team user selected team_id={team_id_raw} from URL")
                     else:
                         # User doesn't have access to this team, fallback to primary
                         team_id_raw = current_user.team_id
-                        print(f"[HANDOVER-GET] User doesn't have access to team {requested_team_id}, using primary team {team_id_raw}")
+                        logger.debug(f"[HANDOVER-GET] User doesn't have access to team {requested_team_id}, using primary team {team_id_raw}")
                 except (ValueError, TypeError):
                     team_id_raw = current_user.team_id
             else:
@@ -2139,7 +2143,7 @@ def handover():
         team_filter_context = TeamAccessService.get_team_filter_context()
         teams = team_filter_context['user_teams']
         
-        print(f"[HANDOVER-CREATE] User {current_user.username} teams: {[t.name for t in teams]} (count: {len(teams)})")
+        logger.debug(f"[HANDOVER-CREATE] User {current_user.username} teams: {[t.name for t in teams]} (count: {len(teams)})")
     
     # Set default team selection based on user role - Enhanced with Primary Team support
     default_team_id = None
@@ -2153,14 +2157,14 @@ def handover():
             primary_team_id = TeamAccessService.get_primary_team_id(account_id=account_id)
             if primary_team_id and any(t.id == primary_team_id for t in teams):
                 default_team_id = primary_team_id
-                print(f"[HANDOVER-CREATE] Using primary team {primary_team_id} for user {current_user.username}")
+                logger.debug(f"[HANDOVER-CREATE] Using primary team {primary_team_id} for user {current_user.username}")
             else:
                 session_team_id = session.get('filter_team_id')
                 if session_team_id and any(t.id == int(session_team_id) for t in teams):
                     default_team_id = int(session_team_id)
                 else:
                     default_team_id = teams[0].id
-                    print(f"[HANDOVER-CREATE] No primary team found, using first team {default_team_id}")
+                    logger.debug(f"[HANDOVER-CREATE] No primary team found, using first team {default_team_id}")
         elif teams:
             # Single team user - use their only team
             default_team_id = teams[0].id
@@ -2197,7 +2201,7 @@ def handover():
     if request.method == 'POST':
         # Get form data - wrapped in comprehensive exception handling
         try:
-            print(f"[DEBUG] Starting handover POST processing")
+            logger.debug(f"[DEBUG] Starting handover POST processing")
             handover_date_str = request.form.get('handover_date')
             if not handover_date_str:
                 flash('Handover date is required.', 'error')
@@ -2224,50 +2228,50 @@ def handover():
             return redirect(url_for('handover.handover'))
             
         action = request.form.get('action', 'submit')
-        print(f"[DEBUG_ACTION] Action received from form: '{action}' (default: 'submit')")
-        print(f"[DEBUG_ACTION] All form keys: {list(request.form.keys())}")  # All keys
+        logger.debug(f"[DEBUG_ACTION] Action received from form: '{action}' (default: 'submit')")
+        logger.debug(f"[DEBUG_ACTION] All form keys: {list(request.form.keys())}")  # All keys
         
         # 🚨 CRITICAL DEBUG: Log all incoming form data
-        print(f"\n🔍🔍🔍 COMPREHENSIVE FORM DATA DEBUG 🔍🔍🔍")
-        print(f"Request method: {request.method}")
-        print(f"Action: {action}")
-        print(f"Form keys: {list(request.form.keys())}")
-        print(f"Total form fields: {len(request.form)}")
+        logger.debug(f"🔍🔍🔍 COMPREHENSIVE FORM DATA DEBUG 🔍🔍🔍")
+        logger.debug(f"Request method: {request.method}")
+        logger.debug(f"Action: {action}")
+        logger.debug(f"Form keys: {list(request.form.keys())}")
+        logger.debug(f"Total form fields: {len(request.form)}")
         
         # Log incident-related fields
         incident_fields = [k for k in request.form.keys() if 'incident' in k]
-        print(f"🚨 INCIDENT FIELDS ({len(incident_fields)}):")
+        logger.warning(f"🚨 INCIDENT FIELDS ({len(incident_fields)}):")
         for field in incident_fields[:10]:  # Limit to first 10 for readability
             values = request.form.getlist(field)
-            print(f"   {field}: {values}")
+            logger.debug(f"   {field}: {values}")
         
         # Log change-related fields  
         change_fields = [k for k in request.form.keys() if 'change' in k]
-        print(f"🔧 CHANGE FIELDS ({len(change_fields)}):")
+        logger.debug(f"🔧 CHANGE FIELDS ({len(change_fields)}):")
         for field in change_fields:
             values = request.form.getlist(field)
-            print(f"   {field}: {values}")
+            logger.debug(f"   {field}: {values}")
             
         # Log KB-related fields
         kb_fields = [k for k in request.form.keys() if 'kb' in k]
-        print(f"📚 KB FIELDS ({len(kb_fields)}):")
+        logger.debug(f"📚 KB FIELDS ({len(kb_fields)}):")
         for field in kb_fields:
             values = request.form.getlist(field)
-            print(f"   {field}: {values}")
+            logger.debug(f"   {field}: {values}")
             
         # Log keypoint-related fields
         kp_fields = [k for k in request.form.keys() if 'keypoint' in k]
-        print(f"🎯 KEYPOINT FIELDS ({len(kp_fields)}):")
+        logger.debug(f"🎯 KEYPOINT FIELDS ({len(kp_fields)}):")
         for field in kp_fields:
             values = request.form.getlist(field)
-            print(f"   {field}: {values}")
-        print(f"🔍🔍🔍 END FORM DATA DEBUG 🔍🔍🔍\n")
+            logger.debug(f"   {field}: {values}")
+        logger.debug(f"🔍🔍🔍 END FORM DATA DEBUG 🔍🔍🔍\n")
         
-        print(f"🔥 KEYPOINT FORM DEBUG: Checking for keypoint fields:")
+        logger.debug(f"🔥 KEYPOINT FORM DEBUG: Checking for keypoint fields:")
         keypoint_fields = [key for key in request.form.keys() if 'keypoint' in key.lower()]
-        print(f"🔥 Found keypoint-related fields: {keypoint_fields}")
+        logger.debug(f"🔥 Found keypoint-related fields: {keypoint_fields}")
         for field in keypoint_fields:
-            print(f"🔥   {field}: {request.form.getlist(field)}")
+            logger.debug(f"🔥   {field}: {request.form.getlist(field)}")
         
         # 🔧 CRITICAL FIX: Prevent multiple handover submissions for the same shift
         if action == 'submit':  # Only check for actual submissions, not drafts
@@ -2281,16 +2285,16 @@ def handover():
             ).first()
             
             if existing_handover:
-                print(f"[DUPLICATE_CHECK] Found existing submitted handover: ID={existing_handover.id}")
+                logger.debug(f"[DUPLICATE_CHECK] Found existing submitted handover: ID={existing_handover.id}")
                 flash('❌ This shift handover has already been submitted! You cannot submit the same shift handover twice. '
                       'Please check the Reports section to view your submitted handover.', 'error')
                 return redirect(url_for('handover.handover'))
             else:
-                print(f"[DUPLICATE_CHECK] ✅ No existing submitted handover found for {current_shift_type}→{next_shift_type} on {date}")
+                logger.debug(f"[DUPLICATE_CHECK] ✅ No existing submitted handover found for {current_shift_type}→{next_shift_type} on {date}")
         
         # COMMENTED OUT FAST PATH - it was preventing full incident/keypoint processing
         # # FAST PATH: Create minimal handover immediately
-        # print(f"[FAST_PATH] Creating handover with minimal processing - Action: {action}")
+        # logger.debug(f"[FAST_PATH] Creating handover with minimal processing - Action: {action}")
         # 
         # # Create minimal shift record immediately
         # shift = Shift(
@@ -2312,7 +2316,7 @@ def handover():
         # app_names = request.form.getlist('open_incident_app[]')
         # 
         # if assigned_tos and any(assigned_to.strip() for assigned_to in assigned_tos):
-        #     print(f"[FAST_PATH] Processing {len(assigned_tos)} potential incident assignments")
+        #     logger.debug(f"[FAST_PATH] Processing {len(assigned_tos)} potential incident assignments")
         #     for i, assigned_to in enumerate(assigned_tos):
         #         if assigned_to and assigned_to.strip():
         #             incident_id = incident_ids[i] if i < len(incident_ids) else f"Incident-{i+1}"
@@ -2333,15 +2337,15 @@ def handover():
         #                     handover_request_id=shift.id  # Link to the handover we just created
         #                 )
         #                 if success:
-        #                     print(f"[FAST_PATH] ✅ Created assignment: {full_title} → {assigned_to}")
+        #                     logger.debug(f"[FAST_PATH] ✅ Created assignment: {full_title} → {assigned_to}")
         #                 else:
-        #                     print(f"[FAST_PATH] ❌ Failed to create assignment: {full_title} → {assigned_to}")
+        #                     logger.debug(f"[FAST_PATH] ❌ Failed to create assignment: {full_title} → {assigned_to}")
         #             except Exception as e:
-        #                 print(f"[FAST_PATH] ❌ Error creating assignment: {str(e)}")
+        #                 logger.debug(f"[FAST_PATH] ❌ Error creating assignment: {str(e)}")
         # else:
-        #     print(f"[FAST_PATH] No incident assignments found in form data")
+        #     logger.debug(f"[FAST_PATH] No incident assignments found in form data")
         # 
-        # print(f"[FAST_PATH] Handover created with ID: {shift.id} - redirecting immediately")
+        # logger.debug(f"[FAST_PATH] Handover created with ID: {shift.id} - redirecting immediately")
         # 
         # if action == 'submit':
         #     flash('Shift handover submitted successfully!', 'success')
@@ -2351,18 +2355,18 @@ def handover():
         # return redirect(url_for('reports.handover_reports'))
         
         # FULL PROCESSING PATH: Create shift with complete incident and keypoint processing
-        print(f"[FULL_PATH] Creating handover with complete processing - Action: {action}")
+        logger.debug(f"[FULL_PATH] Creating handover with complete processing - Action: {action}")
         
         # ✅ FIXED: Create new shift for each handover to prevent overriding existing data
         additional_notes = request.form.get('additional_notes', '')
         shift = create_new_shift(date, current_shift_type, next_shift_type, account_id, team_id, action, additional_notes)
         
         # Clear existing data for this shift to ensure clean state
-        print(f"[INTERCEPTOR] Clearing existing data for shift {shift.id}")
+        logger.debug(f"[INTERCEPTOR] Clearing existing data for shift {shift.id}")
         Incident.query.filter_by(shift_id=shift.id).delete()
         ShiftKeyPoint.query.filter_by(shift_id=shift.id).delete()
         
-        print(f"[FULL_PATH] Using shift with ID: {shift.id}")
+        logger.debug(f"[FULL_PATH] Using shift with ID: {shift.id}")
         
         # 🔧 SAFETY MECHANISM: Ensure shift exists in database before proceeding
         # This prevents foreign key constraint failures if shift creation was incomplete
@@ -2370,21 +2374,21 @@ def handover():
             db.session.flush()  # Ensure shift is written to database
             shift_verification = Shift.query.filter_by(id=shift.id).first()
             if not shift_verification:
-                print(f"[SAFETY] Shift {shift.id} not found after creation, force committing...")
+                logger.debug(f"[SAFETY] Shift {shift.id} not found after creation, force committing...")
                 db.session.commit()
                 shift_verification = Shift.query.filter_by(id=shift.id).first()
                 if not shift_verification:
                     raise Exception(f"Failed to create shift {shift.id}")
-            print(f"[SAFETY] Verified shift {shift.id} exists in database")
+            logger.debug(f"[SAFETY] Verified shift {shift.id} exists in database")
         except Exception as safety_error:
-            print(f"[SAFETY] Error during shift verification: {safety_error}")
+            logger.debug(f"[SAFETY] Error during shift verification: {safety_error}")
             # If there's any issue, try to recover by using an existing shift
             fallback_shift = Shift.query.filter_by(
                 date=date, current_shift_type=current_shift_type, 
                 next_shift_type=next_shift_type, team_id=team_id, account_id=account_id
             ).first()
             if fallback_shift:
-                print(f"[SAFETY] Using fallback shift {fallback_shift.id}")
+                logger.debug(f"[SAFETY] Using fallback shift {fallback_shift.id}")
                 shift = fallback_shift
             else:
                 raise Exception("Unable to create or find suitable shift record")
@@ -2409,20 +2413,20 @@ def handover():
             )
             db.session.add(handover_request)
             db.session.flush()  # Ensure it exists before incident assignment
-            print(f"[FULL_PATH] ✅ Created HandoverRequest record with ID: {shift.id}")
+            logger.debug(f"[FULL_PATH] ✅ Created HandoverRequest record with ID: {shift.id}")
         else:
-            print(f"[FULL_PATH] ✅ Reusing existing HandoverRequest with ID: {shift.id}")
+            logger.debug(f"[FULL_PATH] ✅ Reusing existing HandoverRequest with ID: {shift.id}")
         
-        print(f"[FULL_PATH] HandoverRequest ready for incident assignments")
+        logger.debug(f"[FULL_PATH] HandoverRequest ready for incident assignments")
         
-        print(f"[DEBUG] Shift object after creation:")
-        print(f"  shift.id: {shift.id}")
-        print(f"  shift.account_id: {shift.account_id}")
-        print(f"  shift.team_id: {shift.team_id}")
-        print(f"  shift.status: {shift.status}")
-        print(f"  shift.date: {shift.date}")
-        print(f"  shift.current_shift_type: {shift.current_shift_type}")
-        print(f"  shift.next_shift_type: {shift.next_shift_type}")
+        logger.debug(f"[DEBUG] Shift object after creation:")
+        logger.debug(f"  shift.id: {shift.id}")
+        logger.debug(f"  shift.account_id: {shift.account_id}")
+        logger.debug(f"  shift.team_id: {shift.team_id}")
+        logger.debug(f"  shift.status: {shift.status}")
+        logger.debug(f"  shift.date: {shift.date}")
+        logger.debug(f"  shift.current_shift_type: {shift.current_shift_type}")
+        logger.debug(f"  shift.next_shift_type: {shift.next_shift_type}")
         
         # Add engineers to the shift
         shift_map = {'Morning': 'D', 'Evening': 'E', 'Night': 'N', 'OnShore': 'OS', 'OffShore': 'OF'}
@@ -2466,23 +2470,23 @@ def handover():
                     if eng.id not in seen_ids:
                         all_engineers.append(eng)
                         seen_ids.add(eng.id)
-                        print(f"[SHIFT FIX] Added engineer {eng.name} from additional shift code {add_code}")
+                        logger.debug(f"[SHIFT FIX] Added engineer {eng.name} from additional shift code {add_code}")
             
             return all_engineers
         
         # Get engineers for current shift (always use the handover date)
         current_engineers_objs = get_all_engineers_for_shift_type(date, current_shift_type, current_shift_code)
-        print(f"[SHIFT FIX] Current shift ({current_shift_type}) engineers from date: {date}, total: {len(current_engineers_objs)}")
+        logger.debug(f"[SHIFT FIX] Current shift ({current_shift_type}) engineers from date: {date}, total: {len(current_engineers_objs)}")
         
         # Get engineers for next shift
         # For Night->Morning transitions, Morning engineers should come from next day
         if current_shift_type == 'Night' and next_shift_type == 'Morning':
             next_date = date + timedelta(days=1)
             next_engineers_objs = get_all_engineers_for_shift_type(next_date, next_shift_type, next_shift_code)
-            print(f"[SHIFT FIX] Night->Morning transition: Next shift ({next_shift_type}) engineers from date: {next_date}")
+            logger.debug(f"[SHIFT FIX] Night->Morning transition: Next shift ({next_shift_type}) engineers from date: {next_date}")
         else:
             next_engineers_objs = get_all_engineers_for_shift_type(date, next_shift_type, next_shift_code)
-            print(f"[SHIFT FIX] Regular transition: Next shift ({next_shift_type}) engineers from date: {date}")
+            logger.debug(f"[SHIFT FIX] Regular transition: Next shift ({next_shift_type}) engineers from date: {date}")
             
         # Assign engineers to shift
         for member in current_engineers_objs:
@@ -2490,29 +2494,29 @@ def handover():
         for member in next_engineers_objs:
             shift.next_engineers.append(member)
             
-        print(f"[FULL_PATH] Assigned {len(current_engineers_objs)} current engineers and {len(next_engineers_objs)} next engineers")
+        logger.debug(f"[FULL_PATH] Assigned {len(current_engineers_objs)} current engineers and {len(next_engineers_objs)} next engineers")
         
         # 🔍 CRITICAL DEBUG: Check if we reach the incident processing section
-        print(f"[CRITICAL DEBUG] About to start incident processing section...")
-        print(f"[CRITICAL DEBUG] shift.id = {shift.id}")
-        print(f"[CRITICAL DEBUG] action = {action}")
-        print(f"[CRITICAL DEBUG] Form keys: {list(request.form.keys())[:10]}...")  # First 10 keys
+        logger.debug(f"[CRITICAL DEBUG] About to start incident processing section...")
+        logger.debug(f"[CRITICAL DEBUG] shift.id = {shift.id}")
+        logger.debug(f"[CRITICAL DEBUG] action = {action}")
+        logger.debug(f"[CRITICAL DEBUG] Form keys: {list(request.form.keys())[:10]}...")  # First 10 keys
         
         # Add incidents - using detailed form structure
         def add_detailed_incident(field_prefix, inc_type):
-            print(f"=== Processing incidents for {field_prefix} ({inc_type}) ===")
+            logger.debug(f"=== Processing incidents for {field_prefix} ({inc_type}) ===")
             
             # 🛡️ BULLETPROOF: Use the shift object that was already created by the main function
             shift_id_to_use = shift.id
-            print(f"[SAFETY] Using main function's shift ID: {shift_id_to_use}")
+            logger.debug(f"[SAFETY] Using main function's shift ID: {shift_id_to_use}")
             
             # Get arrays for each field type
             app_names = request.form.getlist(f'{field_prefix}_app[]')
             incident_ids = request.form.getlist(f'{field_prefix}_id[]')
             
-            print(f"Found {len(app_names)} app names: {app_names}")
-            print(f"Found {len(incident_ids)} incident IDs: {incident_ids}")
-            print(f"Will use shift_id: {shift_id_to_use}")
+            logger.debug(f"Found {len(app_names)} app names: {app_names}")
+            logger.debug(f"Found {len(incident_ids)} incident IDs: {incident_ids}")
+            logger.debug(f"Will use shift_id: {shift_id_to_use}")
             
             # Handle specific fields for each incident type
             if inc_type == 'Open':
@@ -2520,11 +2524,11 @@ def handover():
                 assigned_to = request.form.getlist(f'{field_prefix}_assigned[]')
                 descriptions = request.form.getlist(f'{field_prefix}_description[]')
                 
-                print(f"Open incident fields - priorities: {priorities}, assigned: {assigned_to}, descriptions: {descriptions}")
+                logger.debug(f"Open incident fields - priorities: {priorities}, assigned: {assigned_to}, descriptions: {descriptions}")
                 
                 for i in range(len(app_names)):
                     if i < len(incident_ids) and (app_names[i].strip() or incident_ids[i].strip()):
-                        print(f"Creating open incident {i+1}: {app_names[i]} - {incident_ids[i]}")
+                        logger.debug(f"Creating open incident {i+1}: {app_names[i]} - {incident_ids[i]}")
                         full_title = f"{app_names[i]} - {incident_ids[i]}".strip(' -')
                         incident = Incident(
                             title=full_title,
@@ -2538,14 +2542,14 @@ def handover():
                             team_id=team_id
                         )
                         db.session.add(incident)
-                        print(f"Added open incident to session: {incident}")
-                        print(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
+                        logger.debug(f"Added open incident to session: {incident}")
+                        logger.debug(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
                         
                         # Create incident assignment if an engineer is assigned
                         assigned_engineer = assigned_to[i] if i < len(assigned_to) and assigned_to[i].strip() else None
                         if assigned_engineer:
                             try:
-                                print(f"[DEBUG] Creating enhanced assignment for: {full_title} → {assigned_engineer}")
+                                logger.debug(f"[DEBUG] Creating enhanced assignment for: {full_title} → {assigned_engineer}")
                                 success = create_enhanced_incident_assignment(
                                     incident_title=full_title,
                                     incident_description=descriptions[i] if i < len(descriptions) else '',
@@ -2557,20 +2561,20 @@ def handover():
                                     handover_request_id=shift_id_to_use  # Link to the handover_request we created
                                 )
                                 if success:
-                                    print(f"[DEBUG] ✅ Successfully created assignment: {full_title} → {assigned_engineer}")
+                                    logger.debug(f"[DEBUG] ✅ Successfully created assignment: {full_title} → {assigned_engineer}")
                                 else:
-                                    print(f"[DEBUG] ❌ Failed to create assignment: {full_title} → {assigned_engineer}")
+                                    logger.debug(f"[DEBUG] ❌ Failed to create assignment: {full_title} → {assigned_engineer}")
                             except Exception as e:
-                                print(f"[DEBUG] ❌ Error creating assignment: {str(e)}")
+                                logger.debug(f"[DEBUG] ❌ Error creating assignment: {str(e)}")
                         
             elif inc_type == 'Closed':
                 resolutions = request.form.getlist(f'{field_prefix}_resolution[]')
                 
-                print(f"Closed incident fields - resolutions: {resolutions}")
+                logger.debug(f"Closed incident fields - resolutions: {resolutions}")
                 
                 for i in range(len(app_names)):
                     if i < len(incident_ids) and (app_names[i].strip() or incident_ids[i].strip()):
-                        print(f"Creating closed incident {i+1}: {app_names[i]} - {incident_ids[i]}")
+                        logger.debug(f"Creating closed incident {i+1}: {app_names[i]} - {incident_ids[i]}")
                         incident = Incident(
                             title=f"{app_names[i]} - {incident_ids[i]}".strip(' -'),
                             status='Closed',
@@ -2582,19 +2586,19 @@ def handover():
                             team_id=team_id
                         )
                         db.session.add(incident)
-                        print(f"Added closed incident to session: {incident}")
-                        print(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
+                        logger.debug(f"Added closed incident to session: {incident}")
+                        logger.debug(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
                         
             elif inc_type == 'Priority':
                 levels = request.form.getlist(f'{field_prefix}_level[]')
                 escalated_to = request.form.getlist(f'{field_prefix}_escalated[]')
                 impacts = request.form.getlist(f'{field_prefix}_impact[]')
                 
-                print(f"Priority incident fields - levels: {levels}, escalated: {escalated_to}, impacts: {impacts}")
+                logger.debug(f"Priority incident fields - levels: {levels}, escalated: {escalated_to}, impacts: {impacts}")
                 
                 for i in range(len(app_names)):
                     if i < len(incident_ids) and (app_names[i].strip() or incident_ids[i].strip()):
-                        print(f"Creating priority incident {i+1}: {app_names[i]} - {incident_ids[i]}")
+                        logger.debug(f"Creating priority incident {i+1}: {app_names[i]} - {incident_ids[i]}")
                         incident = Incident(
                             title=f"{app_names[i]} - {incident_ids[i]}".strip(' -'),
                             status='Active',
@@ -2607,19 +2611,19 @@ def handover():
                             team_id=team_id
                         )
                         db.session.add(incident)
-                        print(f"Added priority incident to session: {incident}")
-                        print(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
+                        logger.debug(f"Added priority incident to session: {incident}")
+                        logger.debug(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
                         
             elif inc_type == 'Handover':
                 statuses = request.form.getlist(f'{field_prefix}_status[]')
                 next_by = request.form.getlist(f'{field_prefix}_next_by[]')
                 notes = request.form.getlist(f'{field_prefix}_notes[]')
                 
-                print(f"Handover incident fields - statuses: {statuses}, next_by: {next_by}, notes: {notes}")
+                logger.debug(f"Handover incident fields - statuses: {statuses}, next_by: {next_by}, notes: {notes}")
                 
                 for i in range(len(app_names)):
                     if i < len(incident_ids) and (app_names[i].strip() or incident_ids[i].strip()):
-                        print(f"Creating handover incident {i+1}: {app_names[i]} - {incident_ids[i]}")
+                        logger.debug(f"Creating handover incident {i+1}: {app_names[i]} - {incident_ids[i]}")
                         full_title = f"{app_names[i]} - {incident_ids[i]}".strip(' -')
                         incident = Incident(
                             title=full_title,
@@ -2634,14 +2638,14 @@ def handover():
                             team_id=team_id
                         )
                         db.session.add(incident)
-                        print(f"Added handover incident to session: {incident}")
-                        print(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
+                        logger.debug(f"Added handover incident to session: {incident}")
+                        logger.debug(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
                         
                         # Create incident assignment if next action engineer is assigned
                         next_action_by = next_by[i] if i < len(next_by) and next_by[i].strip() else None
                         if next_action_by:
                             try:
-                                print(f"[DEBUG] Creating enhanced assignment for handover: {full_title} → {next_action_by}")
+                                logger.debug(f"[DEBUG] Creating enhanced assignment for handover: {full_title} → {next_action_by}")
                                 success = create_enhanced_incident_assignment(
                                     incident_title=full_title,
                                     incident_description=notes[i] if i < len(notes) else '',
@@ -2653,22 +2657,22 @@ def handover():
                                     handover_request_id=shift_id_to_use  # Link to the handover_request we created
                                 )
                                 if success:
-                                    print(f"[DEBUG] ✅ Successfully created handover assignment: {full_title} → {next_action_by}")
+                                    logger.debug(f"[DEBUG] ✅ Successfully created handover assignment: {full_title} → {next_action_by}")
                                 else:
-                                    print(f"[DEBUG] ❌ Failed to create handover assignment: {full_title} → {next_action_by}")
+                                    logger.debug(f"[DEBUG] ❌ Failed to create handover assignment: {full_title} → {next_action_by}")
                             except Exception as e:
-                                print(f"[DEBUG] ❌ Error creating handover assignment: {str(e)}")
+                                logger.debug(f"[DEBUG] ❌ Error creating handover assignment: {str(e)}")
                         
             elif inc_type == 'Escalated':
                 escalated_to = request.form.getlist(f'{field_prefix}_to[]')
                 escalation_reasons = request.form.getlist(f'{field_prefix}_reason[]')
                 current_statuses = request.form.getlist(f'{field_prefix}_status[]')
                 
-                print(f"Escalated incident fields - escalated_to: {escalated_to}, escalation_reasons: {escalation_reasons}, current_statuses: {current_statuses}")
+                logger.debug(f"Escalated incident fields - escalated_to: {escalated_to}, escalation_reasons: {escalation_reasons}, current_statuses: {current_statuses}")
                 
                 for i in range(len(app_names)):
                     if i < len(incident_ids) and (app_names[i].strip() or incident_ids[i].strip()):
-                        print(f"Creating escalated incident {i+1}: {app_names[i]} - {incident_ids[i]}")
+                        logger.debug(f"Creating escalated incident {i+1}: {app_names[i]} - {incident_ids[i]}")
                         # Truncate status to fit database column (VARCHAR(16))
                         status_value = current_statuses[i] if i < len(current_statuses) else 'Escalated'
                         status_truncated = status_value[:16] if status_value else 'Escalated'
@@ -2685,35 +2689,35 @@ def handover():
                             team_id=team_id
                         )
                         db.session.add(incident)
-                        print(f"Added escalated incident to session: {incident}")
-                        print(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
+                        logger.debug(f"Added escalated incident to session: {incident}")
+                        logger.debug(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
             
-            print(f"=== Finished processing {field_prefix} ({inc_type}) ===")
+            logger.debug(f"=== Finished processing {field_prefix} ({inc_type}) ===")
         
         # Process all incident types
         import time
         incidents_start_time = time.time()
-        print("=== PROCESSING INCIDENTS ===")
+        logger.debug("=== PROCESSING INCIDENTS ===")
         add_detailed_incident('open_incident', 'Open')
         add_detailed_incident('closed_incident', 'Closed') 
         add_detailed_incident('priority_incident', 'Priority')
         add_detailed_incident('handover_incident', 'Handover')
         add_detailed_incident('escalated_incident', 'Escalated')
         incidents_time = time.time() - incidents_start_time
-        print(f"[DEBUG] Incident processing took {incidents_time:.2f} seconds")
+        logger.debug(f"[DEBUG] Incident processing took {incidents_time:.2f} seconds")
         
         # 🚨 CRITICAL FIX: Flush incidents to database immediately after processing
-        print("🚨 FLOW DEBUG: Flushing incidents to database to prevent loss")
+        logger.warning("🚨 FLOW DEBUG: Flushing incidents to database to prevent loss")
         try:
             db.session.flush()  # Force incidents to be written to database
-            print(f"✅ Successfully flushed incidents to database")
-            print(f"🔍 SESSION DEBUG AFTER FLUSH: Session now has {len(db.session.new)} new objects")
+            logger.info(f"✅ Successfully flushed incidents to database")
+            logger.debug(f"🔍 SESSION DEBUG AFTER FLUSH: Session now has {len(db.session.new)} new objects")
         except Exception as e:
-            print(f"❌ Error flushing incidents: {e}")
+            logger.error(f"❌ Error flushing incidents: {e}")
         
         # 🚨 CRITICAL FIX: Process Change Info and KB Updates RIGHT AFTER incidents
-        print("🚨 FLOW DEBUG: Starting Change/KB processing immediately after incidents")
-        print("=== PROCESSING CHANGE INFO ===")
+        logger.warning("🚨 FLOW DEBUG: Starting Change/KB processing immediately after incidents")
+        logger.debug("=== PROCESSING CHANGE INFO ===")
         change_app_names = request.form.getlist('change_application_name[]')
         change_numbers = request.form.getlist('change_number[]')
         change_descriptions = request.form.getlist('change_description[]')
@@ -2721,7 +2725,7 @@ def handover():
         change_engineers = request.form.getlist('change_responsible_engineer[]')
         change_statuses = request.form.getlist('change_status[]')
         
-        print(f"Found {len(change_app_names)} change info entries to process")
+        logger.debug(f"Found {len(change_app_names)} change info entries to process")
         for i in range(len(change_app_names)):
             if i < len(change_numbers) and change_numbers[i].strip():
                 app_name = change_app_names[i] if i < len(change_app_names) else ''
@@ -2731,7 +2735,7 @@ def handover():
                 engineer_id = change_engineers[i] if i < len(change_engineers) else ''
                 status = change_statuses[i] if i < len(change_statuses) else 'New'
                 
-                print(f"Creating Change Info {i+1}: {app_name} - {change_number}")
+                logger.debug(f"Creating Change Info {i+1}: {app_name} - {change_number}")
                 
                 # Convert datetime string to datetime object
                 change_datetime = None
@@ -2739,7 +2743,7 @@ def handover():
                     try:
                         change_datetime = datetime.strptime(datetime_str, '%Y-%m-%dT%H:%M')
                     except ValueError:
-                        print(f"Warning: Invalid datetime format for change {change_number}: {datetime_str}")
+                        logger.warning(f"Warning: Invalid datetime format for change {change_number}: {datetime_str}")
                 
                 # Convert engineer_id to integer
                 responsible_engineer_id = None
@@ -2758,16 +2762,16 @@ def handover():
                     team_id=shift.team_id
                 )
                 db.session.add(change_info)
-                print(f"✅ Added Change Info: {app_name} - {change_number}")
+                logger.info(f"✅ Added Change Info: {app_name} - {change_number}")
         
-        print("=== PROCESSING KB UPDATES ===")
+        logger.debug("=== PROCESSING KB UPDATES ===")
         kb_app_names = request.form.getlist('kb_application_name[]')
         kb_numbers = request.form.getlist('kb_number[]')
         kb_descriptions = request.form.getlist('kb_description[]')
         kb_persons = request.form.getlist('kb_responsible_person[]')
         kb_statuses = request.form.getlist('kb_status[]')
         
-        print(f"Found {len(kb_app_names)} KB update entries to process")
+        logger.debug(f"Found {len(kb_app_names)} KB update entries to process")
         for i in range(len(kb_app_names)):
             # 🔧 FIX: Allow KB updates even without KB number - check if any field has content
             app_name = kb_app_names[i].strip() if i < len(kb_app_names) else ''
@@ -2780,7 +2784,7 @@ def handover():
                 person_id = kb_persons[i] if i < len(kb_persons) else ''
                 status = kb_statuses[i].strip() if i < len(kb_statuses) and kb_statuses[i] else 'New'
                 
-                print(f"Creating KB Update {i+1}: {app_name} - {kb_number} - {description[:30]}...")
+                logger.debug(f"Creating KB Update {i+1}: {app_name} - {kb_number} - {description[:30]}...")
                 
                 # Convert person_id to integer
                 responsible_person_id = None
@@ -2798,24 +2802,24 @@ def handover():
                     team_id=shift.team_id
                 )
                 db.session.add(kb_update)
-                print(f"✅ Added KB Update: {app_name} - {kb_number}")
+                logger.info(f"✅ Added KB Update: {app_name} - {kb_number}")
         
-        print("=== FINISHED PROCESSING CHANGE INFO AND KB UPDATES ===")
+        logger.debug("=== FINISHED PROCESSING CHANGE INFO AND KB UPDATES ===")
         
         # Check what's in the session before committing
-        print("=== DB SESSION AFTER CHANGE/KB PROCESSING ===")
-        print(f"New objects in session: {len(db.session.new)}")
+        logger.debug("=== DB SESSION AFTER CHANGE/KB PROCESSING ===")
+        logger.debug(f"New objects in session: {len(db.session.new)}")
         for obj in db.session.new:
             if hasattr(obj, '__tablename__'):
-                print(f"  - {obj.__tablename__}: {obj}")
-        print("=== END DB SESSION ===")
+                logger.debug(f"  - {obj.__tablename__}: {obj}")
+        logger.debug("=== END DB SESSION ===")
         
         # 🔧 CRITICAL FIX: Use no_autoflush to prevent foreign key constraint issues
         # This prevents SQLAlchemy from auto-flushing before the shift is committed
         with db.session.no_autoflush:
             # Add key points
             keypoints_start_time = time.time()
-            print("=== PROCESSING KEY POINTS ===")
+            logger.debug("=== PROCESSING KEY POINTS ===")
             key_point_descriptions = request.form.getlist('keypoint_description[]')
             keypoint_assigned_to = request.form.getlist('keypoint_assigned_to[]')
             keypoint_statuses = request.form.getlist('keypoint_status[]')
@@ -2824,21 +2828,21 @@ def handover():
             keypoint_ids = request.form.getlist('keypoint_id[]')
             keypoint_original_descriptions = request.form.getlist('keypoint_original_description[]')
         
-        print(f"🚨🚨🚨 KEY POINT FORM DATA DEBUG 🚨🚨🚨")
-        print(f"  Total descriptions: {len(key_point_descriptions)}")
-        print(f"  Total assigned_to: {len(keypoint_assigned_to)}")
-        print(f"  Total IDs (for updates): {len(keypoint_ids)}")
-        print(f"  IDs: {keypoint_ids}")
-        print(f"  Original Descriptions: {keypoint_original_descriptions}")
-        print(f"  Descriptions: {key_point_descriptions}")
-        print(f"  Assigned to (RAW): {keypoint_assigned_to}")
+        logger.warning(f"🚨🚨🚨 KEY POINT FORM DATA DEBUG 🚨🚨🚨")
+        logger.debug(f"  Total descriptions: {len(key_point_descriptions)}")
+        logger.debug(f"  Total assigned_to: {len(keypoint_assigned_to)}")
+        logger.debug(f"  Total IDs (for updates): {len(keypoint_ids)}")
+        logger.debug(f"  IDs: {keypoint_ids}")
+        logger.debug(f"  Original Descriptions: {keypoint_original_descriptions}")
+        logger.debug(f"  Descriptions: {key_point_descriptions}")
+        logger.debug(f"  Assigned to (RAW): {keypoint_assigned_to}")
         for idx, assigned in enumerate(keypoint_assigned_to):
-            print(f"    assigned_to[{idx}] = '{assigned}' (type: {type(assigned)}, len: {len(assigned) if assigned else 0})")
-        print(f"  Statuses: {keypoint_statuses}")
-        print(f"  JIRA IDs: {keypoint_jira_ids}")
-        print(f"🚨🚨🚨 END KEY POINT FORM DATA 🚨🚨🚨")
+            logger.debug(f"    assigned_to[{idx}] = '{assigned}' (type: {type(assigned)}, len: {len(assigned) if assigned else 0})")
+        logger.debug(f"  Statuses: {keypoint_statuses}")
+        logger.debug(f"  JIRA IDs: {keypoint_jira_ids}")
+        logger.warning(f"🚨🚨🚨 END KEY POINT FORM DATA 🚨🚨🚨")
         
-        print(f"🔍 DUPLICATION PREVENTION: Processing {len(key_point_descriptions)} key points from form")
+        logger.debug(f"🔍 DUPLICATION PREVENTION: Processing {len(key_point_descriptions)} key points from form")
         for i in range(len(key_point_descriptions)):
             description = key_point_descriptions[i].strip() if i < len(key_point_descriptions) else ''
             jira_id = keypoint_jira_ids[i].strip() if i < len(keypoint_jira_ids) else ''
@@ -2848,13 +2852,13 @@ def handover():
             original_kp_id = keypoint_ids[i].strip() if i < len(keypoint_ids) else ''
             original_description = keypoint_original_descriptions[i].strip() if i < len(keypoint_original_descriptions) else ''
             
-            print(f"\n🔍 Processing key point {i+1}/{len(key_point_descriptions)}:")
-            print(f"   Original ID: '{original_kp_id}'")
-            print(f"   Original Description: '{original_description[:50] if original_description else 'NEW'}{'...' if original_description and len(original_description) > 50 else ''}'")
-            print(f"   New Description: '{description[:50]}{'...' if len(description) > 50 else ''}'")
-            print(f"   JIRA ID: '{jira_id}'")
-            print(f"   Responsible: '{responsible_id}'")
-            print(f"   Status: '{status}'")
+            logger.debug(f"🔍 Processing key point {i+1}/{len(key_point_descriptions)}:")
+            logger.debug(f"   Original ID: '{original_kp_id}'")
+            logger.debug(f"   Original Description: '{original_description[:50] if original_description else 'NEW'}{'...' if original_description and len(original_description) > 50 else ''}'")
+            logger.debug(f"   New Description: '{description[:50]}{'...' if len(description) > 50 else ''}'")
+            logger.debug(f"   JIRA ID: '{jira_id}'")
+            logger.debug(f"   Responsible: '{responsible_id}'")
+            logger.debug(f"   Status: '{status}'")
             
             if description:
                 # 🔧 NORMALIZE JIRA ID for consistent checking throughout
@@ -2875,7 +2879,7 @@ def handover():
                 
                 if existing_kp_same_shift:
                     # Key point already exists for this shift - just update it
-                    print(f"📝 KEY POINT EXISTS FOR THIS SHIFT: Updating ID {existing_kp_same_shift.id}")
+                    logger.debug(f"📝 KEY POINT EXISTS FOR THIS SHIFT: Updating ID {existing_kp_same_shift.id}")
                     existing_kp_same_shift.status = status
                     if responsible_engineer_id:
                         existing_kp_same_shift.responsible_engineer_id = responsible_engineer_id
@@ -2893,7 +2897,7 @@ def handover():
                         if responsible_engineer_id:
                             other_kp.responsible_engineer_id = responsible_engineer_id
                         db.session.add(other_kp)
-                    print(f"   ✓ Synced status to {len(other_instances)} other instances")
+                    logger.debug(f"   ✓ Synced status to {len(other_instances)} other instances")
                     continue  # Skip to next key point
                 
                 # 🔧 STEP 2: Check for existing key points from OTHER shifts (for status sync)
@@ -2906,23 +2910,23 @@ def handover():
                 
                 # 🔧 STEP 3: Update all existing key points with same description (status sync)
                 if existing_kp_other_shifts:
-                    print(f"📋 FOUND {len(existing_kp_other_shifts)} EXISTING KEY POINTS from other shifts - syncing status")
+                    logger.debug(f"📋 FOUND {len(existing_kp_other_shifts)} EXISTING KEY POINTS from other shifts - syncing status")
                     for other_kp in existing_kp_other_shifts:
                         other_kp.status = status
                         if responsible_engineer_id:
                             other_kp.responsible_engineer_id = responsible_engineer_id
                         db.session.add(other_kp)
-                        print(f"   ✓ Synced key point ID {other_kp.id} (shift_id={other_kp.shift_id}) to status '{status}'")
+                        logger.debug(f"   ✓ Synced key point ID {other_kp.id} (shift_id={other_kp.shift_id}) to status '{status}'")
                 
                 # 🔧 STEP 4: ALWAYS create a new key point for THIS shift (for email inclusion)
                 # This ensures the handover email includes all key points that were part of this submission
-                print(f"🆕 CREATING KEY POINT FOR SHIFT {shift.id}: '{description[:50]}...' with status '{status}'")
+                logger.debug(f"🆕 CREATING KEY POINT FOR SHIFT {shift.id}: '{description[:50]}...' with status '{status}'")
                 
                 # 🔧 AUTOFLUSH FIX: Use no_autoflush context to prevent premature session flush
                 # 🛡️ BULLETPROOF SAFETY: Use the shift object that was already created by main function
                 try:
                     shift_id_to_use = shift.id
-                    print(f"[SAFETY] Using main function's shift ID {shift_id_to_use} for key point")
+                    logger.debug(f"[SAFETY] Using main function's shift ID {shift_id_to_use} for key point")
                     
                     # Create key point with guaranteed existing shift ID
                     new_kp = ShiftKeyPoint(
@@ -2936,15 +2940,15 @@ def handover():
                         created_by_id=current_user.id  # Track who created the key point
                     )
                     db.session.add(new_kp)
-                    print(f"🆕 SUCCESSFULLY CREATED NEW KEY POINT: ID will be assigned after commit, shift_id={shift_id_to_use}, created_by={current_user.id}")
+                    logger.debug(f"🆕 SUCCESSFULLY CREATED NEW KEY POINT: ID will be assigned after commit, shift_id={shift_id_to_use}, created_by={current_user.id}")
                     # Defer audit logging until after commit to avoid autoflush issues
                     
                 except Exception as shift_error:
-                    print(f"[EMERGENCY] Error creating key point, attempting recovery: {shift_error}")
+                    logger.debug(f"[EMERGENCY] Error creating key point, attempting recovery: {shift_error}")
                     # If all else fails, use the latest available shift
                     latest_shift = Shift.query.order_by(Shift.id.desc()).first()
                     if latest_shift:
-                        print(f"[EMERGENCY] Using latest available shift {latest_shift.id}")
+                        logger.debug(f"[EMERGENCY] Using latest available shift {latest_shift.id}")
                         with db.session.no_autoflush:
                             new_kp = ShiftKeyPoint(
                                 description=description,
@@ -2957,21 +2961,21 @@ def handover():
                                 created_by_id=current_user.id  # Track who created the key point
                             )
                             db.session.add(new_kp)
-                            print(f"[EMERGENCY] Created key point with fallback shift {latest_shift.id}, created_by={current_user.id}")
+                            logger.debug(f"[EMERGENCY] Created key point with fallback shift {latest_shift.id}, created_by={current_user.id}")
                     else:
-                        print(f"[EMERGENCY] No shifts available at all! Skipping key point creation.")
+                        logger.debug(f"[EMERGENCY] No shifts available at all! Skipping key point creation.")
                         continue
                 
                 # Log action outside of no_autoflush context, and only after session is stable
                 try:
                     log_action('Add KeyPoint', f'Description: {description}, Status: {status}, Shift: {shift.id}')
                 except Exception as audit_error:
-                    print(f"[WARNING] Audit logging failed but continuing: {audit_error}")
+                    logger.warning(f"[WARNING] Audit logging failed but continuing: {audit_error}")
                     # Don't let audit failures break the handover process
         
             keypoints_time = time.time() - keypoints_start_time
-            print(f"[DEBUG] Key points processing took {keypoints_time:.2f} seconds")
-            print("=== FINISHED PROCESSING KEY POINTS ===")
+            logger.debug(f"[DEBUG] Key points processing took {keypoints_time:.2f} seconds")
+            logger.debug("=== FINISHED PROCESSING KEY POINTS ===")
             
 
             # End of no_autoflush context - now we can commit everything safely
@@ -2979,28 +2983,28 @@ def handover():
         # Add timing debug
         import time
         start_commit_time = time.time()
-        print(f"[DEBUG] Starting database commit at {start_commit_time}")
+        logger.debug(f"[DEBUG] Starting database commit at {start_commit_time}")
         
         db.session.commit()
         
         # Verify the handover was saved correctly
-        print(f"[DEBUG] After commit - verifying shift creation:")
+        logger.debug(f"[DEBUG] After commit - verifying shift creation:")
         saved_shift = Shift.query.get(shift.id)
         if saved_shift:
-            print(f"✅ Shift {saved_shift.id} successfully saved to database")
-            print(f"   Date: {saved_shift.date}")
-            print(f"   Type: {saved_shift.current_shift_type} → {saved_shift.next_shift_type}")
-            print(f"   Status: {saved_shift.status}")
-            print(f"   Account ID: {saved_shift.account_id}")
-            print(f"   Team ID: {saved_shift.team_id}")
+            logger.info(f"✅ Shift {saved_shift.id} successfully saved to database")
+            logger.debug(f"   Date: {saved_shift.date}")
+            logger.debug(f"   Type: {saved_shift.current_shift_type} → {saved_shift.next_shift_type}")
+            logger.debug(f"   Status: {saved_shift.status}")
+            logger.debug(f"   Account ID: {saved_shift.account_id}")
+            logger.debug(f"   Team ID: {saved_shift.team_id}")
             
             # Check if it would be visible in reports
             all_shifts_count = Shift.query.count()
             filtered_shifts_count = Shift.query.filter_by(account_id=saved_shift.account_id, team_id=saved_shift.team_id).count()
-            print(f"   Total shifts in DB: {all_shifts_count}")
-            print(f"   Shifts with same account/team: {filtered_shifts_count}")
+            logger.debug(f"   Total shifts in DB: {all_shifts_count}")
+            logger.debug(f"   Shifts with same account/team: {filtered_shifts_count}")
         else:
-            print(f"❌ ERROR: Shift {shift.id} not found after commit!")
+            logger.error(f"❌ ERROR: Shift {shift.id} not found after commit!")
         
         # Add the deferred audit log from incident processing
         if 'audit_log' in locals():
@@ -3020,18 +3024,18 @@ def handover():
         db.session.commit()
         
         # 🔍 VERIFY KEY POINT CLOSURES AFTER COMMIT
-        print("🔍 VERIFYING KEY POINT STATUSES AFTER COMMIT:")
+        logger.debug("🔍 VERIFYING KEY POINT STATUSES AFTER COMMIT:")
         all_kps = ShiftKeyPoint.query.all()
         closed_kps = [kp for kp in all_kps if kp.status == 'Closed']
         open_kps = [kp for kp in all_kps if kp.status in ['Open', 'In Progress']]
-        print(f"🔍 Total key points: {len(all_kps)}")
-        print(f"🔍 Closed key points: {len(closed_kps)}")
-        print(f"🔍 Open/In Progress key points: {len(open_kps)}")
+        logger.debug(f"🔍 Total key points: {len(all_kps)}")
+        logger.debug(f"🔍 Closed key points: {len(closed_kps)}")
+        logger.debug(f"🔍 Open/In Progress key points: {len(open_kps)}")
         for kp in open_kps[-3:]:  # Show last 3 open key points
-            print(f"🔍   OPEN KP {kp.id}: '{kp.description[:50]}...' status={kp.status}")
+            logger.debug(f"🔍   OPEN KP {kp.id}: '{kp.description[:50]}...' status={kp.status}")
         
         commit_time = time.time() - start_commit_time
-        print(f"[DEBUG] Database commit took {commit_time:.2f} seconds")
+        logger.debug(f"[DEBUG] Database commit took {commit_time:.2f} seconds")
         
         if action == 'submit':
             import logging
@@ -3040,8 +3044,8 @@ def handover():
             logging.debug(f"[EMAIL] Attempting to send handover email for shift_id={shift.id}, date={shift.date}, current_shift_type={shift.current_shift_type}, next_shift_type={shift.next_shift_type}")
             
             # 🔧 NOTIFICATION PROCESSING COMPLETELY DISABLED
-            print(f"[NOTIFICATION] ⚠️ NOTIFICATION SERVICE DISABLED - Skipping notification processing for shift {shift.id}")
-            print(f"[NOTIFICATION] ✅ Handover data saved successfully - proceeding directly to email processing")
+            logger.debug(f"[NOTIFICATION] ⚠️ NOTIFICATION SERVICE DISABLED - Skipping notification processing for shift {shift.id}")
+            logger.debug(f"[NOTIFICATION] ✅ Handover data saved successfully - proceeding directly to email processing")
             
             try:
                 # Check if session is in a valid state before sending email
@@ -3050,11 +3054,11 @@ def handover():
                         # Test session with a simple query
                         db.session.execute(db.text("SELECT 1"))
                     except Exception as session_error:
-                        print(f"[DEBUG] Session error detected, rolling back: {session_error}")
+                        logger.debug(f"[DEBUG] Session error detected, rolling back: {session_error}")
                         db.session.rollback()
                 
                 # Send handover email with timeout protection
-                print(f"[DEBUG] 📧 About to send handover email for shift_id={shift.id}")
+                logger.debug(f"[DEBUG] 📧 About to send handover email for shift_id={shift.id}")
                 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
                 
                 # Capture the Flask app context for use in threads
@@ -3063,15 +3067,15 @@ def handover():
                 def send_email_with_timeout():
                     """Send email in a separate thread with Flask app context"""
                     try:
-                        print(f"[EMAIL] 🚀 Starting email sending for shift_id={shift.id}")
+                        logger.info(f"[EMAIL] 🚀 Starting email sending for shift_id={shift.id}")
                         with app_context.app_context():
                             send_handover_email(shift)
-                        print(f"[EMAIL] ✅ Email sending completed successfully for shift_id={shift.id}")
+                        logger.info(f"[EMAIL] ✅ Email sending completed successfully for shift_id={shift.id}")
                         return True
                     except Exception as e:
-                        print(f"[EMAIL] ❌ Error sending email: {e}")
+                        logger.info(f"[EMAIL] ❌ Error sending email: {e}")
                         import traceback
-                        print(f"[EMAIL] 🔍 Full error traceback:")
+                        logger.info(f"[EMAIL] 🔍 Full error traceback:")
                         traceback.print_exc()
                         return False
                 
@@ -3082,21 +3086,21 @@ def handover():
                         email_success = future.result(timeout=45)  # 45 second timeout
                         
                     email_time = time.time() - email_start_time
-                    print(f"[DEBUG] Email process took {email_time:.2f} seconds")
+                    logger.debug(f"[DEBUG] Email process took {email_time:.2f} seconds")
                     logging.debug(f"[EMAIL] Email process completed for shift_id={shift.id}")
                     flash('Shift handover submitted successfully!', 'success')
                 except (FutureTimeoutError, Exception) as timeout_error:
                     email_time = time.time() - email_start_time
-                    print(f"[DEBUG] Email timeout/error after {email_time:.2f} seconds: {timeout_error}")
+                    logger.debug(f"[DEBUG] Email timeout/error after {email_time:.2f} seconds: {timeout_error}")
                     flash('Shift handover submitted successfully! (Email may be delayed)', 'success')
             except Exception as e:
                 email_time = time.time() - email_start_time
-                print(f"[DEBUG] Email error after {email_time:.2f} seconds: {e}")
+                logger.debug(f"[DEBUG] Email error after {email_time:.2f} seconds: {e}")
                 logging.error(f"[EMAIL] Failed to send email for shift_id={shift.id}: {e}")
                 
                 # DO NOT ROLLBACK AFTER COMMIT - this was causing the silent failure
                 # The handover data has already been committed successfully
-                print(f"[DEBUG] Email/notification failed but handover data was saved successfully")
+                logger.debug(f"[DEBUG] Email/notification failed but handover data was saved successfully")
                 
                 # Check if it's a network/timeout issue (common in local development)
                 error_str = str(e).lower()
@@ -3108,11 +3112,11 @@ def handover():
             flash('Draft saved.', 'success')
             
         total_time = time.time() - start_commit_time
-        print(f"[DEBUG] Total processing time after database commit: {total_time:.2f} seconds")
+        logger.debug(f"[DEBUG] Total processing time after database commit: {total_time:.2f} seconds")
         
         # 🚨 TEMPORARY DEBUG: Show results instead of redirecting
         if request.form.get('debug_mode') == 'true':
-            print("[DEBUG] Debug mode enabled - showing results instead of redirecting")
+            logger.debug("[DEBUG] Debug mode enabled - showing results instead of redirecting")
             incidents_for_shift = Incident.query.filter_by(shift_id=shift.id).all()
             return f"""
             <html><body style="font-family: monospace; background: #f0f0f0; padding: 20px;">
@@ -3131,7 +3135,7 @@ def handover():
             </body></html>
             """
         
-        print(f"[REDIRECT] About to redirect to handover reports...")
+        logger.debug(f"[REDIRECT] About to redirect to handover reports...")
         return redirect(url_for('reports.handover_reports'))
     
     # GET: render form with defaults
@@ -3154,7 +3158,7 @@ def handover():
     handover_date = default_date
     if current_shift_type == 'Night' and next_shift_type == 'Morning':
         handover_date = default_date - timedelta(days=1)
-        print(f"[DEBUG] Night→Morning handover: Adjusted date from {default_date} to {handover_date}")
+        logger.debug(f"[DEBUG] Night→Morning handover: Adjusted date from {default_date} to {handover_date}")
     
     def get_engineers_for_shift(date, shift_code):
         entries = ShiftRoster.query.filter_by(date=date, shift_code=shift_code).all()
@@ -3162,24 +3166,24 @@ def handover():
         return TeamMember.query.filter(TeamMember.id.in_(member_ids)).all() if member_ids else []
     # Get engineers for current shift (always use the default date)
     current_engineers_objs = get_engineers_for_shift(default_date, shift_map[current_shift_type])
-    print(f"[SHIFT GET FIX] Current shift ({current_shift_type}) engineers from date: {default_date}")
+    logger.debug(f"[SHIFT GET FIX] Current shift ({current_shift_type}) engineers from date: {default_date}")
     
     # Get engineers for next shift
     # For Night->Morning transitions, Morning engineers should come from next day
     if current_shift_type == 'Night' and next_shift_type == 'Morning':
         next_date = default_date + timedelta(days=1)
         next_engineers_objs = get_engineers_for_shift(next_date, shift_map[next_shift_type])
-        print(f"[SHIFT GET FIX] Night->Morning transition: Next shift ({next_shift_type}) engineers from date: {next_date}")
+        logger.debug(f"[SHIFT GET FIX] Night->Morning transition: Next shift ({next_shift_type}) engineers from date: {next_date}")
     else:
         next_engineers_objs = get_engineers_for_shift(default_date, shift_map[next_shift_type])
-        print(f"[SHIFT GET FIX] Regular transition: Next shift ({next_shift_type}) engineers from date: {default_date}")
+        logger.debug(f"[SHIFT GET FIX] Regular transition: Next shift ({next_shift_type}) engineers from date: {default_date}")
     current_engineers = [m.name for m in current_engineers_objs]
     next_engineers = [m.name for m in next_engineers_objs]
     # 🔧 FIX: Load ALL open key points globally for pre-population (like dashboard)
     # Don't filter by specific shifts - key points should persist until closed
     # Use default_team_id for multi-team support
     query_team_id = default_team_id if default_team_id else current_user.team_id
-    print(f"[DEBUG] Loading all open key points globally for account {current_user.account_id}, team {query_team_id}")
+    logger.debug(f"[DEBUG] Loading all open key points globally for account {current_user.account_id}, team {query_team_id}")
     
     # 🔧 ENHANCED KEY POINT FILTERING: Exclude key points from submitted handovers that were closed
     # Get all key points, then filter more intelligently
@@ -3188,14 +3192,14 @@ def handover():
         ShiftKeyPoint.team_id == query_team_id
     ).order_by(ShiftKeyPoint.id.desc())
     
-    print(f"[DEBUG] Total key points in database: {all_kps_query.count()}")
+    logger.debug(f"[DEBUG] Total key points in database: {all_kps_query.count()}")
     
     # Filter to only Open/In Progress status
     all_prev_kps = all_kps_query.filter(
         ShiftKeyPoint.status.in_(['Open', 'In Progress'])
     ).all()  # Get all open/in-progress key points (removed arbitrary limit)
     
-    print(f"[DEBUG] Open/In Progress key points: {len(all_prev_kps)}")
+    logger.debug(f"[DEBUG] Open/In Progress key points: {len(all_prev_kps)}")
     
     # Additional check: exclude key points from shifts that have been submitted with 'Closed' status
     filtered_kps = []
@@ -3211,19 +3215,19 @@ def handover():
                 ShiftKeyPoint.id > kp.id
             ).first()
             if newer_closed:
-                print(f"[DEBUG] Excluding key point ID {kp.id} - found newer closed version ID {newer_closed.id}")
+                logger.debug(f"[DEBUG] Excluding key point ID {kp.id} - found newer closed version ID {newer_closed.id}")
                 continue
         filtered_kps.append(kp)
     
     all_prev_kps = filtered_kps
-    print(f"[DEBUG] After submission filtering: {len(all_prev_kps)} key points remain")
+    logger.debug(f"[DEBUG] After submission filtering: {len(all_prev_kps)} key points remain")
     
-    print(f"[DEBUG] Found {len(all_prev_kps)} total open/in-progress key points globally")
+    logger.debug(f"[DEBUG] Found {len(all_prev_kps)} total open/in-progress key points globally")
     
     # Debug: show what we're working with before deduplication
-    print("[DEBUG] Key points before deduplication:")
+    logger.debug("[DEBUG] Key points before deduplication:")
     for kp in all_prev_kps:
-        print(f"   ID {kp.id}: '{kp.description[:40]}...' | JIRA: {repr(kp.jira_id)} | Status: {kp.status}")
+        logger.debug(f"   ID {kp.id}: '{kp.description[:40]}...' | JIRA: {repr(kp.jira_id)} | Status: {kp.status}")
     
     # Deduplicate: keep only the latest (by id) for each (description, normalized_jira_id) pair
     # 🔧 FIX: Use CASE-INSENSITIVE matching for description to prevent duplicates
@@ -3239,9 +3243,9 @@ def handover():
             kp_map[key] = kp
     open_key_points = list(kp_map.values())
     
-    print(f"[DEBUG] After deduplication: {len(open_key_points)} unique key points")
+    logger.debug(f"[DEBUG] After deduplication: {len(open_key_points)} unique key points")
     for kp in open_key_points:
-        print(f"   ID {kp.id}: '{kp.description[:40]}...' | JIRA: {repr(kp.jira_id)} | Status: {kp.status}")
+        logger.debug(f"   ID {kp.id}: '{kp.description[:40]}...' | JIRA: {repr(kp.jira_id)} | Status: {kp.status}")
     
     # Enhance key points with assigned engineer names for template display
     for kp in open_key_points:
@@ -3251,14 +3255,14 @@ def handover():
             engineer = TeamMember.query.get(kp.responsible_engineer_id)
             if engineer:
                 kp.assigned_to = engineer.name
-                print(f"[DEBUG] Key point '{kp.description[:30]}...' assigned to: {engineer.name}")
+                logger.debug(f"[DEBUG] Key point '{kp.description[:30]}...' assigned to: {engineer.name}")
             else:
-                print(f"[DEBUG] Key point '{kp.description[:30]}...' has invalid engineer ID: {kp.responsible_engineer_id}")
+                logger.debug(f"[DEBUG] Key point '{kp.description[:30]}...' has invalid engineer ID: {kp.responsible_engineer_id}")
         else:
-            print(f"[DEBUG] Key point '{kp.description[:30]}...' has no assigned engineer")
+            logger.debug(f"[DEBUG] Key point '{kp.description[:30]}...' has no assigned engineer")
 
     # 🆕 CARRYFORWARD: Load Change Requests that haven't reached their scheduled date
-    print(f"[DEBUG] Loading change requests for carryforward (account {current_user.account_id}, team {query_team_id})")
+    logger.debug(f"[DEBUG] Loading change requests for carryforward (account {current_user.account_id}, team {query_team_id})")
     
     # Get change requests from recent shifts (last 30 days) where change_datetime is in the future
     recent_date_for_changes = datetime.now().date() - timedelta(days=30)
@@ -3285,7 +3289,7 @@ def handover():
         if change_key:
             completed_change_numbers.add(change_key)
     
-    print(f"[DEBUG] Found {len(completed_change_numbers)} completed/cancelled change identifiers to exclude")
+    logger.debug(f"[DEBUG] Found {len(completed_change_numbers)} completed/cancelled change identifiers to exclude")
     
     carryforward_change_infos = []
     if recent_shift_ids_for_changes:
@@ -3300,7 +3304,7 @@ def handover():
             ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])  # Exclude completed/cancelled/implemented
         ).order_by(ShiftChangeInfo.id.desc()).all()
         
-        print(f"[DEBUG] Found {len(raw_change_infos)} pending/in-progress change requests before exclusion")
+        logger.debug(f"[DEBUG] Found {len(raw_change_infos)} pending/in-progress change requests before exclusion")
         
         # Deduplicate by change_number - keep most recent version of each unique change
         # 🔧 FIX: Also exclude any change that has a completed/cancelled version
@@ -3314,15 +3318,15 @@ def handover():
             
             # 🔧 FIX: Skip if this change has been completed/cancelled anywhere
             if change_key in completed_change_numbers:
-                print(f"[DEBUG]     Skipping change {change_key} - already completed/cancelled elsewhere")
+                logger.debug(f"[DEBUG]     Skipping change {change_key} - already completed/cancelled elsewhere")
                 continue
             
             if change_key and (change_key not in change_map or change.id > change_map[change_key].id):
                 change_map[change_key] = change
-                print(f"[DEBUG]     Added/Updated change {change_key}: ID {change.id}, Status: {change.status}")
+                logger.debug(f"[DEBUG]     Added/Updated change {change_key}: ID {change.id}, Status: {change.status}")
         
         carryforward_change_infos = list(change_map.values())[:10]  # Limit to 10 changes
-        print(f"[DEBUG] After deduplication and exclusion: {len(carryforward_change_infos)} unique pending changes to carry forward")
+        logger.debug(f"[DEBUG] After deduplication and exclusion: {len(carryforward_change_infos)} unique pending changes to carry forward")
         
         # Debug final list
         for i, change in enumerate(carryforward_change_infos):
@@ -3330,7 +3334,7 @@ def handover():
             if change.responsible_engineer_id:
                 engineer = TeamMember.query.get(change.responsible_engineer_id)
                 engineer_name = engineer.name if engineer else f"ID:{change.responsible_engineer_id}"
-            print(f"[DEBUG]   Final Change {i+1}: {change.change_number} - Engineer: {engineer_name}")
+            logger.debug(f"[DEBUG]   Final Change {i+1}: {change.change_number} - Engineer: {engineer_name}")
 
     # Serialize change infos for template (similar to edit_handover function)
     def serialize_change_info_for_template(change_info):
@@ -3359,7 +3363,7 @@ def handover():
     change_infos = [serialize_change_info_for_template(ci) for ci in carryforward_change_infos]
 
     # 🆕 CARRYFORWARD: Load KB Updates that are not yet Published
-    print(f"[DEBUG] Loading KB updates for carryforward (account {current_user.account_id}, team {query_team_id})")
+    logger.debug(f"[DEBUG] Loading KB updates for carryforward (account {current_user.account_id}, team {query_team_id})")
     
     # 🔧 FIX: First, get ALL kb_numbers that have been published (anywhere in the system for this team)
     # This prevents older copies of published KBs from being carried forward
@@ -3377,7 +3381,7 @@ def handover():
         if kb_key:
             published_kb_numbers.add(kb_key)
     
-    print(f"[DEBUG] Found {len(published_kb_numbers)} published KB identifiers to exclude")
+    logger.debug(f"[DEBUG] Found {len(published_kb_numbers)} published KB identifiers to exclude")
     
     # Get KB updates from recent shifts (last 30 days) where status is not "Published"
     carryforward_kb_updates = []
@@ -3389,7 +3393,7 @@ def handover():
             ShiftKBUpdate.status != 'Published'  # Exclude published KB updates
         ).order_by(ShiftKBUpdate.id.desc()).all()
         
-        print(f"[DEBUG] Found {len(raw_kb_updates)} unpublished KB updates before exclusion")
+        logger.debug(f"[DEBUG] Found {len(raw_kb_updates)} unpublished KB updates before exclusion")
         
         # Deduplicate by kb_number OR app_name+description - keep most recent version
         # 🔧 FIX: Also exclude any KB that has a published version
@@ -3403,15 +3407,15 @@ def handover():
             
             # 🔧 FIX: Skip if this KB has been published anywhere
             if kb_key in published_kb_numbers:
-                print(f"[DEBUG]     Skipping KB {kb_key} - already published elsewhere")
+                logger.debug(f"[DEBUG]     Skipping KB {kb_key} - already published elsewhere")
                 continue
             
             if kb_key and (kb_key not in kb_map or kb.id > kb_map[kb_key].id):
                 kb_map[kb_key] = kb
-                print(f"[DEBUG]     Added/Updated KB {kb_key}: ID {kb.id}, Status: {kb.status}")
+                logger.debug(f"[DEBUG]     Added/Updated KB {kb_key}: ID {kb.id}, Status: {kb.status}")
         
         carryforward_kb_updates = list(kb_map.values())[:10]  # Limit to 10 KB updates
-        print(f"[DEBUG] After deduplication and exclusion: {len(carryforward_kb_updates)} unique unpublished KB updates to carry forward")
+        logger.debug(f"[DEBUG] After deduplication and exclusion: {len(carryforward_kb_updates)} unique unpublished KB updates to carry forward")
         
         # Debug final list
         for i, kb in enumerate(carryforward_kb_updates):
@@ -3419,7 +3423,7 @@ def handover():
             if kb.responsible_engineer_id:
                 engineer = TeamMember.query.get(kb.responsible_engineer_id)
                 engineer_name = engineer.name if engineer else f"ID:{kb.responsible_engineer_id}"
-            print(f"[DEBUG]   Final KB {i+1}: {kb.kb_number} - Engineer: {engineer_name}")
+            logger.debug(f"[DEBUG]   Final KB {i+1}: {kb.kb_number} - Engineer: {engineer_name}")
 
     # Serialize KB updates for template (similar to edit_handover function)
     def serialize_kb_update_for_template(kb_update):
@@ -3442,7 +3446,7 @@ def handover():
 
     kb_updates = [serialize_kb_update_for_template(kb) for kb in carryforward_kb_updates]
     
-    print(f"[DEBUG] CARRYFORWARD SUMMARY: {len(open_key_points)} key points, {len(change_infos)} change requests, {len(kb_updates)} KB updates")
+    logger.debug(f"[DEBUG] CARRYFORWARD SUMMARY: {len(open_key_points)} key points, {len(change_infos)} change requests, {len(kb_updates)} KB updates")
 
     # Initialize ServiceNow service to get assignment group configuration for template
     # QUICK FIX: Skip ServiceNow initialization for local development to avoid delays

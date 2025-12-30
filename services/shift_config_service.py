@@ -7,6 +7,8 @@ from datetime import time, datetime
 import pytz
 from flask import current_app
 from models.secrets_manager import get_secrets_manager
+import logging
+logger = logging.getLogger(__name__)
 
 class ShiftConfigService:
     """Service to manage and provide shift configuration from database"""
@@ -21,7 +23,7 @@ class ShiftConfigService:
                 return pytz.timezone(timezone_name)
             return pytz.timezone('Asia/Kolkata')  # Default fallback
         except Exception as e:
-            print(f"Error getting timezone config: {e}")
+            logger.debug(f"Error getting timezone config: {e}")
             return pytz.timezone('Asia/Kolkata')
     
     @staticmethod
@@ -72,7 +74,7 @@ class ShiftConfigService:
                     'offshore': {'start': '22:00', 'end': '10:00', 'code': 'OF', 'name': 'OffShore'}
                 }
         except Exception as e:
-            print(f"Error getting shift times config: {e}")
+            logger.debug(f"Error getting shift times config: {e}")
             # Return hardcoded defaults on error
             return {
                 'day': {'start': '06:30', 'end': '15:30', 'code': 'D', 'name': 'Day'},
@@ -149,7 +151,7 @@ class ShiftConfigService:
                 return 'Night', 'Morning'
                 
         except Exception as e:
-            print(f"Error determining current shift: {e}")
+            logger.debug(f"Error determining current shift: {e}")
             # Fallback to hardcoded logic
             t = current_time.time() if current_time else datetime.now().time()
             if time(6,30) <= t < time(15,30):

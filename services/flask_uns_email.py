@@ -25,7 +25,7 @@ class FlaskUNSEmailIntegration:
         self.app = app
         
         # Load UNS configuration from the database SMTPConfig table (same as Flask-Mail)
-        print(f"[UNS_EMAIL] 📧 Loading configuration from database SMTPConfig table...")
+        logger.debug(f"[UNS_EMAIL] 📧 Loading configuration from database SMTPConfig table...")
         
         try:
             from models.smtp_config import SMTPConfig
@@ -41,19 +41,19 @@ class FlaskUNSEmailIntegration:
             
             # Validate configuration
             if not uns_config.host:
-                print(f"[UNS_EMAIL] ❌ No SMTP server configured in database")
+                logger.debug(f"[UNS_EMAIL] ❌ No SMTP server configured in database")
             if not uns_config.username:
-                print(f"[UNS_EMAIL] ❌ No SMTP username configured in database")
+                logger.debug(f"[UNS_EMAIL] ❌ No SMTP username configured in database")
             if not uns_config.password:
-                print(f"[UNS_EMAIL] ❌ No SMTP password configured in database")
+                logger.debug(f"[UNS_EMAIL] ❌ No SMTP password configured in database")
             if not uns_config.sender_address:
-                print(f"[UNS_EMAIL] ❌ No sender address configured in database")
+                logger.debug(f"[UNS_EMAIL] ❌ No sender address configured in database")
                 
-            print(f"[UNS_EMAIL] ✅ Configuration loaded from database: {uns_config.host}:{uns_config.port}")
+            logger.debug(f"[UNS_EMAIL] ✅ Configuration loaded from database: {uns_config.host}:{uns_config.port}")
             
         except Exception as e:
-            print(f"[UNS_EMAIL] ❌ Failed to load from database: {e}")
-            print(f"[UNS_EMAIL] ⚠️ UNS Email will not work without database configuration")
+            logger.debug(f"[UNS_EMAIL] ❌ Failed to load from database: {e}")
+            logger.debug(f"[UNS_EMAIL] ⚠️ UNS Email will not work without database configuration")
             uns_config = UNSEmailConfig()  # Empty config - will fail validation
         if 'UNS_EMAIL_SENDER_NAME' in app.config:
             uns_config.sender_name = app.config['UNS_EMAIL_SENDER_NAME']
@@ -78,7 +78,7 @@ class FlaskUNSEmailIntegration:
         Send shift handover email using UNS service
         Replaces the existing send_handover_email function
         """
-        print(f"[DEBUG] ⚠️ send_handover_email called from UNS service for shift_id={shift.id}")
+        logger.debug(f"[DEBUG] ⚠️ send_handover_email called from UNS service for shift_id={shift.id}")
         
         try:
             from models.models import Incident, ShiftKeyPoint, TeamMember, Team, User
@@ -436,7 +436,7 @@ def init_uns_email(app):
 # Convenience functions for easy use
 def send_handover_email(shift, recipients: Optional[List[str]] = None) -> dict:
     """Send handover email using UNS service"""
-    print(f"[DEBUG] 🔄 send_handover_email wrapper called from UNS service for shift_id={shift.id}")
+    logger.debug(f"[DEBUG] 🔄 send_handover_email wrapper called from UNS service for shift_id={shift.id}")
     return uns_email.send_handover_email(shift, recipients)
 
 def send_incident_assignment_notification(incident_id: str, recipient_email: str, recipient_name: str) -> dict:

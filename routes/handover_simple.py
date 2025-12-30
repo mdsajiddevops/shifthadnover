@@ -7,6 +7,8 @@ from datetime import datetime, date, timedelta, time as dt_time
 import pytz
 from services.servicenow_service import ServiceNowService
 from services.team_access_service import TeamAccessService
+import logging
+logger = logging.getLogger(__name__)
 
 handover_bp = Blueprint('handover', __name__)
 
@@ -54,7 +56,7 @@ def get_team_members_api(team_id):
         })
         
     except Exception as e:
-        print(f"❌ Error fetching team members: {e}")
+        logger.debug(f"❌ Error fetching team members: {e}")
         return jsonify({'error': str(e)}), 500
 
 @handover_bp.route('/handover', methods=['GET', 'POST'])
@@ -63,7 +65,7 @@ def handover():
     """Simple handover form with fast processing"""
     
     # 🚨 CRITICAL: Identify which route is being used
-    print("🚨🚨🚨 SIMPLE HANDOVER ROUTE FROM handover_simple.py IS BEING USED 🚨🚨🚨")
+    logger.warning("🚨🚨🚨 SIMPLE HANDOVER ROUTE FROM handover_simple.py IS BEING USED 🚨🚨🚨")
     
     # Get account and team info
     if current_user.role == 'super_admin':
@@ -207,17 +209,17 @@ def handover():
         if existing_handover:
             # Super Admin bypass capability
             if current_user.role == 'super_admin':
-                print(f"[SUPER_ADMIN_BYPASS] Allowing duplicate handover creation for Super Admin")
+                logger.debug(f"[SUPER_ADMIN_BYPASS] Allowing duplicate handover creation for Super Admin")
                 flash(f'⚠️ Super Admin Override: Creating duplicate handover for {date.strftime("%d-%m-%Y")} {current_shift_type} → {next_shift_type}', 'warning')
             else:
                 # Format the date in DD-MM-YYYY format for user-friendly display
                 formatted_date = date.strftime("%d-%m-%Y")
                 error_message = f'⚠️ A handover for this shift ({formatted_date} {current_shift_type} → {next_shift_type}) has already been submitted by your team.'
                 flash(error_message, 'error')
-                print(f"[DUPLICATE_PREVENTION] Blocking duplicate handover - {error_message}")
+                logger.debug(f"[DUPLICATE_PREVENTION] Blocking duplicate handover - {error_message}")
                 return redirect(url_for('handover.handover'))
         
-        print(f"[FAST_PATH] Creating handover - Date: {date}, Current: {current_shift_type}, Next: {next_shift_type}, Action: {action}")
+        logger.debug(f"[FAST_PATH] Creating handover - Date: {date}, Current: {current_shift_type}, Next: {next_shift_type}, Action: {action}")
         
         # Create minimal shift record
         shift = Shift(
@@ -232,7 +234,7 @@ def handover():
         db.session.add(shift)
         db.session.commit()
         
-        print(f"[FAST_PATH] Handover created with ID: {shift.id} - redirecting")
+        logger.debug(f"[FAST_PATH] Handover created with ID: {shift.id} - redirecting")
         
         if action == 'submit':
             flash('Shift handover submitted successfully!', 'success')

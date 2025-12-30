@@ -9,9 +9,11 @@ from models.audit_log import AuditLog
 from services.export_service import export_incidents_csv, export_keypoints_pdf
 from services.team_access_service import TeamAccessService
 from services.multi_team_service import MultiTeamService
-
 from services.audit_service import log_action
+import logging
 
+# Module logger
+logger = logging.getLogger(__name__)
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -475,14 +477,14 @@ def detailed_shift_report(shift_id):
         
         # For draft shifts, also check active key points from reports logic
         if shift.status == 'draft':
-            print(f"🔍 DRAFT SHIFT DETECTED - checking active key points as well", flush=True)
+            logger.debug(f"🔍 DRAFT SHIFT DETECTED - checking active key points as well")
             # Get active key points like in main reports
             all_active_kps = ShiftKeyPoint.query.filter(
                 ShiftKeyPoint.account_id == shift.account_id,
                 ShiftKeyPoint.team_id == shift.team_id,
                 ShiftKeyPoint.status.in_(['Open', 'In Progress'])
             ).all()
-            print(f"🔍 Found {len(all_active_kps)} active key points for account/team", flush=True)
+            logger.debug(f"🔍 Found {len(all_active_kps)} active key points for account/team")
             
             # Apply COMPLETE dashboard-style filtering and deduplication
             all_key_points = key_points + all_active_kps
@@ -500,7 +502,7 @@ def detailed_shift_report(shift_id):
                         ShiftKeyPoint.id > kp.id
                     ).first()
                     if newer_closed:
-                        print(f"🔍 DETAILED: Excluding key point ID {kp.id} - found newer closed version ID {newer_closed.id}", flush=True)
+                        logger.debug(f"🔍 DETAILED: Excluding key point ID {kp.id} - found newer closed version ID {newer_closed.id}")
                         continue
                 filtered_kps.append(kp)
             
@@ -515,7 +517,7 @@ def detailed_shift_report(shift_id):
                     kp_map[key] = kp
             
             key_points = list(kp_map.values())
-            print(f"🔍 After dashboard-style filtering and deduplication: {len(key_points)} unique key points", flush=True)
+            logger.debug(f"🔍 After dashboard-style filtering and deduplication: {len(key_points)} unique key points")
         
         # 🔧 FIX: Filter out Completed/Cancelled/Implemented changes and Published KBs
         change_infos = ShiftChangeInfo.query.filter(
@@ -528,22 +530,22 @@ def detailed_shift_report(shift_id):
         ).all()
         
         # 🔍 DEBUG: Check what data we're getting for the detailed report
-        print(f"🔍 DETAILED REPORT DEBUG for shift {shift_id}:", flush=True)
-        print(f"  - Shift status: {shift.status}", flush=True)
-        print(f"  - Incidents found: {len(incidents)}", flush=True)
-        print(f"  - Key Points found (after processing): {len(key_points)}", flush=True)
-        print(f"  - Change Infos found (excluding Completed/Cancelled): {len(change_infos)}", flush=True)
-        print(f"  - KB Updates found (excluding Published): {len(kb_updates)}", flush=True)
+        logger.debug(f"🔍 DETAILED REPORT DEBUG for shift {shift_id}:")
+        logger.debug(f"  - Shift status: {shift.status}")
+        logger.debug(f"  - Incidents found: {len(incidents)}")
+        logger.debug(f"  - Key Points found (after processing): {len(key_points)}")
+        logger.debug(f"  - Change Infos found (excluding Completed/Cancelled): {len(change_infos)}")
+        logger.debug(f"  - KB Updates found (excluding Published): {len(kb_updates)}")
         
         # Debug first few key points
         for i, kp in enumerate(key_points[:3]):
-            print(f"    KP {i+1}: '{kp.description[:50]}...' (Status: {kp.status}, Shift: {kp.shift_id})", flush=True)
+            logger.debug(f"    KP {i+1}: '{kp.description[:50]}...' (Status: {kp.status}, Shift: {kp.shift_id})")
         
         for i, change in enumerate(change_infos):
-            print(f"    Change {i+1}: {change.app_name} - {change.status}", flush=True)
+            logger.debug(f"    Change {i+1}: {change.app_name} - {change.status}")
         
         for i, kb in enumerate(kb_updates):
-            print(f"    KB Update {i+1}: {kb.app_name} - {kb.status}", flush=True)
+            logger.debug(f"    KB Update {i+1}: {kb.app_name} - {kb.status}")
         
         # Get team member info - use same logic as main reports route
         from models.models import User
@@ -563,13 +565,13 @@ def detailed_shift_report(shift_id):
                 user = User.query.get(handover_req.created_by_id)
                 if user:
                     submitted_by = user.display_name or user.username
-                    print(f"🔍 DETAILED: Found accurate submitter: {submitted_by} (ID: {user.id}) for shift {shift.id}", flush=True)
+                    logger.debug(f"🔍 DETAILED: Found accurate submitter: {submitted_by} (ID: {user.id}) for shift {shift.id}")
                 else:
                     submitted_by = f'User ID: {handover_req.created_by_id}'
-                    print(f"🔍 DETAILED: User not found, using ID: {submitted_by} for shift {shift.id}", flush=True)
+                    logger.debug(f"🔍 DETAILED: User not found, using ID: {submitted_by} for shift {shift.id}")
             else:
                 # Fallback to audit logs
-                print(f"🔍 DETAILED: No handover request found, checking audit logs for shift {shift.id}", flush=True)
+                logger.debug(f"🔍 DETAILED: No handover request found, checking audit logs for shift {shift.id}")
                 audit_entry = AuditLog.query.filter(
                     AuditLog.action.contains('Handover Submitted'),
                     AuditLog.details.contains(f'Shift ID: {shift.id}')
@@ -580,15 +582,15 @@ def detailed_shift_report(shift_id):
                         user = User.query.get(audit_entry.user_id)
                         if user:
                             submitted_by = user.display_name or user.username
-                            print(f"🔍 DETAILED: Fallback audit submitter: {submitted_by} for shift {shift.id}", flush=True)
+                            logger.debug(f"🔍 DETAILED: Fallback audit submitter: {submitted_by} for shift {shift.id}")
                         else:
                             submitted_by = audit_entry.username or 'Unknown User'
-                            print(f"🔍 DETAILED: Using audit username: {submitted_by} for shift {shift.id}", flush=True)
+                            logger.debug(f"🔍 DETAILED: Using audit username: {submitted_by} for shift {shift.id}")
                 else:
-                    print(f"🔍 DETAILED: No audit entry found for shift {shift.id}", flush=True)
+                    logger.debug(f"🔍 DETAILED: No audit entry found for shift {shift.id}")
                     submitted_by = 'Unknown'
         except Exception as e:
-            print(f"🔍 DETAILED: Error finding submitter for shift {shift.id}: {e}", flush=True)
+            logger.debug(f"🔍 DETAILED: Error finding submitter for shift {shift.id}: {e}")
             submitted_by = 'Unknown'
         
         # Organize incidents by type
@@ -634,7 +636,7 @@ def detailed_shift_report(shift_id):
         )
         
     except Exception as e:
-        print(f"❌ Error in detailed_shift_report: {e}", flush=True)
+        logger.error(f"❌ Error in detailed_shift_report: {e}")
         from flask import abort
         abort(500)
 
@@ -642,24 +644,24 @@ def detailed_shift_report(shift_id):
 @reports_bp.route('/handover-reports', methods=['GET'])
 @login_required
 def handover_reports():
-    print(f"🚨 HANDOVER REPORTS ROUTE CALLED 🚨", flush=True)
+    logger.debug(f"🚨 HANDOVER REPORTS ROUTE CALLED 🚨")
     
     # Check database integrity first
     total_shifts = Shift.query.count()
     total_incidents = Incident.query.count()
     total_key_points = ShiftKeyPoint.query.count()
-    print(f"🔍 Database totals: {total_shifts} shifts, {total_incidents} incidents, {total_key_points} key points", flush=True)
+    logger.debug(f"🔍 Database totals: {total_shifts} shifts, {total_incidents} incidents, {total_key_points} key points")
     
     # Show some sample records
     if total_incidents > 0:
         sample_incidents = Incident.query.limit(3).all()
         for inc in sample_incidents:
-            print(f"🔍 Sample Incident: ID={inc.id}, shift_id={inc.shift_id}, title='{inc.title}'", flush=True)
+            logger.debug(f"🔍 Sample Incident: ID={inc.id}, shift_id={inc.shift_id}, title='{inc.title}'")
     
     if total_key_points > 0:
         sample_kps = ShiftKeyPoint.query.limit(3).all()
         for kp in sample_kps:
-            print(f"🔍 Sample KeyPoint: ID={kp.id}, shift_id={kp.shift_id}, desc='{kp.description[:50]}'", flush=True)
+            logger.debug(f"🔍 Sample KeyPoint: ID={kp.id}, shift_id={kp.shift_id}, desc='{kp.description[:50]}'")
     
     try:
         # Default filters
@@ -679,18 +681,18 @@ def handover_reports():
             # 🔧 FIX: For super_admin, only use filters if explicitly provided in request params
             # Don't use session values as defaults - this was causing empty results
             account_id = request.args.get('account_id')  # Don't use session defaults for super_admin
-            print(f"🔍 SUPER_ADMIN: account_id from params only: {account_id}", flush=True)
+            logger.debug(f"🔍 SUPER_ADMIN: account_id from params only: {account_id}")
             
             # 🔧 FIX: Clear session defaults for super_admin to prevent stale selections
             if not account_id and 'selected_account_id' in session:
                 session.pop('selected_account_id', None)
-                print(f"🔍 SUPER_ADMIN: Cleared stale selected_account_id from session", flush=True)
+                logger.debug(f"🔍 SUPER_ADMIN: Cleared stale selected_account_id from session")
             teams = Team.query.filter_by(is_active=True)
             if account_id:
                 teams = teams.filter_by(account_id=account_id)
-                print(f"🔍 SUPER_ADMIN: Filtering teams by account_id: {account_id}", flush=True)
+                logger.debug(f"🔍 SUPER_ADMIN: Filtering teams by account_id: {account_id}")
             else:
-                print(f"🔍 SUPER_ADMIN: No account_id in params - showing ALL accounts data", flush=True)
+                logger.debug(f"🔍 SUPER_ADMIN: No account_id in params - showing ALL accounts data")
             teams = teams.all()
             team_id = request.args.get('team_id')  # Don't use session defaults for super_admin
             if team_id == '':
@@ -700,12 +702,12 @@ def handover_reports():
                     selected_team_id = int(team_id)
                 except (TypeError, ValueError):
                     selected_team_id = None
-            print(f"🔍 SUPER_ADMIN: team_id from params only: {team_id}", flush=True)
+            logger.debug(f"🔍 SUPER_ADMIN: team_id from params only: {team_id}")
             
             # 🔧 FIX: Clear session defaults for super_admin to prevent stale selections  
             if not team_id and 'selected_team_id' in session:
                 session.pop('selected_team_id', None)
-                print(f"🔍 SUPER_ADMIN: Cleared stale selected_team_id from session", flush=True)
+                logger.debug(f"🔍 SUPER_ADMIN: Cleared stale selected_team_id from session")
         elif current_user.role == 'account_admin':
             account_id = current_user.account_id
             accounts = [Account.query.get(account_id)] if account_id else []
@@ -744,54 +746,53 @@ def handover_reports():
 
             team_id = selected_team_id  # maintain existing variable usage
 
-            print(
+            logger.debug(
                 f"🔍 REGULAR_USER: team_param={team_param}, selected_team_id={selected_team_id}, "
-                f"all_teams_selected={all_teams_selected}, user teams={len(teams)}",
-                flush=True
+                f"all_teams_selected={all_teams_selected}, user teams={len(teams)}"
             )
         # 🔧 FIX: Apply filtering logic based on user role and selections
         if current_user.role == 'super_admin':
             # For super_admin: only filter if explicitly selected
             if account_id:
                 query = query.filter_by(account_id=account_id)
-                print(f"🔍 SUPER_ADMIN: Filtering by account_id: {account_id}", flush=True)
+                logger.debug(f"🔍 SUPER_ADMIN: Filtering by account_id: {account_id}")
             else:
-                print(f"🔍 SUPER_ADMIN: No account filter - showing ALL accounts", flush=True)
+                logger.debug(f"🔍 SUPER_ADMIN: No account filter - showing ALL accounts")
             if team_id:
                 query = query.filter_by(team_id=team_id)
-                print(f"🔍 SUPER_ADMIN: Filtering by team_id: {team_id}", flush=True)
+                logger.debug(f"🔍 SUPER_ADMIN: Filtering by team_id: {team_id}")
             else:
-                print(f"🔍 SUPER_ADMIN: No team filter - showing ALL teams", flush=True)
+                logger.debug(f"🔍 SUPER_ADMIN: No team filter - showing ALL teams")
         elif current_user.role == 'account_admin':
             # Account admin: filter by account and optional team
             if account_id:
                 query = query.filter_by(account_id=account_id)
-                print(f"🔍 ACCOUNT_ADMIN: Filtering by account_id: {account_id}", flush=True)
+                logger.debug(f"🔍 ACCOUNT_ADMIN: Filtering by account_id: {account_id}")
             if team_id and not all_teams_selected:
                 query = query.filter_by(team_id=team_id)
-                print(f"🔍 ACCOUNT_ADMIN: Filtering by team_id: {team_id}", flush=True)
+                logger.debug(f"🔍 ACCOUNT_ADMIN: Filtering by team_id: {team_id}")
         else:
             # Regular users: use multi-team filtering with proper account constraint
             if account_id:
                 query = query.filter_by(account_id=account_id)
-                print(f"🔍 REGULAR_USER: Filtering by account_id: {account_id}", flush=True)
+                logger.debug(f"🔍 REGULAR_USER: Filtering by account_id: {account_id}")
             
             # Apply team filtering using TeamAccessService
             effective_team_ids = TeamAccessService.get_effective_team_ids()
             if all_teams_selected:
                 if effective_team_ids:
                     query = query.filter(Shift.team_id.in_(effective_team_ids))
-                    print(f"🔍 REGULAR_USER: All Teams selected - filtering by team_ids: {effective_team_ids}", flush=True)
+                    logger.debug(f"🔍 REGULAR_USER: All Teams selected - filtering by team_ids: {effective_team_ids}")
                 else:
                     query = query.filter(Shift.team_id == -1)
-                    print(f"🔍 REGULAR_USER: No accessible teams", flush=True)
+                    logger.debug(f"🔍 REGULAR_USER: No accessible teams")
             elif selected_team_id:
                 if selected_team_id in effective_team_ids:
                     query = query.filter_by(team_id=selected_team_id)
-                    print(f"🔍 REGULAR_USER: Filtering by selected team_id: {selected_team_id}", flush=True)
+                    logger.debug(f"🔍 REGULAR_USER: Filtering by selected team_id: {selected_team_id}")
                 else:
                     query = query.filter(Shift.team_id == -1)
-                    print(f"🔍 REGULAR_USER: Selected team {selected_team_id} invalid", flush=True)
+                    logger.debug(f"🔍 REGULAR_USER: Selected team {selected_team_id} invalid")
             else:
                 # Default fallback: show primary team if available
                 primary_team_id = (
@@ -801,27 +802,27 @@ def handover_reports():
                 if primary_team_id:
                     query = query.filter_by(team_id=primary_team_id)
                     selected_team_id = primary_team_id
-                    print(f"🔍 REGULAR_USER: Fallback to primary team_id: {primary_team_id}", flush=True)
+                    logger.debug(f"🔍 REGULAR_USER: Fallback to primary team_id: {primary_team_id}")
                 else:
                     query = query.filter(Shift.team_id == -1)
-                    print(f"🔍 REGULAR_USER: No primary team available", flush=True)
+                    logger.debug(f"🔍 REGULAR_USER: No primary team available")
         if date_filter:
             try:
                 date_obj = datetime.strptime(date_filter, '%Y-%m-%d').date()
                 query = query.filter_by(date=date_obj)  # 🔧 FIXED: Use date column
-                print(f"🔍 Filtering by date: {date_obj}", flush=True)
+                logger.debug(f"🔍 Filtering by date: {date_obj}")
             except Exception:
-                print(f"🔍 Invalid date filter: {date_filter}", flush=True)
+                logger.debug(f"🔍 Invalid date filter: {date_filter}")
                 pass
         if shift_type_filter:
             query = query.filter_by(current_shift_type=shift_type_filter)
-            print(f"🔍 Filtering by shift_type: {shift_type_filter}", flush=True)
+            logger.debug(f"🔍 Filtering by shift_type: {shift_type_filter}")
         
-        print(f"🔍 Final query filters applied: account_id={account_id}, team_id={team_id}, date={date_filter}, shift_type={shift_type_filter}", flush=True)
+        logger.debug(f"🔍 Final query filters applied: account_id={account_id}, team_id={team_id}, date={date_filter}, shift_type={shift_type_filter}")
         
         # Show both sent and draft handovers in reports
         query = query.filter(Shift.status.in_(['sent', 'draft']))
-        print(f"🔍 Added status filter: status in ['sent', 'draft']", flush=True)
+        logger.debug(f"🔍 Added status filter: status in ['sent', 'draft']")
         
         # Order by shift date only for now (newest first)  
         # TODO: Re-add submitted_at ordering when MySQL compatibility issue is resolved
@@ -829,9 +830,9 @@ def handover_reports():
             Shift.date.desc()
         ).all()
         
-        print(f"🔍 Found {len(shifts)} shifts total", flush=True)
+        logger.debug(f"🔍 Found {len(shifts)} shifts total")
         for shift in shifts[:3]:  # Show first 3 shifts
-            print(f"🔍 Shift ID: {shift.id}, Date: {shift.date}, Type: {shift.current_shift_type}, Submitted: {shift.submitted_at}", flush=True)
+            logger.debug(f"🔍 Shift ID: {shift.id}, Date: {shift.date}, Type: {shift.current_shift_type}, Submitted: {shift.submitted_at}")
         
         shift_data = []
         for shift in shifts:
@@ -845,7 +846,7 @@ def handover_reports():
             
             if shift.status == 'draft':
                 # DRAFT: Show all relevant active key points from the same team
-                print(f"🔍 REPORTS DRAFT: Shift {shift.id} is draft, showing all active key points")
+                logger.debug(f"🔍 REPORTS DRAFT: Shift {shift.id} is draft, showing all active key points")
                 active_key_points = ShiftKeyPoint.query.filter(
                     ShiftKeyPoint.account_id == shift.account_id,
                     ShiftKeyPoint.team_id == shift.team_id,
@@ -883,7 +884,7 @@ def handover_reports():
                         kp_map[key] = kp
                 
                 key_points = list(kp_map.values())
-                print(f"🔍 REPORTS DRAFT: Combined {len(direct_key_points)} direct + {len(active_key_points)} active = {len(key_points)} total key points")
+                logger.debug(f"🔍 REPORTS DRAFT: Combined {len(direct_key_points)} direct + {len(active_key_points)} active = {len(key_points)} total key points")
                 
             else:
                 # SENT: Show direct key points, fallback to active ones if none exist
@@ -923,20 +924,20 @@ def handover_reports():
                             kp_map[key] = kp
                     
                     key_points = list(kp_map.values())
-                    print(f"🔍 REPORTS SENT: Using {len(active_key_points)} active key points (deduplicated to {len(key_points)}) as fallback")
+                    logger.debug(f"🔍 REPORTS SENT: Using {len(active_key_points)} active key points (deduplicated to {len(key_points)}) as fallback")
             
-            print(f"🔍 REPORTS SHIFT {shift.id}: Found {len(incidents)} incidents, {len(key_points)} key points", flush=True)
+            logger.debug(f"🔍 REPORTS SHIFT {shift.id}: Found {len(incidents)} incidents, {len(key_points)} key points")
             
             # Debug key points details with status breakdown
             status_counts = {'Open': 0, 'In Progress': 0, 'Closed': 0}
             for kp in key_points:
                 status_counts[kp.status] = status_counts.get(kp.status, 0) + 1
-                print(f"  📋 REPORTS KP {kp.id}: '{kp.description[:30]}...' - Status: {kp.status} - Responsible: {kp.responsible_engineer_id}")
+                logger.debug(f"  📋 REPORTS KP {kp.id}: '{kp.description[:30]}...' - Status: {kp.status} - Responsible: {kp.responsible_engineer_id}")
             
-            print(f"  📊 REPORTS Status breakdown for shift {shift.id}: {status_counts}")
+            logger.debug(f"  📊 REPORTS Status breakdown for shift {shift.id}: {status_counts}")
             
             if len(key_points) == 0:
-                print(f"  ⚠️  REPORTS WARNING: No key points found for shift {shift.id}")
+                logger.debug(f"  ⚠️  REPORTS WARNING: No key points found for shift {shift.id}")
             
             # Get detailed incident information
             incidents_data = []
@@ -953,7 +954,7 @@ def handover_reports():
                 }
                 # Debug logging for incident assignment tracking
                 if inc.assigned_to:
-                    print(f"🔍 Incident {inc.id} has assignment: '{inc.assigned_to}'")
+                    logger.debug(f"🔍 Incident {inc.id} has assignment: '{inc.assigned_to}'")
                 incidents_data.append(incident_details)
             
             # Get detailed key points information - INCLUDING ALL STATUSES for reports
@@ -972,10 +973,10 @@ def handover_reports():
                         'id': kp.id  # Add ID for debugging
                     }
                     key_points_data.append(kp_data)
-                    print(f"  ✅ REPORTS Added KP {kp.id} to template data: Status={kp.status}")
+                    logger.debug(f"  ✅ REPORTS Added KP {kp.id} to template data: Status={kp.status}")
                     
                 except Exception as e:
-                    print(f"🚨 Error processing key point {kp.id}: {e}")
+                    logger.warning(f"🚨 Error processing key point {kp.id}: {e}")
                     # Add basic key point without responsible engineer
                     kp_data = {
                         'description': kp.description,
@@ -985,7 +986,7 @@ def handover_reports():
                         'id': kp.id
                     }
                     key_points_data.append(kp_data)
-                    print(f"  ⚠️  REPORTS Added KP {kp.id} with error to template data")
+                    logger.debug(f"  ⚠️  REPORTS Added KP {kp.id} with error to template data")
             
             # 🔧 FIX: Find who submitted this handover from HandoverRequest table (more accurate)
             submitted_by = 'Unknown'
@@ -1005,12 +1006,12 @@ def handover_reports():
                     user = User.query.get(handover_req.created_by_id)
                     if user:
                         submitted_by = user.display_name or user.username
-                        print(f"🔍 REPORTS: Found accurate submitter: {submitted_by} (ID: {user.id}) for shift {shift.id}", flush=True)
+                        logger.debug(f"🔍 REPORTS: Found accurate submitter: {submitted_by} (ID: {user.id}) for shift {shift.id}")
                     else:
                         submitted_by = f'User ID: {handover_req.created_by_id}'
-                        print(f"🔍 REPORTS: User not found for ID: {handover_req.created_by_id}", flush=True)
+                        logger.debug(f"🔍 REPORTS: User not found for ID: {handover_req.created_by_id}")
                 else:
-                    print(f"🔍 REPORTS: No HandoverRequest found for shift {shift.id}, trying audit log fallback...", flush=True)
+                    logger.debug(f"🔍 REPORTS: No HandoverRequest found for shift {shift.id}, trying audit log fallback...")
                     # Fallback to audit log with more specific matching
                     from models.audit_log import AuditLog
                     audit_entry = AuditLog.query.filter(
@@ -1024,12 +1025,12 @@ def handover_reports():
                         user = User.query.get(audit_entry.user_id)
                         if user:
                             submitted_by = user.display_name or user.username
-                            print(f"🔍 REPORTS: Fallback audit submitter: {submitted_by} for shift {shift.id}", flush=True)
+                            logger.debug(f"🔍 REPORTS: Fallback audit submitter: {submitted_by} for shift {shift.id}")
                         else:
                             submitted_by = audit_entry.username or 'Unknown User'
                     
             except Exception as e:
-                print(f"🚨 Error finding submitter for shift {shift.id}: {e}", flush=True)
+                logger.debug(f"🚨 Error finding submitter for shift {shift.id}: {e}")
                 submitted_by = 'Unknown'
             
             # Get Change Info and KB Updates for this shift
@@ -1093,11 +1094,11 @@ def handover_reports():
             })
             
             # Debug what we're sending to template
-            print(f"  📋 REPORTS Sending {len(key_points_data)} key points, {len(change_infos_data)} change_infos, {len(kb_updates_data)} kb_updates to template for shift {shift.id}")
+            logger.debug(f"  📋 REPORTS Sending {len(key_points_data)} key points, {len(change_infos_data)} change_infos, {len(kb_updates_data)} kb_updates to template for shift {shift.id}")
             if len(change_infos_data) > 0 or len(kb_updates_data) > 0:
-                print(f"  🔥 SHIFT {shift.id} HAS CHANGE/KB DATA - Should show extra sections!")
+                logger.debug(f"  🔥 SHIFT {shift.id} HAS CHANGE/KB DATA - Should show extra sections!")
             for kp_data in key_points_data:
-                print(f"    - KP {kp_data.get('id', 'Unknown')}: {kp_data['status']} - {kp_data['description'][:30]}...")
+                logger.debug(f"    - KP {kp_data.get('id', 'Unknown')}: {kp_data['status']} - {kp_data['description'][:30]}...")
         
         # Calculate visualization data
         total_shifts = len(shift_data)
@@ -1143,9 +1144,9 @@ def handover_reports():
         }
         
         # 🔍 DEBUG: Final data being sent to template
-        print(f"🔍 REPORTS DEBUG: Sending {len(shift_data)} shifts to template")
-        print(f"🔍 REPORTS DEBUG: Key Point Status Summary: {keypoint_statuses}")
-        print(f"🔍 REPORTS DEBUG: Stats = {stats}")
+        logger.debug(f"🔍 REPORTS DEBUG: Sending {len(shift_data)} shifts to template")
+        logger.debug(f"🔍 REPORTS DEBUG: Key Point Status Summary: {keypoint_statuses}")
+        logger.debug(f"🔍 REPORTS DEBUG: Stats = {stats}")
         
         # Verify that closed key points are included in the data
         total_closed_in_data = 0
@@ -1153,16 +1154,16 @@ def handover_reports():
             closed_count = sum(1 for kp in data['key_points'] if kp['status'] == 'Closed')
             total_closed_in_data += closed_count
             if closed_count > 0:
-                print(f"🔍 REPORTS: Shift {data['shift']['id']} has {closed_count} closed key points in template data")
+                logger.debug(f"🔍 REPORTS: Shift {data['shift']['id']} has {closed_count} closed key points in template data")
         
-        print(f"🔍 REPORTS FINAL: Total closed key points being sent to template: {total_closed_in_data}")
+        logger.debug(f"🔍 REPORTS FINAL: Total closed key points being sent to template: {total_closed_in_data}")
         
         # 🔧 FIX: Pre-sort and pre-group shift data by date for template
         if shift_data:
             shift_data.sort(key=lambda x: x['shift']['date'], reverse=True)
-            print(f"🔍 REPORTS SORT: Sorted {len(shift_data)} shifts by date")
+            logger.debug(f"🔍 REPORTS SORT: Sorted {len(shift_data)} shifts by date")
             for i, data in enumerate(shift_data[:5]):
-                print(f"  {i+1}. {data['shift']['date']} ({data['shift']['current_shift_type']})")
+                logger.debug(f"  {i+1}. {data['shift']['date']} ({data['shift']['current_shift_type']})")
             
             # Pre-group shifts by date in the correct order
             grouped_shift_data = OrderedDict()
@@ -1172,24 +1173,24 @@ def handover_reports():
                     grouped_shift_data[date_str] = []
                 grouped_shift_data[date_str].append(entry)
             
-            print(f"🔍 REPORTS GROUPS: Created {len(grouped_shift_data)} date groups")
+            logger.debug(f"🔍 REPORTS GROUPS: Created {len(grouped_shift_data)} date groups")
             for date_str, entries in list(grouped_shift_data.items())[:3]:
-                print(f"  {date_str}: {len(entries)} shifts")
+                logger.debug(f"  {date_str}: {len(entries)} shifts")
         else:
             grouped_shift_data = OrderedDict()
         
         if shift_data:
-            print(f"🔍 REPORTS DEBUG: First 3 shifts:")
+            logger.debug(f"🔍 REPORTS DEBUG: First 3 shifts:")
             for i, data in enumerate(shift_data[:3]):
                 shift = data['shift']
                 closed_kps = [kp for kp in data['key_points'] if kp['status'] == 'Closed']
-                print(f"🔍   Shift {i+1}: ID={shift['id']}, Date={shift['date']}, Type={shift['current_shift_type']}, Status={shift['status']}, Incidents={len(data['incidents'])}, KeyPoints={len(data['key_points'])}, Closed KPs={len(closed_kps)}")
+                logger.debug(f"🔍   Shift {i+1}: ID={shift['id']}, Date={shift['date']}, Type={shift['current_shift_type']}, Status={shift['status']}, Incidents={len(data['incidents'])}, KeyPoints={len(data['key_points'])}, Closed KPs={len(closed_kps)}")
         else:
-            print(f"🔍 REPORTS DEBUG: No shift data to display!")
+            logger.debug(f"🔍 REPORTS DEBUG: No shift data to display!")
         
         # Extract ordered date keys to pass to template for explicit ordering
         ordered_date_keys = list(grouped_shift_data.keys()) if grouped_shift_data else []
-        print(f"🔍 REPORTS ORDERED KEYS: {ordered_date_keys}")
+        logger.debug(f"🔍 REPORTS ORDERED KEYS: {ordered_date_keys}")
         
         # Add cache busting to ensure fresh data
         import time
@@ -1217,7 +1218,7 @@ def handover_reports():
             team_filter_context=team_filter_context
         )
     except Exception as e:
-        print(f"❌ Error in handover_reports: {e}", flush=True)
+        logger.error(f"❌ Error in handover_reports: {e}")
         import traceback
         traceback.print_exc()
         return render_template(
@@ -1291,33 +1292,33 @@ def update_kb_record(kb_id):
 def get_team_members():
     """Get team members for dropdown"""
     try:
-        print(f"[DEBUG] Getting team members for user {current_user.id} role {current_user.role}")
+        logger.debug(f"[DEBUG] Getting team members for user {current_user.id} role {current_user.role}")
         query = TeamMember.query
         
         # Filter by user permissions
         if current_user.role == 'super_admin':
-            print("[DEBUG] Super admin - getting all team members")
+            logger.debug("[DEBUG] Super admin - getting all team members")
             pass  # Can see all team members
         elif current_user.role == 'account_admin':
-            print(f"[DEBUG] Account admin - filtering by account {current_user.account_id}")
+            logger.debug(f"[DEBUG] Account admin - filtering by account {current_user.account_id}")
             query = query.filter_by(account_id=current_user.account_id)
         else:
-            print(f"[DEBUG] Regular user - filtering by account {current_user.account_id} and team {current_user.team_id}")
+            logger.debug(f"[DEBUG] Regular user - filtering by account {current_user.account_id} and team {current_user.team_id}")
             query = query.filter_by(account_id=current_user.account_id, team_id=current_user.team_id)
         
         members = query.all()
-        print(f"[DEBUG] Found {len(members)} team members")
+        logger.debug(f"[DEBUG] Found {len(members)} team members")
         
         result = [{
             'id': member.id,
             'name': member.name
         } for member in members]
         
-        print(f"[DEBUG] Returning team members: {result}")
+        logger.debug(f"[DEBUG] Returning team members: {result}")
         return jsonify(result)
         
     except Exception as e:
-        print(f"[DEBUG] Error getting team members: {str(e)}")
+        logger.debug(f"[DEBUG] Error getting team members: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 

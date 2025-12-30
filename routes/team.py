@@ -2,6 +2,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from models.models import TeamMember, Account, Team, User, db
 from services.team_access_service import TeamAccessService
+import logging
+logger = logging.getLogger(__name__)
 
 team_bp = Blueprint('team', __name__)
 
@@ -11,35 +13,35 @@ def get_teams_for_account():
     """AJAX endpoint to get teams based on account selection for team management"""
     account_id = request.args.get('account_id')
     
-    print(f"[TEAM_API] get_teams_for_account called with account_id={account_id}")
-    print(f"[TEAM_API] Current user role: {current_user.role}, account_id: {current_user.account_id}")
+    logger.debug(f"[TEAM_API] get_teams_for_account called with account_id={account_id}")
+    logger.debug(f"[TEAM_API] Current user role: {current_user.role}, account_id: {current_user.account_id}")
     
     if not account_id:
-        print("[TEAM_API] No account_id provided, returning empty list")
+        logger.debug("[TEAM_API] No account_id provided, returning empty list")
         return jsonify([])
     
     try:
         account_id = int(account_id)
     except ValueError:
-        print(f"[TEAM_API] Invalid account_id format: {account_id}")
+        logger.debug(f"[TEAM_API] Invalid account_id format: {account_id}")
         return jsonify([])
     
     # Security check
     if current_user.role == 'super_admin':
         # Super admin can access any account
         teams = Team.query.filter_by(account_id=account_id, is_active=True).all()
-        print(f"[TEAM_API] Super admin accessing account {account_id}, found {len(teams)} teams")
+        logger.debug(f"[TEAM_API] Super admin accessing account {account_id}, found {len(teams)} teams")
     elif current_user.role == 'account_admin' and current_user.account_id == account_id:
         # Account admin can only access their own account
         teams = Team.query.filter_by(account_id=account_id, is_active=True).all()
-        print(f"[TEAM_API] Account admin accessing own account {account_id}, found {len(teams)} teams")
+        logger.debug(f"[TEAM_API] Account admin accessing own account {account_id}, found {len(teams)} teams")
     else:
         # Regular users cannot access this endpoint or wrong account
-        print(f"[TEAM_API] Access denied for user role {current_user.role} trying to access account {account_id}")
+        logger.debug(f"[TEAM_API] Access denied for user role {current_user.role} trying to access account {account_id}")
         return jsonify([])
     
     team_list = [{'id': team.id, 'name': team.name} for team in teams]
-    print(f"[TEAM_API] Returning teams: {team_list}")
+    logger.debug(f"[TEAM_API] Returning teams: {team_list}")
     return jsonify(team_list)
 
 @team_bp.route('/team-details')
@@ -48,8 +50,8 @@ def get_teams_for_account():
 def team_details(team_id=None):
     """Team details page with proper authorization"""
     try:
-        print(f"[TEAM_DETAILS] Accessing team details for team_id: {team_id}")
-        print(f"[TEAM_DETAILS] Current user: {current_user.username}, role: {current_user.role}")
+        logger.debug(f"[TEAM_DETAILS] Accessing team details for team_id: {team_id}")
+        logger.debug(f"[TEAM_DETAILS] Current user: {current_user.username}, role: {current_user.role}")
         
         # Get team_id from URL parameter or request args
         if not team_id:
@@ -87,7 +89,7 @@ def team_details(team_id=None):
             # Get team members
             members = TeamMember.query.filter_by(team_id=team_id, is_active=True).all()
             
-            print(f"[TEAM_DETAILS] Found {len(members)} active members for team {team.name}")
+            logger.debug(f"[TEAM_DETAILS] Found {len(members)} active members for team {team.name}")
             
             return render_template('team_details.html',
                                  team=team,
@@ -114,7 +116,7 @@ def team_details(team_id=None):
                              selected_team_id=None)
                              
     except Exception as e:
-        print(f"[TEAM_DETAILS] Error loading team data: {str(e)}")
+        logger.debug(f"[TEAM_DETAILS] Error loading team data: {str(e)}")
         flash(f'Error loading team data: {str(e)}', 'error')
         return redirect(url_for('dashboard.dashboard'))
 

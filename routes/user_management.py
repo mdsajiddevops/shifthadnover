@@ -4,7 +4,11 @@ from flask_login import login_required, current_user
 from models.models import db, User, Account, Team, UserTeamMembership
 from werkzeug.security import generate_password_hash
 from services.audit_service import log_action
+import logging
 
+
+# Module logger
+logger = logging.getLogger(__name__)
 user_mgmt_bp = Blueprint('user_mgmt', __name__)
 
 @user_mgmt_bp.route('/api/user/<int:user_id>/teams')
@@ -143,7 +147,7 @@ def add_user_to_team_api(user_id):
         
     except Exception as e:
         db.session.rollback()
-        print(f"[ERROR] add_user_to_team_api: {str(e)}")
+        logger.error(f"[ERROR] add_user_to_team_api: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @user_mgmt_bp.route('/api/user/<int:user_id>/remove-team/<int:team_id>', methods=['DELETE'])
@@ -179,7 +183,7 @@ def remove_user_from_team_api(user_id, team_id):
             
     except Exception as e:
         db.session.rollback()
-        print(f"[ERROR] remove_user_from_team_api: {str(e)}")
+        logger.error(f"[ERROR] remove_user_from_team_api: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @user_mgmt_bp.route('/user-management', methods=['GET', 'POST'])
@@ -211,7 +215,7 @@ def user_management():
         return redirect(url_for('dashboard.dashboard'))
 
     if request.method == 'POST':
-        print(f"[POST RECEIVED] user_management: user={getattr(current_user, 'username', None)}, action={request.form.get('action')}, form={dict(request.form)}")
+        logger.debug(f"[POST RECEIVED] user_management: user={getattr(current_user, 'username', None)}, action={request.form.get('action')}, form={dict(request.form)}")
         action = request.form.get('action')
         # Enable/disable user
         if action in ['enable_user', 'disable_user']:
@@ -267,7 +271,7 @@ def user_management():
             return redirect(url_for('user_mgmt.user_management'))
         elif action == 'add_account' and current_user.role == 'super_admin':
             account_name = request.form.get('account_name')
-            print(f"[DEBUG] Add Account: account_name={account_name}")
+            logger.debug(f"[DEBUG] Add Account: account_name={account_name}")
             
             if account_name:
                 existing_account = Account.query.filter_by(name=account_name).first()
@@ -284,10 +288,10 @@ def user_management():
                         db.session.commit()
                         log_action('Add Account', f'Account: {account_name}')
                         flash('Account added successfully.')
-                        print(f"[SUCCESS] Account created: {account}")
+                        logger.debug(f"[SUCCESS] Account created: {account}")
                     except Exception as e:
                         db.session.rollback()
-                        print(f"[ERROR] Failed to create account: {e}")
+                        logger.error(f"[ERROR] Failed to create account: {e}")
                         flash('Failed to add account.')
             else:
                 flash('Account name is required.')
@@ -296,7 +300,7 @@ def user_management():
         elif action == 'add_team' and (current_user.role == 'super_admin' or current_user.role == 'account_admin'):
             team_name = request.form.get('team_name')
             account_id = request.form.get('account_id', type=int)
-            print(f"[DEBUG] Add Team: team_name={team_name}, account_id={account_id}")
+            logger.debug(f"[DEBUG] Add Team: team_name={team_name}, account_id={account_id}")
             
             if team_name and account_id:
                 # Check permission
@@ -319,10 +323,10 @@ def user_management():
                         db.session.commit()
                         log_action('Add Team', f'Team: {team_name}, Account ID: {account_id}')
                         flash('Team added successfully.')
-                        print(f"[SUCCESS] Team created: {team}")
+                        logger.debug(f"[SUCCESS] Team created: {team}")
                     except Exception as e:
                         db.session.rollback()
-                        print(f"[ERROR] Failed to create team: {e}")
+                        logger.error(f"[ERROR] Failed to create team: {e}")
                         flash('Failed to add team.')
             else:
                 flash('Team name and account are required.')
@@ -331,7 +335,7 @@ def user_management():
         elif action == 'edit_user':
             user_id = request.form.get('user_id', type=int)
             user = User.query.get(user_id)
-            print(f"[DEBUG] Edit User: user_id={user_id}, user={user}")
+            logger.debug(f"[DEBUG] Edit User: user_id={user_id}, user={user}")
             
             if user:
                 # Check permission to edit this user
@@ -355,8 +359,8 @@ def user_management():
                         new_first_name = request.form.get('first_name', '').strip()
                         new_last_name = request.form.get('last_name', '').strip()
                         
-                        print(f"[DEBUG] Edit form data: username={new_username}, email={new_email}, role={new_role}, account_id={new_account_id}, team_id={new_team_id}, first_name={new_first_name}, last_name={new_last_name}, password={'***' if new_password else 'None'}")
-                        print(f"[DEBUG] Current user values: team_id={user.team_id}, account_id={user.account_id}")
+                        logger.debug(f"[DEBUG] Edit form data: username={new_username}, email={new_email}, role={new_role}, account_id={new_account_id}, team_id={new_team_id}, first_name={new_first_name}, last_name={new_last_name}, password={'***' if new_password else 'None'}")
+                        logger.debug(f"[DEBUG] Current user values: team_id={user.team_id}, account_id={user.account_id}")
                         
                         # Validate required fields
                         if not new_username:
@@ -445,14 +449,14 @@ def user_management():
                             user.password = generate_password_hash(new_password)
                         
                         db.session.commit()
-                        print(f"[DEBUG] After update - User: id={user.id}, username={user.username}, team_id={user.team_id}, account_id={user.account_id}")
+                        logger.debug(f"[DEBUG] After update - User: id={user.id}, username={user.username}, team_id={user.team_id}, account_id={user.account_id}")
                         log_action('Edit User', f'User ID: {user_id}, Username: {new_username}, Role: {new_role}, Account: {new_account_id}, Team: {new_team_id}')
                         flash('User updated successfully.')
-                        print(f"[SUCCESS] User updated: {user}")
+                        logger.debug(f"[SUCCESS] User updated: {user}")
                         
                     except Exception as e:
                         db.session.rollback()
-                        print(f"[ERROR] Failed to update user: {e}")
+                        logger.error(f"[ERROR] Failed to update user: {e}")
                         flash('Failed to update user.')
                 else:
                     flash('You do not have permission to edit this user.')
@@ -482,13 +486,13 @@ def user_management():
                         flash('Username already exists.')
                         debug_msgs.append("[ERROR] Username already exists.")
                         for msg in debug_msgs:
-                            print(msg)
+                            logger.debug(msg)
                         return redirect(url_for('user_mgmt.user_management'))
                     elif existing_email:
                         flash('Email already exists.')
                         debug_msgs.append("[ERROR] Email already exists.")
                         for msg in debug_msgs:
-                            print(msg)
+                            logger.debug(msg)
                         return redirect(url_for('user_mgmt.user_management'))
                     else:
                         # Only allow adding within scope
@@ -528,33 +532,33 @@ def user_management():
                             flash('User added successfully.')
                             # Log debug messages for successful creation
                             for msg in debug_msgs:
-                                print(msg)
+                                logger.debug(msg)
                             return redirect(url_for('user_mgmt.user_management'))
                         else:
                             flash('You do not have permission to add user to this account/team.')
                             debug_msgs.append("[ERROR] Permission denied for user add.")
                             for msg in debug_msgs:
-                                print(msg)
+                                logger.debug(msg)
                             return redirect(url_for('user_mgmt.user_management'))
                 else:
                     flash('Username, password, email, role, and account are required.')
                     debug_msgs.append("[ERROR] Missing required fields for user add.")
                     for msg in debug_msgs:
-                        print(msg)
+                        logger.debug(msg)
                     return redirect(url_for('user_mgmt.user_management'))
             except Exception as e:
                 db.session.rollback()
                 debug_msgs.append(f"[ERROR] Exception: {e}")
                 flash('Failed to add user.')
-                print(f"[ERROR] User creation failed: {e}")
+                logger.error(f"[ERROR] User creation failed: {e}")
             finally:
                 # Log debug messages instead of flashing them to avoid UI issues
                 for msg in debug_msgs:
-                    print(msg)
+                    logger.debug(msg)
         elif action == 'delete':
             user_id = request.form.get('user_id', type=int)
             user = User.query.get(user_id)
-            print(f"[DELETE] Attempting to soft delete user_id={user_id}, found={user}")
+            logger.debug(f"[DELETE] Attempting to soft delete user_id={user_id}, found={user}")
             if user and user.username != 'admin':
                 # Only allow deleting within scope
                 if current_user.role == 'super_admin' or \
@@ -564,13 +568,13 @@ def user_management():
                     user.is_active = False
                     db.session.commit()
                     log_action('Delete User', f'User ID: {user_id}, Username: {getattr(user, "username", None)}')
-                    print(f"[DELETE] User soft deleted: {user}")
+                    logger.debug(f"[DELETE] User soft deleted: {user}")
                     flash('User deleted successfully.')
                 else:
-                    print(f"[DELETE] Permission denied for user_id={user_id}")
+                    logger.debug(f"[DELETE] Permission denied for user_id={user_id}")
                     flash('You do not have permission to delete this user.')
             else:
-                print(f"[DELETE] Cannot delete user_id={user_id}, user={user}")
+                logger.debug(f"[DELETE] Cannot delete user_id={user_id}, user={user}")
                 flash('Cannot delete this user.')
             return redirect(url_for('user_mgmt.user_management'))
         elif action == 'delete_team':

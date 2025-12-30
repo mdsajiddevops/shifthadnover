@@ -1,10 +1,14 @@
 import os
+import logging
 import pandas as pd
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app
 from flask_login import login_required, current_user
 from models.vendor_detail import VendorDetail
 from models.models import db, Account, Team
 from services.team_access_service import TeamAccessService
+
+# Module logger
+logger = logging.getLogger(__name__)
 
 bp = Blueprint('vendor_details', __name__)
 
