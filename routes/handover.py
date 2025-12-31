@@ -3542,11 +3542,15 @@ def handover():
     ).all()
     for kb in published_kbs:
         if kb.kb_number and kb.kb_number.strip():
+            # If KB has a kb_number, only use that as identifier (primary key for exclusion)
             published_kb_numbers.add(kb.kb_number.strip().lower())
-        # Also track by app_name + description for KBs without kb_number
-        kb_key = f"{kb.app_name or ''}_{(kb.description or '')[:50]}".strip().lower()
-        if kb_key:
-            published_kb_numbers.add(kb_key)
+        else:
+            # Only use app_name + description for KBs WITHOUT kb_number
+            # This prevents false exclusions where a published KB with kb_number 
+            # would also exclude unpublished KBs with same description but no kb_number yet
+            kb_key = f"{kb.app_name or ''}_{(kb.description or '')[:50]}".strip().lower()
+            if kb_key:
+                published_kb_numbers.add(kb_key)
     
     logger.debug(f"[DEBUG] Found {len(published_kb_numbers)} published KB identifiers to exclude")
     
