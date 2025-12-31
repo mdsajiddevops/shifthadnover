@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Key Points Management - Redesign Mockup</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            --card-hover-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            --status-open: #6b7280;
+            --status-progress: #3b82f6;
+            --status-pending: #f59e0b;
+            --status-hold: #ef4444;
+            --status-review: #8b5cf6;
+            --status-escalated: #1f2937;
+            --status-waiting: #06b6d4;
+            --status-closed: #10b981;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(180deg, #f0f4f8 0%, #e2e8f0 100%);
+            min-height: 100vh;
+        }
+        
+        /* Page Header */
+        .page-header-modern {
+            background: var(--primary-gradient);
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .page-header-modern::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.5;
+        }
+        
+        .page-header-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .page-title {
+            color: white;
+            font-weight: 700;
+            font-size: 1.75rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .page-subtitle {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.95rem;
+        }
+        
+        /* Stats Cards */
+        .stats-row {
+            margin-top: -3rem;
+            position: relative;
+            z-index: 10;
+            margin-bottom: 1.5rem;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 1.25rem;
+            box-shadow: var(--card-shadow);
+            border: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--card-hover-shadow);
+        }
+        
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+        
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        
+        .stat-label {
+            font-size: 0.8rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Filter Section */
+        .filter-section {
+            background: white;
+            border-radius: 16px;
+            padding: 1.25rem;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 1.5rem;
+        }
+        
+        .filter-pill {
+            background: #f3f4f6;
+            border: 2px solid transparent;
+            border-radius: 50px;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        
+        .filter-pill:hover, .filter-pill:focus {
+            background: #e5e7eb;
+            border-color: #d1d5db;
+        }
+        
+        .filter-pill.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+        }
+        
+        .filter-input-modern {
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 0.625rem 1rem;
+            transition: all 0.2s;
+        }
+        
+        .filter-input-modern:focus {
+            background: white;
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+        
+        /* Key Point Cards */
+        .keypoint-card-modern {
+            background: white;
+            border-radius: 20px;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+            border-left: 5px solid var(--status-progress);
+        }
+        
+        .keypoint-card-modern:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--card-hover-shadow);
+        }
+        
+        .keypoint-card-modern.status-open { border-left-color: var(--status-open); }
+        .keypoint-card-modern.status-progress { border-left-color: var(--status-progress); }
+        .keypoint-card-modern.status-pending { border-left-color: var(--status-pending); }
+        .keypoint-card-modern.status-hold { border-left-color: var(--status-hold); }
+        .keypoint-card-modern.status-review { border-left-color: var(--status-review); }
+        .keypoint-card-modern.status-escalated { border-left-color: var(--status-escalated); }
+        .keypoint-card-modern.status-waiting { border-left-color: var(--status-waiting); }
+        .keypoint-card-modern.status-closed { border-left-color: var(--status-closed); }
+        
+        .keypoint-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .keypoint-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 0.75rem;
+            line-height: 1.5;
+        }
+        
+        /* Status Badge Pill */
+        .status-badge-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-badge-pill.open { background: #f3f4f6; color: #4b5563; }
+        .status-badge-pill.progress { background: #dbeafe; color: #1d4ed8; }
+        .status-badge-pill.pending { background: #fef3c7; color: #b45309; }
+        .status-badge-pill.hold { background: #fee2e2; color: #b91c1c; }
+        .status-badge-pill.review { background: #ede9fe; color: #6d28d9; }
+        .status-badge-pill.escalated { background: #f3f4f6; color: #1f2937; }
+        .status-badge-pill.waiting { background: #cffafe; color: #0e7490; }
+        .status-badge-pill.closed { background: #d1fae5; color: #047857; }
+        
+        /* Meta Info Pills */
+        .meta-info-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            padding: 1rem 1.5rem;
+            background: #fafbfc;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .meta-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+        }
+        
+        .meta-icon.assigned { background: #dbeafe; color: #3b82f6; }
+        .meta-icon.created { background: #d1fae5; color: #10b981; }
+        .meta-icon.author { background: #fef3c7; color: #f59e0b; }
+        
+        .meta-label {
+            font-size: 0.7rem;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .meta-value {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        /* Updates Section */
+        .updates-section {
+            padding: 1.5rem;
+            background: linear-gradient(to bottom, #f8fafc, #ffffff);
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #374151;
+            margin: 0;
+        }
+        
+        .section-title i {
+            color: #667eea;
+        }
+        
+        /* Timeline Updates */
+        .timeline {
+            position: relative;
+            padding-left: 2rem;
+        }
+        
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 7px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, #667eea, #e5e7eb);
+            border-radius: 2px;
+        }
+        
+        .timeline-item {
+            position: relative;
+            padding-bottom: 1.5rem;
+        }
+        
+        .timeline-item:last-child {
+            padding-bottom: 0;
+        }
+        
+        .timeline-dot {
+            position: absolute;
+            left: -2rem;
+            top: 0;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: white;
+            border: 3px solid #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2);
+        }
+        
+        .timeline-content {
+            background: #f9fafb;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-left: 0.5rem;
+        }
+        
+        .timeline-text {
+            color: #374151;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin-bottom: 0.5rem;
+        }
+        
+        .timeline-meta {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.75rem;
+            color: #9ca3af;
+        }
+        
+        /* Status Change Badge */
+        .status-change-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        
+        /* Add Update Form - Inline Style */
+        .add-update-inline {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+            padding: 1rem;
+            background: #fafafa;
+            border: 2px solid #374151;
+            border-radius: 12px;
+            margin-top: 1rem;
+            transition: all 0.2s;
+        }
+        
+        .add-update-inline:focus-within {
+            border-color: #1f2937;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(55, 65, 81, 0.1);
+        }
+        
+        .update-textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 0.5rem;
+            resize: none;
+            font-size: 0.9rem;
+            min-height: 60px;
+        }
+        
+        .update-textarea:focus {
+            outline: none;
+        }
+        
+        .update-textarea::placeholder {
+            color: #9ca3af;
+        }
+        
+        .btn-submit-update {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border: none;
+            border-radius: 10px;
+            padding: 0.75rem 1.25rem;
+            color: white;
+            font-weight: 600;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-submit-update:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
+            color: white;
+        }
+        
+        .btn-gradient {
+            background: var(--primary-gradient);
+            border: none;
+            border-radius: 12px;
+            padding: 0.75rem 1.5rem;
+            color: white;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        
+        .btn-gradient:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+            color: white;
+        }
+        
+        /* Status Update Dropdown */
+        .status-dropdown {
+            position: relative;
+        }
+        
+        .status-select-modern {
+            appearance: none;
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 0.625rem 2.5rem 0.625rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+        }
+        
+        .status-select-modern:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+        
+        /* Empty State */
+        .empty-updates {
+            text-align: center;
+            padding: 2rem;
+            color: #9ca3af;
+        }
+        
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 0.75rem;
+            opacity: 0.3;
+        }
+        
+        /* Collapsible Toggle */
+        .collapse-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            padding: 0.75rem 0;
+        }
+        
+        .collapse-toggle .bi-chevron-down {
+            transition: transform 0.3s;
+        }
+        
+        .collapse-toggle.collapsed .bi-chevron-down {
+            transform: rotate(-90deg);
+        }
+        
+        /* Quick Action Buttons */
+        .quick-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #e5e7eb;
+            background: white;
+            color: #6b7280;
+            transition: all 0.2s;
+        }
+        
+        .btn-icon:hover {
+            border-color: #667eea;
+            color: #667eea;
+            background: #f5f3ff;
+        }
+        
+        .btn-icon.delete:hover {
+            border-color: #ef4444;
+            color: #ef4444;
+            background: #fef2f2;
+        }
+    </style>
+</head>
+<body>
+    <!-- Page Header -->
+    <div class="page-header-modern">
+        <div class="container">
+            <div class="page-header-content d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="page-title">
+                        <i class="bi bi-bookmark-star me-2"></i>Key Points Management
+                    </h1>
+                    <p class="page-subtitle mb-0">Track, update, and manage key points with comprehensive status controls</p>
+                </div>
+                <div class="d-flex gap-3">
+                    <div class="text-center">
+                        <div class="bg-white bg-opacity-25 rounded-3 px-4 py-2">
+                            <div class="text-white fw-bold fs-3">26</div>
+                            <div class="text-white-50 small">Total Points</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Stats Row -->
+        <div class="row stats-row g-3">
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="stat-icon" style="background: #dbeafe; color: #3b82f6;">
+                            <i class="bi bi-clock-history"></i>
+                        </div>
+                        <div>
+                            <div class="stat-value">8</div>
+                            <div class="stat-label">In Progress</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="stat-icon" style="background: #fef3c7; color: #f59e0b;">
+                            <i class="bi bi-hourglass-split"></i>
+                        </div>
+                        <div>
+                            <div class="stat-value">5</div>
+                            <div class="stat-label">Pending</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="stat-icon" style="background: #fee2e2; color: #ef4444;">
+                            <i class="bi bi-pause-circle"></i>
+                        </div>
+                        <div>
+                            <div class="stat-value">3</div>
+                            <div class="stat-label">On Hold</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="stat-icon" style="background: #d1fae5; color: #10b981;">
+                            <i class="bi bi-check-circle"></i>
+                        </div>
+                        <div>
+                            <div class="stat-value">10</div>
+                            <div class="stat-label">Closed</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <div class="d-flex flex-wrap align-items-center gap-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-funnel text-secondary"></i>
+                    <span class="fw-semibold text-secondary">Filters:</span>
+                </div>
+                
+                <select class="filter-input-modern" style="min-width: 180px;">
+                    <option>👥 Supply Chain-L2</option>
+                    <option>👥 All Teams</option>
+                </select>
+                
+                <select class="filter-input-modern" style="min-width: 160px;">
+                    <option>🏷️ All Status</option>
+                    <option>⚪ Open</option>
+                    <option selected>🔵 In Progress</option>
+                    <option>🟡 Pending</option>
+                    <option>🔴 On Hold</option>
+                    <option>✅ Closed</option>
+                </select>
+                
+                <input type="date" class="filter-input-modern" value="2025-12-31" style="min-width: 150px;">
+                
+                <div class="ms-auto d-flex gap-2">
+                    <button class="btn btn-gradient">
+                        <i class="bi bi-funnel-fill me-1"></i>Apply Filters
+                    </button>
+                    <button class="btn btn-outline-secondary" style="border-radius: 12px;" title="Clear filters">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Active Filters -->
+            <div class="d-flex gap-2 mt-3 pt-3 border-top">
+                <small class="text-muted">Active:</small>
+                <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill">
+                    <i class="bi bi-people me-1"></i>Supply Chain-L2
+                </span>
+                <span class="badge bg-info bg-opacity-10 text-info px-3 py-2 rounded-pill">
+                    <i class="bi bi-clock me-1"></i>In Progress
+                </span>
+                <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill">
+                    <i class="bi bi-calendar me-1"></i>31-12-2025
+                </span>
+            </div>
+        </div>
+
+        <!-- Key Point Card 1 -->
+        <div class="keypoint-card-modern status-progress">
+            <div class="keypoint-header">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-start gap-3 mb-3">
+                            <span class="status-badge-pill progress">
+                                <i class="bi bi-clock-history"></i>
+                                In Progress
+                            </span>
+                            <div class="quick-actions ms-auto">
+                                <button class="btn-icon" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <h5 class="keypoint-title">
+                            <i class="bi bi-bookmark-fill text-primary me-2" style="font-size: 0.9rem;"></i>
+                            Please begin monitoring the calendar job each day at 6 PM EST and continue doing until a positive alert is observed, NR team has updated the alert configuration.
+                        </h5>
+                    </div>
+                </div>
+                
+                <!-- Status Update Section -->
+                <div class="d-flex flex-wrap align-items-center gap-3 mt-3 p-3 bg-light rounded-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-arrow-repeat text-primary"></i>
+                        <span class="fw-semibold text-secondary small">Update Status:</span>
+                    </div>
+                    <select class="status-select-modern">
+                        <option>Open</option>
+                        <option selected>In Progress</option>
+                        <option>Pending with Another Team</option>
+                        <option>On Hold</option>
+                        <option>Under Review</option>
+                        <option>Escalated</option>
+                        <option>Waiting for Approval</option>
+                        <option>Closed</option>
+                    </select>
+                    <button class="btn btn-sm btn-primary" style="border-radius: 8px;">
+                        <i class="bi bi-check-lg me-1"></i>Update
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Meta Info Row -->
+            <div class="meta-info-row">
+                <div class="meta-item">
+                    <div class="meta-icon assigned">
+                        <i class="bi bi-person"></i>
+                    </div>
+                    <div>
+                        <div class="meta-label">Assigned To</div>
+                        <div class="meta-value">Unassigned</div>
+                    </div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-icon created">
+                        <i class="bi bi-calendar"></i>
+                    </div>
+                    <div>
+                        <div class="meta-label">Created On</div>
+                        <div class="meta-value">31-12-2025</div>
+                    </div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-icon author">
+                        <i class="bi bi-person-badge"></i>
+                    </div>
+                    <div>
+                        <div class="meta-label">Created By</div>
+                        <div class="meta-value">Bharath Nataraja</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Updates Section - Combined with Add Update -->
+            <div class="updates-section">
+                <div class="section-header">
+                    <h6 class="section-title">
+                        <i class="bi bi-chat-square-text"></i>
+                        Updates & History
+                        <span class="badge bg-primary rounded-pill ms-2">2</span>
+                    </h6>
+                </div>
+                
+                <!-- Inline Add Update - Always visible at top -->
+                <div class="add-update-inline">
+                    <i class="bi bi-pencil-square text-muted" style="font-size: 1.25rem; margin-top: 0.25rem;"></i>
+                    <textarea class="update-textarea" rows="2" placeholder="Write an update... (What's the current status? Any blockers?)"></textarea>
+                    <button class="btn-submit-update">
+                        <i class="bi bi-send-fill"></i>
+                        Post Update
+                    </button>
+                </div>
+                
+                <!-- Timeline of Updates -->
+                <div class="timeline mt-4">
+                    <div class="timeline-item">
+                        <div class="timeline-dot"></div>
+                        <div class="timeline-content">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <p class="timeline-text mb-2">Contacted NR team, they confirmed the alert configuration has been updated. Monitoring will continue for the next 3 days.</p>
+                                    <div class="timeline-meta">
+                                        <span><i class="bi bi-calendar3 me-1"></i>31-12-2025 14:30</span>
+                                        <span><i class="bi bi-person me-1"></i>Sajid Mohammad</span>
+                                    </div>
+                                </div>
+                                <div class="quick-actions">
+                                    <button class="btn-icon" title="Edit"><i class="bi bi-pencil"></i></button>
+                                    <button class="btn-icon delete" title="Delete"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-dot"></div>
+                        <div class="timeline-content">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <p class="timeline-text mb-2">
+                                        <span class="status-change-badge me-2">
+                                            <i class="bi bi-arrow-right"></i>
+                                            Status Changed
+                                        </span>
+                                        Changed from Open to In Progress
+                                    </p>
+                                    <div class="timeline-meta">
+                                        <span><i class="bi bi-calendar3 me-1"></i>31-12-2025 10:15</span>
+                                        <span><i class="bi bi-person me-1"></i>Bharath Nataraja</span>
+                                    </div>
+                                </div>
+                                <div class="quick-actions">
+                                    <button class="btn-icon" title="Edit"><i class="bi bi-pencil"></i></button>
+                                    <button class="btn-icon delete" title="Delete"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Point Card 2 - Different Status -->
+        <div class="keypoint-card-modern status-pending">
+            <div class="keypoint-header">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-start gap-3 mb-3">
+                            <span class="status-badge-pill pending">
+                                <i class="bi bi-people"></i>
+                                Pending with Another Team
+                            </span>
+                            <div class="quick-actions ms-auto">
+                                <button class="btn-icon" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <h5 class="keypoint-title">
+                            <i class="bi bi-bookmark-fill text-warning me-2" style="font-size: 0.9rem;"></i>
+                            TMS batch processing delay reported by end users. Investigating root cause with database team. ETA for resolution pending.
+                        </h5>
+                    </div>
+                </div>
+                
+                <!-- Status Update Section -->
+                <div class="d-flex flex-wrap align-items-center gap-3 mt-3 p-3 bg-light rounded-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-arrow-repeat text-primary"></i>
+                        <span class="fw-semibold text-secondary small">Update Status:</span>
+                    </div>
+                    <select class="status-select-modern">
+                        <option>Open</option>
+                        <option>In Progress</option>
+                        <option selected>Pending with Another Team</option>
+                        <option>On Hold</option>
+                        <option>Closed</option>
+                    </select>
+                    <button class="btn btn-sm btn-primary" style="border-radius: 8px;">
+                        <i class="bi bi-check-lg me-1"></i>Update
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Meta Info Row -->
+            <div class="meta-info-row">
+                <div class="meta-item">
+                    <div class="meta-icon assigned">
+                        <i class="bi bi-person"></i>
+                    </div>
+                    <div>
+                        <div class="meta-label">Assigned To</div>
+                        <div class="meta-value">Santosh Rath</div>
+                    </div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-icon created">
+                        <i class="bi bi-calendar"></i>
+                    </div>
+                    <div>
+                        <div class="meta-label">Created On</div>
+                        <div class="meta-value">30-12-2025</div>
+                    </div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-icon author">
+                        <i class="bi bi-person-badge"></i>
+                    </div>
+                    <div>
+                        <div class="meta-label">Created By</div>
+                        <div class="meta-value">Pramod Shrivastava</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Updates Section - Empty State -->
+            <div class="updates-section">
+                <div class="section-header">
+                    <h6 class="section-title">
+                        <i class="bi bi-chat-square-text"></i>
+                        Updates & History
+                    </h6>
+                </div>
+                
+                <!-- Inline Add Update - Prominent when empty -->
+                <div class="add-update-inline">
+                    <i class="bi bi-pencil-square text-primary" style="font-size: 1.25rem; margin-top: 0.25rem;"></i>
+                    <textarea class="update-textarea" rows="2" placeholder="Be the first to add an update... What's happening with this item?"></textarea>
+                    <button class="btn-submit-update">
+                        <i class="bi bi-send-fill"></i>
+                        Post Update
+                    </button>
+                </div>
+                
+                <div class="text-center text-muted py-3 mt-3">
+                    <small><i class="bi bi-info-circle me-1"></i>No previous updates recorded</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Point Card 3 - Closed Status -->
+        <div class="keypoint-card-modern status-closed">
+            <div class="keypoint-header">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-start gap-3 mb-3">
+                            <span class="status-badge-pill closed">
+                                <i class="bi bi-check-circle"></i>
+                                Closed
+                            </span>
+                            <div class="quick-actions ms-auto">
+                                <button class="btn-icon" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <h5 class="keypoint-title">
+                            <i class="bi bi-bookmark-fill text-success me-2" style="font-size: 0.9rem;"></i>
+                            Production deployment completed for Sprint 24. All services verified and running as expected.
+                        </h5>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Meta Info Row -->
+            <div class="meta-info-row">
+                <div class="meta-item">
+                    <div class="meta-icon assigned">
+                        <i class="bi bi-person"></i>
+                    </div>
+                    <div>
+                        <div class="meta-label">Assigned To</div>
+                        <div class="meta-value">Harika Boghra</div>
+                    </div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-icon created">
+                        <i class="bi bi-calendar"></i>
+                    </div>
+                    <div>
+                        <div class="meta-label">Created On</div>
+                        <div class="meta-value">29-12-2025</div>
+                    </div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-icon author">
+                        <i class="bi bi-person-badge"></i>
+                    </div>
+                    <div>
+                        <div class="meta-label">Created By</div>
+                        <div class="meta-value">Manoj Kumar</div>
+                    </div>
+                </div>
+                <div class="meta-item ms-auto">
+                    <div class="meta-icon" style="background: #d1fae5; color: #10b981;">
+                        <i class="bi bi-check-lg"></i>
+                    </div>
+                    <div>
+                        <div class="meta-label">Resolved On</div>
+                        <div class="meta-value">30-12-2025</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Collapsed Updates Section for Closed Items -->
+            <div class="updates-section" style="padding: 1rem 1.5rem; background: #f9fafb;">
+                <div class="d-flex align-items-center justify-content-between">
+                    <span class="text-muted small">
+                        <i class="bi bi-chat-square-text me-1"></i>
+                        3 updates recorded
+                    </span>
+                    <button class="btn btn-sm btn-outline-secondary" style="border-radius: 8px; font-size: 0.75rem;">
+                        <i class="bi bi-eye me-1"></i>View History
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
