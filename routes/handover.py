@@ -2302,11 +2302,13 @@ def handover():
         current_shift_type = request.form.get('current_shift_type')
         next_shift_type = request.form.get('next_shift_type')
         
-        # Normalize shift types to ensure proper capitalization
+        # 🔧 FIX: Normalize shift types using proper mapping (not .capitalize() which breaks OffShore/OnShore)
+        valid_shift_types = {'morning': 'Morning', 'evening': 'Evening', 'night': 'Night', 
+                            'onshore': 'OnShore', 'offshore': 'OffShore'}
         if current_shift_type:
-            current_shift_type = current_shift_type.capitalize()
+            current_shift_type = valid_shift_types.get(current_shift_type.lower(), current_shift_type)
         if next_shift_type:
-            next_shift_type = next_shift_type.capitalize()
+            next_shift_type = valid_shift_types.get(next_shift_type.lower(), next_shift_type)
         
         if not current_shift_type or not next_shift_type:
             flash('Please select both current and next shift types.', 'error')
