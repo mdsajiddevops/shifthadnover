@@ -3532,9 +3532,13 @@ def handover():
     # 🆕 CARRYFORWARD: Load KB Updates that are not yet Published
     logger.debug(f"[DEBUG] Loading KB updates for carryforward (account {current_user.account_id}, team {query_team_id})")
     
-    # 🔧 FIX: First, get ALL kb_numbers that have been published (anywhere in the system for this team)
-    # This prevents older copies of published KBs from being carried forward
-    published_kb_numbers = set()
+    # 🔧 FIX: First, get ALL kb identifiers that have been published (anywhere in the system for this team)
+    # This prevents older copies/stale entries of published KBs from being carried forward
+    # Uses BOTH kb_number AND description to catch cases where:
+    #   - User created "New" entry without kb_number
+    #   - Later created separate "Published" entry with kb_number (instead of editing)
+    #   - The stale "New" entry should be hidden since the work is done
+    published_kb_identifiers = set()
     published_kbs = ShiftKBUpdate.query.filter(
         ShiftKBUpdate.account_id == current_user.account_id,
         ShiftKBUpdate.team_id == query_team_id,
@@ -3542,17 +3546,13 @@ def handover():
     ).all()
     for kb in published_kbs:
         if kb.kb_number and kb.kb_number.strip():
-            # If KB has a kb_number, only use that as identifier (primary key for exclusion)
-            published_kb_numbers.add(kb.kb_number.strip().lower())
-        else:
-            # Only use app_name + description for KBs WITHOUT kb_number
-            # This prevents false exclusions where a published KB with kb_number 
-            # would also exclude unpublished KBs with same description but no kb_number yet
-            kb_key = f"{kb.app_name or ''}_{(kb.description or '')[:50]}".strip().lower()
-            if kb_key:
-                published_kb_numbers.add(kb_key)
+            published_kb_identifiers.add(kb.kb_number.strip().lower())
+        # Also track by app_name + description to catch stale entries without kb_number
+        kb_key = f"{kb.app_name or ''}_{(kb.description or '')[:50]}".strip().lower()
+        if kb_key:
+            published_kb_identifiers.add(kb_key)
     
-    logger.debug(f"[DEBUG] Found {len(published_kb_numbers)} published KB identifiers to exclude")
+    logger.debug(f"[DEBUG] Found {len(published_kb_identifiers)} published KB identifiers to exclude")
     
     # Get KB updates from recent shifts (last 30 days) where status is not "Published"
     carryforward_kb_updates = []
@@ -3577,7 +3577,7 @@ def handover():
                 kb_key = f"{kb.app_name or ''}_{(kb.description or '')[:50]}".strip().lower()
             
             # 🔧 FIX: Skip if this KB has been published anywhere
-            if kb_key in published_kb_numbers:
+            if kb_key in published_kb_identifiers:
                 logger.debug(f"[DEBUG]     Skipping KB {kb_key} - already published elsewhere")
                 continue
             
