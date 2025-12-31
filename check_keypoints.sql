@@ -3,3 +3,4 @@ SELECT id, LEFT(description, 50) as description, status, shift_id FROM shift_key
 
 
 
+

@@ -569,6 +569,55 @@
     color: #6b8dd6;
 }
 
+/* Export Buttons */
+.export-section {
+    border-color: #e9ecef !important;
+}
+
+.btn-export {
+    padding: 0.5rem 1rem;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.btn-export:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.btn-export-csv {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+}
+
+.btn-export-csv:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    color: white;
+}
+
+.btn-export-excel {
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    color: white;
+}
+
+.btn-export-excel:hover {
+    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+    color: white;
+}
+
+.btn-export-pdf {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+}
+
+.btn-export-pdf:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    color: white;
+}
+
 /* Empty State */
 .empty-state {
     background: white;
@@ -882,6 +931,34 @@
                 </div>
             </div>
         </form>
+        
+        <!-- Export Section -->
+        <div class="export-section mt-3 pt-3 border-top">
+            <div class="d-flex align-items-center justify-content-between">
+                <div class="export-label">
+                    <i class="bi bi-download me-2 text-primary"></i>
+                    <span class="fw-semibold text-secondary">Export Reports:</span>
+                </div>
+                <div class="export-buttons d-flex gap-2">
+                    <a href="{{ url_for('reports.export_handover_bulk', format='csv', account_id=request.args.get('account_id', ''), team_id=request.args.get('team_id', ''), date=request.args.get('date', ''), shift_type=request.args.get('shift_type', '')) }}" 
+                       class="btn btn-export btn-export-csv" title="Export as CSV">
+                        <i class="bi bi-filetype-csv me-1"></i>CSV
+                    </a>
+                    <a href="{{ url_for('reports.export_handover_bulk', format='excel', account_id=request.args.get('account_id', ''), team_id=request.args.get('team_id', ''), date=request.args.get('date', ''), shift_type=request.args.get('shift_type', '')) }}" 
+                       class="btn btn-export btn-export-excel" title="Export as Excel">
+                        <i class="bi bi-file-earmark-excel me-1"></i>Excel
+                    </a>
+                    <a href="{{ url_for('reports.export_handover_bulk', format='pdf', account_id=request.args.get('account_id', ''), team_id=request.args.get('team_id', ''), date=request.args.get('date', ''), shift_type=request.args.get('shift_type', '')) }}" 
+                       class="btn btn-export btn-export-pdf" title="Export as PDF">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+                    </a>
+                </div>
+            </div>
+            <small class="text-muted mt-2 d-block">
+                <i class="bi bi-info-circle me-1"></i>
+                Export will include all reports matching your current filters
+            </small>
+        </div>
     </div>
 
     <!-- Reports Section -->

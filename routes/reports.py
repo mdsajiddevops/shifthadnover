@@ -15,6 +15,80 @@ import logging
 # Module logger
 logger = logging.getLogger(__name__)
 
+def format_excel_sheet(worksheet, df):
+    """Apply professional formatting to Excel worksheet"""
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    
+    # Define styles
+    header_fill = PatternFill(start_color='6B8DD6', end_color='6B8DD6', fill_type='solid')
+    header_font = Font(bold=True, color='FFFFFF', size=11)
+    header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    
+    cell_alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
+    thin_border = Border(
+        left=Side(style='thin', color='E0E0E0'),
+        right=Side(style='thin', color='E0E0E0'),
+        top=Side(style='thin', color='E0E0E0'),
+        bottom=Side(style='thin', color='E0E0E0')
+    )
+    
+    # Status colors
+    status_colors = {
+        'Open': PatternFill(start_color='E3F2FD', end_color='E3F2FD', fill_type='solid'),
+        'In Progress': PatternFill(start_color='FFF3E0', end_color='FFF3E0', fill_type='solid'),
+        'Closed': PatternFill(start_color='E8F5E9', end_color='E8F5E9', fill_type='solid'),
+        'Completed': PatternFill(start_color='E8F5E9', end_color='E8F5E9', fill_type='solid'),
+        'Published': PatternFill(start_color='E8F5E9', end_color='E8F5E9', fill_type='solid'),
+        'New': PatternFill(start_color='E3F2FD', end_color='E3F2FD', fill_type='solid'),
+        'In Review': PatternFill(start_color='FFF3E0', end_color='FFF3E0', fill_type='solid'),
+        'Cancelled': PatternFill(start_color='FFEBEE', end_color='FFEBEE', fill_type='solid'),
+        'Scheduled': PatternFill(start_color='E8F5E9', end_color='E8F5E9', fill_type='solid'),
+        'Postponed': PatternFill(start_color='FFF3E0', end_color='FFF3E0', fill_type='solid'),
+    }
+    
+    # Format header row
+    for col_idx, col in enumerate(df.columns, 1):
+        cell = worksheet.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_alignment
+        cell.border = thin_border
+    
+    # Format data rows
+    for row_idx in range(2, len(df) + 2):
+        for col_idx in range(1, len(df.columns) + 1):
+            cell = worksheet.cell(row=row_idx, column=col_idx)
+            cell.alignment = cell_alignment
+            cell.border = thin_border
+            
+            # Apply status colors
+            cell_value = str(cell.value) if cell.value else ''
+            if cell_value in status_colors:
+                cell.fill = status_colors[cell_value]
+        
+        # Alternate row coloring
+        if row_idx % 2 == 0:
+            alt_fill = PatternFill(start_color='F8F9FA', end_color='F8F9FA', fill_type='solid')
+            for col_idx in range(1, len(df.columns) + 1):
+                cell = worksheet.cell(row=row_idx, column=col_idx)
+                if not cell.fill or cell.fill.fgColor.rgb == '00000000':
+                    cell.fill = alt_fill
+    
+    # Auto-adjust column widths
+    for col_idx, col in enumerate(df.columns, 1):
+        max_length = max(
+            df[col].astype(str).map(len).max() if len(df) > 0 else 0,
+            len(str(col))
+        )
+        adjusted_width = min(max_length + 3, 50)
+        worksheet.column_dimensions[worksheet.cell(row=1, column=col_idx).column_letter].width = adjusted_width
+    
+    # Set row height for header
+    worksheet.row_dimensions[1].height = 25
+    
+    # Freeze the header row
+    worksheet.freeze_panes = 'A2'
+
 reports_bp = Blueprint('reports', __name__)
 
 
@@ -335,42 +409,39 @@ def export_handover_bulk():
     if date_filter:
         try:
             date_obj = datetime.strptime(date_filter, '%Y-%m-%d').date()
-            query = query.filter_by(date=date_obj)  # 🔧 FIXED: Use date column
+            query = query.filter_by(date=date_obj)
         except Exception:
             pass
     if shift_type_filter:
         query = query.filter_by(current_shift_type=shift_type_filter)
-    # Order by shift date only for now (newest first)
-    # TODO: Re-add submitted_at ordering when MySQL compatibility issue is resolved
-    shifts = query.order_by(
-        Shift.date.desc()
-    ).all()
-    rows = []
+    
+    shifts = query.order_by(Shift.date.desc()).all()
+    
+    # Generate filename with date
+    from datetime import datetime as dt
+    export_date = dt.now().strftime('%Y%m%d_%H%M')
+    
+    # Collect detailed data for each category
+    summary_rows = []
+    incident_rows = []
+    keypoint_rows = []
+    change_rows = []
+    kb_rows = []
+    
     for shift in shifts:
         incidents = Incident.query.filter_by(shift_id=shift.id).all()
         key_points = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
+        change_infos = ShiftChangeInfo.query.filter_by(shift_id=shift.id).all()
+        kb_updates = ShiftKBUpdate.query.filter_by(shift_id=shift.id).all()
         
-        # Get detailed incident information
-        incident_details = []
-        for i in incidents:
-            details = f"[{i.type}] {i.title}"
-            if i.status:
-                details += f" (Status: {i.status})"
-            if i.priority:
-                details += f" (Priority: {i.priority})"
-            if i.handover:
-                details += f" - {i.handover}"
-            incident_details.append(details)
+        # Get team name
+        team_name = ''
+        if shift.team_id:
+            team = Team.query.get(shift.team_id)
+            if team:
+                team_name = team.name
         
-        incident_titles = '; '.join(incident_details)
-        
-        keypoint_details = '; '.join([
-            f"{kp.description} ({kp.status}) [Responsible: {TeamMember.query.get(kp.responsible_engineer_id).name if kp.responsible_engineer_id else 'N/A'}]" + 
-            (f" [JIRA: {kp.jira_id}]" if kp.jira_id else "")
-            for kp in key_points
-        ])
-        
-        # Find who submitted this handover from audit log
+        # Find who submitted this handover
         submitted_by = 'Unknown'
         audit_entry = AuditLog.query.filter(
             AuditLog.action.like('%Create Handover%'),
@@ -379,7 +450,6 @@ def export_handover_bulk():
         ).first()
         
         if audit_entry:
-            # Try to get the actual user for better display name
             if audit_entry.user_id:
                 user = User.query.get(audit_entry.user_id)
                 if user:
@@ -389,43 +459,416 @@ def export_handover_bulk():
             else:
                 submitted_by = audit_entry.username or 'Unknown User'
         
-        rows.append({
-            'Date': shift.date,
-            'Current Shift': shift.current_shift_type,
-            'Status': shift.status,
+        # Summary row
+        summary_rows.append({
+            'Date': shift.date.strftime('%Y-%m-%d') if shift.date else '',
+            'Team': team_name,
+            'Shift': f"{shift.current_shift_type} → {shift.next_shift_type}",
+            'Status': shift.status or 'Completed',
             'Submitted By': submitted_by,
-            'Incidents': incident_titles,
-            'Key Points': keypoint_details
+            'Total Incidents': len(incidents),
+            'Total Key Points': len(key_points),
+            'Total Changes': len(change_infos),
+            'Total KB Updates': len(kb_updates)
         })
+        
+        # Detailed incident rows
+        for idx, inc in enumerate(incidents, 1):
+            incident_rows.append({
+                'Date': shift.date.strftime('%Y-%m-%d') if shift.date else '',
+                'Shift': f"{shift.current_shift_type} → {shift.next_shift_type}",
+                'Team': team_name,
+                '#': idx,
+                'Type': inc.type or 'N/A',
+                'Incident ID': inc.title.split(' - ')[1] if ' - ' in (inc.title or '') else (inc.title or 'N/A'),
+                'Application': inc.title.split(' - ')[0] if ' - ' in (inc.title or '') else 'N/A',
+                'Status': inc.status or 'N/A',
+                'Priority': inc.priority or 'N/A',
+                'Escalated To': inc.escalated_to or '-',
+                'Handover Notes': inc.handover or ''
+            })
+        
+        # Detailed key point rows
+        for idx, kp in enumerate(key_points, 1):
+            responsible_name = 'N/A'
+            if kp.responsible_engineer_id:
+                engineer = TeamMember.query.get(kp.responsible_engineer_id)
+                if engineer:
+                    responsible_name = engineer.name
+            
+            # Get latest update for this key point
+            latest_update = ''
+            if kp.updates:
+                sorted_updates = sorted(kp.updates, key=lambda u: u.update_date if u.update_date else '', reverse=True)
+                if sorted_updates:
+                    latest_update = sorted_updates[0].update_text or ''
+            
+            keypoint_rows.append({
+                'Date': shift.date.strftime('%Y-%m-%d') if shift.date else '',
+                'Shift': f"{shift.current_shift_type} → {shift.next_shift_type}",
+                'Team': team_name,
+                '#': idx,
+                'Description': kp.description or '',
+                'Status': kp.status or 'N/A',
+                'Responsible Engineer': responsible_name,
+                'JIRA ID': kp.jira_id or '',
+                'Latest Update': latest_update[:200] if latest_update else ''
+            })
+        
+        # Detailed change info rows
+        for idx, ci in enumerate(change_infos, 1):
+            responsible_name = 'N/A'
+            if ci.responsible_engineer_id:
+                engineer = TeamMember.query.get(ci.responsible_engineer_id)
+                if engineer:
+                    responsible_name = engineer.name
+            
+            change_rows.append({
+                'Date': shift.date.strftime('%Y-%m-%d') if shift.date else '',
+                'Shift': f"{shift.current_shift_type} → {shift.next_shift_type}",
+                'Team': team_name,
+                '#': idx,
+                'Change Number': ci.change_number or 'N/A',
+                'Application': ci.app_name or '',
+                'Description': ci.description or '',
+                'Change Date': ci.change_datetime.strftime('%Y-%m-%d %H:%M') if ci.change_datetime else 'N/A',
+                'Status': ci.status or 'N/A',
+                'Responsible Engineer': responsible_name
+            })
+        
+        # Detailed KB update rows
+        for idx, kb in enumerate(kb_updates, 1):
+            responsible_name = 'N/A'
+            if kb.responsible_engineer_id:
+                engineer = TeamMember.query.get(kb.responsible_engineer_id)
+                if engineer:
+                    responsible_name = engineer.name
+            
+            kb_rows.append({
+                'Date': shift.date.strftime('%Y-%m-%d') if shift.date else '',
+                'Shift': f"{shift.current_shift_type} → {shift.next_shift_type}",
+                'Team': team_name,
+                '#': idx,
+                'KB Number': kb.kb_number or 'N/A',
+                'Application': kb.app_name or '',
+                'Description': kb.description or '',
+                'Status': kb.status or 'N/A',
+                'Responsible Engineer': responsible_name
+            })
+    
     if format_type == 'csv':
+        # For CSV, create a detailed format grouped by DATE
         import pandas as pd, io
-        df = pd.DataFrame(rows)
+        from collections import defaultdict
+        
+        # Group all rows by date
+        incidents_by_date = defaultdict(list)
+        keypoints_by_date = defaultdict(list)
+        changes_by_date = defaultdict(list)
+        kb_by_date = defaultdict(list)
+        
+        for row in incident_rows:
+            incidents_by_date[row['Date']].append(row)
+        for row in keypoint_rows:
+            keypoints_by_date[row['Date']].append(row)
+        for row in change_rows:
+            changes_by_date[row['Date']].append(row)
+        for row in kb_rows:
+            kb_by_date[row['Date']].append(row)
+        
+        # Get all unique dates and sort (newest first)
+        all_dates = sorted(set(
+            list(incidents_by_date.keys()) + 
+            list(keypoints_by_date.keys()) + 
+            list(changes_by_date.keys()) + 
+            list(kb_by_date.keys())
+        ), reverse=True)
+        
+        all_rows = []
+        
+        for date in all_dates:
+            # Add date header
+            all_rows.append({'Date': f'=== {date} ===' + '=' * 40, 'Type': '', 'Team': '', 'Shift': ''})
+            
+            # Add incidents for this date
+            if date in incidents_by_date:
+                for row in incidents_by_date[date]:
+                    all_rows.append({
+                        'Date': row['Date'],
+                        'Type': 'INCIDENT',
+                        'Team': row['Team'],
+                        'Shift': row['Shift'],
+                        '#': row['#'],
+                        'Category': row['Type'],
+                        'ID/Number': row['Incident ID'],
+                        'Application': row['Application'],
+                        'Description': '',
+                        'Status': row['Status'],
+                        'Priority': row['Priority'],
+                        'Responsible/Escalated': row['Escalated To'],
+                        'Notes': row['Handover Notes']
+                    })
+            
+            # Add key points for this date
+            if date in keypoints_by_date:
+                for row in keypoints_by_date[date]:
+                    all_rows.append({
+                        'Date': row['Date'],
+                        'Type': 'KEY POINT',
+                        'Team': row['Team'],
+                        'Shift': row['Shift'],
+                        '#': row['#'],
+                        'Category': '',
+                        'ID/Number': row['JIRA ID'],
+                        'Application': '',
+                        'Description': row['Description'],
+                        'Status': row['Status'],
+                        'Priority': '',
+                        'Responsible/Escalated': row['Responsible Engineer'],
+                        'Notes': row['Latest Update']
+                    })
+            
+            # Add changes for this date
+            if date in changes_by_date:
+                for row in changes_by_date[date]:
+                    all_rows.append({
+                        'Date': row['Date'],
+                        'Type': 'CHANGE',
+                        'Team': row['Team'],
+                        'Shift': row['Shift'],
+                        '#': row['#'],
+                        'Category': '',
+                        'ID/Number': row['Change Number'],
+                        'Application': row['Application'],
+                        'Description': row['Description'],
+                        'Status': row['Status'],
+                        'Priority': '',
+                        'Responsible/Escalated': row['Responsible Engineer'],
+                        'Notes': row['Change Date']
+                    })
+            
+            # Add KB updates for this date
+            if date in kb_by_date:
+                for row in kb_by_date[date]:
+                    all_rows.append({
+                        'Date': row['Date'],
+                        'Type': 'KB UPDATE',
+                        'Team': row['Team'],
+                        'Shift': row['Shift'],
+                        '#': row['#'],
+                        'Category': '',
+                        'ID/Number': row['KB Number'],
+                        'Application': row['Application'],
+                        'Description': row['Description'],
+                        'Status': row['Status'],
+                        'Priority': '',
+                        'Responsible/Escalated': row['Responsible Engineer'],
+                        'Notes': ''
+                    })
+            
+            # Add blank row after each date
+            all_rows.append({})
+        
+        df = pd.DataFrame(all_rows)
         csv_io = io.StringIO()
         df.to_csv(csv_io, index=False)
         csv_io.seek(0)
-        return send_file(io.BytesIO(csv_io.getvalue().encode()), mimetype='text/csv', as_attachment=True, download_name='handover_reports.csv')
+        return send_file(
+            io.BytesIO(csv_io.getvalue().encode('utf-8-sig')),
+            mimetype='text/csv', 
+            as_attachment=True, 
+            download_name=f'handover_reports_detailed_{export_date}.csv'
+        )
+    
+    elif format_type == 'excel':
+        import pandas as pd, io
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils.dataframe import dataframe_to_rows
+        
+        excel_io = io.BytesIO()
+        
+        with pd.ExcelWriter(excel_io, engine='openpyxl') as writer:
+            # Sheet 1: Summary
+            if summary_rows:
+                df_summary = pd.DataFrame(summary_rows)
+                df_summary.to_excel(writer, index=False, sheet_name='Summary')
+                format_excel_sheet(writer.sheets['Summary'], df_summary)
+            
+            # Sheet 2: Incidents (Detailed)
+            if incident_rows:
+                df_incidents = pd.DataFrame(incident_rows)
+                df_incidents.to_excel(writer, index=False, sheet_name='Incidents')
+                format_excel_sheet(writer.sheets['Incidents'], df_incidents)
+            
+            # Sheet 3: Key Points (Detailed)
+            if keypoint_rows:
+                df_keypoints = pd.DataFrame(keypoint_rows)
+                df_keypoints.to_excel(writer, index=False, sheet_name='Key Points')
+                format_excel_sheet(writer.sheets['Key Points'], df_keypoints)
+            
+            # Sheet 4: Change Info (Detailed)
+            if change_rows:
+                df_changes = pd.DataFrame(change_rows)
+                df_changes.to_excel(writer, index=False, sheet_name='Change Info')
+                format_excel_sheet(writer.sheets['Change Info'], df_changes)
+            
+            # Sheet 5: KB Updates (Detailed)
+            if kb_rows:
+                df_kb = pd.DataFrame(kb_rows)
+                df_kb.to_excel(writer, index=False, sheet_name='KB Updates')
+                format_excel_sheet(writer.sheets['KB Updates'], df_kb)
+        
+        excel_io.seek(0)
+        return send_file(
+            excel_io, 
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
+            as_attachment=True, 
+            download_name=f'handover_reports_detailed_{export_date}.xlsx'
+        )
     elif format_type == 'pdf':
         import io
-        from reportlab.pdfgen import canvas
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+        
         pdf_io = io.BytesIO()
-        c = canvas.Canvas(pdf_io)
-        c.drawString(100, 800, "Shift Handover Reports")
-        y = 780
-        for row in rows:
-            c.drawString(100, y, f"Date: {row['Date']} | Shift: {row['Current Shift']} | Status: {row['Status']} | Submitted By: {row['Submitted By']}")
-            y -= 20
-            c.drawString(120, y, f"Incidents: {row['Incidents']}")
-            y -= 20
-            c.drawString(120, y, f"Key Points: {row['Key Points']}")
-            y -= 30
-            if y < 100:
-                c.showPage()
-                y = 800
-        c.save()
+        doc = SimpleDocTemplate(pdf_io, pagesize=landscape(A4), 
+                               rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+        
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # Custom styles
+        title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=18, spaceAfter=10, textColor=colors.HexColor('#6b8dd6'))
+        section_style = ParagraphStyle('SectionTitle', parent=styles['Heading2'], fontSize=14, spaceBefore=20, spaceAfter=10, textColor=colors.HexColor('#2c3e50'))
+        cell_style = ParagraphStyle('cell', fontSize=8, leading=10)
+        
+        # Title
+        elements.append(Paragraph("Shift Handover Reports - Detailed Export", title_style))
+        elements.append(Paragraph(f"Generated on: {dt.now().strftime('%B %d, %Y at %H:%M')}", styles['Normal']))
+        elements.append(Spacer(1, 20))
+        
+        # Helper function for creating styled tables
+        def create_styled_table(data, col_widths, header_color='#6b8dd6'):
+            if not data or len(data) <= 1:
+                return None
+            table = Table(data, colWidths=col_widths)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(header_color)),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                ('TOPPADDING', (0, 0), (-1, 0), 10),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('TOPPADDING', (0, 1), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e0e0e0')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+            ]))
+            return table
+        
+        # 1. SUMMARY SECTION
+        elements.append(Paragraph("1. SUMMARY", section_style))
+        if summary_rows:
+            summary_data = [['Date', 'Team', 'Shift', 'Status', 'Submitted By', 'Incidents', 'Key Points', 'Changes', 'KBs']]
+            for row in summary_rows:
+                summary_data.append([
+                    row['Date'], row['Team'] or 'N/A', row['Shift'], row['Status'], 
+                    row['Submitted By'], str(row['Total Incidents']), str(row['Total Key Points']),
+                    str(row['Total Changes']), str(row['Total KB Updates'])
+                ])
+            table = create_styled_table(summary_data, [60, 80, 90, 50, 90, 50, 55, 50, 40])
+            if table:
+                elements.append(table)
+        else:
+            elements.append(Paragraph("No handover reports found.", styles['Normal']))
+        
+        # 2. INCIDENTS SECTION
+        if incident_rows:
+            elements.append(PageBreak())
+            elements.append(Paragraph("2. INCIDENTS (Detailed)", section_style))
+            inc_data = [['Date', 'Shift', '#', 'Type', 'Incident ID', 'Application', 'Status', 'Priority', 'Escalated To']]
+            for row in incident_rows:
+                status = row['Status']
+                # Add visual indicator for status
+                status_indicator = f"● {status}" if status in ['Open', 'In Progress'] else f"✓ {status}" if status == 'Closed' else status
+                inc_data.append([
+                    row['Date'], row['Shift'], str(row['#']), row['Type'],
+                    Paragraph(str(row['Incident ID']), cell_style),
+                    Paragraph(str(row['Application']), cell_style),
+                    status_indicator, row['Priority'], row['Escalated To']
+                ])
+            table = create_styled_table(inc_data, [55, 80, 25, 50, 100, 100, 60, 50, 55], '#c62828')
+            if table:
+                elements.append(table)
+        
+        # 3. KEY POINTS SECTION
+        if keypoint_rows:
+            elements.append(PageBreak())
+            elements.append(Paragraph("3. KEY POINTS (Detailed)", section_style))
+            kp_data = [['Date', 'Shift', '#', 'Description', 'Status', 'Responsible', 'JIRA ID']]
+            for row in keypoint_rows:
+                status = row['Status']
+                status_indicator = f"● {status}" if status in ['Open', 'In Progress'] else f"✓ {status}"
+                kp_data.append([
+                    row['Date'], row['Shift'], str(row['#']),
+                    Paragraph(str(row['Description'])[:100] + ('...' if len(str(row['Description'])) > 100 else ''), cell_style),
+                    status_indicator, row['Responsible Engineer'], row['JIRA ID'] or '-'
+                ])
+            table = create_styled_table(kp_data, [55, 80, 25, 250, 70, 90, 70], '#f57c00')
+            if table:
+                elements.append(table)
+        
+        # 4. CHANGE INFO SECTION
+        if change_rows:
+            elements.append(PageBreak())
+            elements.append(Paragraph("4. CHANGE INFO (Detailed)", section_style))
+            change_data = [['Date', 'Shift', '#', 'Change #', 'Application', 'Description', 'Status', 'Responsible']]
+            for row in change_rows:
+                change_data.append([
+                    row['Date'], row['Shift'], str(row['#']), row['Change Number'],
+                    Paragraph(str(row['Application']), cell_style),
+                    Paragraph(str(row['Description'])[:80] + ('...' if len(str(row['Description'])) > 80 else ''), cell_style),
+                    row['Status'], row['Responsible Engineer']
+                ])
+            table = create_styled_table(change_data, [55, 80, 25, 70, 90, 180, 60, 80], '#1565c0')
+            if table:
+                elements.append(table)
+        
+        # 5. KB UPDATES SECTION
+        if kb_rows:
+            elements.append(PageBreak())
+            elements.append(Paragraph("5. KB UPDATES (Detailed)", section_style))
+            kb_data = [['Date', 'Shift', '#', 'KB Number', 'Application', 'Description', 'Status', 'Responsible']]
+            for row in kb_rows:
+                kb_data.append([
+                    row['Date'], row['Shift'], str(row['#']), row['KB Number'],
+                    Paragraph(str(row['Application']), cell_style),
+                    Paragraph(str(row['Description'])[:80] + ('...' if len(str(row['Description'])) > 80 else ''), cell_style),
+                    row['Status'], row['Responsible Engineer']
+                ])
+            table = create_styled_table(kb_data, [55, 80, 25, 70, 90, 180, 60, 80], '#2e7d32')
+            if table:
+                elements.append(table)
+        
+        doc.build(elements)
         pdf_io.seek(0)
-        return send_file(pdf_io, mimetype='application/pdf', as_attachment=True, download_name='handover_reports.pdf')
+        return send_file(
+            pdf_io, 
+            mimetype='application/pdf', 
+            as_attachment=True, 
+            download_name=f'handover_reports_detailed_{export_date}.pdf'
+        )
     else:
-        return "Invalid format", 400
+        return "Invalid format. Supported formats: csv, excel, pdf", 400
 
 
 # Export incidents as CSV for a single shift

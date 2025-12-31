@@ -12,3 +12,4 @@ CREATE INDEX IF NOT EXISTS idx_uns_event_id ON email_delivery_log(uns_event_id);
 DESCRIBE email_delivery_log;
 
 
+
