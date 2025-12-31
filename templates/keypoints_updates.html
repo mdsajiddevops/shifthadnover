@@ -199,10 +199,12 @@
                     <div>
                         <div class="meta-label">Created On</div>
                         <div class="meta-value">
-                            {% if kp.created_at %}
+                            {% if kp.original_created_date %}
+                                {{ kp.original_created_date.strftime('%d-%m-%Y') }}
+                            {% elif kp.shift and kp.shift.date %}
+                                {{ kp.shift.date.strftime('%d-%m-%Y') }}
+                            {% elif kp.created_at %}
                                 {{ kp.created_at.strftime('%d-%m-%Y') }}
-                            {% elif kp.shift %}
-                                {{ kp.shift.date.strftime('%d-%m-%Y') if kp.shift.date else 'Unknown' }}
                             {% else %}
                                 <span class="text-muted">Unknown</span>
                             {% endif %}

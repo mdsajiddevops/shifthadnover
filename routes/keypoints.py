@@ -301,11 +301,29 @@ def keypoints():
     key_points = list(kp_map.values())
     logger.debug(f"🔧 KEYPOINTS: Deduplication reduced {len(all_key_points)} to {len(key_points)} unique key points (after filtering closed)")
     
-    # Populate submitted_by_name for key points that don't have created_by
+    # Populate submitted_by_name and original_created_date for key points
     from models.handover_enhanced import HandoverRequest
     from models.models import User, Shift
+    
     for kp in key_points:
         kp.submitted_by_name = None  # Default
+        kp.original_created_date = None  # The earliest date this key point was created
+        
+        # 🔧 FIX: Find the OLDEST shift date for key points with the same description
+        # This handles carried-forward key points correctly
+        try:
+            oldest_kp = ShiftKeyPoint.query.filter_by(
+                description=kp.description,
+                account_id=kp.account_id,
+                team_id=kp.team_id
+            ).join(Shift).order_by(Shift.date.asc()).first()
+            
+            if oldest_kp and oldest_kp.shift and oldest_kp.shift.date:
+                kp.original_created_date = oldest_kp.shift.date
+                logger.debug(f"🔧 KEYPOINTS: KP {kp.id} original date: {kp.original_created_date}")
+        except Exception as e:
+            logger.debug(f"🔧 KEYPOINTS: Error finding original date for KP {kp.id}: {e}")
+        
         if not kp.created_by and kp.shift_id:
             try:
                 # Find the HandoverRequest for this shift to get the submitter
