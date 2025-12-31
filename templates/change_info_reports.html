@@ -182,6 +182,9 @@
                                             <button class="btn btn-sm btn-outline-primary edit-change-btn" title="Edit">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
+                                            <button class="btn btn-sm btn-outline-danger delete-change-btn" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
                                             <button class="btn btn-sm btn-success save-change-btn" style="display: none;" title="Save">
                                                 <i class="bi bi-check"></i>
                                             </button>
@@ -231,6 +234,39 @@ $(document).ready(function() {
         const row = $(this).closest('tr');
         toggleEditMode(row, false);
     });
+    
+    // Delete button click handler
+    $('.delete-change-btn').click(function() {
+        const row = $(this).closest('tr');
+        const changeId = row.data('change-id');
+        const changeNumber = row.find('.change-display').eq(1).text().trim() || 'N/A';
+        const appName = row.find('.change-display').eq(0).text().trim() || 'N/A';
+        
+        if (confirm(`Are you sure you want to delete this Change Info record?\n\nApp: ${appName}\nChange #: ${changeNumber}\n\nThis action cannot be undone.`)) {
+            deleteChangeInfo(row, changeId);
+        }
+    });
+    
+    function deleteChangeInfo(row, changeId) {
+        $.ajax({
+            url: `/api/change-info/${changeId}`,
+            method: 'DELETE',
+            success: function(response) {
+                // Remove the row from table with animation
+                row.fadeOut(300, function() {
+                    $(this).remove();
+                    // Update record count
+                    const currentCount = parseInt($('.card-header h6').text().match(/\d+/)[0]) - 1;
+                    $('.card-header h6').html(`Change Information (${currentCount} records)`);
+                });
+                showNotification('Change Info record deleted successfully!', 'success');
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON?.error || 'Failed to delete change info record';
+                showNotification(error, 'error');
+            }
+        });
+    }
     
     function toggleEditMode(row, editMode) {
         if (editMode) {

@@ -1287,6 +1287,43 @@ def update_kb_record(kb_id):
         return jsonify({'error': str(e)}), 500
 
 
+@reports_bp.route('/api/kb-updates/<int:kb_id>', methods=['DELETE'])
+@login_required
+def delete_kb_record(kb_id):
+    """Delete a KB update record"""
+    try:
+        kb_update = ShiftKBUpdate.query.get_or_404(kb_id)
+        
+        # Check permissions - only admins and team members can delete
+        if current_user.role not in ['super_admin', 'account_admin', 'team_admin']:
+            if kb_update.account_id != current_user.account_id or kb_update.team_id != current_user.team_id:
+                return jsonify({'error': 'Unauthorized - insufficient permissions'}), 403
+        elif current_user.role == 'account_admin':
+            if kb_update.account_id != current_user.account_id:
+                return jsonify({'error': 'Unauthorized - different account'}), 403
+        elif current_user.role == 'team_admin':
+            if kb_update.account_id != current_user.account_id or kb_update.team_id != current_user.team_id:
+                return jsonify({'error': 'Unauthorized - different team'}), 403
+        
+        kb_number = kb_update.kb_number or 'N/A'
+        app_name = kb_update.app_name or 'N/A'
+        
+        db.session.delete(kb_update)
+        db.session.commit()
+        
+        log_action('Delete KB Record', f'Deleted KB record {kb_id}: {app_name} - {kb_number}')
+        
+        return jsonify({
+            'success': True,
+            'message': f'KB record deleted successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting KB record {kb_id}: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
 @reports_bp.route('/api/team-members', methods=['GET'])
 @login_required
 def get_team_members():
@@ -1379,6 +1416,43 @@ def update_change_info_record(change_id):
         
     except Exception as e:
         db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@reports_bp.route('/api/change-info/<int:change_id>', methods=['DELETE'])
+@login_required
+def delete_change_info_record(change_id):
+    """Delete a change info record"""
+    try:
+        change_info = ShiftChangeInfo.query.get_or_404(change_id)
+        
+        # Check permissions - only admins and team members can delete
+        if current_user.role not in ['super_admin', 'account_admin', 'team_admin']:
+            if change_info.account_id != current_user.account_id or change_info.team_id != current_user.team_id:
+                return jsonify({'error': 'Unauthorized - insufficient permissions'}), 403
+        elif current_user.role == 'account_admin':
+            if change_info.account_id != current_user.account_id:
+                return jsonify({'error': 'Unauthorized - different account'}), 403
+        elif current_user.role == 'team_admin':
+            if change_info.account_id != current_user.account_id or change_info.team_id != current_user.team_id:
+                return jsonify({'error': 'Unauthorized - different team'}), 403
+        
+        change_number = change_info.change_number or 'N/A'
+        app_name = change_info.app_name or 'N/A'
+        
+        db.session.delete(change_info)
+        db.session.commit()
+        
+        log_action('Delete Change Info', f'Deleted change info record {change_id}: {app_name} - {change_number}')
+        
+        return jsonify({
+            'success': True,
+            'message': f'Change info record deleted successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting change info record {change_id}: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
