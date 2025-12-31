@@ -3307,7 +3307,7 @@ function addChangeInfoWithData(changeInfo) {
     
     // Then populate it with data
     const container = document.getElementById('changeinfo-container');
-    const entries = container.querySelectorAll('.change-info-entry');
+    const entries = container.querySelectorAll('.changeinfo-entry');  // Fixed: was '.change-info-entry' (wrong class)
     const newEntry = entries[entries.length - 1]; // Get the last entry
     
     if (newEntry) {
