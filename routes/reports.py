@@ -402,10 +402,46 @@ def export_handover_bulk():
     team_id = request.args.get('team_id')
     format_type = request.args.get('format', 'csv')
     query = Shift.query
-    if account_id:
-        query = query.filter_by(account_id=account_id)
-    if team_id:
-        query = query.filter_by(team_id=team_id)
+    
+    # Apply team access filtering based on user role
+    if current_user.role == 'super_admin':
+        # Super admin can see all data - apply explicit filters only
+        if account_id:
+            query = query.filter_by(account_id=account_id)
+        if team_id:
+            query = query.filter_by(team_id=team_id)
+    elif current_user.role == 'account_admin':
+        # Account admin sees all teams in their account
+        query = query.filter_by(account_id=current_user.account_id)
+        if team_id:
+            query = query.filter_by(team_id=team_id)
+    else:
+        # Regular users: restrict to their accessible teams only
+        effective_team_ids = TeamAccessService.get_effective_team_ids()
+        if effective_team_ids:
+            if team_id:
+                # If a specific team is requested, verify user has access
+                try:
+                    requested_team_id = int(team_id)
+                    if requested_team_id in effective_team_ids:
+                        query = query.filter_by(team_id=requested_team_id)
+                    else:
+                        # User doesn't have access to this team, filter by their teams
+                        query = query.filter(Shift.team_id.in_(effective_team_ids))
+                except (TypeError, ValueError):
+                    query = query.filter(Shift.team_id.in_(effective_team_ids))
+            else:
+                # No specific team requested, show all user's accessible teams
+                query = query.filter(Shift.team_id.in_(effective_team_ids))
+        else:
+            # No teams accessible, return empty
+            query = query.filter(Shift.team_id == -1)  # This will return no results
+        
+        # Also filter by account
+        if current_user.account_id:
+            query = query.filter_by(account_id=current_user.account_id)
+    
+    # Apply date and shift type filters
     if date_filter:
         try:
             date_obj = datetime.strptime(date_filter, '%Y-%m-%d').date()
@@ -416,6 +452,7 @@ def export_handover_bulk():
         query = query.filter_by(current_shift_type=shift_type_filter)
     
     shifts = query.order_by(Shift.date.desc()).all()
+    logger.info(f"Export: User {current_user.username} (role: {current_user.role}) exporting {len(shifts)} shifts")
     
     # Generate filename with date
     from datetime import datetime as dt
