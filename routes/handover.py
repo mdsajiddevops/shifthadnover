@@ -2411,17 +2411,66 @@ def handover():
                         user_in_shift = True
                         logger.debug(f"[SHIFT_CHECK] ✅ User {current_user.username} is in {current_shift_type} shift roster")
                     else:
-                        # Also check if user is scheduled for any shift on this date
-                        any_roster = ShiftRoster.query.filter_by(
-                            date=date,
-                            team_member_id=user_team_member.id,
-                            account_id=account_id,
-                            team_id=team_id
+                        # 🔧 FALLBACK CHECK 1: Check with additional/related shift codes
+                        # This handles cases where roster codes might have mapping issues
+                        additional_codes = {
+                            'D': ['G', 'OS'],  # Morning also includes General and OnShore
+                            'E': [],
+                            'N': ['LE'],
+                            'OS': ['D', 'G'],  # OnShore also shows with Morning
+                            'OF': []  # OffShore
+                        }
+                        codes_to_check = [current_shift_code] + additional_codes.get(current_shift_code, [])
+                        
+                        roster_entry_flexible = ShiftRoster.query.filter(
+                            ShiftRoster.date == date,
+                            ShiftRoster.team_member_id == user_team_member.id,
+                            ShiftRoster.shift_code.in_(codes_to_check),
+                            ShiftRoster.account_id == account_id,
+                            ShiftRoster.team_id == team_id
                         ).first()
-                        if any_roster:
-                            logger.debug(f"[SHIFT_CHECK] ⚠️ User {current_user.username} is scheduled for {any_roster.shift_code} shift, not {current_shift_code}")
+                        
+                        if roster_entry_flexible:
+                            user_in_shift = True
+                            logger.debug(f"[SHIFT_CHECK] ✅ User {current_user.username} found in flexible shift check (code: {roster_entry_flexible.shift_code} for shift type: {current_shift_type})")
                         else:
-                            logger.debug(f"[SHIFT_CHECK] ⚠️ User {current_user.username} is not scheduled for any shift today")
+                            # 🔧 FALLBACK CHECK 2: Check if user is in the current shift engineers list
+                            # This uses the same logic as the form display to get engineers
+                            # Get all engineers who should appear in the current shift section
+                            all_shift_codes = [current_shift_code] + additional_codes.get(current_shift_code, [])
+                            current_shift_engineers = ShiftRoster.query.filter(
+                                ShiftRoster.date == date,
+                                ShiftRoster.shift_code.in_(all_shift_codes),
+                                ShiftRoster.account_id == account_id,
+                                ShiftRoster.team_id == team_id
+                            ).all()
+                            current_shift_engineer_ids = [e.team_member_id for e in current_shift_engineers]
+                            
+                            if user_team_member.id in current_shift_engineer_ids:
+                                user_in_shift = True
+                                logger.debug(f"[SHIFT_CHECK] ✅ User {current_user.username} found in current shift engineers list (fallback 2)")
+                            else:
+                                # 🔧 FALLBACK CHECK 3: If user is on roster today with ANY code,
+                                # and they appear in the displayed engineers list, allow them
+                                # This handles OffShore/OnShore teams where shift codes may vary
+                                any_roster = ShiftRoster.query.filter_by(
+                                    date=date,
+                                    team_member_id=user_team_member.id,
+                                    account_id=account_id,
+                                    team_id=team_id
+                                ).first()
+                                
+                                if any_roster:
+                                    # Check if the user's name was passed in the current_engineers form field
+                                    # This means the form displayed them as a current shift engineer
+                                    form_current_engineers = request.form.getlist('current_engineer[]')
+                                    if user_team_member.name in form_current_engineers:
+                                        user_in_shift = True
+                                        logger.debug(f"[SHIFT_CHECK] ✅ User {current_user.username} ({user_team_member.name}) is in form's current shift engineers list")
+                                    else:
+                                        logger.debug(f"[SHIFT_CHECK] ⚠️ User {current_user.username} is scheduled for {any_roster.shift_code} shift, not {current_shift_code}")
+                                else:
+                                    logger.debug(f"[SHIFT_CHECK] ⚠️ User {current_user.username} is not scheduled for any shift today")
                 else:
                     logger.debug(f"[SHIFT_CHECK] ⚠️ No TeamMember record found for user {current_user.username}")
                 
