@@ -1627,6 +1627,10 @@ def handover_reports():
                     'responsible': engineer.name if engineer else 'N/A'
                 })
 
+            # Get team name for display
+            team = Team.query.get(shift.team_id) if shift.team_id else None
+            shift_team_name = team.name if team else 'Unknown'
+            
             # Create serializable shift data instead of passing the model object
             shift_data.append({
                 'shift': {
@@ -1644,7 +1648,8 @@ def handover_reports():
                 'key_points': key_points_data,
                 'change_infos': change_infos_data,
                 'kb_updates': kb_updates_data,
-                'submitted_by': submitted_by
+                'submitted_by': submitted_by,
+                'team_name': shift_team_name
             })
             
             # Debug what we're sending to template
@@ -2160,12 +2165,23 @@ def delete_draft_report(shift_id):
             flash('Only draft reports can be deleted. Submitted reports cannot be deleted.', 'error')
             return redirect(url_for('reports.handover_reports'))
         
-        # Store info for logging
+        # Store info for logging - get team name from Team model
         shift_date = shift.date.strftime('%Y-%m-%d') if shift.date else 'Unknown'
         shift_type = f"{shift.current_shift_type} → {shift.next_shift_type}"
-        team_name = shift.team.name if shift.team else 'Unknown'
+        team = Team.query.get(shift.team_id) if shift.team_id else None
+        team_name = team.name if team else 'Unknown'
         
-        # Delete related records first
+        # Delete related records first (need to delete key point updates first due to FK constraint)
+        # Get key point IDs first
+        key_point_ids = [kp.id for kp in ShiftKeyPoint.query.filter_by(shift_id=shift_id).all()]
+        
+        # Import ShiftKeyPointUpdate if not already imported
+        from models.models import ShiftKeyPointUpdate
+        
+        # Delete key point updates
+        if key_point_ids:
+            ShiftKeyPointUpdate.query.filter(ShiftKeyPointUpdate.key_point_id.in_(key_point_ids)).delete(synchronize_session=False)
+        
         # Delete incidents
         deleted_incidents = Incident.query.filter_by(shift_id=shift_id).delete()
         
@@ -2177,6 +2193,10 @@ def delete_draft_report(shift_id):
         
         # Delete KB updates
         deleted_kbs = ShiftKBUpdate.query.filter_by(shift_id=shift_id).delete()
+        
+        # Clear engineer associations
+        shift.current_engineers = []
+        shift.next_engineers = []
         
         # Delete the shift itself
         db.session.delete(shift)
@@ -2196,6 +2216,8 @@ def delete_draft_report(shift_id):
     except Exception as e:
         db.session.rollback()
         logger.error(f"❌ Error deleting draft report {shift_id}: {e}")
+        import traceback
+        traceback.print_exc()
         flash(f'Error deleting draft report: {str(e)}', 'error')
         return redirect(url_for('reports.handover_reports'))
 
@@ -2219,16 +2241,26 @@ def api_delete_draft_report(shift_id):
         if shift.status != 'draft':
             return jsonify({'success': False, 'error': 'Only draft reports can be deleted.'}), 400
         
-        # Store info for logging
+        # Store info for logging - get team name from Team model
         shift_date = shift.date.strftime('%Y-%m-%d') if shift.date else 'Unknown'
         shift_type = f"{shift.current_shift_type} → {shift.next_shift_type}"
-        team_name = shift.team.name if shift.team else 'Unknown'
+        team = Team.query.get(shift.team_id) if shift.team_id else None
+        team_name = team.name if team else 'Unknown'
         
-        # Delete related records first
+        # Delete related records first (need to delete key point updates first due to FK constraint)
+        from models.models import ShiftKeyPointUpdate
+        key_point_ids = [kp.id for kp in ShiftKeyPoint.query.filter_by(shift_id=shift_id).all()]
+        if key_point_ids:
+            ShiftKeyPointUpdate.query.filter(ShiftKeyPointUpdate.key_point_id.in_(key_point_ids)).delete(synchronize_session=False)
+        
         deleted_incidents = Incident.query.filter_by(shift_id=shift_id).delete()
         deleted_keypoints = ShiftKeyPoint.query.filter_by(shift_id=shift_id).delete()
         deleted_changes = ShiftChangeInfo.query.filter_by(shift_id=shift_id).delete()
         deleted_kbs = ShiftKBUpdate.query.filter_by(shift_id=shift_id).delete()
+        
+        # Clear engineer associations
+        shift.current_engineers = []
+        shift.next_engineers = []
         
         # Delete the shift itself
         db.session.delete(shift)
