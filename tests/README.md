@@ -81,6 +81,28 @@ python tests/run_tests.py --user superadmin --password admin123
 
 ---
 
+### 5. Change Info Tests - Any User
+```bash
+# Tests change info functionality (add via API, form, deduplication)
+python tests/test_change_info.py
+
+# With custom credentials
+python tests/test_change_info.py --user your_user --password your_pass -v
+
+# For production
+python tests/test_change_info.py --url https://your-server.com --user user --password pass
+```
+
+**What it tests:**
+- Adding change info via Change Info Reports page (API)
+- Adding change info via Handover Form
+- Deduplication - same change_number appears only once
+- Change info appears in reports regardless of how added
+- Change count accuracy in reports
+- Cleanup of test data
+
+---
+
 ## Run All Tests After Updates
 
 ```bash
