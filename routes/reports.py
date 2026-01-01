@@ -1,5 +1,5 @@
 
-from flask import Blueprint, render_template, request, send_file, session, jsonify
+from flask import Blueprint, render_template, request, send_file, session, jsonify, flash, redirect, url_for
 from flask_login import login_required, current_user
 from datetime import datetime
 from sqlalchemy import func
@@ -2137,3 +2137,121 @@ def create_kb_update_record():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+
+@reports_bp.route('/handover-reports/delete-draft/<int:shift_id>', methods=['POST'])
+@login_required
+def delete_draft_report(shift_id):
+    """Delete a draft shift report - Super Admin only"""
+    try:
+        # Check if user is super_admin
+        if current_user.role != 'super_admin':
+            flash('Access denied. Only Super Admins can delete draft reports.', 'error')
+            return redirect(url_for('reports.handover_reports'))
+        
+        # Get the shift
+        shift = Shift.query.get(shift_id)
+        
+        if not shift:
+            flash('Shift report not found.', 'error')
+            return redirect(url_for('reports.handover_reports'))
+        
+        # Check if it's a draft
+        if shift.status != 'draft':
+            flash('Only draft reports can be deleted. Submitted reports cannot be deleted.', 'error')
+            return redirect(url_for('reports.handover_reports'))
+        
+        # Store info for logging
+        shift_date = shift.date.strftime('%Y-%m-%d') if shift.date else 'Unknown'
+        shift_type = f"{shift.current_shift_type} → {shift.next_shift_type}"
+        team_name = shift.team.name if shift.team else 'Unknown'
+        
+        # Delete related records first
+        # Delete incidents
+        deleted_incidents = Incident.query.filter_by(shift_id=shift_id).delete()
+        
+        # Delete key points
+        deleted_keypoints = ShiftKeyPoint.query.filter_by(shift_id=shift_id).delete()
+        
+        # Delete change info
+        deleted_changes = ShiftChangeInfo.query.filter_by(shift_id=shift_id).delete()
+        
+        # Delete KB updates
+        deleted_kbs = ShiftKBUpdate.query.filter_by(shift_id=shift_id).delete()
+        
+        # Delete the shift itself
+        db.session.delete(shift)
+        db.session.commit()
+        
+        # Log the action
+        log_action('Delete Draft Report', 
+                  f'Deleted draft report: Date={shift_date}, Shift={shift_type}, Team={team_name}. '
+                  f'Deleted: {deleted_incidents} incidents, {deleted_keypoints} key points, '
+                  f'{deleted_changes} changes, {deleted_kbs} KB updates.')
+        
+        flash(f'Draft report for {shift_date} ({shift_type}) has been deleted successfully.', 'success')
+        logger.info(f"🗑️ Super Admin {current_user.username} deleted draft report ID {shift_id}")
+        
+        return redirect(url_for('reports.handover_reports'))
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"❌ Error deleting draft report {shift_id}: {e}")
+        flash(f'Error deleting draft report: {str(e)}', 'error')
+        return redirect(url_for('reports.handover_reports'))
+
+
+@reports_bp.route('/api/delete-draft/<int:shift_id>', methods=['DELETE'])
+@login_required
+def api_delete_draft_report(shift_id):
+    """API endpoint to delete a draft shift report - Super Admin only"""
+    try:
+        # Check if user is super_admin
+        if current_user.role != 'super_admin':
+            return jsonify({'success': False, 'error': 'Access denied. Only Super Admins can delete draft reports.'}), 403
+        
+        # Get the shift
+        shift = Shift.query.get(shift_id)
+        
+        if not shift:
+            return jsonify({'success': False, 'error': 'Shift report not found.'}), 404
+        
+        # Check if it's a draft
+        if shift.status != 'draft':
+            return jsonify({'success': False, 'error': 'Only draft reports can be deleted.'}), 400
+        
+        # Store info for logging
+        shift_date = shift.date.strftime('%Y-%m-%d') if shift.date else 'Unknown'
+        shift_type = f"{shift.current_shift_type} → {shift.next_shift_type}"
+        team_name = shift.team.name if shift.team else 'Unknown'
+        
+        # Delete related records first
+        deleted_incidents = Incident.query.filter_by(shift_id=shift_id).delete()
+        deleted_keypoints = ShiftKeyPoint.query.filter_by(shift_id=shift_id).delete()
+        deleted_changes = ShiftChangeInfo.query.filter_by(shift_id=shift_id).delete()
+        deleted_kbs = ShiftKBUpdate.query.filter_by(shift_id=shift_id).delete()
+        
+        # Delete the shift itself
+        db.session.delete(shift)
+        db.session.commit()
+        
+        # Log the action
+        log_action('Delete Draft Report', 
+                  f'Deleted draft report: Date={shift_date}, Shift={shift_type}, Team={team_name}')
+        
+        logger.info(f"🗑️ Super Admin {current_user.username} deleted draft report ID {shift_id} via API")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Draft report for {shift_date} ({shift_type}) deleted successfully.',
+            'deleted': {
+                'incidents': deleted_incidents,
+                'keypoints': deleted_keypoints,
+                'changes': deleted_changes,
+                'kb_updates': deleted_kbs
+            }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"❌ Error deleting draft report {shift_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

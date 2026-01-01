@@ -324,6 +324,167 @@
     50% { box-shadow: 0 2px 15px rgba(243, 156, 18, 0.7); }
 }
 
+/* Delete Draft Button - Super Admin Only */
+.draft-delete-btn {
+    background: linear-gradient(135deg, #dc3545, #c82333) !important;
+    border: none !important;
+    color: white !important;
+    padding: 0.4rem 1rem !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+    display: inline-flex;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+.draft-delete-btn:hover {
+    background: linear-gradient(135deg, #c82333, #a71d2a) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.5);
+}
+
+.draft-delete-btn i {
+    margin-right: 0.3rem;
+}
+
+/* Delete Confirmation Modal */
+.delete-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.delete-modal-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.delete-modal-content {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    max-width: 450px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.delete-modal-overlay.show .delete-modal-content {
+    transform: scale(1);
+}
+
+.delete-modal-icon {
+    width: 70px;
+    height: 70px;
+    background: #ffebee;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem;
+}
+
+.delete-modal-icon i {
+    font-size: 2rem;
+    color: #dc3545;
+}
+
+.delete-modal-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #2c3e50;
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+
+.delete-modal-subtitle {
+    color: #6c757d;
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.delete-modal-details {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.delete-modal-details p {
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
+}
+
+.delete-modal-details strong {
+    color: #495057;
+}
+
+.delete-modal-warning {
+    background: #fff3cd;
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.85rem;
+    color: #856404;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.delete-modal-warning i {
+    color: #ffc107;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.delete-modal-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.delete-modal-btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.delete-modal-btn.cancel {
+    background: #e9ecef;
+    color: #495057;
+}
+
+.delete-modal-btn.cancel:hover {
+    background: #dee2e6;
+}
+
+.delete-modal-btn.confirm {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+    color: white;
+}
+
+.delete-modal-btn.confirm:hover {
+    background: linear-gradient(135deg, #c82333, #a71d2a);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+}
+
 .shift-summary-badges {
     display: flex;
     gap: 0.5rem;
@@ -1040,6 +1201,14 @@
                                    title="Edit Draft">
                                     <i class="bi bi-pencil-square me-1"></i>Edit Draft
                                 </a>
+                                {% if current_user.role == 'super_admin' %}
+                                <button type="button" 
+                                   class="btn btn-danger btn-sm draft-delete-btn" 
+                                   onclick="event.stopPropagation(); showDeleteModal({{ entry.shift['id'] }}, '{{ entry.shift.date.strftime('%b %d, %Y') if entry.shift.date else 'Unknown' }}', '{{ entry.shift.current_shift_type }} → {{ entry.shift.next_shift_type }}', '{{ entry.team_name|default('Unknown') }}')"
+                                   title="Delete Draft">
+                                    <i class="bi bi-trash"></i>Delete
+                                </button>
+                                {% endif %}
                                 {% endif %}
                                 <div class="expand-icon" id="shift-expand-{{ entry.shift['id'] }}">
                                     <i class="bi bi-chevron-down"></i>
@@ -1249,6 +1418,12 @@
                                 <a href="{{ url_for('handover.edit_handover', shift_id=entry.shift['id']) }}" class="btn-edit">
                                     <i class="bi bi-pencil me-1"></i>Edit
                                 </a>
+                                {% if current_user.role == 'super_admin' %}
+                                <button type="button" class="btn btn-danger btn-sm draft-delete-btn"
+                                   onclick="showDeleteModal({{ entry.shift['id'] }}, '{{ entry.shift.date.strftime('%b %d, %Y') if entry.shift.date else 'Unknown' }}', '{{ entry.shift.current_shift_type }} → {{ entry.shift.next_shift_type }}', '{{ entry.team_name|default('Unknown') }}')">
+                                    <i class="bi bi-trash"></i>Delete Draft
+                                </button>
+                                {% endif %}
                                 {% endif %}
                             </div>
                         </div>
@@ -1336,5 +1511,98 @@ document.addEventListener('DOMContentLoaded', function() {
         firstDateGroup.click();
     }
 });
+
+// Delete Draft Modal Functions
+let deleteShiftId = null;
+
+function showDeleteModal(shiftId, date, shiftType, teamName) {
+    deleteShiftId = shiftId;
+    document.getElementById('delete-shift-date').textContent = date;
+    document.getElementById('delete-shift-type').textContent = shiftType;
+    document.getElementById('delete-shift-team').textContent = teamName;
+    document.getElementById('deleteModal').classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function hideDeleteModal() {
+    deleteShiftId = null;
+    document.getElementById('deleteModal').classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function confirmDelete() {
+    if (!deleteShiftId) return;
+    
+    // Show loading state
+    const confirmBtn = document.querySelector('.delete-modal-btn.confirm');
+    const originalText = confirmBtn.innerHTML;
+    confirmBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Deleting...';
+    confirmBtn.disabled = true;
+    
+    // Submit the form
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/handover-reports/delete-draft/' + deleteShiftId;
+    
+    // Add CSRF token if needed
+    const csrfToken = document.querySelector('meta[name="csrf-token"]');
+    if (csrfToken) {
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrf_token';
+        csrfInput.value = csrfToken.content;
+        form.appendChild(csrfInput);
+    }
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        hideDeleteModal();
+    }
+});
+
+// Close modal on overlay click
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('delete-modal-overlay')) {
+        hideDeleteModal();
+    }
+});
 </script>
+
+<!-- Delete Confirmation Modal -->
+{% if current_user.role == 'super_admin' %}
+<div class="delete-modal-overlay" id="deleteModal">
+    <div class="delete-modal-content">
+        <div class="delete-modal-icon">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+        </div>
+        <h4 class="delete-modal-title">Delete Draft Report?</h4>
+        <p class="delete-modal-subtitle">This action cannot be undone.</p>
+        
+        <div class="delete-modal-details">
+            <p><strong>Date:</strong> <span id="delete-shift-date">-</span></p>
+            <p><strong>Shift:</strong> <span id="delete-shift-type">-</span></p>
+            <p><strong>Team:</strong> <span id="delete-shift-team">-</span></p>
+        </div>
+        
+        <div class="delete-modal-warning">
+            <i class="bi bi-info-circle-fill"></i>
+            <span>All associated data including incidents, key points, change info, and KB updates will be permanently deleted.</span>
+        </div>
+        
+        <div class="delete-modal-buttons">
+            <button type="button" class="delete-modal-btn cancel" onclick="hideDeleteModal()">
+                <i class="bi bi-x-lg me-1"></i>Cancel
+            </button>
+            <button type="button" class="delete-modal-btn confirm" onclick="confirmDelete()">
+                <i class="bi bi-trash me-1"></i>Delete Draft
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
