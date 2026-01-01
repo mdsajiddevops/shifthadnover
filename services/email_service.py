@@ -341,16 +341,25 @@ def send_handover_email(shift):
     # 🔧 FIX: Filter out Published KBs and Completed/Cancelled Change Infos
     # These statuses indicate the item is "done" and shouldn't appear in new handover emails
     from models.models import ShiftChangeInfo, ShiftKBUpdate
+    from datetime import timedelta
     
-    # Filter change_infos - exclude Completed, Cancelled, Implemented statuses
+    # 🔧 FIX: Query change_infos by date/team/account (not shift_id)
+    # This ensures ALL pending changes for this date appear in the email,
+    # regardless of whether they were added via Change Info Reports or Handover Form
     change_infos = ShiftChangeInfo.query.filter(
-        ShiftChangeInfo.shift_id == shift.id,
+        ShiftChangeInfo.account_id == shift.account_id,
+        ShiftChangeInfo.team_id == shift.team_id,
+        ShiftChangeInfo.created_at >= shift.date,  # Changes created on or after this date
+        ShiftChangeInfo.created_at < shift.date + timedelta(days=1),  # But before next day
         ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
     ).all()
     
-    # Filter kb_updates - exclude Published status
+    # 🔧 FIX: Same for kb_updates - query by date/team/account
     kb_updates = ShiftKBUpdate.query.filter(
-        ShiftKBUpdate.shift_id == shift.id,
+        ShiftKBUpdate.account_id == shift.account_id,
+        ShiftKBUpdate.team_id == shift.team_id,
+        ShiftKBUpdate.created_at >= shift.date,
+        ShiftKBUpdate.created_at < shift.date + timedelta(days=1),
         ShiftKBUpdate.status != 'Published'
     ).all()
     

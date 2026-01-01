@@ -468,8 +468,23 @@ def export_handover_bulk():
     for shift in shifts:
         incidents = Incident.query.filter_by(shift_id=shift.id).all()
         key_points = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
-        change_infos = ShiftChangeInfo.query.filter_by(shift_id=shift.id).all()
-        kb_updates = ShiftKBUpdate.query.filter_by(shift_id=shift.id).all()
+        # 🔧 FIX: Query change_infos and kb_updates by date/team/account (not just shift_id)
+        # This ensures ALL pending changes for this date appear, regardless of how they were added
+        from datetime import timedelta
+        change_infos = ShiftChangeInfo.query.filter(
+            ShiftChangeInfo.account_id == shift.account_id,
+            ShiftChangeInfo.team_id == shift.team_id,
+            ShiftChangeInfo.created_at >= shift.date,
+            ShiftChangeInfo.created_at < shift.date + timedelta(days=1),
+            ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
+        ).all()
+        kb_updates = ShiftKBUpdate.query.filter(
+            ShiftKBUpdate.account_id == shift.account_id,
+            ShiftKBUpdate.team_id == shift.team_id,
+            ShiftKBUpdate.created_at >= shift.date,
+            ShiftKBUpdate.created_at < shift.date + timedelta(days=1),
+            ShiftKBUpdate.status != 'Published'
+        ).all()
         
         # Get team name
         team_name = ''
@@ -999,13 +1014,22 @@ def detailed_shift_report(shift_id):
             key_points = list(kp_map.values())
             logger.debug(f"🔍 After dashboard-style filtering and deduplication: {len(key_points)} unique key points")
         
-        # 🔧 FIX: Filter out Completed/Cancelled/Implemented changes and Published KBs
+        # 🔧 FIX: Query change_infos by date/team/account (not just shift_id)
+        # This ensures ALL pending changes for this date appear in the report,
+        # regardless of whether they were added via Change Info Reports or Handover Form
+        from datetime import timedelta
         change_infos = ShiftChangeInfo.query.filter(
-            ShiftChangeInfo.shift_id == shift_id,
+            ShiftChangeInfo.account_id == shift.account_id,
+            ShiftChangeInfo.team_id == shift.team_id,
+            ShiftChangeInfo.created_at >= shift.date,
+            ShiftChangeInfo.created_at < shift.date + timedelta(days=1),
             ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
         ).all()
         kb_updates = ShiftKBUpdate.query.filter(
-            ShiftKBUpdate.shift_id == shift_id,
+            ShiftKBUpdate.account_id == shift.account_id,
+            ShiftKBUpdate.team_id == shift.team_id,
+            ShiftKBUpdate.created_at >= shift.date,
+            ShiftKBUpdate.created_at < shift.date + timedelta(days=1),
             ShiftKBUpdate.status != 'Published'
         ).all()
         
@@ -1513,10 +1537,14 @@ def handover_reports():
                 logger.debug(f"🚨 Error finding submitter for shift {shift.id}: {e}")
                 submitted_by = 'Unknown'
             
-            # Get Change Info and KB Updates for this shift
-            # 🔧 FIX: Filter out Completed/Cancelled/Implemented changes - they shouldn't appear in handover reports
+            # Get Change Info and KB Updates for this date/team
+            # 🔧 FIX: Query by date/team/account (not just shift_id) to include ALL pending changes
+            from datetime import timedelta
             change_infos = ShiftChangeInfo.query.filter(
-                ShiftChangeInfo.shift_id == shift.id,
+                ShiftChangeInfo.account_id == shift.account_id,
+                ShiftChangeInfo.team_id == shift.team_id,
+                ShiftChangeInfo.created_at >= shift.date,
+                ShiftChangeInfo.created_at < shift.date + timedelta(days=1),
                 ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
             ).all()
             change_infos_data = []
@@ -1534,9 +1562,12 @@ def handover_reports():
                     'status': change_info.status  # Include status for display in reports
                 })
             
-            # 🔧 FIX: Filter out Published KBs - they shouldn't appear in handover reports
+            # 🔧 FIX: Query KB updates by date/team/account (not just shift_id)
             kb_updates = ShiftKBUpdate.query.filter(
-                ShiftKBUpdate.shift_id == shift.id,
+                ShiftKBUpdate.account_id == shift.account_id,
+                ShiftKBUpdate.team_id == shift.team_id,
+                ShiftKBUpdate.created_at >= shift.date,
+                ShiftKBUpdate.created_at < shift.date + timedelta(days=1),
                 ShiftKBUpdate.status != 'Published'
             ).all()
             kb_updates_data = []
