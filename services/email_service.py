@@ -343,25 +343,40 @@ def send_handover_email(shift):
     from models.models import ShiftChangeInfo, ShiftKBUpdate
     from datetime import timedelta
     
-    # 🔧 FIX: Query change_infos by date/team/account (not shift_id)
-    # This ensures ALL pending changes for this date appear in the email,
-    # regardless of whether they were added via Change Info Reports or Handover Form
-    change_infos = ShiftChangeInfo.query.filter(
+    # 🔧 FIX: Query change_infos by date/team/account with deduplication
+    # This ensures ALL pending changes for this date appear in the email without duplicates
+    raw_change_infos = ShiftChangeInfo.query.filter(
         ShiftChangeInfo.account_id == shift.account_id,
         ShiftChangeInfo.team_id == shift.team_id,
-        ShiftChangeInfo.created_at >= shift.date,  # Changes created on or after this date
-        ShiftChangeInfo.created_at < shift.date + timedelta(days=1),  # But before next day
+        ShiftChangeInfo.created_at >= shift.date,
+        ShiftChangeInfo.created_at < shift.date + timedelta(days=1),
         ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
-    ).all()
+    ).order_by(ShiftChangeInfo.id.desc()).all()
     
-    # 🔧 FIX: Same for kb_updates - query by date/team/account
-    kb_updates = ShiftKBUpdate.query.filter(
+    # Deduplicate by change_number - keep most recent version
+    change_map = {}
+    for ci in raw_change_infos:
+        key = ci.change_number.strip().lower() if ci.change_number else f"{ci.app_name}_{ci.description[:30] if ci.description else ''}"
+        if key not in change_map:
+            change_map[key] = ci
+    change_infos = list(change_map.values())
+    
+    # 🔧 FIX: Same for kb_updates - query by date/team/account with deduplication
+    raw_kb_updates = ShiftKBUpdate.query.filter(
         ShiftKBUpdate.account_id == shift.account_id,
         ShiftKBUpdate.team_id == shift.team_id,
         ShiftKBUpdate.created_at >= shift.date,
         ShiftKBUpdate.created_at < shift.date + timedelta(days=1),
         ShiftKBUpdate.status != 'Published'
-    ).all()
+    ).order_by(ShiftKBUpdate.id.desc()).all()
+    
+    # Deduplicate by kb_number
+    kb_map = {}
+    for kb in raw_kb_updates:
+        key = kb.kb_number.strip().lower() if kb.kb_number else f"{kb.app_name}_{kb.description[:30] if kb.description else ''}"
+        if key not in kb_map:
+            kb_map[key] = kb
+    kb_updates = list(kb_map.values())
     
     additional_notes = getattr(shift, 'additional_notes', None) or getattr(shift, 'notes', None) or ''
     

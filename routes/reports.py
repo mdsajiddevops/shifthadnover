@@ -468,23 +468,37 @@ def export_handover_bulk():
     for shift in shifts:
         incidents = Incident.query.filter_by(shift_id=shift.id).all()
         key_points = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
-        # 🔧 FIX: Query change_infos and kb_updates by date/team/account (not just shift_id)
-        # This ensures ALL pending changes for this date appear, regardless of how they were added
+        # 🔧 FIX: Query change_infos and kb_updates by date/team/account with deduplication
         from datetime import timedelta
-        change_infos = ShiftChangeInfo.query.filter(
+        raw_change_infos = ShiftChangeInfo.query.filter(
             ShiftChangeInfo.account_id == shift.account_id,
             ShiftChangeInfo.team_id == shift.team_id,
             ShiftChangeInfo.created_at >= shift.date,
             ShiftChangeInfo.created_at < shift.date + timedelta(days=1),
             ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
-        ).all()
-        kb_updates = ShiftKBUpdate.query.filter(
+        ).order_by(ShiftChangeInfo.id.desc()).all()
+        # Deduplicate by change_number
+        change_map = {}
+        for ci in raw_change_infos:
+            key = ci.change_number.strip().lower() if ci.change_number else f"{ci.app_name}_{ci.description[:30] if ci.description else ''}"
+            if key not in change_map:
+                change_map[key] = ci
+        change_infos = list(change_map.values())
+        
+        raw_kb_updates = ShiftKBUpdate.query.filter(
             ShiftKBUpdate.account_id == shift.account_id,
             ShiftKBUpdate.team_id == shift.team_id,
             ShiftKBUpdate.created_at >= shift.date,
             ShiftKBUpdate.created_at < shift.date + timedelta(days=1),
             ShiftKBUpdate.status != 'Published'
-        ).all()
+        ).order_by(ShiftKBUpdate.id.desc()).all()
+        # Deduplicate by kb_number
+        kb_map = {}
+        for kb in raw_kb_updates:
+            key = kb.kb_number.strip().lower() if kb.kb_number else f"{kb.app_name}_{kb.description[:30] if kb.description else ''}"
+            if key not in kb_map:
+                kb_map[key] = kb
+        kb_updates = list(kb_map.values())
         
         # Get team name
         team_name = ''
@@ -1014,24 +1028,40 @@ def detailed_shift_report(shift_id):
             key_points = list(kp_map.values())
             logger.debug(f"🔍 After dashboard-style filtering and deduplication: {len(key_points)} unique key points")
         
-        # 🔧 FIX: Query change_infos by date/team/account (not just shift_id)
-        # This ensures ALL pending changes for this date appear in the report,
-        # regardless of whether they were added via Change Info Reports or Handover Form
+        # 🔧 FIX: Query change_infos by date/team/account AND deduplicate by change_number
+        # This ensures ALL pending changes for this date appear, but without duplicates
         from datetime import timedelta
-        change_infos = ShiftChangeInfo.query.filter(
+        raw_change_infos = ShiftChangeInfo.query.filter(
             ShiftChangeInfo.account_id == shift.account_id,
             ShiftChangeInfo.team_id == shift.team_id,
             ShiftChangeInfo.created_at >= shift.date,
             ShiftChangeInfo.created_at < shift.date + timedelta(days=1),
             ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
-        ).all()
-        kb_updates = ShiftKBUpdate.query.filter(
+        ).order_by(ShiftChangeInfo.id.desc()).all()
+        
+        # Deduplicate by change_number - keep most recent version
+        change_map = {}
+        for ci in raw_change_infos:
+            key = ci.change_number.strip().lower() if ci.change_number else f"{ci.app_name}_{ci.description[:30]}"
+            if key not in change_map:
+                change_map[key] = ci
+        change_infos = list(change_map.values())
+        
+        raw_kb_updates = ShiftKBUpdate.query.filter(
             ShiftKBUpdate.account_id == shift.account_id,
             ShiftKBUpdate.team_id == shift.team_id,
             ShiftKBUpdate.created_at >= shift.date,
             ShiftKBUpdate.created_at < shift.date + timedelta(days=1),
             ShiftKBUpdate.status != 'Published'
-        ).all()
+        ).order_by(ShiftKBUpdate.id.desc()).all()
+        
+        # Deduplicate by kb_number
+        kb_map = {}
+        for kb in raw_kb_updates:
+            key = kb.kb_number.strip().lower() if kb.kb_number else f"{kb.app_name}_{kb.description[:30]}"
+            if key not in kb_map:
+                kb_map[key] = kb
+        kb_updates = list(kb_map.values())
         
         # 🔍 DEBUG: Check what data we're getting for the detailed report
         logger.debug(f"🔍 DETAILED REPORT DEBUG for shift {shift_id}:")
@@ -1537,16 +1567,22 @@ def handover_reports():
                 logger.debug(f"🚨 Error finding submitter for shift {shift.id}: {e}")
                 submitted_by = 'Unknown'
             
-            # Get Change Info and KB Updates for this date/team
-            # 🔧 FIX: Query by date/team/account (not just shift_id) to include ALL pending changes
+            # Get Change Info and KB Updates for this date/team with deduplication
             from datetime import timedelta
-            change_infos = ShiftChangeInfo.query.filter(
+            raw_change_infos = ShiftChangeInfo.query.filter(
                 ShiftChangeInfo.account_id == shift.account_id,
                 ShiftChangeInfo.team_id == shift.team_id,
                 ShiftChangeInfo.created_at >= shift.date,
                 ShiftChangeInfo.created_at < shift.date + timedelta(days=1),
                 ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
-            ).all()
+            ).order_by(ShiftChangeInfo.id.desc()).all()
+            # Deduplicate by change_number
+            change_map = {}
+            for ci in raw_change_infos:
+                key = ci.change_number.strip().lower() if ci.change_number else f"{ci.app_name}_{ci.description[:30] if ci.description else ''}"
+                if key not in change_map:
+                    change_map[key] = ci
+            change_infos = list(change_map.values())
             change_infos_data = []
             for change_info in change_infos:
                 engineer = None
@@ -1562,14 +1598,21 @@ def handover_reports():
                     'status': change_info.status  # Include status for display in reports
                 })
             
-            # 🔧 FIX: Query KB updates by date/team/account (not just shift_id)
-            kb_updates = ShiftKBUpdate.query.filter(
+            # 🔧 FIX: Query KB updates by date/team/account with deduplication
+            raw_kb_updates = ShiftKBUpdate.query.filter(
                 ShiftKBUpdate.account_id == shift.account_id,
                 ShiftKBUpdate.team_id == shift.team_id,
                 ShiftKBUpdate.created_at >= shift.date,
                 ShiftKBUpdate.created_at < shift.date + timedelta(days=1),
                 ShiftKBUpdate.status != 'Published'
-            ).all()
+            ).order_by(ShiftKBUpdate.id.desc()).all()
+            # Deduplicate by kb_number
+            kb_map = {}
+            for kb in raw_kb_updates:
+                key = kb.kb_number.strip().lower() if kb.kb_number else f"{kb.app_name}_{kb.description[:30] if kb.description else ''}"
+                if key not in kb_map:
+                    kb_map[key] = kb
+            kb_updates = list(kb_map.values())
             kb_updates_data = []
             for kb_update in kb_updates:
                 engineer = None
