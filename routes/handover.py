@@ -2943,17 +2943,32 @@ def handover():
         change_engineers = request.form.getlist('change_responsible_engineer[]')
         change_statuses = request.form.getlist('change_status[]')
         
-        logger.debug(f"Found {len(change_app_names)} change info entries to process")
-        for i in range(len(change_app_names)):
-            if i < len(change_numbers) and change_numbers[i].strip():
-                app_name = change_app_names[i] if i < len(change_app_names) else ''
-                change_number = change_numbers[i] if i < len(change_numbers) else ''
-                description = change_descriptions[i] if i < len(change_descriptions) else ''
-                datetime_str = change_datetimes[i] if i < len(change_datetimes) else ''
-                engineer_id = change_engineers[i] if i < len(change_engineers) else ''
-                status = change_statuses[i] if i < len(change_statuses) else 'New'
-                
-                logger.debug(f"Creating Change Info {i+1}: {app_name} - {change_number}")
+        # 🔧 DEBUG: Log all received arrays
+        logger.debug(f"📋 CHANGE INFO ARRAYS RECEIVED:")
+        logger.debug(f"   App names ({len(change_app_names)}): {change_app_names}")
+        logger.debug(f"   Change numbers ({len(change_numbers)}): {change_numbers}")
+        logger.debug(f"   Descriptions ({len(change_descriptions)}): {[d[:30] + '...' if len(d) > 30 else d for d in change_descriptions]}")
+        logger.debug(f"   Datetimes ({len(change_datetimes)}): {change_datetimes}")
+        logger.debug(f"   Engineers ({len(change_engineers)}): {change_engineers}")
+        logger.debug(f"   Statuses ({len(change_statuses)}): {change_statuses}")
+        
+        # 🔧 FIX: Process based on the longest array to avoid missing entries
+        max_entries = max(len(change_app_names), len(change_numbers), len(change_descriptions))
+        logger.debug(f"Found {max_entries} change info entries to process (max array length)")
+        
+        change_info_created = 0
+        for i in range(max_entries):
+            # Get values safely with defaults
+            app_name = change_app_names[i].strip() if i < len(change_app_names) else ''
+            change_number = change_numbers[i].strip() if i < len(change_numbers) else ''
+            description = change_descriptions[i].strip() if i < len(change_descriptions) else ''
+            datetime_str = change_datetimes[i].strip() if i < len(change_datetimes) else ''
+            engineer_id = change_engineers[i].strip() if i < len(change_engineers) else ''
+            status = change_statuses[i].strip() if i < len(change_statuses) else 'New'
+            
+            # 🔧 FIX: Allow entry if ANY of app_name, change_number, or description has content
+            if app_name or change_number or description:
+                logger.debug(f"Creating Change Info {i+1}: {app_name} - {change_number} - {description[:30] if description else '(no desc)'}...")
                 
                 # Convert datetime string to datetime object
                 change_datetime = None
@@ -2980,7 +2995,12 @@ def handover():
                     team_id=shift.team_id
                 )
                 db.session.add(change_info)
-                logger.info(f"✅ Added Change Info: {app_name} - {change_number}")
+                change_info_created += 1
+                logger.info(f"✅ Added Change Info {change_info_created}: {app_name} - {change_number}")
+            else:
+                logger.debug(f"Skipping Change Info {i+1}: Empty entry (no app_name, change_number, or description)")
+        
+        logger.info(f"📊 CHANGE INFO SUMMARY: Created {change_info_created} out of {max_entries} entries for shift {shift.id}")
         
         logger.debug("=== PROCESSING KB UPDATES ===")
         kb_app_names = request.form.getlist('kb_application_name[]')
