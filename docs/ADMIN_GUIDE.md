@@ -23,8 +23,10 @@
    - [SSO Configuration](#35-sso-configuration)
    - [ServiceNow Integration](#36-servicenow-integration)
    - [App Configuration](#37-app-configuration)
-   - [Delete Draft Reports](#38-delete-draft-reports)
-   - [Global Audit Logs](#39-global-audit-logs)
+   - [Shift Time Configuration](#38-shift-time-configuration)
+   - [Active Session Monitoring](#39-active-session-monitoring)
+   - [Delete Draft Reports](#310-delete-draft-reports)
+   - [Global Audit Logs](#311-global-audit-logs)
 4. [Account Admin Features](#4-account-admin-features)
    - [Team Management](#41-team-management)
    - [Account-Level User Management](#42-account-level-user-management)
@@ -35,6 +37,8 @@
    - [Roster Management](#52-roster-management)
    - [Team Reports](#53-team-reports)
    - [Team Configuration](#54-team-configuration)
+   - [Vendor Details Management](#55-vendor-details-management)
+   - [Escalation Matrix Management](#56-escalation-matrix-management)
 6. [User Management](#6-user-management)
    - [Creating Users](#61-creating-users)
    - [Editing Users](#62-editing-users)
@@ -458,7 +462,109 @@ Configure general application settings.
 
 ---
 
-### 3.8 Delete Draft Reports
+### 3.8 Shift Time Configuration
+
+<!-- 📸 SCREENSHOT: Shift time configuration -->
+![Shift Time Configuration](screenshots/admin-shift-time-config.png)
+
+Configure shift timing definitions for the application.
+
+#### Accessing Shift Time Configuration
+
+1. Click **"Admin"** in the sidebar
+2. Select **"Configuration"**
+3. Click **"Shift Times"**
+
+#### Configuring Shift Times
+
+| Shift Type | Default Start | Default End | Configurable |
+|------------|---------------|-------------|:------------:|
+| **Morning** | 06:00 | 14:00 | ✅ |
+| **Evening** | 14:00 | 22:00 | ✅ |
+| **Night** | 22:00 | 06:00 | ✅ |
+| **OnShore** | 09:00 | 18:00 | ✅ |
+| **OffShore** | 18:00 | 09:00 | ✅ |
+
+#### Setting Shift Times
+
+<!-- 📸 SCREENSHOT: Shift time edit form -->
+![Shift Time Edit](screenshots/admin-shift-time-edit.png)
+
+1. Click on a shift type row
+2. Set **Start Time** 
+3. Set **End Time**
+4. Click **"Save"**
+
+#### Team-Specific Shift Times
+
+Teams can override default shift times:
+
+1. Go to **Team Configuration**
+2. Click **"Shift Settings"**
+3. Enable **"Use Custom Shift Times"**
+4. Configure team-specific times
+5. Save settings
+
+> **Note:** Team-specific shift times take precedence over global defaults.
+
+---
+
+### 3.9 Active Session Monitoring
+
+<!-- 📸 SCREENSHOT: Active sessions page -->
+![Active Sessions](screenshots/admin-active-sessions.png)
+
+Monitor all active user sessions in the system.
+
+#### Accessing Active Sessions
+
+1. Click **"Admin"** in the sidebar
+2. Select **"Active Sessions"**
+
+#### Session Information
+
+| Field | Description |
+|-------|-------------|
+| **User** | Username of logged-in user |
+| **Role** | User's role |
+| **Account** | User's account |
+| **Team** | User's team |
+| **Login Time** | When the session started |
+| **Last Activity** | Most recent activity time |
+| **IP Address** | Source IP address |
+| **Device/Browser** | User agent information |
+| **Session Duration** | How long session has been active |
+
+#### Session Management Actions
+
+<!-- 📸 SCREENSHOT: Session management actions -->
+![Session Actions](screenshots/admin-session-actions.png)
+
+| Action | Description |
+|--------|-------------|
+| **View Details** | See full session information |
+| **Terminate Session** | Force logout a user |
+| **Terminate All** | Logout all users (except yourself) |
+
+#### Terminating a Session
+
+1. Find the session in the list
+2. Click **"Terminate"** button
+3. Confirm the action
+4. User will be logged out immediately
+
+> ⚠️ **Warning:** Terminating a session will immediately log out the user. Any unsaved work may be lost.
+
+#### Session Monitoring Best Practices
+
+- Regular review of active sessions
+- Investigate unusual login patterns
+- Terminate suspicious sessions
+- Monitor after-hours logins
+
+---
+
+### 3.10 Delete Draft Reports
 
 <!-- 📸 SCREENSHOT: Delete draft report feature -->
 ![Delete Draft](screenshots/admin-delete-draft.png)
@@ -477,7 +583,7 @@ Super Admins can delete draft reports from any team.
 
 ---
 
-### 3.9 Global Audit Logs
+### 3.11 Global Audit Logs
 
 <!-- 📸 SCREENSHOT: Global audit logs -->
 ![Global Audit Logs](screenshots/admin-audit-global.png)
@@ -686,6 +792,152 @@ Configure team-specific settings:
 | **Default Shift Types** | Available shift options |
 | **Escalation Contacts** | Team escalation matrix |
 | **On-Call Schedule** | On-call rotation settings |
+
+---
+
+### 5.5 Vendor Details Management
+
+<!-- 📸 SCREENSHOT: Vendor details management -->
+![Vendor Management](screenshots/admin-vendor-management.png)
+
+Manage vendor contact information for your team.
+
+#### Accessing Vendor Details
+
+1. Click **"Vendor Details"** in the sidebar
+2. View list of existing vendors
+
+#### Adding a New Vendor
+
+<!-- 📸 SCREENSHOT: Add vendor form -->
+![Add Vendor](screenshots/admin-add-vendor.png)
+
+1. Click **"+ Add Vendor"** button
+2. Fill in vendor details:
+
+| Field | Description | Required |
+|-------|-------------|:--------:|
+| **Vendor Name** | Company name | ✅ |
+| **Contact Person** | Primary contact name | ✅ |
+| **Email** | Contact email address | ✅ |
+| **Phone** | Contact phone number | ❌ |
+| **Services** | Services provided | ❌ |
+| **Contract Expiry** | Contract end date | ❌ |
+| **SLA Details** | Service level agreement info | ❌ |
+| **Notes** | Additional notes | ❌ |
+
+3. Click **"Save Vendor"**
+
+#### Uploading Vendors in Bulk
+
+<!-- 📸 SCREENSHOT: Vendor bulk upload -->
+![Vendor Upload](screenshots/admin-vendor-upload.png)
+
+Upload multiple vendors from Excel:
+
+1. Click **"Upload Vendors"** button
+2. Download the template file
+3. Fill in vendor data in Excel
+4. Upload the completed file
+5. Review and confirm import
+
+#### Vendor Upload Template Format
+
+| Vendor Name | Contact Person | Email | Phone | Services |
+|-------------|----------------|-------|-------|----------|
+| Acme Corp | John Doe | john@acme.com | +1-555-0100 | Cloud Services |
+| Tech Solutions | Jane Smith | jane@tech.com | +1-555-0200 | Support |
+
+#### Editing Vendors
+
+1. Find vendor in the list
+2. Click **"Edit"** button
+3. Modify details
+4. Click **"Save"**
+
+#### Deleting Vendors
+
+1. Find vendor in the list
+2. Click **"Delete"** button
+3. Confirm deletion
+
+---
+
+### 5.6 Escalation Matrix Management
+
+<!-- 📸 SCREENSHOT: Escalation matrix management -->
+![Escalation Matrix Management](screenshots/admin-escalation-management.png)
+
+Configure escalation paths for your team.
+
+#### Accessing Escalation Matrix
+
+1. Click **"Escalation Matrix"** in the sidebar
+2. View current escalation configuration
+
+#### Escalation Levels
+
+| Level | Typical Role | Response Time |
+|-------|--------------|---------------|
+| **L1** | Team Members | 15 minutes |
+| **L2** | Senior Engineers | 30 minutes |
+| **L3** | Technical Leads | 1 hour |
+| **Management** | Managers/Directors | 2 hours |
+
+#### Adding Escalation Contacts
+
+<!-- 📸 SCREENSHOT: Add escalation contact -->
+![Add Escalation](screenshots/admin-add-escalation.png)
+
+1. Click **"+ Add Contact"** button
+2. Fill in contact details:
+
+| Field | Description | Required |
+|-------|-------------|:--------:|
+| **Name** | Contact name | ✅ |
+| **Role** | Position/title | ✅ |
+| **Level** | Escalation level (L1/L2/L3/Management) | ✅ |
+| **Email** | Email address | ✅ |
+| **Phone** | Phone number | ✅ |
+| **Availability** | Working hours/timezone | ❌ |
+| **Backup Contact** | Alternative contact | ❌ |
+
+3. Click **"Save"**
+
+#### Uploading Escalation Matrix in Bulk
+
+<!-- 📸 SCREENSHOT: Escalation matrix upload -->
+![Escalation Upload](screenshots/admin-escalation-upload.png)
+
+Upload escalation contacts from Excel:
+
+1. Click **"Upload Matrix"** button
+2. Download the template file
+3. Fill in escalation data
+4. Upload the completed file
+5. Review and confirm import
+
+#### Escalation Upload Template Format
+
+| Name | Role | Level | Email | Phone | Availability |
+|------|------|-------|-------|-------|--------------|
+| John Doe | Senior Engineer | L2 | john@company.com | +1-555-0100 | 9AM-6PM IST |
+| Jane Smith | Tech Lead | L3 | jane@company.com | +1-555-0200 | 24x7 |
+
+#### Editing Escalation Entries
+
+1. Find contact in the list
+2. Click **"Edit"** button
+3. Modify details
+4. Click **"Save"**
+
+#### Escalation Matrix Best Practices
+
+- Keep contact information up-to-date
+- Define clear escalation criteria
+- Include backup contacts
+- Document availability/timezone
+- Regular review of escalation paths
 
 ---
 

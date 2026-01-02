@@ -20,6 +20,14 @@ This folder should contain screenshots for both the User Guide and Admin Guide d
 |----------|--------------|-------------|
 | `dashboard.png` | Main dashboard | Full dashboard view |
 
+### Multi-Team Access (User Guide)
+| Filename | Page/Section | Description |
+|----------|--------------|-------------|
+| `multi-team-access.png` | Multi-team overview | Multi-team access feature |
+| `multi-team-reports.png` | Reports with team filter | Team filter in reports |
+| `multi-team-config.png` | Multi-team configuration | How access is configured |
+| `team-switcher.png` | Team switcher | Team selection dropdown |
+
 ### Handover Form
 | Filename | Page/Section | Description |
 |----------|--------------|-------------|
@@ -148,6 +156,32 @@ This folder should contain screenshots for both the User Guide and Admin Guide d
 | `admin-servicenow-setup.png` | ServiceNow setup | ServiceNow wizard |
 | `admin-app-settings.png` | App settings | General settings |
 
+### Shift Time Configuration (Super Admin)
+| Filename | Page/Section | Description |
+|----------|--------------|-------------|
+| `admin-shift-time-config.png` | Shift times | Shift time configuration page |
+| `admin-shift-time-edit.png` | Edit shift time | Shift time edit form |
+
+### Active Session Monitoring (Super Admin)
+| Filename | Page/Section | Description |
+|----------|--------------|-------------|
+| `admin-active-sessions.png` | Active sessions | List of active sessions |
+| `admin-session-actions.png` | Session actions | Terminate session buttons |
+
+### Vendor Details Management (Team Admin)
+| Filename | Page/Section | Description |
+|----------|--------------|-------------|
+| `admin-vendor-management.png` | Vendor list | Vendor management page |
+| `admin-add-vendor.png` | Add vendor | Add vendor form |
+| `admin-vendor-upload.png` | Vendor upload | Bulk vendor upload |
+
+### Escalation Matrix Management (Team Admin)
+| Filename | Page/Section | Description |
+|----------|--------------|-------------|
+| `admin-escalation-management.png` | Escalation matrix | Escalation management page |
+| `admin-add-escalation.png` | Add escalation | Add escalation contact form |
+| `admin-escalation-upload.png` | Escalation upload | Bulk escalation upload |
+
 ### Roster Administration
 | Filename | Page/Section | Description |
 |----------|--------------|-------------|
@@ -260,11 +294,11 @@ docs/
 
 | Document | Screenshots |
 |----------|-------------|
-| User Guide | ~35 |
-| Admin Guide | ~50 |
-| **Total** | **~85** |
+| User Guide | ~40 |
+| Admin Guide | ~65 |
+| **Total** | **~105** |
 
-**Estimated Time:** 3-4 hours to capture all screenshots
+**Estimated Time:** 4-5 hours to capture all screenshots
 
 ---
 

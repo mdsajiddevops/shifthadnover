@@ -14,6 +14,7 @@
    - [Login](#21-login)
    - [SSO Authentication](#22-sso-authentication)
    - [Dashboard Overview](#23-dashboard-overview)
+   - [Multi-Team Access](#24-multi-team-access)
 3. [Operations](#3-operations)
    - [Shift Handover Form](#31-shift-handover-form)
    - [Shift Handover Reports](#32-shift-handover-reports)
@@ -138,6 +139,83 @@ The left sidebar provides access to all application features:
 - **Roster** - Shift schedules and team management
 - **Support** - OnCall dashboard, escalation matrix
 - **Admin** - User management, audit logs (admin only)
+
+---
+
+### 2.4 Multi-Team Access
+
+<!-- 📸 SCREENSHOT: Multi-team access feature -->
+![Multi-Team Access](screenshots/multi-team-access.png)
+
+ShiftOps supports multi-team access, allowing users to view and manage data across multiple teams when authorized.
+
+#### Understanding Multi-Team Access
+
+| Access Level | Description |
+|--------------|-------------|
+| **Single Team** | Default - user sees only their assigned team's data |
+| **Multiple Teams** | User can access data from multiple specified teams |
+| **All Teams (Account)** | Account admins can see all teams in their account |
+| **All Teams (Global)** | Super admins can see all teams across all accounts |
+
+#### Multi-Team View in Reports
+
+<!-- 📸 SCREENSHOT: Multi-team filter in reports -->
+![Multi-Team Reports](screenshots/multi-team-reports.png)
+
+When multi-team access is enabled:
+
+1. **Team Filter** appears in the Reports page
+2. Select **specific team** or **"All My Teams"**
+3. View consolidated data across teams
+4. Export reports for multiple teams
+
+#### Requesting Multi-Team Access
+
+If you need access to additional teams:
+
+1. Contact your **Team Admin** or **Account Admin**
+2. Provide business justification
+3. Admin will enable access via User Management
+4. Access is granted immediately after configuration
+
+#### How Multi-Team Access Works
+
+<!-- 📸 SCREENSHOT: Multi-team configuration -->
+![Multi-Team Config](screenshots/multi-team-config.png)
+
+**For Regular Users:**
+- Primary team is set during onboarding
+- Additional team access granted by admins
+- Team selector shows all accessible teams
+
+**For Admins:**
+- Team Admins: Access to their team only
+- Account Admins: Access to all teams in account
+- Super Admins: Access to all teams globally
+
+#### Team Switching
+
+<!-- 📸 SCREENSHOT: Team switcher -->
+![Team Switcher](screenshots/team-switcher.png)
+
+If you have multi-team access:
+
+1. Look for the **Team Selector** dropdown
+2. Click to see available teams
+3. Select the team to view
+4. Page refreshes with selected team's data
+
+> **Note:** Your actions (creating handovers, etc.) are always associated with your primary team unless specifically changed.
+
+#### Multi-Team Export
+
+When exporting reports with multi-team access:
+
+1. Apply team filter (or select "All Teams")
+2. Click Export (CSV/Excel/PDF)
+3. Export includes data from all selected teams
+4. Each record shows which team it belongs to
 
 ---
 
