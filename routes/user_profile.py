@@ -275,7 +275,7 @@ def notifications():
 @login_required
 def alerts():
     """System alerts and status page"""
-    from models import db, Shift, Incident, ShiftKeyPoint, ShiftChangeInfo
+    from models.models import Shift, Incident, ShiftKeyPoint, ShiftChangeInfo
     from sqlalchemy import func
     
     # Get real system metrics
