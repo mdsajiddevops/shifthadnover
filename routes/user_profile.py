@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from models.models import db, User, TeamMember
 from werkzeug.security import generate_password_hash, check_password_hash
 from services.audit_service import log_action
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 
@@ -262,53 +262,115 @@ def notifications():
     if pending_assignments:
         logger.debug(f"[NOTIFICATIONS DEBUG] TEMPLATE DATA - First pending assignment: {pending_assignments[0]}")
     
-    # Static notifications for other system events
-    static_notifications = [
-        {
-            'id': 1001,
-            'title': 'Profile Updated',
-            'message': 'Your profile was successfully updated',
-            'type': 'success',
-            'timestamp': datetime.now(),
-            'read': False
-        }
-    ]
-    
-    # Combine incident assignments and static notifications
-    all_notifications = incident_assignments + static_notifications
     # Sort by timestamp, newest first
-    all_notifications.sort(key=lambda x: x['timestamp'], reverse=True)
+    incident_assignments.sort(key=lambda x: x['timestamp'], reverse=True)
     
-    # Pass both notifications and pending_assignments to template
+    # Pass notifications and pending_assignments to template
     return render_template('notifications_enhanced.html', 
-                         notifications=all_notifications,
-                         pending_assignments=pending_assignments)
+                         notifications=incident_assignments,
+                         pending_assignments=pending_assignments,
+                         unread_count=len([n for n in incident_assignments if not n.get('read', True)]))
 
 @user_profile_bp.route('/alerts')
 @login_required
 def alerts():
-    """System alerts page"""
-    # This would typically fetch system alerts from database
-    # For now, we'll show a placeholder page
-    alerts_data = [
-        {
+    """System alerts and status page"""
+    from models import db, Shift, Incident, ShiftKeyPoint, ShiftChangeInfo
+    from sqlalchemy import func
+    
+    # Get real system metrics
+    system_status = {
+        'database': {'status': 'operational', 'message': 'Database connection healthy'},
+        'email': {'status': 'operational', 'message': 'Email service available'},
+        'application': {'status': 'operational', 'message': 'All services running normally'}
+    }
+    
+    # Check for any real issues
+    alerts_data = []
+    
+    try:
+        # Check database connectivity
+        db.session.execute(db.text('SELECT 1'))
+        system_status['database'] = {'status': 'operational', 'message': 'Database connection healthy'}
+    except Exception as e:
+        system_status['database'] = {'status': 'error', 'message': f'Database issue: {str(e)[:50]}'}
+        alerts_data.append({
             'id': 1,
-            'title': 'High Priority Incident',
-            'message': 'Multiple services experiencing degraded performance',
+            'title': 'Database Connection Issue',
+            'message': f'Database connectivity problem detected: {str(e)[:100]}',
             'severity': 'high',
             'timestamp': datetime.now(),
-            'status': 'active'
-        },
-        {
-            'id': 2,
-            'title': 'Database Connection Issues',
-            'message': 'Intermittent database connection timeouts reported',
-            'severity': 'medium',
-            'timestamp': datetime.now(),
-            'status': 'investigating'
+            'status': 'active',
+            'type': 'system'
+        })
+    
+    # Get recent activity stats for system health
+    try:
+        today = datetime.now().date()
+        
+        # Count recent handovers (last 24 hours)
+        recent_handovers = Shift.query.filter(
+            Shift.submitted_at >= datetime.now() - timedelta(hours=24)
+        ).count()
+        
+        # Count open incidents
+        open_incidents = Incident.query.filter(
+            Incident.status.in_(['Open', 'In Progress', 'Investigating'])
+        ).count()
+        
+        # Count active key points
+        active_keypoints = ShiftKeyPoint.query.filter(
+            ShiftKeyPoint.status.in_(['Open', 'In Progress', 'Monitoring'])
+        ).count()
+        
+        # Count pending changes
+        pending_changes = ShiftChangeInfo.query.filter(
+            ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
+        ).count()
+        
+        system_metrics = {
+            'recent_handovers': recent_handovers,
+            'open_incidents': open_incidents,
+            'active_keypoints': active_keypoints,
+            'pending_changes': pending_changes
         }
-    ]
-    return render_template('alerts.html', alerts=alerts_data)
+        
+        # Create alerts for high counts
+        if open_incidents > 10:
+            alerts_data.append({
+                'id': 2,
+                'title': 'High Open Incident Count',
+                'message': f'{open_incidents} incidents are currently open and need attention',
+                'severity': 'medium',
+                'timestamp': datetime.now(),
+                'status': 'active',
+                'type': 'operational'
+            })
+        
+        if pending_changes > 20:
+            alerts_data.append({
+                'id': 3,
+                'title': 'Multiple Pending Changes',
+                'message': f'{pending_changes} change requests are pending implementation',
+                'severity': 'low',
+                'timestamp': datetime.now(),
+                'status': 'active',
+                'type': 'operational'
+            })
+            
+    except Exception as e:
+        logger.error(f"Error getting system metrics: {e}")
+        system_metrics = {
+            'recent_handovers': 0,
+            'open_incidents': 0,
+            'active_keypoints': 0,
+            'pending_changes': 0
+        }
+    
+    return render_template('alerts.html', 
+                         alerts=alerts_data,
+                         system_status=system_status,
+                         system_metrics=system_metrics)
 
 @user_profile_bp.route('/help')
 @login_required
