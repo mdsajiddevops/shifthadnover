@@ -25,8 +25,10 @@
    - [App Configuration](#37-app-configuration)
    - [Shift Time Configuration](#38-shift-time-configuration)
    - [Active Session Monitoring](#39-active-session-monitoring)
-   - [Delete Draft Reports](#310-delete-draft-reports)
-   - [Global Audit Logs](#311-global-audit-logs)
+   - [Secrets Management](#310-secrets-management)
+   - [Incident Response Logs](#311-incident-response-logs)
+   - [Delete Draft Reports](#312-delete-draft-reports)
+   - [Global Audit Logs](#313-global-audit-logs)
 4. [Account Admin Features](#4-account-admin-features)
    - [Team Management](#41-team-management)
    - [Account-Level User Management](#42-account-level-user-management)
@@ -564,7 +566,111 @@ Monitor all active user sessions in the system.
 
 ---
 
-### 3.10 Delete Draft Reports
+### 3.10 Secrets Management
+
+<!-- 📸 SCREENSHOT: Secrets management page -->
+![Secrets Management](screenshots/admin-secrets-management.png)
+
+Securely manage sensitive application secrets and API keys.
+
+#### Accessing Secrets Management
+
+1. Click **"Admin"** in the sidebar
+2. Select **"Secrets Management"**
+
+#### Secret Types
+
+| Secret Type | Description |
+|-------------|-------------|
+| **API Keys** | Third-party API keys |
+| **Database Credentials** | DB connection strings |
+| **SMTP Credentials** | Email server passwords |
+| **SSO Secrets** | OAuth client secrets |
+| **Encryption Keys** | Application encryption keys |
+
+#### Managing Secrets
+
+<!-- 📸 SCREENSHOT: Add new secret form -->
+![Add Secret](screenshots/admin-add-secret.png)
+
+| Action | Description |
+|--------|-------------|
+| **Add Secret** | Create new secret entry |
+| **Update Secret** | Modify existing secret value |
+| **Delete Secret** | Remove a secret |
+| **Rotate Secret** | Generate new secret value |
+
+#### Adding a Secret
+
+1. Click **"Add Secret"** button
+2. Enter secret name (key)
+3. Enter secret value
+4. Select category
+5. Add description (optional)
+6. Click **"Save"**
+
+> ⚠️ **Security:** Secret values are encrypted at rest and never displayed in plain text after creation.
+
+#### Secret Audit Trail
+
+All secret access and modifications are logged:
+- Who accessed/modified the secret
+- When the action occurred
+- Type of action (create/read/update/delete)
+
+---
+
+### 3.11 Incident Response Logs
+
+<!-- 📸 SCREENSHOT: Incident response logs page -->
+![Incident Response Logs](screenshots/admin-incident-logs.png)
+
+Track and review incident response activities across all teams.
+
+#### Accessing Incident Response Logs
+
+1. Click **"Admin"** in the sidebar
+2. Select **"Incident Response Logs"**
+
+#### Log Information
+
+| Field | Description |
+|-------|-------------|
+| **Incident ID** | Incident identifier |
+| **Date/Time** | When incident occurred |
+| **Team** | Affected team |
+| **Severity** | P1/P2/P3/P4 |
+| **Response Time** | Time to first response |
+| **Resolution Time** | Total resolution time |
+| **Status** | Open/In Progress/Resolved |
+
+#### Filtering Logs
+
+<!-- 📸 SCREENSHOT: Incident log filters -->
+![Incident Filters](screenshots/admin-incident-filters.png)
+
+| Filter | Options |
+|--------|---------|
+| **Date Range** | Custom date selection |
+| **Team** | Filter by specific team |
+| **Severity** | Filter by priority |
+| **Status** | Open/Resolved/All |
+| **Account** | Filter by account |
+
+#### Response Metrics
+
+View incident response metrics:
+- **Average Response Time** - Mean time to first response
+- **Average Resolution Time** - Mean time to resolve
+- **SLA Compliance** - Percentage meeting SLA targets
+- **Incident Volume** - Trends over time
+
+<!-- 📸 SCREENSHOT: Incident metrics charts -->
+![Incident Metrics](screenshots/admin-incident-metrics.png)
+
+---
+
+### 3.12 Delete Draft Reports
 
 <!-- 📸 SCREENSHOT: Delete draft report feature -->
 ![Delete Draft](screenshots/admin-delete-draft.png)
@@ -583,7 +689,7 @@ Super Admins can delete draft reports from any team.
 
 ---
 
-### 3.11 Global Audit Logs
+### 3.13 Global Audit Logs
 
 <!-- 📸 SCREENSHOT: Global audit logs -->
 ![Global Audit Logs](screenshots/admin-audit-global.png)

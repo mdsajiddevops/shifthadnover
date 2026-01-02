@@ -6,7 +6,7 @@ This folder should contain screenshots for both the User Guide and Admin Guide d
 
 ---
 
-## User Guide Screenshots (~35 screenshots)
+## User Guide Screenshots (~45 screenshots)
 
 ### Authentication
 | Filename | Page/Section | Description |
@@ -71,11 +71,33 @@ This folder should contain screenshots for both the User Guide and Admin Guide d
 | `shift-allowance.png` | Shift allowance modal | Generate report modal |
 | `team-details.png` | Team details | Team information page |
 
+### CTask Assignment
+| Filename | Page/Section | Description |
+|----------|--------------|-------------|
+| `ctask-assignment.png` | CTask page | CTask assignment overview |
+| `ctask-list.png` | CTask list | List of change tasks |
+
+### Shift Management
+| Filename | Page/Section | Description |
+|----------|--------------|-------------|
+| `shift-management.png` | Shift management | Shift management dashboard |
+| `shift-mgmt-calendar.png` | Shift calendar | Shift planning calendar |
+
 ### Support Tools
 | Filename | Page/Section | Description |
 |----------|--------------|-------------|
 | `oncall-dashboard.png` | OnCall dashboard | On-call information |
 | `escalation-matrix.png` | Escalation matrix | Escalation contacts |
+| `servicenow-integration.png` | ServiceNow | ServiceNow integration page |
+
+### Knowledge Base
+| Filename | Page/Section | Description |
+|----------|--------------|-------------|
+| `kb-articles.png` | KB Articles | Knowledge base article list |
+| `kb-detail.png` | KB Detail | Single article view |
+| `applications.png` | Applications | Applications list page |
+| `change-management.png` | Change management | Change management dashboard |
+| `change-calendar.png` | Change calendar | Calendar view of changes |
 
 ### Administration (User View)
 | Filename | Page/Section | Description |
@@ -100,7 +122,7 @@ This folder should contain screenshots for both the User Guide and Admin Guide d
 
 ---
 
-## Admin Guide Screenshots (~50 screenshots)
+## Admin Guide Screenshots (~55 screenshots)
 
 ### Admin Role Dashboards
 | Filename | Page/Section | Description |
@@ -167,6 +189,24 @@ This folder should contain screenshots for both the User Guide and Admin Guide d
 |----------|--------------|-------------|
 | `admin-active-sessions.png` | Active sessions | List of active sessions |
 | `admin-session-actions.png` | Session actions | Terminate session buttons |
+
+### Secrets Management (Super Admin)
+| Filename | Page/Section | Description |
+|----------|--------------|-------------|
+| `admin-secrets-management.png` | Secrets page | Secrets management overview |
+| `admin-add-secret.png` | Add secret | Add new secret form |
+
+### Incident Response Logs (Super Admin)
+| Filename | Page/Section | Description |
+|----------|--------------|-------------|
+| `admin-incident-logs.png` | Incident logs | Incident response log list |
+| `admin-incident-filters.png` | Incident filters | Log filtering options |
+| `admin-incident-metrics.png` | Incident metrics | Response metrics charts |
+
+### Delete Draft Reports (Super Admin)
+| Filename | Page/Section | Description |
+|----------|--------------|-------------|
+| `admin-delete-draft.png` | Delete draft | Draft delete confirmation modal |
 
 ### Vendor Details Management (Team Admin)
 | Filename | Page/Section | Description |

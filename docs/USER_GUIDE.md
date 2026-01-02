@@ -23,22 +23,29 @@
    - [Change Info Management](#41-change-info-management)
    - [KB Updates](#42-kb-updates)
    - [Vendor Details](#43-vendor-details)
+   - [CTask Assignment](#44-ctask-assignment)
 5. [Roster & Scheduling](#5-roster--scheduling)
    - [Shift Roster](#51-shift-roster)
    - [Team Details](#52-team-details)
+   - [Shift Management](#53-shift-management)
 6. [Support Tools](#6-support-tools)
    - [OnCall Dashboard](#61-oncall-dashboard)
    - [Escalation Matrix](#62-escalation-matrix)
-7. [Administration](#7-administration)
-   - [User Management](#71-user-management)
-   - [Audit Logs](#72-audit-logs)
-8. [Account Settings](#8-account-settings)
+   - [ServiceNow Integration](#63-servicenow-integration)
+7. [Knowledge Base](#7-knowledge-base)
+   - [KB Articles](#71-kb-articles)
+   - [Applications](#72-applications)
+   - [Change Management Dashboard](#73-change-management-dashboard)
+8. [Administration](#8-administration)
+   - [User Management](#81-user-management)
+   - [Audit Logs](#82-audit-logs)
+9. [Account Settings](#9-account-settings)
    - [My Profile](#81-my-profile)
    - [Account Settings](#82-account-settings)
    - [Notifications](#83-notifications)
    - [System Alerts](#84-system-alerts)
-9. [Help & Support](#9-help--support)
-10. [About](#10-about)
+10. [Help & Support](#10-help--support)
+11. [About](#11-about)
 
 ---
 
@@ -532,6 +539,48 @@ Each vendor entry includes:
 
 ---
 
+### 4.4 CTask Assignment
+
+<!-- 📸 SCREENSHOT: CTask assignment page -->
+![CTask Assignment](screenshots/ctask-assignment.png)
+
+Manage change task assignments and track implementation responsibilities.
+
+#### Accessing CTask Assignment
+
+Click **"CTask Assignment"** in the sidebar under Tools
+
+#### CTask Features
+
+| Feature | Description |
+|---------|-------------|
+| **View CTasks** | List of change tasks assigned to team |
+| **Assignment Status** | Track who is responsible for each task |
+| **Due Dates** | See upcoming task deadlines |
+| **Status Updates** | Update task completion status |
+
+#### CTask List View
+
+<!-- 📸 SCREENSHOT: CTask list -->
+![CTask List](screenshots/ctask-list.png)
+
+The CTask list shows:
+- **Task Number** - CTask identifier
+- **Description** - Task description
+- **Assigned To** - Responsible engineer
+- **Due Date** - Expected completion date
+- **Status** - Not Started/In Progress/Completed
+
+#### Updating CTask Status
+
+1. Find the CTask in the list
+2. Click on the task row
+3. Update the status
+4. Add any notes
+5. Click **"Save"**
+
+---
+
 ## 5. Roster & Scheduling
 
 ### 5.1 Shift Roster
@@ -596,6 +645,47 @@ Click **"Team Details"** in the sidebar under Roster
 
 ---
 
+### 5.3 Shift Management
+
+<!-- 📸 SCREENSHOT: Shift management dashboard -->
+![Shift Management](screenshots/shift-management.png)
+
+Advanced shift planning and management features.
+
+#### Accessing Shift Management
+
+Click **"Shift Management"** in the sidebar under Roster
+
+#### Shift Management Features
+
+| Feature | Description |
+|---------|-------------|
+| **Shift Overview** | Visual overview of all shifts |
+| **Shift Planning** | Plan shifts in advance |
+| **Coverage Analysis** | Ensure adequate shift coverage |
+| **Shift Swaps** | Request and approve shift swaps |
+
+#### Shift Calendar
+
+<!-- 📸 SCREENSHOT: Shift management calendar -->
+![Shift Calendar](screenshots/shift-mgmt-calendar.png)
+
+The shift calendar provides:
+- Weekly/Monthly view options
+- Drag-and-drop shift assignments
+- Conflict detection
+- Coverage gaps highlighting
+
+#### Shift Statistics
+
+View shift statistics including:
+- Total shifts per engineer
+- Overtime tracking
+- Leave balance
+- Coverage percentage
+
+---
+
 ## 6. Support Tools
 
 ### 6.1 OnCall Dashboard
@@ -642,11 +732,134 @@ Click **"Escalation Matrix"** in the sidebar under Support
 
 ---
 
-## 7. Administration
+### 6.3 ServiceNow Integration
+
+<!-- 📸 SCREENSHOT: ServiceNow integration page -->
+![ServiceNow Integration](screenshots/servicenow-integration.png)
+
+Access ServiceNow data directly from ShiftOps.
+
+#### Accessing ServiceNow Integration
+
+Click **"ServiceNow Integration"** in the sidebar under Support
+
+#### ServiceNow Features
+
+| Feature | Description |
+|---------|-------------|
+| **Incident Lookup** | Search for incidents by number |
+| **Change Lookup** | Search for change requests |
+| **Auto-populate** | Pull incident details into handover form |
+| **Status Sync** | View real-time incident status |
+
+#### Using ServiceNow Lookup
+
+1. Navigate to ServiceNow Integration
+2. Enter incident or change number
+3. Click **"Search"**
+4. View details retrieved from ServiceNow
+5. Click **"Add to Handover"** to use in handover form
+
+> **Note:** ServiceNow integration requires configuration by your administrator.
+
+---
+
+## 7. Knowledge Base
+
+### 7.1 KB Articles
+
+<!-- 📸 SCREENSHOT: KB Articles page -->
+![KB Articles](screenshots/kb-articles.png)
+
+Access and manage knowledge base articles.
+
+#### Accessing KB Articles
+
+Click **"KB Articles"** in the sidebar under Knowledge Base
+
+#### KB Article Features
+
+| Feature | Description |
+|---------|-------------|
+| **View Articles** | Browse available KB articles |
+| **Search** | Search articles by keyword |
+| **Categories** | Filter by category |
+| **Recent** | View recently updated articles |
+
+#### KB Article Details
+
+<!-- 📸 SCREENSHOT: KB article detail -->
+![KB Detail](screenshots/kb-detail.png)
+
+Each article shows:
+- **KB Number** - Article identifier
+- **Title** - Article title
+- **Description** - Full article content
+- **Category** - Article category
+- **Status** - Published/Draft/Retired
+- **Last Updated** - When article was modified
+
+---
+
+### 7.2 Applications
+
+<!-- 📸 SCREENSHOT: Applications page -->
+![Applications](screenshots/applications.png)
+
+View and manage application information.
+
+#### Accessing Applications
+
+Click **"Applications"** in the sidebar under Knowledge Base
+
+#### Application Details
+
+| Field | Description |
+|-------|-------------|
+| **App Name** | Application name |
+| **Description** | Application description |
+| **Owner** | Application owner/team |
+| **Support Contact** | Support contact information |
+| **Documentation** | Links to documentation |
+
+---
+
+### 7.3 Change Management Dashboard
+
+<!-- 📸 SCREENSHOT: Change management dashboard -->
+![Change Management](screenshots/change-management.png)
+
+Comprehensive view of change activities.
+
+#### Accessing Change Management
+
+Click **"Change Management"** in the sidebar under Knowledge Base
+
+#### Dashboard Features
+
+| Feature | Description |
+|---------|-------------|
+| **Change Calendar** | Visual calendar of scheduled changes |
+| **Upcoming Changes** | List of changes in next 7 days |
+| **Change Statistics** | Success rate, volume trends |
+| **Risk Analysis** | Change risk distribution |
+
+#### Change Views
+
+<!-- 📸 SCREENSHOT: Change calendar view -->
+![Change Calendar](screenshots/change-calendar.png)
+
+- **Calendar View** - Changes displayed on calendar
+- **List View** - Sortable list of all changes
+- **Timeline View** - Chronological timeline
+
+---
+
+## 8. Administration
 
 > **Note:** Administration features are only available to users with Admin or Super Admin roles.
 
-### 7.1 User Management
+### 8.1 User Management
 
 <!-- 📸 SCREENSHOT: User management page -->
 ![User Management](screenshots/user-management.png)
@@ -677,7 +890,7 @@ Click **"User Management"** in the sidebar under Admin
 
 ---
 
-### 7.2 Audit Logs
+### 8.2 Audit Logs
 
 <!-- 📸 SCREENSHOT: Audit logs page -->
 ![Audit Logs](screenshots/audit-logs.png)
@@ -706,9 +919,9 @@ Each log entry includes:
 
 ---
 
-## 8. Account Settings
+## 9. Account Settings
 
-### 8.1 My Profile
+### 9.1 My Profile
 
 <!-- 📸 SCREENSHOT: My profile page -->
 ![My Profile](screenshots/my-profile.png)
@@ -744,7 +957,7 @@ Click your avatar/name in the sidebar → **"My Profile"**
 
 ---
 
-### 8.2 Account Settings
+### 9.2 Account Settings
 
 <!-- 📸 SCREENSHOT: Account settings page -->
 ![Account Settings](screenshots/account-settings.png)
@@ -767,7 +980,7 @@ Click your avatar/name in the sidebar → **"Account Settings"**
 
 ---
 
-### 8.3 Notifications
+### 9.3 Notifications
 
 <!-- 📸 SCREENSHOT: Notifications page -->
 ![Notifications](screenshots/notifications.png)
@@ -796,7 +1009,7 @@ Or click the bell icon in the header
 
 ---
 
-### 8.4 System Alerts
+### 9.4 System Alerts
 
 <!-- 📸 SCREENSHOT: System alerts page -->
 ![System Alerts](screenshots/system-alerts.png)
@@ -832,7 +1045,7 @@ System automatically generates alerts for:
 
 ---
 
-## 9. Help & Support
+## 10. Help & Support
 
 <!-- 📸 SCREENSHOT: Help & support page -->
 ![Help & Support](screenshots/help-support.png)
@@ -862,7 +1075,7 @@ Click your avatar/name in the sidebar → **"Help & Support"**
 
 ---
 
-## 10. About
+## 11. About
 
 <!-- 📸 SCREENSHOT: About page -->
 ![About](screenshots/about.png)
