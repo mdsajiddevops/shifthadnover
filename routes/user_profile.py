@@ -146,7 +146,14 @@ def change_password():
 @login_required
 def account_settings():
     """Account settings page"""
-    return render_template('account_settings.html', user=current_user)
+    # Get account and team information for the user
+    account = current_user.account if current_user.account_id else None
+    team = current_user.team if current_user.team_id else None
+    
+    return render_template('account_settings.html', 
+                         user=current_user,
+                         account=account,
+                         team=team)
 
 @user_profile_bp.route('/notifications')
 @login_required
