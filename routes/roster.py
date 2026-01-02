@@ -231,9 +231,9 @@ def roster():
             roster_data[member.name][entry.date] = entry.shift_code
     # For dropdowns
     months = [calendar.month_name[i] for i in range(1, 13)]
-    # Show current year and next 10 years
+    # Show past 3 years, current year, and next 5 years
     current_year = now.year
-    years = [current_year + i for i in range(11)]
+    years = list(range(current_year - 3, current_year + 6))  # e.g., 2022-2030 if current is 2025
 
     # SECURITY FIX: Team Availability Filter with role-based access control
     present_members = []
