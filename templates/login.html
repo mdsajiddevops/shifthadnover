@@ -48,7 +48,8 @@
 
         /* Welcome Panel - Left Side with Slideshow */
         .welcome-panel {
-            flex: 1.2;
+            flex: 0 0 55%;
+            max-width: 55%;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #6366f1 100%);
             display: flex;
             flex-direction: column;
@@ -294,7 +295,8 @@
 
         /* Form Panel - Right Side */
         .form-panel {
-            flex: 1;
+            flex: 0 0 45%;
+            max-width: 45%;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -304,11 +306,151 @@
 
         .form-container {
             width: 100%;
-            max-width: 400px;
+            max-width: 420px;
         }
 
         .form-card {
             padding: 1rem;
+        }
+
+        /* Login Header - SSO First */
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-header .greeting {
+            font-size: 1.1rem;
+            color: var(--accent-primary);
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-header h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.85rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .login-header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* SSO Primary Button */
+        .sso-primary-btn {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            padding: 1.1rem 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 1.05rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            cursor: pointer;
+            margin-bottom: 1rem;
+        }
+
+        .sso-primary-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.5);
+            color: white;
+            text-decoration: none;
+        }
+
+        .sso-primary-btn i {
+            font-size: 1.25rem;
+        }
+
+        .sso-description {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .sso-description i {
+            color: var(--accent-teal);
+            margin-right: 0.35rem;
+        }
+
+        /* Divider */
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 1.5rem 0;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-color);
+        }
+
+        .divider span {
+            padding: 0 1rem;
+        }
+
+        /* Alternative Login Link */
+        .alt-login-link {
+            text-align: center;
+        }
+
+        .alt-login-link a {
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 1.05rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            border: 2px solid var(--border-color);
+        }
+
+        .alt-login-link a:hover {
+            background: var(--bg-accent);
+            border-color: var(--accent-primary);
+        }
+
+        .alt-login-link a i {
+            font-size: 1.1rem;
+        }
+
+        /* Credentials Form (Hidden by default) */
+        .credentials-form {
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+
+        .credentials-form.show {
+            display: block;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         /* Form Elements */
@@ -439,24 +581,9 @@
             box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
         }
 
-        .submit-btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: left 0.5s ease;
-        }
-
         .submit-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4);
-        }
-
-        .submit-btn:hover::before {
-            left: 100%;
         }
 
         .submit-btn.loading .btn-text {
@@ -481,108 +608,24 @@
             to { transform: rotate(360deg); }
         }
 
-        /* Divider */
-        .divider {
-            display: flex;
-            align-items: center;
-            margin: 1.5rem 0;
-            color: var(--text-muted);
-            font-size: 0.85rem;
-        }
-
-        .divider::before,
-        .divider::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: var(--border-color);
-        }
-
-        .divider span {
-            padding: 0 1rem;
-        }
-
-        /* SSO Button - Highlighted */
-        .sso-container {
-            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
-            border: 2px solid rgba(99, 102, 241, 0.3);
-            border-radius: 16px;
-            padding: 1.25rem;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .sso-container::before {
-            content: '✨ Recommended';
-            position: absolute;
-            top: -1px;
-            right: -1px;
-            background: var(--gradient-primary);
-            color: white;
-            font-size: 0.7rem;
-            font-weight: 700;
-            padding: 0.35rem 0.75rem;
-            border-radius: 0 14px 0 10px;
-        }
-
-        .sso-btn {
-            width: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.75rem;
-            padding: 1rem 1.5rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #6366f1 100%);
-            border: none;
-            border-radius: 12px;
-            color: white;
-            font-size: 1rem;
-            font-weight: 700;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .sso-btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-            animation: shimmer 2s infinite;
-        }
-
-        @keyframes shimmer {
-            0% { left: -100%; }
-            100% { left: 100%; }
-        }
-
-        .sso-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
-            color: white;
-            text-decoration: none;
-        }
-
-        .sso-btn:active {
-            transform: translateY(-1px);
-        }
-
-        .sso-btn i {
-            font-size: 1.25rem;
-            color: white;
-        }
-
-        .sso-hint {
+        /* Back to SSO Link */
+        .back-to-sso {
             text-align: center;
-            margin-top: 0.75rem;
-            font-size: 0.8rem;
+            margin-top: 1.5rem;
+        }
+
+        .back-to-sso a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: color 0.3s ease;
+        }
+
+        .back-to-sso a:hover {
             color: var(--accent-primary);
-            font-weight: 500;
         }
 
         /* Error Alert */
@@ -602,7 +645,9 @@
         /* Help Link */
         .help-link {
             text-align: center;
-            margin-top: 1.5rem;
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
             font-size: 0.9rem;
             color: var(--text-secondary);
         }
@@ -640,6 +685,8 @@
             }
 
             .welcome-panel {
+                flex: none;
+                max-width: 100%;
                 padding: 2rem;
                 min-height: 50vh;
             }
@@ -657,6 +704,8 @@
             }
 
             .form-panel {
+                flex: none;
+                max-width: 100%;
                 padding: 2rem;
             }
         }
@@ -876,94 +925,121 @@
             </div>
         </div>
 
-        <!-- Form Panel -->
+        <!-- Form Panel - SSO First Design -->
         <div class="form-panel">
             <div class="form-container">
                 <div class="form-card">
-                    <form method="POST" id="loginForm" action="{{ url_for('auth.login') }}">
-                        <!-- Organization -->
-                        <div class="form-group" id="account-section">
-                            <label class="form-label">
-                                <i class="fas fa-building"></i>
-                                <span>Organization</span>
-                                <div class="role-badge" id="role-badge" style="display: none;"></div>
-                            </label>
-                            <select class="form-input" id="account_id" name="account_id">
-                                <option value="">Select your organization</option>
-                                {% for account in accounts %}
-                                <option value="{{ account.id }}" {% if selected_account_id == account.id %}selected{% endif %}>{{ account.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-
-                        <!-- Team -->
-                        <div class="form-group" id="team-section">
-                            <label class="form-label">
-                                <i class="fas fa-users"></i>
-                                <span>Team</span>
-                            </label>
-                            <select class="form-input" id="team_id" name="team_id" {% if not selected_account_id %}disabled{% endif %}>
-                                <option value="">Select your team</option>
-                                {% for team in teams %}
-                                <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-
-                        <!-- Username -->
-                        <div class="form-group">
-                            <label class="form-label">
-                                <i class="fas fa-user"></i>
-                                <span>Username</span>
-                            </label>
-                            <input type="text" class="form-input" id="username" name="username" 
-                                   placeholder="Enter your username" required autofocus>
-                        </div>
-
-                        <!-- Password -->
-                        <div class="form-group">
-                            <label class="form-label">
-                                <i class="fas fa-lock"></i>
-                                <span>Password</span>
-                            </label>
-                            <div class="input-wrapper">
-                                <input type="password" class="form-input" id="password" name="password" 
-                                       placeholder="Enter your password" required style="padding-right: 3rem;">
-                                <button type="button" class="password-toggle" id="togglePassword">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Options Row -->
-                        <div class="form-options">
-                            <label class="checkbox-wrapper">
-                                <input type="checkbox" id="remember" name="remember">
-                                <span>Remember me</span>
-                            </label>
-                            <a href="{{ url_for('auth.forgot_password') }}" class="forgot-link">Forgot password?</a>
-                        </div>
-
-                        <!-- Submit Button -->
-                        <button type="submit" class="submit-btn" id="submitBtn">
-                            <span class="btn-text">
-                                <i class="fas fa-sign-in-alt"></i>&nbsp;&nbsp;Sign In
-                            </span>
-                        </button>
-                    </form>
-
-                    <!-- Divider -->
-                    <div class="divider">
-                        <span>or continue with</span>
+                    <!-- Login Header -->
+                    <div class="login-header">
+                        <p class="greeting">👋 Hello there!</p>
+                        <h2>Welcome to ShiftOps</h2>
+                        <p>Sign in to continue your journey</p>
                     </div>
 
-                    <!-- SSO Section -->
-                    <div class="sso-container">
-                        <a href="/auth/sso/initiate/oauth" class="sso-btn">
+                    <!-- SSO Section (Default View) -->
+                    <div id="ssoSection">
+                        <a href="/auth/sso/initiate/oauth" class="sso-primary-btn">
                             <i class="fas fa-building"></i>
-                            <span>EPAM Single Sign-On</span>
+                            EPAM Single Sign-On
                         </a>
-                        <p class="sso-hint">Secure authentication with your corporate account</p>
+                        
+                        <p class="sso-description">
+                            <i class="fas fa-shield-alt"></i>
+                            Secure authentication with your corporate account
+                        </p>
+                        
+                        <div class="divider">
+                            <span>or</span>
+                        </div>
+                        
+                        <div class="alt-login-link">
+                            <a href="#" onclick="showCredentialsForm(); return false;">
+                                <i class="fas fa-key"></i>
+                                Sign in with credentials
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Credentials Form (Hidden by default) -->
+                    <div id="credentialsForm" class="credentials-form">
+                        <form method="POST" id="loginForm" action="{{ url_for('auth.login') }}">
+                            <!-- Organization -->
+                            <div class="form-group" id="account-section">
+                                <label class="form-label">
+                                    <i class="fas fa-building"></i>
+                                    <span>Organization</span>
+                                    <div class="role-badge" id="role-badge" style="display: none;"></div>
+                                </label>
+                                <select class="form-input" id="account_id" name="account_id">
+                                    <option value="">Select your organization</option>
+                                    {% for account in accounts %}
+                                    <option value="{{ account.id }}" {% if selected_account_id == account.id %}selected{% endif %}>{{ account.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Team -->
+                            <div class="form-group" id="team-section">
+                                <label class="form-label">
+                                    <i class="fas fa-users"></i>
+                                    <span>Team</span>
+                                </label>
+                                <select class="form-input" id="team_id" name="team_id" {% if not selected_account_id %}disabled{% endif %}>
+                                    <option value="">Select your team</option>
+                                    {% for team in teams %}
+                                    <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Username -->
+                            <div class="form-group">
+                                <label class="form-label">
+                                    <i class="fas fa-user"></i>
+                                    <span>Username</span>
+                                </label>
+                                <input type="text" class="form-input" id="username" name="username" 
+                                       placeholder="Enter your username" required>
+                            </div>
+
+                            <!-- Password -->
+                            <div class="form-group">
+                                <label class="form-label">
+                                    <i class="fas fa-lock"></i>
+                                    <span>Password</span>
+                                </label>
+                                <div class="input-wrapper">
+                                    <input type="password" class="form-input" id="password" name="password" 
+                                           placeholder="Enter your password" required style="padding-right: 3rem;">
+                                    <button type="button" class="password-toggle" id="togglePassword">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Options Row -->
+                            <div class="form-options">
+                                <label class="checkbox-wrapper">
+                                    <input type="checkbox" id="remember" name="remember">
+                                    <span>Remember me</span>
+                                </label>
+                                <a href="{{ url_for('auth.forgot_password') }}" class="forgot-link">Forgot password?</a>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <button type="submit" class="submit-btn" id="submitBtn">
+                                <span class="btn-text">
+                                    <i class="fas fa-sign-in-alt"></i>&nbsp;&nbsp;Sign In
+                                </span>
+                            </button>
+                        </form>
+                        
+                        <div class="back-to-sso">
+                            <a href="#" onclick="showSSOSection(); return false;">
+                                <i class="fas fa-arrow-left"></i>
+                                Back to SSO login
+                            </a>
+                        </div>
                     </div>
 
                     <!-- Error Messages -->
@@ -993,19 +1069,16 @@
         let autoSlideInterval;
 
         function showSlide(index) {
-            // Handle wrapping
             if (index >= slides.length) index = 0;
             if (index < 0) index = slides.length - 1;
             
             currentSlide = index;
             
-            // Update slides
             slides.forEach((slide, i) => {
                 slide.classList.remove('active');
                 if (i === index) slide.classList.add('active');
             });
             
-            // Update indicators
             indicators.forEach((indicator, i) => {
                 indicator.classList.remove('active');
                 if (i === index) indicator.classList.add('active');
@@ -1025,7 +1098,7 @@
         function startAutoSlide() {
             autoSlideInterval = setInterval(() => {
                 showSlide(currentSlide + 1);
-            }, 5000); // Change slide every 5 seconds
+            }, 5000);
         }
 
         function resetAutoSlide() {
@@ -1033,8 +1106,19 @@
             startAutoSlide();
         }
 
-        // Start auto slideshow
         startAutoSlide();
+
+        // SSO-First Toggle Functions
+        function showCredentialsForm() {
+            document.getElementById('ssoSection').style.display = 'none';
+            document.getElementById('credentialsForm').classList.add('show');
+            document.getElementById('username').focus();
+        }
+
+        function showSSOSection() {
+            document.getElementById('credentialsForm').classList.remove('show');
+            document.getElementById('ssoSection').style.display = 'block';
+        }
 
         // Form functionality
         document.addEventListener('DOMContentLoaded', function() {
@@ -1050,42 +1134,47 @@
             const teamSection = document.getElementById('team-section');
 
             // Password visibility toggle
-            togglePassword.addEventListener('click', function() {
-                const type = passwordInput.type === 'password' ? 'text' : 'password';
-                passwordInput.type = type;
-                this.querySelector('i').className = type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
-            });
+            if (togglePassword) {
+                togglePassword.addEventListener('click', function() {
+                    const type = passwordInput.type === 'password' ? 'text' : 'password';
+                    passwordInput.type = type;
+                    this.querySelector('i').className = type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+                });
+            }
 
             // Account change handler
-            accountSelect.addEventListener('change', function() {
-                const accountId = this.value;
-                teamSelect.innerHTML = '<option value="">Loading teams...</option>';
-                teamSelect.disabled = true;
-                
-                if (accountId) {
-                    fetch('/get_teams?account_id=' + accountId)
-                        .then(response => response.json())
-                        .then(data => {
-                            teamSelect.innerHTML = '<option value="">Select your team</option>';
-                            data.teams.forEach(team => {
-                                const option = document.createElement('option');
-                                option.value = team.id;
-                                option.textContent = team.name;
-                                teamSelect.appendChild(option);
-                            });
-                            teamSelect.disabled = false;
-                        })
-                        .catch(error => {
-                            teamSelect.innerHTML = '<option value="">Error loading teams</option>';
-                        });
-                } else {
-                    teamSelect.innerHTML = '<option value="">Select your team</option>';
+            if (accountSelect) {
+                accountSelect.addEventListener('change', function() {
+                    const accountId = this.value;
+                    teamSelect.innerHTML = '<option value="">Loading teams...</option>';
                     teamSelect.disabled = true;
-                }
-            });
+                    
+                    if (accountId) {
+                        fetch('/get_teams?account_id=' + accountId)
+                            .then(response => response.json())
+                            .then(data => {
+                                teamSelect.innerHTML = '<option value="">Select your team</option>';
+                                data.teams.forEach(team => {
+                                    const option = document.createElement('option');
+                                    option.value = team.id;
+                                    option.textContent = team.name;
+                                    teamSelect.appendChild(option);
+                                });
+                                teamSelect.disabled = false;
+                            })
+                            .catch(error => {
+                                teamSelect.innerHTML = '<option value="">Error loading teams</option>';
+                            });
+                    } else {
+                        teamSelect.innerHTML = '<option value="">Select your team</option>';
+                        teamSelect.disabled = true;
+                    }
+                });
+            }
 
             // Role-based field visibility
             function updateFieldsBasedOnRole() {
+                if (!usernameInput) return;
                 const username = usernameInput.value.trim().toLowerCase();
                 
                 accountSelect.required = false;
@@ -1122,16 +1211,20 @@
             }
 
             let roleUpdateTimeout;
-            usernameInput.addEventListener('input', function() {
-                clearTimeout(roleUpdateTimeout);
-                roleUpdateTimeout = setTimeout(updateFieldsBasedOnRole, 300);
-            });
+            if (usernameInput) {
+                usernameInput.addEventListener('input', function() {
+                    clearTimeout(roleUpdateTimeout);
+                    roleUpdateTimeout = setTimeout(updateFieldsBasedOnRole, 300);
+                });
+            }
 
             // Form submission
-            form.addEventListener('submit', function(e) {
-                submitBtn.classList.add('loading');
-                submitBtn.disabled = true;
-            });
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    submitBtn.classList.add('loading');
+                    submitBtn.disabled = true;
+                });
+            }
 
             setTimeout(updateFieldsBasedOnRole, 100);
         });
