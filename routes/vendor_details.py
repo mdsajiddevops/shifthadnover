@@ -1,7 +1,8 @@
 import os
 import logging
 import pandas as pd
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app
+from io import BytesIO
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app, send_file
 from flask_login import login_required, current_user
 from models.vendor_detail import VendorDetail
 from models.models import db, Account, Team
@@ -12,8 +13,31 @@ logger = logging.getLogger(__name__)
 
 bp = Blueprint('vendor_details', __name__)
 
-# Excel file path
+# Excel file path (for legacy support)
 VENDOR_EXCEL_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'data', 'SC_Vendor_Details_Master.xlsx')
+
+# Standard column mapping for vendor import
+VENDOR_COLUMN_MAPPING = {
+    'Application': 'application',
+    'Vendor Name': 'vendor_name',
+    'EPAM SME': 'epam_sme',
+    'IT Application Owner': 'it_application_owner',
+    'Vendor Email': 'vendor_email',
+    'Hotline Contact': 'hotline_contact',
+    'Vendor Department': 'vendor_department',
+    'Vendor Availability': 'vendor_availability',
+    'Company/Site/Account ID': 'company_site_account_id',
+    'POC Contact': 'ctc_poc',
+    'Vendor Website': 'vendor_website',
+    'Escalation POC': 'vendor_escalation_poc',
+    'Vendor Site Access': 'vendor_site_access',
+    'Meeting Invite Method': 'meeting_invite_method',
+    'SME App Admin': 'sme_app_admin',
+    'Vendor Details Received': 'vendor_details_received',
+    'Email Sent': 'email_sent',
+    'Vendor Support 3rd Party': 'vendor_support_3rd_party',
+    'Product Under Support': 'product_under_vendor_support',
+}
 
 
 def load_vendors_from_excel():
@@ -160,55 +184,10 @@ def vendor_details():
             logger.warning(f"[VENDOR_DETAILS] Regular user {current_user.username} has no account assigned")
     
     db_vendors = query.all()
+    vendors = [v.to_dict() for v in db_vendors]
     
-    if db_vendors:
-        vendors = [v.to_dict() for v in db_vendors]
-    else:
-        # Auto-import from Excel if database is empty (only for admins)
-        if is_admin():
-            excel_vendors = load_vendors_from_excel()
-            if excel_vendors:
-                try:
-                    # Get default account for import
-                    default_account_id = current_user.account_id if current_user.role == 'account_admin' else None
-                    
-                    for v in excel_vendors:
-                        vendor = VendorDetail(
-                            application=v.get('application', ''),
-                            sme_app_admin=v.get('sme_app_admin', ''),
-                            epam_sme=v.get('epam_sme', ''),
-                            vendor_details_received=v.get('vendor_details_received', ''),
-                            email_sent=v.get('email_sent', ''),
-                            it_application_owner=v.get('it_application_owner', ''),
-                            vendor_name=v.get('vendor_name', ''),
-                            vendor_support_3rd_party=v.get('vendor_support_3rd_party', ''),
-                            product_under_vendor_support=v.get('product_under_vendor_support', ''),
-                            vendor_email=v.get('vendor_email', ''),
-                            hotline_contact=v.get('hotline_contact', ''),
-                            vendor_department=v.get('vendor_department', ''),
-                            vendor_availability=v.get('vendor_availability', ''),
-                            company_site_account_id=v.get('company_site_account_id', ''),
-                            ctc_poc=v.get('ctc_poc', ''),
-                            vendor_website=v.get('vendor_website', ''),
-                            vendor_escalation_poc=v.get('vendor_escalation_poc', ''),
-                            vendor_site_access=v.get('vendor_site_access', ''),
-                            meeting_invite_method=v.get('meeting_invite_method', ''),
-                            account_id=default_account_id,
-                        )
-                        db.session.add(vendor)
-                    db.session.commit()
-                    current_app.logger.info(f"Auto-imported {len(excel_vendors)} vendors from Excel")
-                    # Re-fetch from database to get IDs
-                    db_vendors = VendorDetail.query.filter_by(is_active=True).all()
-                    vendors = [v.to_dict() for v in db_vendors]
-                except Exception as e:
-                    db.session.rollback()
-                    current_app.logger.error(f"Auto-import failed: {e}")
-                    vendors = []
-            else:
-                vendors = []
-        else:
-            vendors = []
+    # Note: Auto-import from Excel is disabled to prevent accidental data duplication
+    # Use the "Import from Excel" button on the page for manual imports
     
     # Get unique applications for filter
     applications = sorted(set(v.get('application', '') for v in vendors if v.get('application')))
@@ -248,33 +227,113 @@ def vendor_details():
     )
 
 
-@bp.route('/api/vendor-details/import', methods=['POST'])
+@bp.route('/api/vendor-details/sample', methods=['GET'])
 @login_required
-def import_vendors():
-    """Import vendors from Excel file to database."""
+def download_vendor_sample():
+    """Download sample vendor Excel template."""
     if not is_admin():
         return jsonify({'error': 'Unauthorized - Admin access required'}), 403
     
     try:
-        vendors = load_vendors_from_excel()
+        # Create sample data
+        sample_data = {
+            'Application': ['Sample App 1', 'Sample App 2'],
+            'Vendor Name': ['Vendor ABC', 'Vendor XYZ'],
+            'EPAM SME': ['John Doe', 'Jane Smith'],
+            'IT Application Owner': ['Owner 1', 'Owner 2'],
+            'Vendor Email': ['support@vendorabc.com', 'help@vendorxyz.com'],
+            'Hotline Contact': ['+1-800-123-4567', '+1-800-987-6543'],
+            'Vendor Department': ['Technical Support', 'Customer Service'],
+            'Vendor Availability': ['24/7', 'Business Hours Mon-Fri'],
+            'Company/Site/Account ID': ['ACC-001', 'ACC-002'],
+            'POC Contact': ['poc@company.com', 'contact@company.com'],
+            'Vendor Website': ['https://vendorabc.com', 'https://vendorxyz.com'],
+            'Escalation POC': ['escalation@vendorabc.com', 'escalation@vendorxyz.com'],
+            'Vendor Site Access': ['Yes', 'No'],
+            'Meeting Invite Method': ['Email', 'Teams'],
+            'SME App Admin': ['Admin 1', 'Admin 2'],
+            'Vendor Details Received': ['Yes', 'Yes'],
+            'Email Sent': ['Yes', 'No'],
+            'Vendor Support 3rd Party': ['No', 'Yes'],
+            'Product Under Support': ['Yes', 'Yes'],
+        }
         
-        if not vendors:
-            return jsonify({'error': 'No vendor data found in Excel file'}), 400
+        df = pd.DataFrame(sample_data)
         
-        # Get account_id from request or use current user's account
-        account_id = request.json.get('account_id') if request.json else None
+        # Create Excel file in memory
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Vendors')
+        output.seek(0)
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='vendor_import_template.xlsx'
+        )
+    except Exception as e:
+        current_app.logger.error(f"Failed to generate sample file: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/vendor-details/import', methods=['POST'])
+@login_required
+def import_vendors():
+    """Import vendors from uploaded Excel file."""
+    if not is_admin():
+        return jsonify({'error': 'Unauthorized - Admin access required'}), 403
+    
+    try:
+        # Check if file was uploaded
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded. Please select an Excel file.'}), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({'error': 'No file selected. Please choose an Excel file.'}), 400
+        
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            return jsonify({'error': 'Invalid file format. Please upload an Excel file (.xlsx or .xls)'}), 400
+        
+        # Get account_id and team_id from form
+        account_id = request.form.get('account_id', type=int)
+        team_id = request.form.get('team_id', type=int)
+        
+        # Use current user's account if not specified
         if not account_id and current_user.role == 'account_admin':
             account_id = current_user.account_id
         
-        # Clear existing vendors for this account
-        if account_id:
-            VendorDetail.query.filter_by(account_id=account_id).delete()
-        else:
-            # Super admin importing globally - clear all
-            VendorDetail.query.delete()
+        # Read Excel file
+        df = pd.read_excel(file)
         
-        # Import new vendors
+        if df.empty:
+            return jsonify({'error': 'Excel file is empty. Please add vendor data.'}), 400
+        
+        # Clean column names
+        df.columns = [col.strip() for col in df.columns]
+        
+        # Parse vendors from DataFrame
+        vendors = []
+        for _, row in df.iterrows():
+            vendor_data = {}
+            for excel_col, model_field in VENDOR_COLUMN_MAPPING.items():
+                if excel_col in df.columns:
+                    value = row.get(excel_col, '')
+                    vendor_data[model_field] = str(value) if pd.notna(value) else ''
+            vendors.append(vendor_data)
+        
+        if not vendors:
+            return jsonify({'error': 'No valid vendor data found in the file.'}), 400
+        
+        # Import vendors
+        imported_count = 0
         for v in vendors:
+            # Skip rows with no application or vendor name
+            if not v.get('application') and not v.get('vendor_name'):
+                continue
+                
             vendor = VendorDetail(
                 application=v.get('application', ''),
                 sme_app_admin=v.get('sme_app_admin', ''),
@@ -296,15 +355,17 @@ def import_vendors():
                 vendor_site_access=v.get('vendor_site_access', ''),
                 meeting_invite_method=v.get('meeting_invite_method', ''),
                 account_id=account_id,
+                team_id=team_id,
             )
             db.session.add(vendor)
+            imported_count += 1
         
         db.session.commit()
         
         return jsonify({
             'success': True,
-            'message': f'Successfully imported {len(vendors)} vendors',
-            'count': len(vendors)
+            'message': f'Successfully imported {imported_count} vendors',
+            'count': imported_count
         })
     except Exception as e:
         db.session.rollback()

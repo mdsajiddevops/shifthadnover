@@ -337,10 +337,17 @@
                         <span class="nav-text">User Management</span>
                     </a>
                 </div>
+                {% if current_user.role == 'super_admin' %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/active-sessions') else '' }}" href="/admin/active-sessions" data-tooltip="Active Sessions">
                         <i class="nav-icon bi bi-people-fill"></i>
                         <span class="nav-text">Active Sessions</span>
+                    </a>
+                </div>
+                <div class="modern-nav-item">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/user-team-linking') else '' }}" href="/admin/user-team-linking" data-tooltip="User-Team Linking">
+                        <i class="nav-icon bi bi-link-45deg"></i>
+                        <span class="nav-text">User-Team Linking</span>
                     </a>
                 </div>
                 <div class="modern-nav-item">
@@ -349,6 +356,25 @@
                         <span class="nav-text">Email Monitoring</span>
                     </a>
                 </div>
+                <div class="modern-nav-item">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/incident-metrics') else '' }}" href="/admin/incident-metrics" data-tooltip="Incident Metrics">
+                        <i class="nav-icon bi bi-graph-up-arrow"></i>
+                        <span class="nav-text">Incident Metrics</span>
+                    </a>
+                </div>
+                <div class="modern-nav-item">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/manual-roster') else '' }}" href="/admin/manual-roster" data-tooltip="Manual Roster Entry">
+                        <i class="nav-icon bi bi-calendar-plus"></i>
+                        <span class="nav-text">Manual Roster</span>
+                    </a>
+                </div>
+                <div class="modern-nav-item">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/system-health') else '' }}" href="/admin/system-health" data-tooltip="System Health">
+                        <i class="nav-icon bi bi-heart-pulse"></i>
+                        <span class="nav-text">System Health</span>
+                    </a>
+                </div>
+                {% endif %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/incident-response-logs') else '' }}" href="{{ url_for('user_profile.admin_incident_response_logs') }}" data-tooltip="Incident Response Logs">
                         <i class="nav-icon bi bi-clipboard-data"></i>
@@ -363,7 +389,7 @@
                     </a>
                 </div>
                 {% endif %}
-                {% if current_user.role in ['super_admin', 'account_admin'] %}
+                {% if current_user.role == 'super_admin' %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/sso') else '' }}" href="/admin/sso/" data-tooltip="SSO Configuration">
                         <i class="nav-icon bi bi-shield-lock"></i>

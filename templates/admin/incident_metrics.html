@@ -1,0 +1,648 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .metrics-container {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+    
+    .metrics-hero {
+        background: linear-gradient(135deg, #e8f0fe 0%, #d4e4fc 50%, #c5d9f8 100%);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 2rem;
+        border: 1px solid #b8d4f8;
+    }
+    
+    .metrics-hero h2 {
+        color: #1e3c72;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+    
+    .metrics-hero p {
+        color: #4a6fa5;
+        margin-bottom: 0;
+    }
+    
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        border: 1px solid #e8eef3;
+        height: 100%;
+        transition: transform 0.2s ease;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-2px);
+    }
+    
+    .stat-card .stat-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .stat-card .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stat-card .stat-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .stat-card.total .stat-icon { background: #e3f2fd; color: #1976d2; }
+    .stat-card.total .stat-value { color: #1976d2; }
+    
+    .stat-card.open .stat-icon { background: #fff3e0; color: #f57c00; }
+    .stat-card.open .stat-value { color: #f57c00; }
+    
+    .stat-card.closed .stat-icon { background: #e8f5e9; color: #388e3c; }
+    .stat-card.closed .stat-value { color: #388e3c; }
+    
+    .stat-card.rate .stat-icon { background: #f3e5f5; color: #7b1fa2; }
+    .stat-card.rate .stat-value { color: #7b1fa2; }
+    
+    .chart-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        border: 1px solid #e8eef3;
+        height: 100%;
+    }
+    
+    .chart-card h5 {
+        color: #1e3c72;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .chart-container {
+        position: relative;
+        height: 280px;
+    }
+    
+    .severity-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .severity-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .severity-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+    }
+    
+    .severity-dot.critical { background: #dc3545; }
+    .severity-dot.high { background: #fd7e14; }
+    .severity-dot.medium { background: #ffc107; }
+    .severity-dot.low { background: #28a745; }
+    
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255,255,255,0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+    }
+    
+    .filter-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.25rem 1.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        border: 1px solid #e8eef3;
+        margin-bottom: 1.5rem;
+    }
+    
+    .filter-card .form-label {
+        font-weight: 600;
+        color: #495057;
+        font-size: 0.85rem;
+        margin-bottom: 0.4rem;
+    }
+    
+    .filter-card .form-select,
+    .filter-card .form-control {
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.9rem;
+    }
+    
+    .filter-card .form-select:focus,
+    .filter-card .form-control:focus {
+        border-color: #1e3c72;
+        box-shadow: 0 0 0 0.2rem rgba(30, 60, 114, 0.15);
+    }
+    
+    .filter-card .btn-apply {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        border: none;
+        padding: 0.5rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+    }
+    
+    .filter-card .btn-reset {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        color: #495057;
+        padding: 0.5rem 1.25rem;
+        font-weight: 500;
+        border-radius: 8px;
+    }
+    
+    .filter-card .btn-reset:hover {
+        background: #e9ecef;
+    }
+    
+    .date-range-info {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+    }
+</style>
+
+<div class="metrics-container">
+    <!-- Hero Header -->
+    <div class="metrics-hero">
+        <h2><i class="bi bi-graph-up-arrow me-2"></i>Incident Metrics</h2>
+        <p id="dateRangeDescription">Analytics and performance metrics for incident response (Last 30 days)</p>
+    </div>
+    
+    <!-- Filters -->
+    <div class="filter-card">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label"><i class="bi bi-building me-1"></i>Account</label>
+                <select class="form-select" id="filterAccount">
+                    <option value="">All Accounts</option>
+                    {% for account in accounts %}
+                    <option value="{{ account.id }}">{{ account.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label"><i class="bi bi-people me-1"></i>Team</label>
+                <select class="form-select" id="filterTeam">
+                    <option value="">All Teams</option>
+                    {% for team in teams %}
+                    <option value="{{ team.id }}" data-account="{{ team.account_id }}">{{ team.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label"><i class="bi bi-calendar-event me-1"></i>From Date</label>
+                <input type="date" class="form-control" id="filterStartDate">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label"><i class="bi bi-calendar-check me-1"></i>To Date</label>
+                <input type="date" class="form-control" id="filterEndDate">
+            </div>
+            <div class="col-md-4">
+                <div class="d-flex gap-2">
+                    <button class="btn btn-apply text-white" onclick="applyFilters()">
+                        <i class="bi bi-funnel me-1"></i>Apply Filters
+                    </button>
+                    <button class="btn btn-reset" onclick="resetFilters()">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
+                    </button>
+                    <div class="btn-group">
+                        <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-calendar3 me-1"></i>Quick
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" onclick="setDateRange(7)">Last 7 Days</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="setDateRange(30)">Last 30 Days</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="setDateRange(60)">Last 60 Days</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="setDateRange(90)">Last 90 Days</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="setThisMonth()">This Month</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="setLastMonth()">Last Month</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Summary Stats -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="stat-card total">
+                <div class="stat-icon"><i class="bi bi-exclamation-triangle"></i></div>
+                <div class="stat-value" id="totalIncidents">-</div>
+                <div class="stat-label">Total Incidents</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card open">
+                <div class="stat-icon"><i class="bi bi-clock-history"></i></div>
+                <div class="stat-value" id="openIncidents">-</div>
+                <div class="stat-label">Open Incidents</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card closed">
+                <div class="stat-icon"><i class="bi bi-check-circle"></i></div>
+                <div class="stat-value" id="closedIncidents">-</div>
+                <div class="stat-label">Resolved</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card rate">
+                <div class="stat-icon"><i class="bi bi-percent"></i></div>
+                <div class="stat-value" id="resolutionRate">-</div>
+                <div class="stat-label">Resolution Rate</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Charts Row -->
+    <div class="row g-4 mb-4">
+        <!-- Trend Chart -->
+        <div class="col-lg-8">
+            <div class="chart-card">
+                <h5><i class="bi bi-graph-up text-primary"></i>Incident Trend</h5>
+                <div class="chart-container">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Severity Distribution -->
+        <div class="col-lg-4">
+            <div class="chart-card">
+                <h5><i class="bi bi-pie-chart text-warning"></i>By Severity</h5>
+                <div class="chart-container">
+                    <canvas id="severityChart"></canvas>
+                </div>
+                <div class="severity-legend">
+                    <div class="severity-item"><span class="severity-dot critical"></span>Critical</div>
+                    <div class="severity-item"><span class="severity-dot high"></span>High</div>
+                    <div class="severity-item"><span class="severity-dot medium"></span>Medium</div>
+                    <div class="severity-item"><span class="severity-dot low"></span>Low</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bottom Row -->
+    <div class="row g-4">
+        <!-- Status Distribution -->
+        <div class="col-md-6">
+            <div class="chart-card">
+                <h5><i class="bi bi-bar-chart text-success"></i>By Status</h5>
+                <div class="chart-container">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- By Team -->
+        <div class="col-md-6">
+            <div class="chart-card">
+                <h5><i class="bi bi-people text-info"></i>By Team</h5>
+                <div class="chart-container">
+                    <canvas id="teamChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<script>
+    let trendChart, severityChart, statusChart, teamChart;
+    let allTeams = []; // Store all teams for filtering
+    
+    // Chart colors
+    const colors = {
+        primary: '#1e3c72',
+        success: '#28a745',
+        warning: '#ffc107',
+        danger: '#dc3545',
+        info: '#17a2b8',
+        orange: '#fd7e14'
+    };
+    
+    // Initialize charts and filters
+    document.addEventListener('DOMContentLoaded', function() {
+        initFilters();
+        initCharts();
+        loadData();
+        
+        // Store all team options for filtering
+        const teamSelect = document.getElementById('filterTeam');
+        allTeams = Array.from(teamSelect.options).slice(1).map(opt => ({
+            value: opt.value,
+            text: opt.text,
+            accountId: opt.dataset.account
+        }));
+        
+        // Account change cascades to teams
+        document.getElementById('filterAccount').addEventListener('change', function() {
+            filterTeamsByAccount(this.value);
+        });
+    });
+    
+    function initFilters() {
+        // Set default date range (last 30 days)
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        document.getElementById('filterEndDate').value = today.toISOString().split('T')[0];
+        document.getElementById('filterStartDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+    }
+    
+    function filterTeamsByAccount(accountId) {
+        const teamSelect = document.getElementById('filterTeam');
+        teamSelect.innerHTML = '<option value="">All Teams</option>';
+        
+        const filteredTeams = accountId 
+            ? allTeams.filter(t => t.accountId === accountId)
+            : allTeams;
+        
+        filteredTeams.forEach(team => {
+            const option = document.createElement('option');
+            option.value = team.value;
+            option.textContent = team.text;
+            option.dataset.account = team.accountId;
+            teamSelect.appendChild(option);
+        });
+    }
+    
+    function getFilterParams() {
+        const accountId = document.getElementById('filterAccount').value;
+        const teamId = document.getElementById('filterTeam').value;
+        const startDate = document.getElementById('filterStartDate').value;
+        const endDate = document.getElementById('filterEndDate').value;
+        
+        let params = new URLSearchParams();
+        if (accountId) params.append('account_id', accountId);
+        if (teamId) params.append('team_id', teamId);
+        if (startDate) params.append('start_date', startDate);
+        if (endDate) params.append('end_date', endDate);
+        
+        return params.toString() ? '?' + params.toString() : '';
+    }
+    
+    function updateDateRangeDescription() {
+        const startDate = document.getElementById('filterStartDate').value;
+        const endDate = document.getElementById('filterEndDate').value;
+        const accountSelect = document.getElementById('filterAccount');
+        const teamSelect = document.getElementById('filterTeam');
+        
+        let description = 'Analytics and performance metrics';
+        
+        // Add account/team context
+        if (teamSelect.value) {
+            description += ` for ${teamSelect.options[teamSelect.selectedIndex].text}`;
+        } else if (accountSelect.value) {
+            description += ` for ${accountSelect.options[accountSelect.selectedIndex].text}`;
+        }
+        
+        // Add date range
+        if (startDate && endDate) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const days = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+            description += ` (${formatDate(startDate)} - ${formatDate(endDate)}, ${days} days)`;
+        }
+        
+        document.getElementById('dateRangeDescription').textContent = description;
+    }
+    
+    function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    
+    function applyFilters() {
+        updateDateRangeDescription();
+        loadData();
+    }
+    
+    function resetFilters() {
+        document.getElementById('filterAccount').value = '';
+        document.getElementById('filterTeam').value = '';
+        filterTeamsByAccount(''); // Reset team list
+        setDateRange(30); // Reset to last 30 days
+    }
+    
+    function setDateRange(days) {
+        const today = new Date();
+        const pastDate = new Date(today);
+        pastDate.setDate(pastDate.getDate() - days);
+        
+        document.getElementById('filterEndDate').value = today.toISOString().split('T')[0];
+        document.getElementById('filterStartDate').value = pastDate.toISOString().split('T')[0];
+        applyFilters();
+    }
+    
+    function setThisMonth() {
+        const today = new Date();
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        
+        document.getElementById('filterStartDate').value = firstDay.toISOString().split('T')[0];
+        document.getElementById('filterEndDate').value = today.toISOString().split('T')[0];
+        applyFilters();
+    }
+    
+    function setLastMonth() {
+        const today = new Date();
+        const firstDayLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const lastDayLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+        
+        document.getElementById('filterStartDate').value = firstDayLastMonth.toISOString().split('T')[0];
+        document.getElementById('filterEndDate').value = lastDayLastMonth.toISOString().split('T')[0];
+        applyFilters();
+    }
+    
+    function initCharts() {
+        // Trend Chart
+        const trendCtx = document.getElementById('trendChart').getContext('2d');
+        trendChart = new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Incidents',
+                    data: [],
+                    borderColor: colors.primary,
+                    backgroundColor: 'rgba(30, 60, 114, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+        
+        // Severity Chart
+        const severityCtx = document.getElementById('severityChart').getContext('2d');
+        severityChart = new Chart(severityCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Critical', 'High', 'Medium', 'Low'],
+                datasets: [{
+                    data: [0, 0, 0, 0],
+                    backgroundColor: [colors.danger, colors.orange, colors.warning, colors.success]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } }
+            }
+        });
+        
+        // Status Chart
+        const statusCtx = document.getElementById('statusChart').getContext('2d');
+        statusChart = new Chart(statusCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Open', 'In Progress', 'Closed'],
+                datasets: [{
+                    label: 'Incidents',
+                    data: [0, 0, 0],
+                    backgroundColor: [colors.orange, colors.info, colors.success]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+        
+        // Team Chart
+        const teamCtx = document.getElementById('teamChart').getContext('2d');
+        teamChart = new Chart(teamCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Incidents',
+                    data: [],
+                    backgroundColor: colors.primary
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true }
+                }
+            }
+        });
+    }
+    
+    async function loadData() {
+        const filterParams = getFilterParams();
+        
+        try {
+            // Show loading state
+            document.getElementById('totalIncidents').textContent = '...';
+            document.getElementById('openIncidents').textContent = '...';
+            document.getElementById('closedIncidents').textContent = '...';
+            document.getElementById('resolutionRate').textContent = '...';
+            
+            // Load summary
+            const summaryRes = await fetch('/api/incident-metrics/summary' + filterParams);
+            const summaryData = await summaryRes.json();
+            
+            if (summaryData.success) {
+                document.getElementById('totalIncidents').textContent = summaryData.summary.total_incidents;
+                document.getElementById('openIncidents').textContent = summaryData.summary.open_incidents;
+                document.getElementById('closedIncidents').textContent = summaryData.summary.closed_incidents;
+                document.getElementById('resolutionRate').textContent = summaryData.summary.resolution_rate + '%';
+                
+                // Update severity chart
+                severityChart.data.datasets[0].data = [
+                    summaryData.by_severity.critical,
+                    summaryData.by_severity.high,
+                    summaryData.by_severity.medium,
+                    summaryData.by_severity.low
+                ];
+                severityChart.update();
+                
+                // Update status chart
+                statusChart.data.datasets[0].data = [
+                    summaryData.by_status.open,
+                    summaryData.by_status.in_progress,
+                    summaryData.by_status.closed
+                ];
+                statusChart.update();
+            }
+            
+            // Load trends
+            const trendsRes = await fetch('/api/incident-metrics/trends' + filterParams);
+            const trendsData = await trendsRes.json();
+            
+            if (trendsData.success) {
+                trendChart.data.labels = trendsData.labels;
+                trendChart.data.datasets[0].data = trendsData.data;
+                trendChart.update();
+            }
+            
+            // Load by team
+            const teamRes = await fetch('/api/incident-metrics/by-team' + filterParams);
+            const teamData = await teamRes.json();
+            
+            if (teamData.success) {
+                teamChart.data.labels = teamData.labels;
+                teamChart.data.datasets[0].data = teamData.data;
+                teamChart.update();
+            }
+            
+        } catch (error) {
+            console.error('Error loading metrics:', error);
+        }
+    }
+</script>
+{% endblock %}
+

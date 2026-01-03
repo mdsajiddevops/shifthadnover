@@ -726,28 +726,62 @@
     
     function importVendors() {
         Swal.fire({
-            title: 'Import Vendors from Excel?',
-            html: 'This will import all vendors from the Excel file to the database.<br><small class="text-muted">Existing database records will be replaced.</small>',
-            icon: 'question',
+            title: '<i class="bi bi-cloud-upload text-primary"></i> Import Vendors',
+            html: `
+                <div class="text-start">
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Upload an Excel file (.xlsx) with vendor details. New vendors will be added to the database.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-file-earmark-excel text-success me-1"></i>
+                            Select Excel File
+                        </label>
+                        <input type="file" class="form-control" id="vendorFile" accept=".xlsx,.xls" required>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                        <small class="text-muted">Need the correct format?</small>
+                        <a href="/api/vendor-details/sample" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-download me-1"></i> Download Template
+                        </a>
+                    </div>
+                </div>
+            `,
             showCancelButton: true,
             confirmButtonColor: '#2563eb',
             cancelButtonColor: '#6c757d',
-            confirmButtonText: '<i class="bi bi-cloud-upload me-1"></i> Yes, Import',
-            cancelButtonText: 'Cancel'
+            confirmButtonText: '<i class="bi bi-cloud-upload me-1"></i> Upload & Import',
+            cancelButtonText: 'Cancel',
+            preConfirm: () => {
+                const fileInput = document.getElementById('vendorFile');
+                if (!fileInput.files || fileInput.files.length === 0) {
+                    Swal.showValidationMessage('Please select an Excel file');
+                    return false;
+                }
+                return fileInput.files[0];
+            }
         }).then((result) => {
-            if (result.isConfirmed) {
+            if (result.isConfirmed && result.value) {
+                const file = result.value;
+                
                 Swal.fire({
                     title: 'Importing...',
-                    text: 'Please wait while we import the vendor data.',
+                    html: `<p>Uploading and processing <strong>${file.name}</strong></p><p class="text-muted">Please wait...</p>`,
                     allowOutsideClick: false,
                     didOpen: () => {
                         Swal.showLoading();
                     }
                 });
                 
+                const formData = new FormData();
+                formData.append('file', file);
+                
                 fetch('/api/vendor-details/import', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'}
+                    body: formData
                 })
                 .then(res => res.json())
                 .then(data => {
@@ -755,9 +789,10 @@
                         Swal.fire({
                             icon: 'success',
                             title: 'Import Complete!',
-                            text: `Successfully imported ${data.count} vendors.`,
-                            timer: 2000,
-                            showConfirmButton: false
+                            html: `<p>Successfully imported <strong>${data.count}</strong> vendors.</p>`,
+                            timer: 2500,
+                            showConfirmButton: true,
+                            confirmButtonText: 'OK'
                         }).then(() => {
                             location.reload();
                         });
@@ -765,7 +800,8 @@
                         Swal.fire({
                             icon: 'error',
                             title: 'Import Failed',
-                            text: data.error || 'Unknown error occurred'
+                            html: `<p>${data.error || 'Unknown error occurred'}</p>`,
+                            confirmButtonText: 'OK'
                         });
                     }
                 })
@@ -773,7 +809,8 @@
                     Swal.fire({
                         icon: 'error',
                         title: 'Import Failed',
-                        text: 'Failed to import: ' + err.message
+                        html: `<p>Failed to import: ${err.message}</p>`,
+                        confirmButtonText: 'OK'
                     });
                 });
             }

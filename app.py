@@ -365,6 +365,16 @@ app.register_blueprint(admin_secrets_bp)
 from routes.vendor_details import bp as vendor_details_bp
 app.register_blueprint(vendor_details_bp)
 
+# New feature blueprints
+from routes.incident_metrics import incident_metrics_bp
+app.register_blueprint(incident_metrics_bp)
+
+from routes.manual_roster import manual_roster_bp
+app.register_blueprint(manual_roster_bp)
+
+from routes.system_health import system_health_bp
+app.register_blueprint(system_health_bp)
+
 # Add template global functions
 @app.template_global()
 def is_tab_enabled(tab_name):

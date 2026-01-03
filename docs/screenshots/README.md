@@ -156,7 +156,6 @@ This folder should contain screenshots for both the User Guide and Admin Guide d
 | `admin-teams-account.png` | Teams list | Teams in account |
 | `admin-create-team.png` | Create team | Team creation form |
 | `admin-team-config-options.png` | Team config | Configuration options |
-| `admin-team-email-settings.png` | Team email | Email recipient settings |
 | `admin-members-team.png` | Team members | Member management |
 | `admin-add-member.png` | Add member | Add member form |
 | `admin-user-linking.png` | User linking | User-member linking |
