@@ -78,6 +78,8 @@ ShiftOps is a comprehensive shift handover management system designed to streaml
 
 ### 2.1 Login
 
+> **📌 Page Description:** The Login page is the entry point to ShiftOps, providing secure authentication through EPAM SSO or traditional credentials for authorized users to access the shift handover system.
+
 The ShiftOps application supports two authentication methods:
 
 #### SSO Login (Recommended)
@@ -120,6 +122,8 @@ ShiftOps integrates with EPAM's OAuth 2.0 SSO system for secure authentication:
 ---
 
 ### 2.3 Dashboard Overview
+
+> **📌 Page Description:** The Dashboard is the main landing page after login, providing a real-time overview of shift activities, open incidents, pending changes, and quick access to frequently used features.
 
 <!-- 📸 SCREENSHOT: Main dashboard -->
 ![Dashboard](screenshots/dashboard.png)
@@ -230,6 +234,8 @@ When exporting reports with multi-team access:
 
 ### 3.1 Shift Handover Form
 
+> **📌 Page Description:** The Shift Handover Form is the core feature of ShiftOps, allowing engineers to document incidents, key points, scheduled changes, and KB updates when transitioning responsibilities to the next shift team.
+
 <!-- 📸 SCREENSHOT: Handover form page -->
 ![Handover Form](screenshots/handover-form.png)
 
@@ -332,6 +338,8 @@ Free-form text area for any additional information not covered in other sections
 
 ### 3.2 Shift Handover Reports
 
+> **📌 Page Description:** The Shift Reports page displays all submitted and draft handover reports with powerful filtering, search, and export capabilities. View historical handovers, track patterns, and export data for analysis.
+
 <!-- 📸 SCREENSHOT: Handover reports list -->
 ![Handover Reports](screenshots/handover-reports.png)
 
@@ -398,6 +406,8 @@ Super administrators can delete draft reports:
 
 ### 3.3 Key Points Management
 
+> **📌 Page Description:** The Key Points Management page provides a centralized view of all active and historical key points, allowing teams to track important issues across multiple shifts with timeline-based updates and status tracking.
+
 <!-- 📸 SCREENSHOT: Key points page -->
 ![Key Points Page](screenshots/keypoints.png)
 
@@ -452,6 +462,8 @@ Each key point maintains a timeline of all updates with:
 
 ### 4.1 Change Info Management
 
+> **📌 Page Description:** The Change Info page allows teams to manage scheduled changes independently of handovers. Add, edit, and track change requests with status updates, ensuring visibility of all planned changes across shifts.
+
 <!-- 📸 SCREENSHOT: Change info page -->
 ![Change Info Page](screenshots/change-info.png)
 
@@ -489,6 +501,8 @@ Click **"Change Info"** in the sidebar under Tools
 
 ### 4.2 KB Updates
 
+> **📌 Page Description:** The KB Updates page tracks knowledge base articles that have been created, updated, or retired. Teams can add new KB references and maintain a history of documentation changes.
+
 <!-- 📸 SCREENSHOT: KB updates page -->
 ![KB Updates Page](screenshots/kb-updates.png)
 
@@ -518,6 +532,8 @@ Click **"KB Updates"** in the sidebar under Tools
 
 ### 4.3 Vendor Details
 
+> **📌 Page Description:** The Vendor Details page maintains a directory of third-party vendor contacts, including support numbers, emails, and SLA information for quick reference during incidents and escalations.
+
 <!-- 📸 SCREENSHOT: Vendor details page -->
 ![Vendor Details](screenshots/vendor-details.png)
 
@@ -540,6 +556,8 @@ Each vendor entry includes:
 ---
 
 ### 4.4 CTask Assignment
+
+> **📌 Page Description:** The CTask Assignment page manages ServiceNow change tasks, showing task assignments, due dates, and completion status. Teams can track implementation responsibilities and update task progress.
 
 <!-- 📸 SCREENSHOT: CTask assignment page -->
 ![CTask Assignment](screenshots/ctask-assignment.png)
@@ -585,6 +603,8 @@ The CTask list shows:
 
 ### 5.1 Shift Roster
 
+> **📌 Page Description:** The Shift Roster page displays a calendar-based view of shift schedules, showing which engineers are assigned to each shift (Morning, Evening, Night, OnShore, OffShore) for the selected month and year.
+
 <!-- 📸 SCREENSHOT: Shift roster page -->
 ![Shift Roster](screenshots/shift-roster.png)
 
@@ -627,6 +647,8 @@ Generate shift allowance reports:
 
 ### 5.2 Team Details
 
+> **📌 Page Description:** The Team Details page shows comprehensive information about your team, including team members, their roles, contact information, and organizational structure.
+
 <!-- 📸 SCREENSHOT: Team details page -->
 ![Team Details](screenshots/team-details.png)
 
@@ -646,6 +668,8 @@ Click **"Team Details"** in the sidebar under Roster
 ---
 
 ### 5.3 Shift Management
+
+> **📌 Page Description:** The Shift Management page provides advanced tools for shift planning, coverage analysis, and shift swap coordination. Administrators can analyze shift patterns and ensure adequate coverage.
 
 <!-- 📸 SCREENSHOT: Shift management dashboard -->
 ![Shift Management](screenshots/shift-management.png)
@@ -690,6 +714,8 @@ View shift statistics including:
 
 ### 6.1 OnCall Dashboard
 
+> **📌 Page Description:** The OnCall Dashboard displays the current on-call engineer(s) for each team, their contact information, and the on-call rotation schedule for quick access during incidents.
+
 <!-- 📸 SCREENSHOT: OnCall dashboard -->
 ![OnCall Dashboard](screenshots/oncall-dashboard.png)
 
@@ -712,6 +738,8 @@ Click **"OnCall Dashboard"** in the sidebar under Support
 
 ### 6.2 Escalation Matrix
 
+> **📌 Page Description:** The Escalation Matrix provides a structured hierarchy of escalation contacts (L1, L2, L3, Management) with contact details for efficient incident escalation and communication.
+
 <!-- 📸 SCREENSHOT: Escalation matrix -->
 ![Escalation Matrix](screenshots/escalation-matrix.png)
 
@@ -733,6 +761,8 @@ Click **"Escalation Matrix"** in the sidebar under Support
 ---
 
 ### 6.3 ServiceNow Integration
+
+> **📌 Page Description:** The ServiceNow Integration page allows direct lookup of incidents and change requests from ServiceNow, enabling auto-population of handover forms with accurate ticket information.
 
 <!-- 📸 SCREENSHOT: ServiceNow integration page -->
 ![ServiceNow Integration](screenshots/servicenow-integration.png)
@@ -767,6 +797,8 @@ Click **"ServiceNow Integration"** in the sidebar under Support
 ## 7. Knowledge Base
 
 ### 7.1 KB Articles
+
+> **📌 Page Description:** The KB Articles page is a searchable repository of knowledge base articles, providing teams with documented solutions, procedures, and reference materials for common issues.
 
 <!-- 📸 SCREENSHOT: KB Articles page -->
 ![KB Articles](screenshots/kb-articles.png)
@@ -803,6 +835,8 @@ Each article shows:
 
 ### 7.2 Applications
 
+> **📌 Page Description:** The Applications page maintains a registry of all supported applications, including ownership, support contacts, documentation links, and technical details.
+
 <!-- 📸 SCREENSHOT: Applications page -->
 ![Applications](screenshots/applications.png)
 
@@ -825,6 +859,8 @@ Click **"Applications"** in the sidebar under Knowledge Base
 ---
 
 ### 7.3 Change Management Dashboard
+
+> **📌 Page Description:** The Change Management Dashboard provides a visual calendar and analytics of scheduled changes, including risk distribution, success rates, and upcoming change windows.
 
 <!-- 📸 SCREENSHOT: Change management dashboard -->
 ![Change Management](screenshots/change-management.png)
@@ -861,6 +897,8 @@ Click **"Change Management"** in the sidebar under Knowledge Base
 
 ### 8.1 User Management
 
+> **📌 Page Description:** The User Management page allows administrators to view, create, edit, and deactivate user accounts, assign roles, and manage access permissions across the system.
+
 <!-- 📸 SCREENSHOT: User management page -->
 ![User Management](screenshots/user-management.png)
 
@@ -892,6 +930,8 @@ Click **"User Management"** in the sidebar under Admin
 
 ### 8.2 Audit Logs
 
+> **📌 Page Description:** The Audit Logs page records all system activities including user actions, login events, configuration changes, and data modifications for security monitoring and compliance.
+
 <!-- 📸 SCREENSHOT: Audit logs page -->
 ![Audit Logs](screenshots/audit-logs.png)
 
@@ -922,6 +962,8 @@ Each log entry includes:
 ## 9. Account Settings
 
 ### 9.1 My Profile
+
+> **📌 Page Description:** The My Profile page displays your personal information, role, team assignment, and allows you to update your name, email, and change your password.
 
 <!-- 📸 SCREENSHOT: My profile page -->
 ![My Profile](screenshots/my-profile.png)
@@ -959,6 +1001,8 @@ Click your avatar/name in the sidebar → **"My Profile"**
 
 ### 9.2 Account Settings
 
+> **📌 Page Description:** The Account Settings page shows your session information, notification preferences, security settings, and provides quick actions for account management.
+
 <!-- 📸 SCREENSHOT: Account settings page -->
 ![Account Settings](screenshots/account-settings.png)
 
@@ -981,6 +1025,8 @@ Click your avatar/name in the sidebar → **"Account Settings"**
 ---
 
 ### 9.3 Notifications
+
+> **📌 Page Description:** The Notifications page displays all your handover notifications, incident assignments, and system announcements with read/unread status and priority indicators.
 
 <!-- 📸 SCREENSHOT: Notifications page -->
 ![Notifications](screenshots/notifications.png)
@@ -1010,6 +1056,8 @@ Or click the bell icon in the header
 ---
 
 ### 9.4 System Alerts
+
+> **📌 Page Description:** The System Alerts page shows real-time system health status for database, email service, and application, along with dynamic alerts based on current metrics.
 
 <!-- 📸 SCREENSHOT: System alerts page -->
 ![System Alerts](screenshots/system-alerts.png)
@@ -1047,6 +1095,8 @@ System automatically generates alerts for:
 
 ## 10. Help & Support
 
+> **📌 Page Description:** The Help & Support page provides FAQs, contact information for technical support (email and phone), links to documentation, and quick answers to common questions.
+
 <!-- 📸 SCREENSHOT: Help & support page -->
 ![Help & Support](screenshots/help-support.png)
 
@@ -1076,6 +1126,8 @@ Click your avatar/name in the sidebar → **"Help & Support"**
 ---
 
 ## 11. About
+
+> **📌 Page Description:** The About page displays application version information, release date, technology stack details, developer information (EPAM Systems), and system environment.
 
 <!-- 📸 SCREENSHOT: About page -->
 ![About](screenshots/about.png)

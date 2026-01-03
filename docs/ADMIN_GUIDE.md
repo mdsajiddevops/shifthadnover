@@ -211,6 +211,8 @@ ShiftOps implements a hierarchical role-based access control system with three a
 
 ### 3.1 Account Management
 
+> **📌 Page Description:** The Account Management page allows Super Admins to create, edit, and manage organizational accounts. Each account can contain multiple teams and users with isolated data access.
+
 <!-- 📸 SCREENSHOT: Account management page -->
 ![Account Management](screenshots/admin-accounts.png)
 
@@ -255,6 +257,8 @@ Super Admins can create and manage accounts (organizations).
 ---
 
 ### 3.2 Global User Management
+
+> **📌 Page Description:** The Global User Management page provides Super Admins with complete control over all user accounts across all organizations, including creation, role assignment, and access management.
 
 <!-- 📸 SCREENSHOT: Global user management -->
 ![Global User Management](screenshots/admin-users-global.png)
@@ -313,6 +317,8 @@ Only Super Admins can assign administrative roles:
 
 ### 3.3 System Configuration
 
+> **📌 Page Description:** The System Configuration page is the central hub for managing application-wide settings including email, SSO, ServiceNow integration, and general application parameters.
+
 <!-- 📸 SCREENSHOT: System configuration menu -->
 ![System Configuration](screenshots/admin-config-menu.png)
 
@@ -335,6 +341,8 @@ Super Admins have access to system-wide configuration options.
 ---
 
 ### 3.4 Email Configuration
+
+> **📌 Page Description:** The Email Configuration page manages SMTP server settings, sender information, and team-specific email recipient lists for handover notification delivery.
 
 <!-- 📸 SCREENSHOT: Email configuration page -->
 ![Email Configuration](screenshots/admin-email-config.png)
@@ -382,6 +390,8 @@ Configure email recipients per team:
 
 ### 3.5 SSO Configuration
 
+> **📌 Page Description:** The SSO Configuration page manages OAuth 2.0/SAML Single Sign-On settings, including client credentials, redirect URLs, and attribute mapping for EPAM SSO integration.
+
 <!-- 📸 SCREENSHOT: SSO configuration page -->
 ![SSO Configuration](screenshots/admin-sso-config.png)
 
@@ -424,6 +434,8 @@ Configure how SSO claims map to application fields:
 
 ### 3.6 ServiceNow Integration
 
+> **📌 Page Description:** The ServiceNow Integration page configures API connectivity to ServiceNow for automatic incident and change request data retrieval and synchronization.
+
 <!-- 📸 SCREENSHOT: ServiceNow configuration -->
 ![ServiceNow Config](screenshots/admin-servicenow.png)
 
@@ -448,6 +460,8 @@ Configure ServiceNow API integration for incident data.
 
 ### 3.7 App Configuration
 
+> **📌 Page Description:** The App Configuration page provides control over application feature flags, maintenance mode, default settings, and global application behavior parameters.
+
 <!-- 📸 SCREENSHOT: App configuration page -->
 ![App Configuration](screenshots/admin-app-config.png)
 
@@ -465,6 +479,8 @@ Configure general application settings.
 ---
 
 ### 3.8 Shift Time Configuration
+
+> **📌 Page Description:** The Shift Time Configuration page defines the start and end times for each shift type (Morning, Evening, Night, OnShore, OffShore) used for auto-detection and validation.
 
 <!-- 📸 SCREENSHOT: Shift time configuration -->
 ![Shift Time Configuration](screenshots/admin-shift-time-config.png)
@@ -512,6 +528,8 @@ Teams can override default shift times:
 ---
 
 ### 3.9 Active Session Monitoring
+
+> **📌 Page Description:** The Active Sessions page displays all currently logged-in users with session details, allowing administrators to monitor activity and terminate suspicious sessions.
 
 <!-- 📸 SCREENSHOT: Active sessions page -->
 ![Active Sessions](screenshots/admin-active-sessions.png)
@@ -568,6 +586,8 @@ Monitor all active user sessions in the system.
 
 ### 3.10 Secrets Management
 
+> **📌 Page Description:** The Secrets Management page provides secure storage and management of sensitive credentials including API keys, database passwords, and encryption keys with audit trails.
+
 <!-- 📸 SCREENSHOT: Secrets management page -->
 ![Secrets Management](screenshots/admin-secrets-management.png)
 
@@ -622,6 +642,8 @@ All secret access and modifications are logged:
 
 ### 3.11 Incident Response Logs
 
+> **📌 Page Description:** The Incident Response Logs page tracks all incident response activities, response times, resolution metrics, and SLA compliance across all teams for performance analysis.
+
 <!-- 📸 SCREENSHOT: Incident response logs page -->
 ![Incident Response Logs](screenshots/admin-incident-logs.png)
 
@@ -672,6 +694,8 @@ View incident response metrics:
 
 ### 3.12 Delete Draft Reports
 
+> **📌 Page Description:** The Delete Draft Reports feature allows Super Admins to permanently remove erroneous or duplicate draft handover reports, including all associated data.
+
 <!-- 📸 SCREENSHOT: Delete draft report feature -->
 ![Delete Draft](screenshots/admin-delete-draft.png)
 
@@ -690,6 +714,8 @@ Super Admins can delete draft reports from any team.
 ---
 
 ### 3.13 Global Audit Logs
+
+> **📌 Page Description:** The Global Audit Logs page provides a comprehensive view of all system activities across all accounts and teams, enabling security monitoring and compliance tracking.
 
 <!-- 📸 SCREENSHOT: Global audit logs -->
 ![Global Audit Logs](screenshots/admin-audit-global.png)
@@ -729,6 +755,8 @@ View all system activity across all accounts and teams.
 
 ### 4.1 Team Management
 
+> **📌 Page Description:** The Team Management page for Account Admins allows creation and management of teams within their organization, including team settings and member assignments.
+
 <!-- 📸 SCREENSHOT: Team management for account admin -->
 ![Team Management](screenshots/admin-teams-account.png)
 
@@ -762,6 +790,8 @@ Configure team-specific settings:
 
 ### 4.2 Account-Level User Management
 
+> **📌 Page Description:** The Account-Level User Management page enables Account Admins to create, edit, and manage user accounts for all teams within their organization.
+
 <!-- 📸 SCREENSHOT: Account user management -->
 ![Account User Management](screenshots/admin-users-account.png)
 
@@ -780,6 +810,8 @@ Account Admins can manage users within their account.
 
 ### 4.3 Account Reports
 
+> **📌 Page Description:** The Account Reports page provides Account Admins with consolidated reporting across all teams in their organization, with filtering and export capabilities.
+
 <!-- 📸 SCREENSHOT: Account reports view -->
 ![Account Reports](screenshots/admin-reports-account.png)
 
@@ -796,6 +828,8 @@ View and export reports for all teams in the account.
 
 ### 4.4 Account Audit Logs
 
+> **📌 Page Description:** The Account Audit Logs page shows all user activities within the organization for security monitoring and compliance purposes.
+
 <!-- 📸 SCREENSHOT: Account audit logs -->
 ![Account Audit Logs](screenshots/admin-audit-account.png)
 
@@ -806,6 +840,8 @@ View audit logs for all activities within the account.
 ## 5. Team Admin Features
 
 ### 5.1 Team Member Management
+
+> **📌 Page Description:** The Team Member Management page allows Team Admins to add, edit, and deactivate team members, including setting their roles and shift assignments.
 
 <!-- 📸 SCREENSHOT: Team member management -->
 ![Team Member Management](screenshots/admin-members-team.png)
@@ -841,6 +877,8 @@ Link application users to team members:
 
 ### 5.2 Roster Management
 
+> **📌 Page Description:** The Roster Management page enables Team Admins to upload, edit, and maintain shift schedules for their team using Excel imports or manual entry.
+
 <!-- 📸 SCREENSHOT: Roster management for team admin -->
 ![Roster Management](screenshots/admin-roster-team.png)
 
@@ -871,6 +909,8 @@ Team Admins can manage the shift roster for their team.
 
 ### 5.3 Team Reports
 
+> **📌 Page Description:** The Team Reports page provides Team Admins with handover reports, incident summaries, and key point tracking specific to their team.
+
 <!-- 📸 SCREENSHOT: Team reports -->
 ![Team Reports](screenshots/admin-reports-team.png)
 
@@ -887,6 +927,8 @@ View and manage reports for your team only.
 
 ### 5.4 Team Configuration
 
+> **📌 Page Description:** The Team Configuration page allows Team Admins to customize team settings including shift types, email notifications, and default preferences.
+
 <!-- 📸 SCREENSHOT: Team configuration -->
 ![Team Configuration](screenshots/admin-config-team.png)
 
@@ -902,6 +944,8 @@ Configure team-specific settings:
 ---
 
 ### 5.5 Vendor Details Management
+
+> **📌 Page Description:** The Vendor Details Management page allows Team Admins to maintain a directory of third-party vendor contacts, SLAs, and support information for incident escalation.
 
 <!-- 📸 SCREENSHOT: Vendor details management -->
 ![Vendor Management](screenshots/admin-vendor-management.png)
@@ -970,6 +1014,8 @@ Upload multiple vendors from Excel:
 ---
 
 ### 5.6 Escalation Matrix Management
+
+> **📌 Page Description:** The Escalation Matrix Management page enables Team Admins to configure and maintain escalation hierarchies (L1, L2, L3, Management) with contact details for quick incident escalation.
 
 <!-- 📸 SCREENSHOT: Escalation matrix management -->
 ![Escalation Matrix Management](screenshots/admin-escalation-management.png)
