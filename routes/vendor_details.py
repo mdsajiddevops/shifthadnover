@@ -73,24 +73,52 @@ def is_admin():
 @bp.route('/vendor-details', methods=['GET'])
 @login_required
 def vendor_details():
-    """Display vendor details page."""
+    """Display vendor details page with proper access control."""
     # Build query based on user role
     query = VendorDetail.query.filter_by(is_active=True)
+    
+    logger.debug(f"🔍 [VENDOR_DETAILS] Route accessed by {current_user.username} (Role: {current_user.role}, Account: {current_user.account_id})")
     
     # Filter based on user role
     if current_user.role == 'super_admin':
         # Super admin can see all vendors - no filtering needed
+        logger.debug("[VENDOR_DETAILS] Super admin - showing all vendors")
         pass
     elif current_user.role == 'account_admin':
-        # Account admin can see vendors for their account (all teams)
+        # Account admin can ONLY see vendors for their account (all teams in their account)
+        # Do NOT show vendors with NULL account_id (those are for super_admin only)
         user_account_id = current_user.account_id
         if user_account_id:
+            query = query.filter(VendorDetail.account_id == user_account_id)
+            logger.debug(f"[VENDOR_DETAILS] Account admin - filtering by account_id: {user_account_id}")
+        else:
+            # No account assigned, show nothing
+            query = query.filter(db.literal(False))
+            logger.warning(f"[VENDOR_DETAILS] Account admin {current_user.username} has no account_id assigned")
+    elif current_user.role == 'team_admin':
+        # Team admin can only see vendors for their team(s) within their account
+        user_account_id = current_user.account_id
+        user_team_ids = TeamAccessService.get_user_team_ids()
+        
+        if user_team_ids and user_account_id:
+            # Show vendors for the team admin's teams only
             query = query.filter(
-                db.or_(
+                db.and_(
                     VendorDetail.account_id == user_account_id,
-                    VendorDetail.account_id.is_(None)
+                    db.or_(
+                        VendorDetail.team_id.in_(user_team_ids),
+                        VendorDetail.team_id.is_(None)  # Account-level vendors (no team)
+                    )
                 )
             )
+            logger.debug(f"[VENDOR_DETAILS] Team admin - filtering by account_id: {user_account_id}, team_ids: {user_team_ids}")
+        elif user_account_id:
+            # Fallback: filter by account only if no teams assigned
+            query = query.filter(VendorDetail.account_id == user_account_id)
+            logger.debug(f"[VENDOR_DETAILS] Team admin fallback - filtering by account_id only: {user_account_id}")
+        else:
+            query = query.filter(db.literal(False))
+            logger.warning(f"[VENDOR_DETAILS] Team admin {current_user.username} has no account/team assigned")
     else:
         # Regular users - support multi-team filtering
         user_account_id = current_user.account_id
@@ -102,41 +130,34 @@ def vendor_details():
         if filter_team_id and filter_team_id in user_team_ids:
             # User selected a specific team - show only that team's vendors
             query = query.filter(
-                db.or_(
-                    db.and_(
-                        VendorDetail.account_id == user_account_id,
-                        VendorDetail.team_id == filter_team_id
-                    ),
-                    db.and_(
-                        VendorDetail.account_id == user_account_id,
-                        VendorDetail.team_id.is_(None)
-                    ),
-                    VendorDetail.account_id.is_(None)  # Global vendors
+                db.and_(
+                    VendorDetail.account_id == user_account_id,
+                    db.or_(
+                        VendorDetail.team_id == filter_team_id,
+                        VendorDetail.team_id.is_(None)  # Account-level vendors
+                    )
                 )
             )
-        elif user_team_ids:
+            logger.debug(f"[VENDOR_DETAILS] Regular user with team filter - team_id: {filter_team_id}")
+        elif user_team_ids and user_account_id:
             # Show vendors for all user's teams
             query = query.filter(
-                db.or_(
-                    db.and_(
-                        VendorDetail.account_id == user_account_id,
-                        VendorDetail.team_id.in_(user_team_ids)
-                    ),
-                    db.and_(
-                        VendorDetail.account_id == user_account_id,
-                        VendorDetail.team_id.is_(None)
-                    ),
-                    VendorDetail.account_id.is_(None)  # Global vendors
+                db.and_(
+                    VendorDetail.account_id == user_account_id,
+                    db.or_(
+                        VendorDetail.team_id.in_(user_team_ids),
+                        VendorDetail.team_id.is_(None)  # Account-level vendors
+                    )
                 )
             )
+            logger.debug(f"[VENDOR_DETAILS] Regular user - filtering by account_id: {user_account_id}, team_ids: {user_team_ids}")
         elif user_account_id:
             # Fallback: filter by account only if no teams assigned
-            query = query.filter(
-                db.or_(
-                    VendorDetail.account_id == user_account_id,
-                    VendorDetail.account_id.is_(None)
-                )
-            )
+            query = query.filter(VendorDetail.account_id == user_account_id)
+            logger.debug(f"[VENDOR_DETAILS] Regular user fallback - filtering by account_id only: {user_account_id}")
+        else:
+            query = query.filter(db.literal(False))
+            logger.warning(f"[VENDOR_DETAILS] Regular user {current_user.username} has no account assigned")
     
     db_vendors = query.all()
     
@@ -294,7 +315,7 @@ def import_vendors():
 @bp.route('/api/vendor-details', methods=['GET'])
 @login_required
 def get_vendors_api():
-    """API endpoint to get vendor data with optional filtering."""
+    """API endpoint to get vendor data with proper access control."""
     application = request.args.get('application', '')
     search = request.args.get('search', '')
     account_id = request.args.get('account_id', '')
@@ -302,49 +323,39 @@ def get_vendors_api():
     
     query = VendorDetail.query.filter_by(is_active=True)
     
-    # Apply filters based on request parameters or user role
-    if account_id:
-        query = query.filter_by(account_id=int(account_id))
-        if team_id:
-            query = query.filter_by(team_id=int(team_id))
-    elif current_user.role == 'super_admin':
-        # Super admin can see all - no filtering
-        pass
+    # Apply access control based on user role first
+    if current_user.role == 'super_admin':
+        # Super admin can see all - apply optional filters
+        if account_id:
+            query = query.filter_by(account_id=int(account_id))
+            if team_id:
+                query = query.filter_by(team_id=int(team_id))
     elif current_user.role == 'account_admin':
-        # Account admin sees their account's vendors
+        # Account admin sees ONLY their account's vendors (no NULL account_id)
         if current_user.account_id:
-            query = query.filter(
-                db.or_(
-                    VendorDetail.account_id == current_user.account_id,
-                    VendorDetail.account_id.is_(None)
-                )
-            )
-    else:
-        # Regular users can ONLY see vendors for their specific team
+            query = query.filter(VendorDetail.account_id == current_user.account_id)
+            if team_id:
+                query = query.filter_by(team_id=int(team_id))
+        else:
+            query = query.filter(db.literal(False))
+    elif current_user.role == 'team_admin':
+        # Team admin sees vendors for their team(s) only
+        from services.team_access_service import TeamAccessService
+        user_team_ids = TeamAccessService.get_user_team_ids()
         user_account_id = current_user.account_id
-        user_team_id = current_user.team_id
         
-        if user_account_id and user_team_id:
+        if user_team_ids and user_account_id:
             query = query.filter(
-                db.or_(
-                    db.and_(
-                        VendorDetail.account_id == user_account_id,
-                        VendorDetail.team_id == user_team_id
-                    ),
-                    db.and_(
-                        VendorDetail.account_id == user_account_id,
-                        VendorDetail.team_id.is_(None)
-                    ),
-                    VendorDetail.account_id.is_(None)
-                )
-            )
-        elif user_account_id:
-            query = query.filter(
-                db.or_(
+                db.and_(
                     VendorDetail.account_id == user_account_id,
-                    VendorDetail.account_id.is_(None)
+                    db.or_(
+                        VendorDetail.team_id.in_(user_team_ids),
+                        VendorDetail.team_id.is_(None)
+                    )
                 )
             )
+        else:
+            query = query.filter(db.literal(False))
     
     db_vendors = query.all()
     vendors = [v.to_dict() for v in db_vendors]

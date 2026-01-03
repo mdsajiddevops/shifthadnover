@@ -216,12 +216,44 @@ def team():
 @team_bp.route('/teams')
 @login_required  
 def teams_list():
-    """Teams listing page - simplified version"""
+    """Teams listing page - simplified version with proper access control"""
     try:
-        logger.debug(f"🔍 [TEAMS_LIST] Route accessed by {getattr(current_user, 'username', 'Unknown')}")
+        logger.debug(f"🔍 [TEAMS_LIST] Route accessed by {getattr(current_user, 'username', 'Unknown')} (Role: {current_user.role})")
         
-        teams = Team.query.filter_by(is_active=True).all()
-        logger.info(f"✅ [TEAMS_LIST] Found {len(teams)} active teams")
+        # Build query based on user role
+        query = Team.query.filter_by(is_active=True)
+        
+        if current_user.role == 'super_admin':
+            # Super admin can see all teams
+            teams = query.all()
+            logger.info(f"✅ [TEAMS_LIST] Super admin - showing all {len(teams)} teams")
+        elif current_user.role == 'account_admin':
+            # Account admin can only see teams in their account
+            if current_user.account_id:
+                teams = query.filter_by(account_id=current_user.account_id).all()
+                logger.info(f"✅ [TEAMS_LIST] Account admin - showing {len(teams)} teams for account {current_user.account_id}")
+            else:
+                teams = []
+                logger.warning(f"⚠️ [TEAMS_LIST] Account admin {current_user.username} has no account_id assigned")
+        elif current_user.role == 'team_admin':
+            # Team admin can only see their own team(s)
+            from services.team_access_service import TeamAccessService
+            user_team_ids = TeamAccessService.get_user_team_ids()
+            if user_team_ids:
+                teams = query.filter(Team.id.in_(user_team_ids)).all()
+                logger.info(f"✅ [TEAMS_LIST] Team admin - showing {len(teams)} teams")
+            else:
+                teams = []
+                logger.warning(f"⚠️ [TEAMS_LIST] Team admin {current_user.username} has no teams assigned")
+        else:
+            # Regular users - show only their accessible teams
+            from services.team_access_service import TeamAccessService
+            user_team_ids = TeamAccessService.get_user_team_ids()
+            if user_team_ids:
+                teams = query.filter(Team.id.in_(user_team_ids)).all()
+            else:
+                teams = []
+            logger.info(f"✅ [TEAMS_LIST] Regular user - showing {len(teams)} teams")
         
         # Get member counts for each team
         team_member_counts = {}

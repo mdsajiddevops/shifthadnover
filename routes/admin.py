@@ -565,7 +565,7 @@ def email_log_detail(log_id):
 @login_required
 @admin_required
 def incident_response_logs():
-    """Admin-only view for comprehensive handover incident response logs"""
+    """Admin-only view for comprehensive handover incident response logs with access control"""
     
     # Get filter parameters
     incident_search = request.args.get('incident_search', '').strip()
@@ -576,10 +576,29 @@ def incident_response_logs():
     page = request.args.get('page', 1, type=int)
     per_page = 20
     
-    # Build query with filters
+    # Build query with access control
     query = HandoverIncidentResponseLog.query
     
-    # Apply filters independently
+    # Apply access control based on user role
+    if current_user.role == 'super_admin':
+        # Super admin can see all logs
+        pass
+    elif current_user.role == 'account_admin':
+        # Account admin can only see logs from their account
+        if current_user.account_id:
+            query = query.filter(HandoverIncidentResponseLog.account_id == current_user.account_id)
+        else:
+            query = query.filter(db.literal(False))
+    elif current_user.role == 'team_admin':
+        # Team admin can only see logs from their team(s)
+        from services.team_access_service import TeamAccessService
+        user_team_ids = TeamAccessService.get_user_team_ids()
+        if user_team_ids:
+            query = query.filter(HandoverIncidentResponseLog.team_id.in_(user_team_ids))
+        else:
+            query = query.filter(db.literal(False))
+    
+    # Apply search/filter parameters independently
     if incident_search:
         query = query.filter(
             db.or_(
@@ -631,11 +650,29 @@ def incident_response_logs():
     query = query.order_by(HandoverIncidentResponseLog.response_datetime.desc())
     logs = query.paginate(page=page, per_page=per_page, error_out=False)
     
-    # Get summary statistics
-    total_logs = HandoverIncidentResponseLog.query.count()
-    accepted_logs = HandoverIncidentResponseLog.query.filter_by(response_status='accepted').count()
-    rejected_logs = HandoverIncidentResponseLog.query.filter_by(response_status='rejected').count()
-    needs_clarification_logs = HandoverIncidentResponseLog.query.filter_by(response_status='needs_clarification').count()
+    # Get summary statistics with same access control
+    stats_base_query = HandoverIncidentResponseLog.query
+    
+    # Apply same access control to stats
+    if current_user.role == 'super_admin':
+        pass
+    elif current_user.role == 'account_admin':
+        if current_user.account_id:
+            stats_base_query = stats_base_query.filter(HandoverIncidentResponseLog.account_id == current_user.account_id)
+        else:
+            stats_base_query = stats_base_query.filter(db.literal(False))
+    elif current_user.role == 'team_admin':
+        from services.team_access_service import TeamAccessService
+        user_team_ids = TeamAccessService.get_user_team_ids()
+        if user_team_ids:
+            stats_base_query = stats_base_query.filter(HandoverIncidentResponseLog.team_id.in_(user_team_ids))
+        else:
+            stats_base_query = stats_base_query.filter(db.literal(False))
+    
+    total_logs = stats_base_query.count()
+    accepted_logs = stats_base_query.filter(HandoverIncidentResponseLog.response_status == 'accepted').count()
+    rejected_logs = stats_base_query.filter(HandoverIncidentResponseLog.response_status == 'rejected').count()
+    needs_clarification_logs = stats_base_query.filter(HandoverIncidentResponseLog.response_status == 'needs_clarification').count()
     
     stats = {
         'total_logs': total_logs,

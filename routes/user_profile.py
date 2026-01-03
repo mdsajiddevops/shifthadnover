@@ -628,10 +628,35 @@ def admin_incident_response_logs():
         logger.debug(f"[FILTER DEBUG] date_from: '{date_from}'")
         logger.debug(f"[FILTER DEBUG] date_to: '{date_to}'")
         
-        # Build query
+        # Build query with access control
         query = HandoverIncidentResponseLog.query
         
-        # Apply filters independently
+        # Apply access control based on user role
+        if current_user.role == 'super_admin':
+            # Super admin can see all logs
+            logger.debug(f"[FILTER DEBUG] Super admin - no account/team filter applied")
+        elif current_user.role == 'account_admin':
+            # Account admin can only see logs from their account
+            if current_user.account_id:
+                query = query.filter(HandoverIncidentResponseLog.account_id == current_user.account_id)
+                logger.debug(f"[FILTER DEBUG] Account admin - filtering by account_id: {current_user.account_id}")
+            else:
+                # No account assigned, show nothing
+                query = query.filter(db.literal(False))
+                logger.warning(f"[FILTER DEBUG] Account admin {current_user.username} has no account_id assigned")
+        elif current_user.role == 'team_admin':
+            # Team admin can only see logs from their team(s)
+            from services.team_access_service import TeamAccessService
+            user_team_ids = TeamAccessService.get_user_team_ids()
+            if user_team_ids:
+                query = query.filter(HandoverIncidentResponseLog.team_id.in_(user_team_ids))
+                logger.debug(f"[FILTER DEBUG] Team admin - filtering by team_ids: {user_team_ids}")
+            else:
+                # No teams assigned, show nothing
+                query = query.filter(db.literal(False))
+                logger.warning(f"[FILTER DEBUG] Team admin {current_user.username} has no teams assigned")
+        
+        # Apply additional filters independently
         if incident_search:
             query = query.filter(
                 db.or_(
