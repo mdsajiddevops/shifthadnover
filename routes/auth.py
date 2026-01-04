@@ -7,11 +7,28 @@ from services.password_reset_service import PasswordResetService
 from services.team_access_service import TeamAccessService
 from werkzeug.security import check_password_hash, generate_password_hash
 import logging
+import secrets
 
 # Module logger - must be defined before use
 logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint('auth', __name__)
+
+def generate_session_token():
+    """Generate a unique session token"""
+    return secrets.token_hex(32)
+
+def create_user_session(user):
+    """Create a new session token for the user"""
+    from datetime import datetime
+    token = generate_session_token()
+    user.session_token = token
+    user.session_created_at = datetime.now()
+    db.session.commit()
+    # Store session token in Flask session for validation
+    session['session_token'] = token
+    logger.info(f"[AUTH] Created new session token for user {user.username}")
+    return token
 
 
 def initialize_user_team_session(user):
@@ -163,6 +180,7 @@ def login():
                 db.session.commit()
                 
                 login_user(user)
+                create_user_session(user)  # Create session token
                 initialize_user_team_session(user)
                 return redirect(url_for('dashboard.dashboard'))
             else:
@@ -189,6 +207,7 @@ def login():
                         db.session.commit()
                         
                         login_user(user)
+                        create_user_session(user)  # Create session token
                         initialize_user_team_session(user)
                         return redirect(url_for('dashboard.dashboard'))
                     else:
@@ -203,6 +222,7 @@ def login():
                         db.session.commit()
                         
                         login_user(user)
+                        create_user_session(user)  # Create session token
                         initialize_user_team_session(user)
                         return redirect(url_for('dashboard.dashboard'))
                     else:
@@ -217,6 +237,7 @@ def login():
                         db.session.commit()
                         
                         login_user(user)
+                        create_user_session(user)  # Create session token
                         initialize_user_team_session(user)
                         return redirect(url_for('dashboard.dashboard'))
                     else:
@@ -234,6 +255,18 @@ def login():
 @auth_bp.route('/logout')
 @login_required
 def logout():
+    # Clear session token before logging out
+    try:
+        if current_user.is_authenticated:
+            current_user.session_token = None
+            db.session.commit()
+            logger.info(f"[AUTH] Cleared session token for user {current_user.username}")
+    except Exception as e:
+        logger.warning(f"[AUTH] Error clearing session token: {e}")
+    
+    # Clear session token from Flask session
+    session.pop('session_token', None)
+    
     logout_user()
     return redirect(url_for('auth.login'))
 

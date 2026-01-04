@@ -36,8 +36,8 @@ def detect_user_shift(user_id, account_id, team_id, date):
     
     # Shift code to type mapping
     code_to_type = {
-        'D': 'Morning', 'E': 'Evening', 'N': 'Night',
-        'OS': 'OnShore', 'OF': 'OffShore'
+        'D': 'Morning', 'E': 'Evening', 'LE': 'Late Evening', 'N': 'Night',
+        'G': 'General', 'OS': 'OnShore', 'OF': 'OffShore'
     }
     
     result = {
@@ -77,8 +77,8 @@ def detect_user_shift(user_id, account_id, team_id, date):
         logger.debug(f"[SHIFT_DETECT] No roster entry for {team_member.name} on {date}")
         return result
     
-    # Check if it's a working shift (D, E, N, OS, OF) or leave/off
-    working_shifts = ['D', 'E', 'N', 'OS', 'OF']
+    # Check if it's a working shift (D, E, LE, N, G, OS, OF) or leave/off
+    working_shifts = ['D', 'E', 'LE', 'N', 'G', 'OS', 'OF']
     if roster_entry.shift_code not in working_shifts:
         result['message'] = f'You ({team_member.name}) are marked as "{roster_entry.shift_code}" (not on shift) on {date.strftime("%B %d, %Y")}.'
         result['shift_code'] = roster_entry.shift_code
@@ -458,17 +458,29 @@ def get_engineers():
     except Exception:
         return jsonify({'error': 'Invalid date format'}), 400
     
-    shift_map = {'Morning': 'D', 'Evening': 'E', 'Night': 'N', 'OnShore': 'OS', 'OffShore': 'OF'}
+    shift_map = {
+        'Morning': 'D', 
+        'Evening': 'E', 
+        'Late Evening': 'LE',
+        'Night': 'N', 
+        'General': 'G',
+        'OnShore': 'OS', 
+        'OffShore': 'OF'
+    }
     shift_code = shift_map.get(shift_type)
     if not shift_code:
         return jsonify({'error': 'Invalid shift_type'}), 400
     
-    # 🔧 ENHANCED: Additional shift codes mapping (same as dashboard)
-    # G (General) shows with Morning, LE (Late Evening) shows with Night
+    # 🔧 ENHANCED: Additional shift codes mapping (bidirectional relationships)
+    # G (General) shows with Morning, LE (Late Evening) shows with Night - AND vice versa
     additional_shift_codes = {
-        'Morning': ['G', 'OS'],  # General and Onshore show in Morning section
-        'Evening': [],           # No additional codes for Evening currently
-        'Night': ['LE', 'OF']   # Late Evening and Offshore show in Night section
+        'Morning': ['G', 'OS'],      # Morning also shows General and OnShore engineers
+        'Evening': [],               # No additional codes for Evening
+        'Late Evening': ['N'],       # Late Evening also shows Night engineers
+        'Night': ['LE', 'OF'],       # Night also shows Late Evening and OffShore engineers
+        'General': ['D'],            # General also shows Morning (Day) engineers
+        'OnShore': ['D'],            # OnShore also shows Morning (Day) engineers
+        'OffShore': ['N']            # OffShore also shows Night engineers
     }
     
     # Calculate the correct date for engineer lookup based on shift transition logic
@@ -1035,16 +1047,20 @@ def edit_handover(shift_id):
         shift.current_engineers.clear()
         shift.next_engineers.clear()
         # (Re)populate engineers as in create
-        shift_map = {'Morning': 'D', 'Evening': 'E', 'Night': 'N', 'OnShore': 'OS', 'OffShore': 'OF'}
+        shift_map = {'Morning': 'D', 'Evening': 'E', 'Late Evening': 'LE', 'Night': 'N', 'General': 'G', 'OnShore': 'OS', 'OffShore': 'OF'}
         current_shift_code = shift_map[shift.current_shift_type]
         next_shift_code = shift_map[shift.next_shift_type]
         ist_now = datetime.now(pytz.timezone('Asia/Kolkata'))
         
-        # 🔧 ENHANCED: Additional shift codes mapping (same as dashboard)
+        # 🔧 ENHANCED: Additional shift codes mapping (bidirectional relationships)
         additional_shift_codes = {
-            'Morning': ['G', 'OS'],  # General and Onshore show in Morning section
-            'Evening': [],           # No additional codes for Evening currently
-            'Night': ['LE', 'OF']   # Late Evening and Offshore show in Night section
+            'Morning': ['G', 'OS'],      # Morning also shows General and OnShore engineers
+            'Evening': [],               # No additional codes for Evening
+            'Late Evening': ['N'],       # Late Evening also shows Night engineers
+            'Night': ['LE', 'OF'],       # Night also shows Late Evening and OffShore engineers
+            'General': ['D'],            # General also shows Morning (Day) engineers
+            'OnShore': ['D'],            # OnShore also shows Morning (Day) engineers
+            'OffShore': ['N']            # OffShore also shows Night engineers
         }
         
         def get_engineers_for_shift(date, shift_code):
@@ -2280,7 +2296,7 @@ def handover():
     
     ist_now = datetime.now(pytz.timezone('Asia/Kolkata'))
     default_date = ist_now.date()
-    shift_map = {'Morning': 'D', 'Evening': 'E', 'Night': 'N', 'OnShore': 'OS', 'OffShore': 'OF'}
+    shift_map = {'Morning': 'D', 'Evening': 'E', 'Late Evening': 'LE', 'Night': 'N', 'General': 'G', 'OnShore': 'OS', 'OffShore': 'OF'}
     
     # POST: Save as draft or send
     if request.method == 'POST':
@@ -2385,7 +2401,7 @@ def handover():
             
             if not skip_shift_check:
                 # Get shift code mapping
-                shift_map = {'Morning': 'D', 'Evening': 'E', 'Night': 'N', 'OnShore': 'OS', 'OffShore': 'OF'}
+                shift_map = {'Morning': 'D', 'Evening': 'E', 'Late Evening': 'LE', 'Night': 'N', 'General': 'G', 'OnShore': 'OS', 'OffShore': 'OF'}
                 current_shift_code = shift_map.get(current_shift_type)
                 
                 # Check if current user is in the current shift roster
@@ -2647,16 +2663,19 @@ def handover():
         logger.debug(f"  shift.next_shift_type: {shift.next_shift_type}")
         
         # Add engineers to the shift
-        shift_map = {'Morning': 'D', 'Evening': 'E', 'Night': 'N', 'OnShore': 'OS', 'OffShore': 'OF'}
+        shift_map = {'Morning': 'D', 'Evening': 'E', 'Late Evening': 'LE', 'Night': 'N', 'General': 'G', 'OnShore': 'OS', 'OffShore': 'OF'}
         current_shift_code = shift_map[current_shift_type]
         next_shift_code = shift_map[next_shift_type]
         
-        # 🔧 ENHANCED: Additional shift codes mapping (same as dashboard)
-        # G (General) shows with Morning, LE (Late Evening) shows with Night
+        # 🔧 ENHANCED: Additional shift codes mapping (bidirectional relationships)
         additional_shift_codes = {
-            'Morning': ['G', 'OS'],  # General and Onshore show in Morning section
-            'Evening': [],           # No additional codes for Evening currently
-            'Night': ['LE', 'OF']   # Late Evening and Offshore show in Night section
+            'Morning': ['G', 'OS'],      # Morning also shows General and OnShore engineers
+            'Evening': [],               # No additional codes for Evening
+            'Late Evening': ['N'],       # Late Evening also shows Night engineers
+            'Night': ['LE', 'OF'],       # Night also shows Late Evening and OffShore engineers
+            'General': ['D'],            # General also shows Morning (Day) engineers
+            'OnShore': ['D'],            # OnShore also shows Morning (Day) engineers
+            'OffShore': ['N']            # OffShore also shows Night engineers
         }
         
         def get_engineers_for_shift(date, shift_code):

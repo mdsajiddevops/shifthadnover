@@ -8,7 +8,12 @@
                 <h1 class="mb-1"><i class="bi bi-people-fill text-primary me-2"></i>Active Sessions</h1>
                 <p class="text-muted mb-0">Monitor currently logged in users and their session activity</p>
             </div>
-            <div>
+            <div class="d-flex gap-2">
+                {% if current_user.role == 'super_admin' %}
+                <button class="btn btn-outline-danger" onclick="showBulkTerminateModal()" title="Terminate multiple sessions">
+                    <i class="bi bi-x-octagon me-1"></i>Bulk Terminate
+                </button>
+                {% endif %}
                 <button class="btn btn-outline-primary" onclick="refreshSessions()">
                     <i class="bi bi-arrow-clockwise me-1"></i>Refresh
                 </button>
@@ -103,6 +108,11 @@
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
+                            {% if current_user.role == 'super_admin' %}
+                            <th style="width: 40px;">
+                                <input type="checkbox" class="form-check-input" id="selectAllOnline" onclick="toggleSelectAll('online')">
+                            </th>
+                            {% endif %}
                             <th>User</th>
                             <th>Email</th>
                             <th>Role</th>
@@ -110,15 +120,28 @@
                             <th>Account</th>
                             <th>Last Activity</th>
                             <th>Status</th>
+                            {% if current_user.role == 'super_admin' %}
+                            <th>Actions</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for user in online_users %}
                         <tr>
+                            {% if current_user.role == 'super_admin' %}
+                            <td>
+                                {% if user.id != current_user.id %}
+                                <input type="checkbox" class="form-check-input session-checkbox online-checkbox" value="{{ user.id }}">
+                                {% endif %}
+                            </td>
+                            {% endif %}
                             <td>
                                 <div class="d-flex align-items-center">
                                     <span class="badge bg-success rounded-circle p-1 me-2" style="width: 10px; height: 10px;"></span>
                                     <strong>{{ user.display_name }}</strong>
+                                    {% if user.id == current_user.id %}
+                                    <span class="badge bg-info ms-2">You</span>
+                                    {% endif %}
                                 </div>
                             </td>
                             <td>{{ user.email }}</td>
@@ -134,6 +157,17 @@
                                 {% endif %}
                             </td>
                             <td><span class="badge bg-success">Online</span></td>
+                            {% if current_user.role == 'super_admin' %}
+                            <td>
+                                {% if user.id != current_user.id %}
+                                <button class="btn btn-sm btn-outline-danger" onclick="confirmTerminate({{ user.id }}, '{{ user.display_name }}')" title="Terminate Session">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            {% endif %}
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -159,17 +193,30 @@
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
+                            {% if current_user.role == 'super_admin' %}
+                            <th style="width: 40px;">
+                                <input type="checkbox" class="form-check-input" id="selectAllRecent" onclick="toggleSelectAll('recent')">
+                            </th>
+                            {% endif %}
                             <th>User</th>
                             <th>Email</th>
                             <th>Role</th>
                             <th>Team</th>
                             <th>Last Activity</th>
                             <th>Status</th>
+                            {% if current_user.role == 'super_admin' %}
+                            <th>Actions</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for user in recently_active_users %}
                         <tr>
+                            {% if current_user.role == 'super_admin' %}
+                            <td>
+                                <input type="checkbox" class="form-check-input session-checkbox recent-checkbox" value="{{ user.id }}">
+                            </td>
+                            {% endif %}
                             <td>
                                 <div class="d-flex align-items-center">
                                     <span class="badge bg-warning rounded-circle p-1 me-2" style="width: 10px; height: 10px;"></span>
@@ -186,6 +233,13 @@
                                 {% endif %}
                             </td>
                             <td><span class="badge bg-warning text-dark">Away</span></td>
+                            {% if current_user.role == 'super_admin' %}
+                            <td>
+                                <button class="btn btn-sm btn-outline-danger" onclick="confirmTerminate({{ user.id }}, '{{ user.display_name }}')" title="Terminate Session">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            </td>
+                            {% endif %}
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -297,6 +351,61 @@
     {% endif %}
 </div>
 
+<!-- Terminate Session Confirmation Modal -->
+<div class="modal fade" id="terminateModal" tabindex="-1" aria-labelledby="terminateModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="terminateModalLabel">
+                    <i class="bi bi-exclamation-triangle me-2"></i>Confirm Session Termination
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to terminate the session for:</p>
+                <p class="fw-bold fs-5" id="terminateUserName"></p>
+                <p class="text-muted">This will force the user to log in again.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="terminateForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-x-circle me-1"></i>Terminate Session
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Terminate Modal -->
+<div class="modal fade" id="bulkTerminateModal" tabindex="-1" aria-labelledby="bulkTerminateModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="bulkTerminateModalLabel">
+                    <i class="bi bi-exclamation-octagon me-2"></i>Bulk Session Termination
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>You are about to terminate sessions for <strong id="bulkCount">0</strong> users.</p>
+                <p class="text-muted">All selected users will be forced to log in again.</p>
+                <div class="alert alert-warning">
+                    <i class="bi bi-info-circle me-2"></i>
+                    This action cannot be undone. Users will need to log in again to access the system.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="executeBulkTerminate()">
+                    <i class="bi bi-x-octagon me-1"></i>Terminate All Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // Auto-refresh every 30 seconds
 let autoRefreshInterval;
@@ -316,6 +425,57 @@ function startAutoRefresh() {
     }, 30000);
 }
 
+// Terminate single session
+function confirmTerminate(userId, userName) {
+    document.getElementById('terminateUserName').textContent = userName;
+    document.getElementById('terminateForm').action = '/admin/terminate-session/' + userId;
+    new bootstrap.Modal(document.getElementById('terminateModal')).show();
+}
+
+// Toggle select all checkboxes
+function toggleSelectAll(type) {
+    const selectAll = document.getElementById('selectAll' + (type === 'online' ? 'Online' : 'Recent'));
+    const checkboxes = document.querySelectorAll('.' + type + '-checkbox');
+    checkboxes.forEach(cb => cb.checked = selectAll.checked);
+}
+
+// Show bulk terminate modal
+function showBulkTerminateModal() {
+    const checkboxes = document.querySelectorAll('.session-checkbox:checked');
+    if (checkboxes.length === 0) {
+        alert('Please select at least one user to terminate.');
+        return;
+    }
+    document.getElementById('bulkCount').textContent = checkboxes.length;
+    new bootstrap.Modal(document.getElementById('bulkTerminateModal')).show();
+}
+
+// Execute bulk terminate
+function executeBulkTerminate() {
+    const checkboxes = document.querySelectorAll('.session-checkbox:checked');
+    const userIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+    
+    fetch('/admin/terminate-bulk-sessions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ user_ids: userIds })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(err => {
+        alert('Error terminating sessions: ' + err);
+    });
+}
+
 // Start auto-refresh on page load
 document.addEventListener('DOMContentLoaded', startAutoRefresh);
 </script>
@@ -326,6 +486,9 @@ document.addEventListener('DOMContentLoaded', startAutoRefresh);
 }
 .table td, .table th {
     vertical-align: middle;
+}
+.btn-outline-danger:hover {
+    color: white;
 }
 </style>
 {% endblock %}

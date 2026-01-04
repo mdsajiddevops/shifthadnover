@@ -624,6 +624,10 @@ def _process_sso_user(user_data, provider_type, account_id):
         # Log the user in
         login_user(user)
         
+        # Create session token for session management
+        from routes.auth import create_user_session
+        create_user_session(user)
+        
         # Log SSO authentication
         current_app.logger.info(f'SSO login successful for user {user.email} via {provider_type}')
         

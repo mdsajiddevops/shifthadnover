@@ -357,7 +357,9 @@
                                     <option value="">Select Shift</option>
                                     <option value="Morning" {{ 'selected' if current_shift_type == 'Morning' else '' }}>Morning</option>
                                     <option value="Evening" {{ 'selected' if current_shift_type == 'Evening' else '' }}>Evening</option>
+                                    <option value="Late Evening" {{ 'selected' if current_shift_type == 'Late Evening' else '' }}>Late Evening</option>
                                     <option value="Night" {{ 'selected' if current_shift_type == 'Night' else '' }}>Night</option>
+                                    <option value="General" {{ 'selected' if current_shift_type == 'General' else '' }}>General Shift</option>
                                     <option value="OnShore" {{ 'selected' if current_shift_type == 'OnShore' else '' }}>OnShore</option>
                                     <option value="OffShore" {{ 'selected' if current_shift_type == 'OffShore' else '' }}>OffShore</option>
                                 </select>
@@ -368,7 +370,9 @@
                                     <option value="">Select Shift</option>
                                     <option value="Morning" {{ 'selected' if next_shift_type == 'Morning' else '' }}>Morning</option>
                                     <option value="Evening" {{ 'selected' if next_shift_type == 'Evening' else '' }}>Evening</option>
+                                    <option value="Late Evening" {{ 'selected' if next_shift_type == 'Late Evening' else '' }}>Late Evening</option>
                                     <option value="Night" {{ 'selected' if next_shift_type == 'Night' else '' }}>Night</option>
+                                    <option value="General" {{ 'selected' if next_shift_type == 'General' else '' }}>General Shift</option>
                                     <option value="OnShore" {{ 'selected' if next_shift_type == 'OnShore' else '' }}>OnShore</option>
                                     <option value="OffShore" {{ 'selected' if next_shift_type == 'OffShore' else '' }}>OffShore</option>
                                 </select>
@@ -422,10 +426,10 @@
                                 <div id="incidentsCollapse" class="accordion-collapse collapse show" aria-labelledby="incidentsHeading" data-bs-parent="#handoverAccordion">
                                     <div class="accordion-body">
                             
-                            <!-- Open / Active Incidents -->
+                            <!-- Open / Active / Pending Incidents -->
                             <div class="card mb-3">
                                 <div class="card-header bg-warning bg-opacity-10 border-warning">
-                                    <h6 class="mb-0"><i class="fas fa-folder-open me-2"></i>Open / Active Incidents</h6>
+                                    <h6 class="mb-0"><i class="fas fa-folder-open me-2"></i>Open / Active / Pending Incidents</h6>
                                 </div>
                                 <div class="card-body">
                                     <div id="open-incidents-container">
@@ -1308,8 +1312,10 @@ function updateEngineers() {
 function updateIncidentEngineersDropdowns(date, shiftType, currentShiftType) {
     const shiftMap = {
         'morning': 'Morning',
-        'evening': 'Evening', 
+        'evening': 'Evening',
+        'late evening': 'Late Evening',
         'night': 'Night',
+        'general': 'General',
         'onshore': 'OnShore',
         'offshore': 'OffShore'
     };
@@ -2594,7 +2600,7 @@ function fetchServiceNowIncidents() {
 }
 
 function populateServiceNowIncidents(incidents, summary) {
-    // Populate Open / Active Incidents
+    // Populate Open / Active / Pending Incidents
     populateIncidentSection('open', incidents.open_incidents);
     
     // Populate Closed Incidents  
@@ -3544,8 +3550,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Shift sequence mapping
     const nextShiftMap = {
         'Morning': 'Evening',
-        'Evening': 'Night', 
+        'Evening': 'Late Evening',
+        'Late Evening': 'Night',
         'Night': 'Morning',
+        'General': 'General',
         'OnShore': 'OffShore',
         'OffShore': 'OnShore'
     };

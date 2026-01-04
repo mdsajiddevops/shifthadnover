@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 # from services.audit_service import log_action
@@ -136,6 +136,50 @@ def after_request(response):
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
     return response
+
+# Session validation middleware - check if session was terminated by admin
+@app.before_request
+def validate_session():
+    from flask_login import current_user, logout_user
+    from flask import session
+    from datetime import datetime
+    
+    # Skip for static files and auth routes
+    if request.path.startswith('/static/') or request.path in ['/login', '/logout', '/sso/login', '/sso/callback']:
+        return None
+    
+    # Check if user is authenticated
+    if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+        stored_token = session.get('session_token')
+        
+        # Case 1: User has session token in Flask session but DB token doesn't match (terminated)
+        if stored_token and current_user.session_token is None:
+            app_logger.info(f"Session terminated for user {current_user.username} - token cleared by admin")
+            session.clear()
+            logout_user()
+            flash('Your session has been terminated by an administrator. Please log in again.', 'warning')
+            return redirect(url_for('auth.login'))
+        
+        # Case 2: Token mismatch (different token in DB than Flask session)
+        if stored_token and current_user.session_token and current_user.session_token != stored_token:
+            app_logger.info(f"Session invalidated for user {current_user.username} - token mismatch")
+            session.clear()
+            logout_user()
+            flash('Your session has been terminated by an administrator. Please log in again.', 'warning')
+            return redirect(url_for('auth.login'))
+        
+        # Case 3: User logged in before feature was added (no token in Flask session)
+        # Check if admin has terminated their session after their last login
+        if not stored_token and current_user.sessions_terminated_at:
+            # If sessions were terminated after last login, force logout
+            if current_user.last_login and current_user.sessions_terminated_at > current_user.last_login:
+                app_logger.info(f"Session terminated for user {current_user.username} - terminated after login (legacy session)")
+                session.clear()
+                logout_user()
+                flash('Your session has been terminated by an administrator. Please log in again.', 'warning')
+                return redirect(url_for('auth.login'))
+    
+    return None
 
 # Log every page/tab visit
 @app.before_request

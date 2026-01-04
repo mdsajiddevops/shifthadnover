@@ -187,12 +187,17 @@ def dashboard():
     ist_now = get_ist_now()
     today = ist_now.date()
     # Enhanced shift mapping to support additional shift codes
-    shift_map = {'Morning': 'D', 'Evening': 'E', 'Night': 'N'}
+    shift_map = {'Morning': 'D', 'Evening': 'E', 'Late Evening': 'LE', 'Night': 'N', 'General': 'G', 'OnShore': 'OS', 'OffShore': 'OF'}
     
-    # Additional shift codes mapping
+    # Additional shift codes mapping (bidirectional relationships)
     additional_shift_codes = {
-        'Morning': ['G', 'OS'],  # General and Onshore show in Morning section
-        'Night': ['LE', 'OF']   # Late Evening and Offshore show in Night section
+        'Morning': ['G', 'OS'],      # Morning also shows General and OnShore engineers
+        'Evening': [],               # No additional codes for Evening
+        'Late Evening': ['N'],       # Late Evening also shows Night engineers
+        'Night': ['LE', 'OF'],       # Night also shows Late Evening and OffShore engineers
+        'General': ['D'],            # General also shows Morning (Day) engineers
+        'OnShore': ['D'],            # OnShore also shows Morning (Day) engineers
+        'OffShore': ['N']            # OffShore also shows Night engineers
     }
     
     current_shift_type, next_shift_type = get_shift_type_and_next(ist_now)

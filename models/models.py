@@ -114,6 +114,11 @@ class User(db.Model, UserMixin):
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp(), nullable=False)
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
     
+    # Session management fields
+    session_token = db.Column(db.String(64), nullable=True)  # Current valid session token
+    session_created_at = db.Column(db.DateTime, nullable=True)  # When current session was created
+    sessions_terminated_at = db.Column(db.DateTime, nullable=True)  # When sessions were last terminated by admin
+    
     @property
     def is_online(self):
         """Check if user is currently online (active in last 5 minutes)"""

@@ -152,13 +152,14 @@
             <div class="col-md-3">
                 <label class="form-label fw-bold">Shift Code</label>
                 <select id="shiftCode" class="form-select">
-                    <option value="D">D - Day Shift</option>
+                    <option value="D">D - Day Shift (Morning)</option>
                     <option value="E">E - Evening Shift</option>
+                    <option value="LE">LE - Late Evening</option>
                     <option value="N">N - Night Shift</option>
+                    <option value="G">G - General Shift</option>
                     <option value="OS">OS - OnShore</option>
                     <option value="OF">OF - OffShore</option>
-                    <option value="G">G - General</option>
-                    <option value="LE">LE - Leave</option>
+                    <option value="LV">LV - Leave</option>
                     <option value="VL">VL - Vacation</option>
                     <option value="HL">HL - Holiday</option>
                     <option value="CO">CO - Comp Off</option>
@@ -168,13 +169,14 @@
         
         <!-- Shift Legend -->
         <div class="shift-legend mt-3">
-            <div class="shift-item"><span class="shift-badge" style="background:#28a745">D</span>Day</div>
+            <div class="shift-item"><span class="shift-badge" style="background:#28a745">D</span>Morning</div>
             <div class="shift-item"><span class="shift-badge" style="background:#fd7e14">E</span>Evening</div>
+            <div class="shift-item"><span class="shift-badge" style="background:#9c27b0">LE</span>Late Evening</div>
             <div class="shift-item"><span class="shift-badge" style="background:#6f42c1">N</span>Night</div>
+            <div class="shift-item"><span class="shift-badge" style="background:#6c757d">G</span>General</div>
             <div class="shift-item"><span class="shift-badge" style="background:#17a2b8">OS</span>OnShore</div>
             <div class="shift-item"><span class="shift-badge" style="background:#20c997">OF</span>OffShore</div>
-            <div class="shift-item"><span class="shift-badge" style="background:#6c757d">G</span>General</div>
-            <div class="shift-item"><span class="shift-badge" style="background:#dc3545">LE</span>Leave</div>
+            <div class="shift-item"><span class="shift-badge" style="background:#dc3545">LV</span>Leave</div>
             <div class="shift-item"><span class="shift-badge" style="background:#e83e8c">VL</span>Vacation</div>
             <div class="shift-item"><span class="shift-badge" style="background:#ffc107">CO</span>CompOff</div>
         </div>
@@ -440,4 +442,5 @@
     }
 </script>
 {% endblock %}
+
 

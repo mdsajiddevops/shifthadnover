@@ -408,6 +408,161 @@ def active_sessions_api():
         } for u in online_users]
     })
 
+# --- Session Management (Terminate Sessions) ---
+@admin_bp.route('/terminate-session/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def terminate_session(user_id):
+    """Terminate a specific user's session (force logout)"""
+    # Only super_admin can terminate sessions
+    if current_user.role != 'super_admin':
+        flash('Only Super Admins can terminate user sessions.', 'error')
+        return redirect(url_for('admin.active_sessions'))
+    
+    # Cannot terminate own session
+    if user_id == current_user.id:
+        flash('You cannot terminate your own session.', 'warning')
+        return redirect(url_for('admin.active_sessions'))
+    
+    user = User.query.get(user_id)
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('admin.active_sessions'))
+    
+    try:
+        # Clear session token to invalidate their session
+        user.session_token = None
+        user.sessions_terminated_at = datetime.now()
+        db.session.commit()
+        
+        # Log the action
+        from services.audit_service import log_action
+        log_action(
+            action='SESSION_TERMINATED',
+            details=f'Admin {current_user.username} terminated session for user {user.username} ({user.email})'
+        )
+        
+        flash(f'Session terminated for user: {user.display_name}', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error terminating session: {str(e)}', 'error')
+    
+    return redirect(url_for('admin.active_sessions'))
+
+@admin_bp.route('/terminate-all-sessions/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def terminate_all_user_sessions(user_id):
+    """Terminate all sessions for a specific user"""
+    # Only super_admin can terminate sessions
+    if current_user.role != 'super_admin':
+        return jsonify({'success': False, 'error': 'Only Super Admins can terminate sessions'}), 403
+    
+    # Cannot terminate own sessions
+    if user_id == current_user.id:
+        return jsonify({'success': False, 'error': 'Cannot terminate your own sessions'}), 400
+    
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'success': False, 'error': 'User not found'}), 404
+    
+    try:
+        user.session_token = None
+        user.sessions_terminated_at = datetime.now()
+        db.session.commit()
+        
+        from services.audit_service import log_action
+        log_action(
+            action='ALL_SESSIONS_TERMINATED',
+            details=f'Admin {current_user.username} terminated all sessions for user {user.username}'
+        )
+        
+        return jsonify({
+            'success': True, 
+            'message': f'All sessions terminated for {user.display_name}'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_bp.route('/terminate-bulk-sessions', methods=['POST'])
+@login_required
+@admin_required
+def terminate_bulk_sessions():
+    """Terminate sessions for multiple users (emergency bulk logout)"""
+    # Only super_admin can bulk terminate
+    if current_user.role != 'super_admin':
+        return jsonify({'success': False, 'error': 'Only Super Admins can perform bulk termination'}), 403
+    
+    data = request.get_json()
+    user_ids = data.get('user_ids', [])
+    
+    if not user_ids:
+        return jsonify({'success': False, 'error': 'No users specified'}), 400
+    
+    # Remove current user from list if present
+    user_ids = [uid for uid in user_ids if uid != current_user.id]
+    
+    if not user_ids:
+        return jsonify({'success': False, 'error': 'No valid users to terminate'}), 400
+    
+    try:
+        terminated_count = 0
+        for user_id in user_ids:
+            user = User.query.get(user_id)
+            if user:
+                user.session_token = None
+                user.sessions_terminated_at = datetime.now()
+                terminated_count += 1
+        
+        db.session.commit()
+        
+        from services.audit_service import log_action
+        log_action(
+            action='BULK_SESSIONS_TERMINATED',
+            details=f'Admin {current_user.username} terminated {terminated_count} user sessions'
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'Terminated {terminated_count} user sessions',
+            'count': terminated_count
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_bp.route('/api/session-info/<int:user_id>')
+@login_required
+@admin_required
+def get_session_info(user_id):
+    """Get detailed session information for a user"""
+    if current_user.role != 'super_admin':
+        return jsonify({'success': False, 'error': 'Access denied'}), 403
+    
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'success': False, 'error': 'User not found'}), 404
+    
+    return jsonify({
+        'success': True,
+        'user': {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'display_name': user.display_name,
+            'role': user.role,
+            'team': user.team.name if user.team else 'N/A',
+            'account': user.account.name if user.account else 'N/A',
+            'last_login': user.last_login.strftime('%Y-%m-%d %H:%M:%S') if user.last_login else None,
+            'last_activity': user.last_activity.strftime('%Y-%m-%d %H:%M:%S') if user.last_activity else None,
+            'session_created_at': user.session_created_at.strftime('%Y-%m-%d %H:%M:%S') if user.session_created_at else None,
+            'has_active_session': user.session_token is not None,
+            'is_online': user.is_online,
+            'is_recently_active': user.is_recently_active
+        }
+    })
+
 # --- Email Delivery Monitoring ---
 @admin_bp.route('/email-monitoring')
 @login_required
