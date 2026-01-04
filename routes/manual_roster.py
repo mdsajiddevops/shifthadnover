@@ -90,16 +90,33 @@ def get_roster_entries():
             shift_config = entry.shift_config
             shift_name = shift_config.shift_name if shift_config else 'Unknown'
             
+            # Map shift_name to shift_code for display
+            shift_name_to_code = {
+                'Morning': 'D',
+                'Evening': 'E',
+                'Late Evening': 'LE',
+                'Night': 'N',
+                'General': 'G',
+                'OnShore': 'OS',
+                'OffShore': 'OF',
+                'Leave': 'LV',
+                'Vacation': 'VL',
+                'Holiday': 'HL',
+                'Comp Off': 'CO'
+            }
+            shift_code = shift_name_to_code.get(shift_name, shift_name[:2].upper())
+            
             events.append({
                 'id': entry.id,
-                'title': f"{user_name} - {shift_name}",
+                'title': f"{user_name} - {shift_code}",
                 'start': entry.assignment_date.isoformat(),
                 'backgroundColor': shift_colors.get(shift_name, '#6c757d'),
                 'borderColor': shift_colors.get(shift_name, '#6c757d'),
                 'extendedProps': {
-                    'user_id': entry.user_id,
-                    'user_name': user_name,
+                    'member_name': user_name,
+                    'shift_code': shift_code,
                     'shift_name': shift_name,
+                    'user_id': entry.user_id,
                     'shift_config_id': entry.shift_config_id
                 }
             })
@@ -121,12 +138,12 @@ def add_roster_entry():
         data = request.get_json()
         
         team_id = data.get('team_id')
-        user_id = data.get('member_id')  # Using member_id from frontend but it's user_id
+        member_id = data.get('member_id')  # This is TeamMember.id
         date_str = data.get('date')
-        shift_config_id = data.get('shift_config_id')
+        shift_code = data.get('shift_code')  # Shift code like 'D', 'E', 'N'
         
-        if not all([team_id, user_id, date_str, shift_config_id]):
-            return jsonify({'error': 'Missing required fields'}), 400
+        if not all([team_id, member_id, date_str, shift_code]):
+            return jsonify({'error': 'Missing required fields (team, member, date, shift code)'}), 400
         
         assignment_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         
@@ -137,11 +154,79 @@ def add_roster_entry():
         
         account_id = team.account_id
         
-        # Check if entry already exists
+        # Get team member and try to find linked user
+        team_member = TeamMember.query.get(member_id)
+        if not team_member:
+            return jsonify({'error': 'Team member not found'}), 404
+        
+        # Get user_id from team member (can be null)
+        user_id = team_member.user_id
+        
+        # If no user linked, we can't create roster assignment (user_id is required in RosterAssignment)
+        if not user_id:
+            return jsonify({'error': f'Team member "{team_member.name}" is not linked to a user account. Please link them first via User-Team Linking page.'}), 400
+        
+        # Map shift code to shift name for lookup
+        shift_code_map = {
+            'D': 'Morning',
+            'E': 'Evening',
+            'LE': 'Late Evening',
+            'N': 'Night',
+            'G': 'General',
+            'OS': 'OnShore',
+            'OF': 'OffShore',
+            'LV': 'Leave',
+            'VL': 'Vacation',
+            'HL': 'Holiday',
+            'CO': 'Comp Off'
+        }
+        shift_name = shift_code_map.get(shift_code, shift_code)
+        
+        # Find or create shift config for this team
+        shift_config = TeamShiftConfig.query.filter_by(
+            team_id=team_id,
+            shift_name=shift_name,
+            is_active=True
+        ).first()
+        
+        if not shift_config:
+            # Try with shift code directly
+            shift_config = TeamShiftConfig.query.filter_by(
+                team_id=team_id,
+                shift_code=shift_code,
+                is_active=True
+            ).first()
+        
+        if not shift_config:
+            # Create a default shift config for this team
+            from datetime import time as time_type
+            default_times = {
+                'Morning': (time_type(6, 0), time_type(14, 0)),
+                'Evening': (time_type(14, 0), time_type(22, 0)),
+                'Late Evening': (time_type(18, 0), time_type(2, 0)),
+                'Night': (time_type(22, 0), time_type(6, 0)),
+                'General': (time_type(9, 0), time_type(18, 0)),
+                'OnShore': (time_type(9, 0), time_type(18, 0)),
+                'OffShore': (time_type(9, 0), time_type(18, 0)),
+            }
+            start_time, end_time = default_times.get(shift_name, (time_type(9, 0), time_type(18, 0)))
+            
+            shift_config = TeamShiftConfig(
+                team_id=team_id,
+                account_id=account_id,
+                shift_name=shift_name,
+                start_time=start_time,
+                end_time=end_time,
+                is_active=True
+            )
+            db.session.add(shift_config)
+            db.session.flush()
+        
+        # Check if entry already exists for this user on this date with this shift
         existing = RosterAssignment.query.filter_by(
             team_id=team_id,
             user_id=user_id,
-            shift_config_id=shift_config_id,
+            shift_config_id=shift_config.id,
             assignment_date=assignment_date
         ).first()
         
@@ -160,7 +245,7 @@ def add_roster_entry():
             team_id=team_id,
             account_id=account_id,
             user_id=user_id,
-            shift_config_id=shift_config_id,
+            shift_config_id=shift_config.id,
             assignment_date=assignment_date,
             created_by_id=current_user.id
         )
@@ -169,7 +254,7 @@ def add_roster_entry():
         
         return jsonify({
             'success': True,
-            'message': 'Shift assignment added successfully',
+            'message': f'Shift {shift_name} added for {team_member.name} on {date_str}',
             'id': entry.id
         })
     except Exception as e:
@@ -221,13 +306,17 @@ def bulk_add_roster():
         data = request.get_json()
         
         team_id = data.get('team_id')
-        user_id = data.get('member_id')
-        start_date = datetime.strptime(data.get('start_date'), '%Y-%m-%d').date()
-        end_date = datetime.strptime(data.get('end_date'), '%Y-%m-%d').date()
-        shift_config_id = data.get('shift_config_id')
+        member_id = data.get('member_id')  # This is TeamMember.id
+        shift_code = data.get('shift_code')  # Shift code like 'D', 'E', 'N'
         
-        if not all([team_id, user_id, start_date, end_date, shift_config_id]):
-            return jsonify({'error': 'Missing required fields'}), 400
+        start_date_str = data.get('start_date')
+        end_date_str = data.get('end_date')
+        
+        if not all([team_id, member_id, start_date_str, end_date_str, shift_code]):
+            return jsonify({'error': 'Missing required fields (team, member, dates, shift code)'}), 400
+        
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
         
         # Get team's account_id
         team = Team.query.get(team_id)
@@ -235,6 +324,72 @@ def bulk_add_roster():
             return jsonify({'error': 'Team not found'}), 404
         
         account_id = team.account_id
+        
+        # Get team member and try to find linked user
+        team_member = TeamMember.query.get(member_id)
+        if not team_member:
+            return jsonify({'error': 'Team member not found'}), 404
+        
+        user_id = team_member.user_id
+        
+        # If no user linked, we can't create roster assignment
+        if not user_id:
+            return jsonify({'error': f'Team member "{team_member.name}" is not linked to a user account. Please link them first via User-Team Linking page.'}), 400
+        
+        # Map shift code to shift name
+        shift_code_map = {
+            'D': 'Morning',
+            'E': 'Evening',
+            'LE': 'Late Evening',
+            'N': 'Night',
+            'G': 'General',
+            'OS': 'OnShore',
+            'OF': 'OffShore',
+            'LV': 'Leave',
+            'VL': 'Vacation',
+            'HL': 'Holiday',
+            'CO': 'Comp Off'
+        }
+        shift_name = shift_code_map.get(shift_code, shift_code)
+        
+        # Find or create shift config for this team
+        shift_config = TeamShiftConfig.query.filter_by(
+            team_id=team_id,
+            shift_name=shift_name,
+            is_active=True
+        ).first()
+        
+        if not shift_config:
+            shift_config = TeamShiftConfig.query.filter_by(
+                team_id=team_id,
+                shift_code=shift_code,
+                is_active=True
+            ).first()
+        
+        if not shift_config:
+            # Create a default shift config for this team
+            from datetime import time as time_type
+            default_times = {
+                'Morning': (time_type(6, 0), time_type(14, 0)),
+                'Evening': (time_type(14, 0), time_type(22, 0)),
+                'Late Evening': (time_type(18, 0), time_type(2, 0)),
+                'Night': (time_type(22, 0), time_type(6, 0)),
+                'General': (time_type(9, 0), time_type(18, 0)),
+                'OnShore': (time_type(9, 0), time_type(18, 0)),
+                'OffShore': (time_type(9, 0), time_type(18, 0)),
+            }
+            start_time, end_time = default_times.get(shift_name, (time_type(9, 0), time_type(18, 0)))
+            
+            shift_config = TeamShiftConfig(
+                team_id=team_id,
+                account_id=account_id,
+                shift_name=shift_name,
+                start_time=start_time,
+                end_time=end_time,
+                is_active=True
+            )
+            db.session.add(shift_config)
+            db.session.flush()
         
         added_count = 0
         current_date = start_date
@@ -244,7 +399,7 @@ def bulk_add_roster():
             existing = RosterAssignment.query.filter_by(
                 team_id=team_id,
                 user_id=user_id,
-                shift_config_id=shift_config_id,
+                shift_config_id=shift_config.id,
                 assignment_date=current_date
             ).first()
             
@@ -255,7 +410,7 @@ def bulk_add_roster():
                     team_id=team_id,
                     account_id=account_id,
                     user_id=user_id,
-                    shift_config_id=shift_config_id,
+                    shift_config_id=shift_config.id,
                     assignment_date=current_date,
                     created_by_id=current_user.id
                 )
@@ -268,7 +423,7 @@ def bulk_add_roster():
         
         return jsonify({
             'success': True,
-            'message': f'Successfully added/updated {added_count} shift entries',
+            'message': f'Successfully added {added_count} shift entries for {team_member.name}',
             'count': added_count
         })
     except Exception as e:
