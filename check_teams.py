@@ -9,3 +9,4 @@ with app.app_context():
         print(f"  ID={t.id}, Name={t.name}, Account_ID={t.account_id}")
 
 
+

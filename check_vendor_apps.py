@@ -15,3 +15,4 @@ with app.app_context():
         print(f"  Applications: {list(apps)[:10]}...")  # First 10
 
 
+

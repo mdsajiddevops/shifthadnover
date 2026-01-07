@@ -147,6 +147,17 @@
                             </div>
                         </div>
                         <div class="d-flex align-items-center gap-3">
+                            <!-- Upload from Template Button -->
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-outline-light btn-sm" onclick="showUploadModal()" title="Upload from Excel Template">
+                                    <i class="fas fa-file-upload me-1"></i>
+                                    Upload
+                                </button>
+                                <a href="/api/handover/download-template" class="btn btn-outline-light btn-sm" title="Download Excel Template">
+                                    <i class="fas fa-file-download me-1"></i>
+                                    Template
+                                </a>
+                            </div>
                             <!-- Form Mode Toggle -->
                             <div class="d-flex align-items-center bg-white bg-opacity-10 rounded px-3 py-2">
                                 <div class="form-check form-switch me-2">
@@ -173,6 +184,129 @@
                 </div>
                 
                 <div class="card-body">
+                    <!-- Upload Modal -->
+                    <div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header" style="background: linear-gradient(135deg, #4a90e2 0%, #2c5aa0 100%); color: white;">
+                                    <h5 class="modal-title" id="uploadModalLabel">
+                                        <i class="fas fa-file-upload me-2"></i>
+                                        Upload Handover Data from Excel
+                                    </h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="alert alert-info">
+                                        <h6 class="alert-heading"><i class="fas fa-info-circle me-2"></i>Instructions</h6>
+                                        <ol class="mb-0 ps-3">
+                                            <li>Download the Excel template using the "Template" button</li>
+                                            <li>Fill in the handover details in the respective sheets</li>
+                                            <li>Save the file and upload it here</li>
+                                            <li>Review the parsed data before submitting</li>
+                                        </ol>
+                                    </div>
+                                    
+                                    <div class="mb-4">
+                                        <label class="form-label fw-bold">Select Excel File</label>
+                                        <input type="file" class="form-control" id="handoverUploadFile" accept=".xlsx,.xls">
+                                        <small class="text-muted">Supported formats: .xlsx, .xls</small>
+                                    </div>
+                                    
+                                    <!-- Upload Progress -->
+                                    <div id="uploadProgress" class="d-none">
+                                        <div class="d-flex align-items-center">
+                                            <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                            <span>Processing file...</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Upload Result Preview -->
+                                    <div id="uploadPreview" class="d-none">
+                                        <h6 class="text-success"><i class="fas fa-check-circle me-2"></i>File Parsed Successfully</h6>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-4">
+                                                <div class="card bg-light">
+                                                    <div class="card-body text-center py-2">
+                                                        <div class="h4 mb-0 text-primary" id="previewOpenIncidents">0</div>
+                                                        <small class="text-muted">Open Incidents</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="card bg-light">
+                                                    <div class="card-body text-center py-2">
+                                                        <div class="h4 mb-0 text-success" id="previewClosedIncidents">0</div>
+                                                        <small class="text-muted">Closed Incidents</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="card bg-light">
+                                                    <div class="card-body text-center py-2">
+                                                        <div class="h4 mb-0 text-warning" id="previewKeyPoints">0</div>
+                                                        <small class="text-muted">Key Points</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-3">
+                                                <div class="card bg-light">
+                                                    <div class="card-body text-center py-2">
+                                                        <div class="h5 mb-0" id="previewPriorityIncidents">0</div>
+                                                        <small class="text-muted">Priority</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="card bg-light">
+                                                    <div class="card-body text-center py-2">
+                                                        <div class="h5 mb-0" id="previewHandoverIncidents">0</div>
+                                                        <small class="text-muted">Handover</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="card bg-light">
+                                                    <div class="card-body text-center py-2">
+                                                        <div class="h5 mb-0" id="previewChangeInfo">0</div>
+                                                        <small class="text-muted">Changes</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="card bg-light">
+                                                    <div class="card-body text-center py-2">
+                                                        <div class="h5 mb-0" id="previewKBUpdates">0</div>
+                                                        <small class="text-muted">KB Updates</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div id="uploadWarnings" class="alert alert-warning d-none">
+                                            <h6 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>Warnings</h6>
+                                            <ul class="mb-0" id="uploadWarningsList"></ul>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Upload Error -->
+                                    <div id="uploadError" class="alert alert-danger d-none">
+                                        <h6 class="alert-heading"><i class="fas fa-times-circle me-2"></i>Error</h6>
+                                        <p class="mb-0" id="uploadErrorMessage"></p>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="button" class="btn btn-primary" id="applyUploadBtn" onclick="applyUploadedData()" disabled>
+                                        <i class="fas fa-check me-1"></i>Apply to Form
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- Global Progress Indicator -->
                     <div id="global-progress" class="d-none position-fixed top-0 start-0 w-100 h-100" style="z-index: 9999; background: rgba(0,0,0,0.5);">
                         <div class="d-flex justify-content-center align-items-center h-100">
@@ -3749,6 +3883,387 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 })();
 {% endif %}
+
+// ==================== UPLOAD FUNCTIONALITY ====================
+let uploadedHandoverData = null;
+
+function showUploadModal() {
+    // Reset modal state
+    document.getElementById('handoverUploadFile').value = '';
+    document.getElementById('uploadProgress').classList.add('d-none');
+    document.getElementById('uploadPreview').classList.add('d-none');
+    document.getElementById('uploadError').classList.add('d-none');
+    document.getElementById('uploadWarnings').classList.add('d-none');
+    document.getElementById('applyUploadBtn').disabled = true;
+    uploadedHandoverData = null;
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('uploadModal'));
+    modal.show();
+}
+
+// Handle file selection
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('handoverUploadFile');
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                uploadHandoverFile(e.target.files[0]);
+            }
+        });
+    }
+});
+
+function uploadHandoverFile(file) {
+    const progressDiv = document.getElementById('uploadProgress');
+    const previewDiv = document.getElementById('uploadPreview');
+    const errorDiv = document.getElementById('uploadError');
+    const warningsDiv = document.getElementById('uploadWarnings');
+    const applyBtn = document.getElementById('applyUploadBtn');
+    
+    // Reset and show progress
+    previewDiv.classList.add('d-none');
+    errorDiv.classList.add('d-none');
+    warningsDiv.classList.add('d-none');
+    applyBtn.disabled = true;
+    progressDiv.classList.remove('d-none');
+    
+    // Create form data
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    // Upload and parse
+    fetch('/api/handover/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        progressDiv.classList.add('d-none');
+        
+        if (data.success) {
+            uploadedHandoverData = data.data;
+            
+            // Update preview counters
+            document.getElementById('previewOpenIncidents').textContent = data.data.summary.open_incidents_count;
+            document.getElementById('previewClosedIncidents').textContent = data.data.summary.closed_incidents_count;
+            document.getElementById('previewKeyPoints').textContent = data.data.summary.key_points_count;
+            document.getElementById('previewPriorityIncidents').textContent = data.data.summary.priority_incidents_count;
+            document.getElementById('previewHandoverIncidents').textContent = data.data.summary.handover_incidents_count;
+            document.getElementById('previewChangeInfo').textContent = data.data.summary.change_info_count;
+            document.getElementById('previewKBUpdates').textContent = data.data.summary.kb_updates_count;
+            
+            // Show warnings if any
+            if (data.data.warnings && data.data.warnings.length > 0) {
+                const warningsList = document.getElementById('uploadWarningsList');
+                warningsList.innerHTML = data.data.warnings.map(w => `<li>${w}</li>`).join('');
+                warningsDiv.classList.remove('d-none');
+            }
+            
+            previewDiv.classList.remove('d-none');
+            applyBtn.disabled = false;
+        } else {
+            document.getElementById('uploadErrorMessage').textContent = data.error || 'Failed to parse file';
+            if (data.errors && data.errors.length > 0) {
+                document.getElementById('uploadErrorMessage').innerHTML = 
+                    data.error + '<ul class="mt-2 mb-0">' + 
+                    data.errors.map(e => `<li>${e}</li>`).join('') + 
+                    '</ul>';
+            }
+            errorDiv.classList.remove('d-none');
+        }
+    })
+    .catch(error => {
+        progressDiv.classList.add('d-none');
+        document.getElementById('uploadErrorMessage').textContent = 'Network error: ' + error.message;
+        errorDiv.classList.remove('d-none');
+    });
+}
+
+function applyUploadedData() {
+    if (!uploadedHandoverData) {
+        alert('No data to apply. Please upload a file first.');
+        return;
+    }
+    
+    const data = uploadedHandoverData;
+    
+    // Apply basic info
+    if (data.basic_info) {
+        // Handover date
+        if (data.basic_info.handover_date) {
+            const dateField = document.getElementById('handover_date');
+            if (dateField) {
+                // Parse date in various formats
+                let dateValue = data.basic_info.handover_date;
+                if (dateValue.includes('/')) {
+                    const parts = dateValue.split('/');
+                    if (parts.length === 3) {
+                        dateValue = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+                    }
+                }
+                dateField.value = dateValue;
+            }
+        }
+        
+        // Current shift
+        if (data.basic_info.current_shift) {
+            const currentShiftField = document.getElementById('current_shift_type');
+            if (currentShiftField) {
+                currentShiftField.value = data.basic_info.current_shift;
+                currentShiftField.dispatchEvent(new Event('change'));
+            }
+        }
+        
+        // Next shift
+        if (data.basic_info.next_shift) {
+            const nextShiftField = document.getElementById('next_shift_type');
+            if (nextShiftField) {
+                nextShiftField.value = data.basic_info.next_shift;
+            }
+        }
+        
+        // Additional notes
+        if (data.basic_info.additional_notes) {
+            const notesField = document.getElementById('additional_notes');
+            if (notesField) {
+                notesField.value = data.basic_info.additional_notes;
+            }
+        }
+    }
+    
+    // Apply Open Incidents
+    applyIncidents(data.open_incidents, 'open');
+    
+    // Apply Closed Incidents
+    applyIncidents(data.closed_incidents, 'closed');
+    
+    // Apply Priority Incidents
+    applyIncidents(data.priority_incidents, 'priority');
+    
+    // Apply Handover Incidents
+    applyIncidents(data.handover_incidents, 'handover');
+    
+    // Apply Escalated Incidents
+    applyIncidents(data.escalated_incidents, 'escalated');
+    
+    // Apply Change Info
+    applyChangeInfo(data.change_info);
+    
+    // Apply KB Updates
+    applyKBUpdates(data.kb_updates);
+    
+    // Apply Key Points
+    applyKeyPoints(data.key_points);
+    
+    // Update section counters
+    setTimeout(updateSectionCounters, 500);
+    
+    // Close modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('uploadModal'));
+    if (modal) modal.hide();
+    
+    // Show success message
+    showUploadSuccessMessage(data.summary.total_entries);
+}
+
+function applyIncidents(incidents, type) {
+    if (!incidents || incidents.length === 0) return;
+    
+    const container = document.getElementById(`${type}-incidents-container`);
+    if (!container) return;
+    
+    // Clear existing entries (except first empty one)
+    const existingEntries = container.querySelectorAll('.incident-entry');
+    existingEntries.forEach((entry, index) => {
+        if (index > 0) entry.remove();
+    });
+    
+    incidents.forEach((inc, index) => {
+        if (index > 0) {
+            // Add new incident entry
+            addIncident(type);
+        }
+        
+        // Fill in the data
+        const entries = container.querySelectorAll('.incident-entry');
+        const entry = entries[index];
+        if (entry) {
+            fillIncidentEntry(entry, inc, type);
+        }
+    });
+    
+    // Fill first entry if exists
+    if (incidents.length > 0) {
+        const firstEntry = container.querySelector('.incident-entry');
+        if (firstEntry) {
+            fillIncidentEntry(firstEntry, incidents[0], type);
+        }
+    }
+}
+
+function fillIncidentEntry(entry, data, type) {
+    const appNameField = entry.querySelector(`input[name="${type}_incident_app[]"]`);
+    const incidentIdField = entry.querySelector(`input[name="${type}_incident_id[]"]`);
+    
+    if (appNameField) appNameField.value = data.app_name || '';
+    if (incidentIdField) incidentIdField.value = data.incident_id || '';
+    
+    if (type === 'open') {
+        const priorityField = entry.querySelector(`select[name="open_incident_priority[]"]`);
+        const assignedField = entry.querySelector(`select[name="open_incident_assigned[]"]`);
+        const descField = entry.querySelector(`textarea[name="open_incident_description[]"]`);
+        
+        if (priorityField) priorityField.value = data.priority || 'Medium';
+        if (descField) descField.value = data.description || '';
+        // Assigned To will need to be matched to team member
+    } else if (type === 'closed') {
+        const resolutionField = entry.querySelector(`textarea[name="closed_incident_resolution[]"]`);
+        if (resolutionField) resolutionField.value = data.resolution || '';
+    } else if (type === 'priority') {
+        const levelField = entry.querySelector(`select[name="priority_incident_level[]"]`);
+        const escalatedField = entry.querySelector(`input[name="priority_incident_escalated[]"]`);
+        const impactField = entry.querySelector(`textarea[name="priority_incident_impact[]"]`);
+        
+        if (levelField) levelField.value = data.priority_level || 'High';
+        if (escalatedField) escalatedField.value = data.escalated_to || '';
+        if (impactField) impactField.value = data.impact_actions || '';
+    } else if (type === 'handover') {
+        const statusField = entry.querySelector(`select[name="handover_incident_status[]"]`);
+        const notesField = entry.querySelector(`textarea[name="handover_incident_notes[]"]`);
+        
+        if (statusField) statusField.value = data.status || 'Monitoring';
+        if (notesField) notesField.value = data.notes || '';
+    } else if (type === 'escalated') {
+        const escalatedToField = entry.querySelector(`input[name="escalated_incident_to[]"]`);
+        const reasonField = entry.querySelector(`textarea[name="escalated_incident_reason[]"]`);
+        const statusField = entry.querySelector(`textarea[name="escalated_incident_status[]"]`);
+        
+        if (escalatedToField) escalatedToField.value = data.escalated_to || '';
+        if (reasonField) reasonField.value = data.reason || '';
+        if (statusField) statusField.value = data.status_next_steps || '';
+    }
+}
+
+function applyChangeInfo(changes) {
+    if (!changes || changes.length === 0) return;
+    
+    const container = document.getElementById('changeinfo-container');
+    if (!container) return;
+    
+    changes.forEach((change, index) => {
+        if (index > 0 || container.querySelectorAll('.changeinfo-entry').length === 0) {
+            addChangeInfo();
+        }
+        
+        const entries = container.querySelectorAll('.changeinfo-entry');
+        const entry = entries[entries.length - 1];
+        if (entry) {
+            const appNameField = entry.querySelector('input[name="change_application_name[]"]');
+            const changeNumField = entry.querySelector('input[name="change_number[]"]');
+            const descField = entry.querySelector('textarea[name="change_description[]"]');
+            const datetimeField = entry.querySelector('input[name="change_datetime[]"]');
+            const statusField = entry.querySelector('select[name="change_status[]"]');
+            
+            if (appNameField) appNameField.value = change.app_name || '';
+            if (changeNumField) changeNumField.value = change.change_number || '';
+            if (descField) descField.value = change.description || '';
+            if (datetimeField && change.datetime) {
+                // Convert to datetime-local format
+                let dtValue = change.datetime.replace(' ', 'T');
+                if (dtValue.length === 16) dtValue += ':00';
+                datetimeField.value = dtValue;
+            }
+            if (statusField) statusField.value = change.status || 'New';
+        }
+    });
+}
+
+function applyKBUpdates(kbUpdates) {
+    if (!kbUpdates || kbUpdates.length === 0) return;
+    
+    const container = document.getElementById('kbupdates-container');
+    if (!container) return;
+    
+    kbUpdates.forEach((kb, index) => {
+        if (index > 0 || container.querySelectorAll('.kbupdate-entry').length === 0) {
+            addKBUpdate();
+        }
+        
+        const entries = container.querySelectorAll('.kbupdate-entry');
+        const entry = entries[entries.length - 1];
+        if (entry) {
+            const appNameField = entry.querySelector('input[name="kb_application_name[]"]');
+            const kbNumField = entry.querySelector('input[name="kb_number[]"]');
+            const descField = entry.querySelector('textarea[name="kb_description[]"]');
+            const statusField = entry.querySelector('select[name="kb_status[]"]');
+            
+            if (appNameField) appNameField.value = kb.app_name || '';
+            if (kbNumField) kbNumField.value = kb.kb_number || '';
+            if (descField) descField.value = kb.description || '';
+            if (statusField) statusField.value = kb.status || 'New';
+        }
+    });
+}
+
+function applyKeyPoints(keyPoints) {
+    if (!keyPoints || keyPoints.length === 0) return;
+    
+    const container = document.getElementById('keypoints-container');
+    if (!container) return;
+    
+    keyPoints.forEach((kp, index) => {
+        if (index > 0) {
+            addKeyPoint();
+        }
+        
+        const entries = container.querySelectorAll('.keypoint-entry');
+        const entry = entries[index] || entries[entries.length - 1];
+        if (entry) {
+            const descField = entry.querySelector('textarea[name="keypoint_description[]"]');
+            const statusField = entry.querySelector('select[name="keypoint_status[]"]');
+            
+            if (descField) descField.value = kp.description || '';
+            if (statusField) statusField.value = kp.status || 'Open';
+        }
+    });
+}
+
+function showUploadSuccessMessage(totalEntries) {
+    // Create success toast
+    const toast = document.createElement('div');
+    toast.className = 'position-fixed top-0 end-0 p-3';
+    toast.style.zIndex = '9999';
+    toast.innerHTML = `
+        <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header bg-success text-white">
+                <i class="fas fa-check-circle me-2"></i>
+                <strong class="me-auto">Upload Successful</strong>
+                <button type="button" class="btn-close btn-close-white" onclick="this.closest('.position-fixed').remove()"></button>
+            </div>
+            <div class="toast-body">
+                Successfully imported <strong>${totalEntries}</strong> entries from the uploaded file.
+                <br><small class="text-muted">Please review the form and submit when ready.</small>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(toast);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.remove();
+        }
+    }, 5000);
+    
+    // Expand all accordion sections to show imported data
+    document.querySelectorAll('.accordion-collapse').forEach(collapse => {
+        collapse.classList.add('show');
+    });
+    document.querySelectorAll('.accordion-button').forEach(btn => {
+        btn.classList.remove('collapsed');
+    });
+}
 
 </script>
 {% endblock %}

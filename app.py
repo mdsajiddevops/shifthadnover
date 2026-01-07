@@ -419,6 +419,10 @@ app.register_blueprint(manual_roster_bp)
 from routes.system_health import system_health_bp
 app.register_blueprint(system_health_bp)
 
+# Register handover upload blueprint
+from routes.handover_upload import handover_upload_bp
+app.register_blueprint(handover_upload_bp)
+
 # Add template global functions
 @app.template_global()
 def is_tab_enabled(tab_name):

@@ -14,3 +14,4 @@ with app.app_context():
         print(f"  User={u.username}, Account_ID={u.account_id}")
 
 
+
