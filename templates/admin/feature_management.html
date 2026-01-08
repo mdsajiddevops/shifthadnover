@@ -1,0 +1,696 @@
+{% extends "base.html" %}
+
+{% block title %}Feature Management - Shift Handover{% endblock %}
+
+{% block extra_css %}
+<style>
+    .feature-management-container {
+        padding: 2rem;
+        background: #f8f9fa;
+        min-height: calc(100vh - 200px);
+    }
+    
+    .page-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .page-header h1 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 600;
+    }
+    
+    .page-header p {
+        margin: 0.5rem 0 0 0;
+        opacity: 0.9;
+    }
+    
+    .scope-selector {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .scope-selector label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+    
+    .scope-selector select {
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid #dee2e6;
+        border-radius: 5px;
+        font-size: 1rem;
+    }
+    
+    .scope-selector select:focus {
+        border-color: #667eea;
+        outline: none;
+    }
+    
+    .features-panel {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    
+    .features-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .features-header h2 {
+        margin: 0;
+        font-size: 1.5rem;
+    }
+    
+    .features-content {
+        padding: 1.5rem;
+    }
+    
+    .feature-category {
+        margin-bottom: 2rem;
+    }
+    
+    .category-header {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+    
+    .feature-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+        background: #f8f9fa;
+        border-radius: 5px;
+        transition: all 0.2s;
+    }
+    
+    .feature-item:hover {
+        background: #e9ecef;
+    }
+    
+    .feature-info {
+        flex: 1;
+    }
+    
+    .feature-name {
+        font-weight: 600;
+        color: #212529;
+        margin-bottom: 0.25rem;
+    }
+    
+    .feature-key {
+        font-size: 0.85rem;
+        color: #6c757d;
+        font-family: monospace;
+    }
+    
+    .feature-toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .toggle-switch {
+        position: relative;
+        width: 50px;
+        height: 26px;
+    }
+    
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: .4s;
+        border-radius: 26px;
+    }
+    
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 20px;
+        width: 20px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .4s;
+        border-radius: 50%;
+    }
+    
+    input:checked + .toggle-slider {
+        background-color: #28a745;
+    }
+    
+    input:checked + .toggle-slider:before {
+        transform: translateX(24px);
+    }
+    
+    .bulk-actions {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    
+    .btn-bulk {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 5px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .btn-bulk-enable {
+        background: #28a745;
+        color: white;
+    }
+    
+    .btn-bulk-enable:hover {
+        background: #218838;
+    }
+    
+    .btn-bulk-disable {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .btn-bulk-disable:hover {
+        background: #c82333;
+    }
+    
+    .btn-bulk-reset {
+        background: #6c757d;
+        color: white;
+    }
+    
+    .btn-bulk-reset:hover {
+        background: #5a6268;
+    }
+    
+    .info-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 15px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-left: 0.5rem;
+    }
+    
+    .badge-account {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+    
+    .badge-team {
+        background: #f3e5f5;
+        color: #7b1fa2;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #6c757d;
+    }
+    
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+    
+    .loading-spinner {
+        text-align: center;
+        padding: 2rem;
+    }
+    
+    .spinner-border {
+        width: 3rem;
+        height: 3rem;
+        border-width: 0.3em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="feature-management-container">
+    <div class="page-header">
+        <h1><i class="bi bi-toggle-on"></i> Feature Management</h1>
+        <p>Control which tabs and features are visible for specific accounts and teams</p>
+    </div>
+    
+    <div class="scope-selector">
+        <div class="row">
+            <div class="col-md-6">
+                <label for="scopeType">Scope Type:</label>
+                <select id="scopeType" class="form-select">
+                    <option value="">-- Select Scope Type --</option>
+                    <option value="account">Account Level</option>
+                    <option value="team">Team Level</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label id="scopeLabel" for="scopeId">Select Account/Team:</label>
+                <select id="scopeId" class="form-select" disabled>
+                    <option value="">-- Select --</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    
+    <div id="featuresPanel" class="features-panel" style="display: none;">
+        <div class="features-header">
+            <h2 id="scopeTitle">Features</h2>
+            <span id="scopeBadge" class="info-badge"></span>
+        </div>
+        
+        <div class="bulk-actions">
+            <button class="btn-bulk btn-bulk-enable" onclick="bulkUpdateFeatures(true)">
+                <i class="bi bi-check-circle"></i> Enable All
+            </button>
+            <button class="btn-bulk btn-bulk-disable" onclick="bulkUpdateFeatures(false)">
+                <i class="bi bi-x-circle"></i> Disable All
+            </button>
+            <button class="btn-bulk btn-bulk-reset" onclick="resetToDefaults()">
+                <i class="bi bi-arrow-counterclockwise"></i> Reset to Defaults
+            </button>
+        </div>
+        
+        <div class="features-content">
+            <div id="loadingState" class="loading-spinner" style="display: none;">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+            
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <i class="bi bi-inbox"></i>
+                <h3>No Scope Selected</h3>
+                <p>Please select an account or team to manage features</p>
+            </div>
+            
+            <div id="featuresList"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentScopeType = null;
+let currentScopeId = null;
+let allFeatures = {{ available_features | tojson | safe }};
+let currentConfigs = {};
+
+// Store accounts and teams data from server
+const accountsData = {{ accounts | tojson | safe }};
+const teamsByAccountData = {{ teams_by_account | tojson | safe }};
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    
+    document.getElementById('scopeType').addEventListener('change', function() {
+        const scopeType = this.value;
+        const scopeSelect = document.getElementById('scopeId');
+        
+        if (scopeType) {
+            scopeSelect.disabled = false;
+            updateScopeLabel(scopeType);
+            loadScopeOptions(scopeType);
+        } else {
+            scopeSelect.disabled = true;
+            hideFeaturesPanel();
+        }
+    });
+    
+    document.getElementById('scopeId').addEventListener('change', function() {
+        const scopeId = this.value;
+        if (scopeId) {
+            currentScopeType = document.getElementById('scopeType').value;
+            currentScopeId = parseInt(scopeId);
+            loadFeatureConfigs();
+        } else {
+            hideFeaturesPanel();
+        }
+    });
+});
+
+function updateScopeLabel(scopeType) {
+    const label = document.getElementById('scopeLabel');
+    label.textContent = scopeType === 'account' ? 'Select Account:' : 'Select Team:';
+}
+
+function loadAccounts() {
+    // Accounts are already loaded from server
+    return accountsData || [];
+}
+
+function loadTeams() {
+    // Teams are already loaded from server
+    return teamsByAccountData || {};
+}
+
+function loadScopeOptions(scopeType) {
+    const scopeSelect = document.getElementById('scopeId');
+    scopeSelect.innerHTML = '<option value="">-- Select --</option>';
+    
+    if (scopeType === 'account') {
+        const accounts = loadAccounts();
+        accounts.forEach(account => {
+            const option = document.createElement('option');
+            option.value = account.id;
+            option.textContent = account.name;
+            scopeSelect.appendChild(option);
+        });
+    } else {
+        const teamsByAccount = loadTeams();
+        Object.keys(teamsByAccount).forEach(accountId => {
+            const teams = teamsByAccount[accountId];
+            teams.forEach(team => {
+                const option = document.createElement('option');
+                option.value = team.id;
+                option.textContent = `${team.name} (Account: ${getAccountName(accountId)})`;
+                option.dataset.accountId = accountId;
+                scopeSelect.appendChild(option);
+            });
+        });
+    }
+}
+
+function getAccountName(accountId) {
+    const accounts = loadAccounts();
+    const account = accounts.find(acc => acc.id == accountId);
+    return account ? account.name : 'Unknown';
+}
+
+function loadFeatureConfigs() {
+    if (!currentScopeType || !currentScopeId) return;
+    
+    showLoading();
+    
+    fetch(`/api/feature-management/config?scope_type=${currentScopeType}&scope_id=${currentScopeId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentConfigs = data.configs;
+                displayFeatures();
+                updateScopeTitle();
+            } else {
+                showError(data.error || 'Failed to load feature configurations');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading feature configs:', error);
+            showError('Error loading feature configurations');
+        });
+}
+
+function displayFeatures() {
+    const featuresList = document.getElementById('featuresList');
+    featuresList.innerHTML = '';
+    
+    // Group features by category
+    const featuresByCategory = {};
+    allFeatures.forEach(([key, name, category]) => {
+        if (!featuresByCategory[category]) {
+            featuresByCategory[category] = [];
+        }
+        featuresByCategory[category].push({key, name, category});
+    });
+    
+    // Display features grouped by category
+    Object.keys(featuresByCategory).sort().forEach(category => {
+        const categoryDiv = document.createElement('div');
+        categoryDiv.className = 'feature-category';
+        
+        const categoryHeader = document.createElement('div');
+        categoryHeader.className = 'category-header';
+        categoryHeader.textContent = category;
+        categoryDiv.appendChild(categoryHeader);
+        
+        featuresByCategory[category].forEach(feature => {
+            const featureItem = createFeatureItem(feature);
+            categoryDiv.appendChild(featureItem);
+        });
+        
+        featuresList.appendChild(categoryDiv);
+    });
+    
+    hideLoading();
+    showFeaturesPanel();
+}
+
+function createFeatureItem(feature) {
+    const item = document.createElement('div');
+    item.className = 'feature-item';
+    
+    const featureInfo = document.createElement('div');
+    featureInfo.className = 'feature-info';
+    
+    const featureName = document.createElement('div');
+    featureName.className = 'feature-name';
+    featureName.textContent = feature.name;
+    
+    const featureKey = document.createElement('div');
+    featureKey.className = 'feature-key';
+    featureKey.textContent = feature.key;
+    
+    featureInfo.appendChild(featureName);
+    featureInfo.appendChild(featureKey);
+    
+    const featureToggle = document.createElement('div');
+    featureToggle.className = 'feature-toggle';
+    
+    const toggleSwitch = document.createElement('label');
+    toggleSwitch.className = 'toggle-switch';
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.dataset.featureKey = feature.key;
+    
+    // Check if feature is enabled (team config > account config > default true)
+    const isEnabled = currentConfigs[feature.key] ? currentConfigs[feature.key].is_enabled : true;
+    checkbox.checked = isEnabled;
+    
+    checkbox.addEventListener('change', function() {
+        updateFeature(feature.key, this.checked);
+    });
+    
+    const slider = document.createElement('span');
+    slider.className = 'toggle-slider';
+    
+    toggleSwitch.appendChild(checkbox);
+    toggleSwitch.appendChild(slider);
+    featureToggle.appendChild(toggleSwitch);
+    
+    item.appendChild(featureInfo);
+    item.appendChild(featureToggle);
+    
+    return item;
+}
+
+function updateFeature(featureKey, isEnabled) {
+    fetch('/api/feature-management/config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            scope_type: currentScopeType,
+            scope_id: currentScopeId,
+            feature_key: featureKey,
+            is_enabled: isEnabled
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update local config
+            if (!currentConfigs[featureKey]) {
+                currentConfigs[featureKey] = {};
+            }
+            currentConfigs[featureKey].is_enabled = isEnabled;
+            
+            showSuccess(`Feature "${getFeatureName(featureKey)}" ${isEnabled ? 'enabled' : 'disabled'} successfully`);
+        } else {
+            showError(data.error || 'Failed to update feature');
+            // Revert checkbox
+            const checkbox = document.querySelector(`input[data-feature-key="${featureKey}"]`);
+            if (checkbox) {
+                checkbox.checked = !isEnabled;
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error updating feature:', error);
+        showError('Error updating feature');
+        // Revert checkbox
+        const checkbox = document.querySelector(`input[data-feature-key="${featureKey}"]`);
+        if (checkbox) {
+            checkbox.checked = !isEnabled;
+        }
+    });
+}
+
+function bulkUpdateFeatures(isEnabled) {
+    if (!confirm(`Are you sure you want to ${isEnabled ? 'enable' : 'disable'} all features?`)) {
+        return;
+    }
+    
+    const featureUpdates = {};
+    allFeatures.forEach(([key]) => {
+        featureUpdates[key] = isEnabled;
+    });
+    
+    fetch('/api/feature-management/config/bulk', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            scope_type: currentScopeType,
+            scope_id: currentScopeId,
+            feature_updates: featureUpdates
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update all checkboxes
+            allFeatures.forEach(([key]) => {
+                const checkbox = document.querySelector(`input[data-feature-key="${key}"]`);
+                if (checkbox) {
+                    checkbox.checked = isEnabled;
+                }
+                if (!currentConfigs[key]) {
+                    currentConfigs[key] = {};
+                }
+                currentConfigs[key].is_enabled = isEnabled;
+            });
+            
+            showSuccess(`All features ${isEnabled ? 'enabled' : 'disabled'} successfully`);
+        } else {
+            showError(data.error || 'Failed to bulk update features');
+        }
+    })
+    .catch(error => {
+        console.error('Error bulk updating features:', error);
+        showError('Error bulk updating features');
+    });
+}
+
+function resetToDefaults() {
+    if (!confirm('Are you sure you want to reset all features to default values? This will remove custom configurations.')) {
+        return;
+    }
+    
+    // Get all current configs and delete them
+    const configIds = Object.keys(currentConfigs).map(key => {
+        // We need to fetch config IDs first
+        return null;
+    });
+    
+    // For now, just reload the page
+    loadFeatureConfigs();
+    showSuccess('Features reset to defaults');
+}
+
+function updateScopeTitle() {
+    const scopeSelect = document.getElementById('scopeId');
+    const selectedOption = scopeSelect.options[scopeSelect.selectedIndex];
+    const scopeName = selectedOption ? selectedOption.textContent.split(' (')[0] : '';
+    
+    document.getElementById('scopeTitle').textContent = `Features for ${scopeName}`;
+    
+    const badge = document.getElementById('scopeBadge');
+    badge.textContent = currentScopeType === 'account' ? 'Account Level' : 'Team Level';
+    badge.className = `info-badge ${currentScopeType === 'account' ? 'badge-account' : 'badge-team'}`;
+}
+
+function getFeatureName(featureKey) {
+    const feature = allFeatures.find(([key]) => key === featureKey);
+    return feature ? feature[1] : featureKey;
+}
+
+function showFeaturesPanel() {
+    document.getElementById('featuresPanel').style.display = 'block';
+    document.getElementById('emptyState').style.display = 'none';
+}
+
+function hideFeaturesPanel() {
+    document.getElementById('featuresPanel').style.display = 'none';
+    document.getElementById('emptyState').style.display = 'block';
+}
+
+function showLoading() {
+    document.getElementById('loadingState').style.display = 'block';
+    document.getElementById('featuresList').style.display = 'none';
+}
+
+function hideLoading() {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('featuresList').style.display = 'block';
+}
+
+function showSuccess(message) {
+    // You can use SweetAlert2 or Bootstrap alerts here
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            icon: 'success',
+            title: 'Success',
+            text: message,
+            timer: 2000,
+            showConfirmButton: false
+        });
+    } else {
+        alert(message);
+    }
+}
+
+function showError(message) {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: message
+        });
+    } else {
+        alert('Error: ' + message);
+    }
+}
+</script>
+{% endblock %}

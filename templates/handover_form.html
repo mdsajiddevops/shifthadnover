@@ -1650,6 +1650,32 @@ function setShiftDefaults() {
     }
 }
 
+// Auto-select next shift based on current shift selection (M → E → N → M)
+function autoSelectNextShiftForMainForm() {
+    const currentShiftSelect = document.getElementById('current_shift_type');
+    const nextShiftSelect = document.getElementById('next_shift_type');
+    
+    if (!currentShiftSelect || !nextShiftSelect) return;
+    
+    const currentShift = currentShiftSelect.value;
+    
+    // Shift sequence mapping: M → E → N → M
+    const nextShiftMap = {
+        'Morning': 'Evening',
+        'Evening': 'Night',
+        'Late Evening': 'Night',
+        'Night': 'Morning',
+        'General': 'General',
+        'OnShore': 'OffShore',
+        'OffShore': 'OnShore'
+    };
+    
+    if (currentShift && nextShiftMap[currentShift]) {
+        nextShiftSelect.value = nextShiftMap[currentShift];
+        console.log(`🔄 Auto-selected next shift: ${currentShift} → ${nextShiftMap[currentShift]}`);
+    }
+}
+
 // Update engineers when date or shift changes
 function updateEngineers() {
     console.log('🔄 updateEngineers() called');
@@ -2234,7 +2260,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Add event listeners for date and shift changes
     dateInput.addEventListener('change', updateEngineers);
-    currentShiftSelect.addEventListener('change', updateEngineers);
+    currentShiftSelect.addEventListener('change', function() {
+        autoSelectNextShiftForMainForm(); // Auto-select next shift when current shift changes
+        updateEngineers();
+    });
     nextShiftSelect.addEventListener('change', updateEngineers);
     teamSelect.addEventListener('change', updateEngineers);
     
@@ -3959,10 +3988,10 @@ document.addEventListener('DOMContentLoaded', function() {
         isAdmin: {{ 'true' if user_shift_info.is_admin else 'false' }}
     };
     
-    // Shift sequence mapping
+    // Shift sequence mapping: M → E → N → M
     const nextShiftMap = {
         'Morning': 'Evening',
-        'Evening': 'Late Evening',
+        'Evening': 'Night',
         'Late Evening': 'Night',
         'Night': 'Morning',
         'General': 'General',
@@ -4285,6 +4314,7 @@ function autoSelectNextShift() {
     const currentShift = document.getElementById('uploadCurrentShift').value;
     const nextShiftSelect = document.getElementById('uploadNextShift');
     
+    // Shift sequence mapping: M → E → N → M
     const nextShiftMap = {
         'Morning': 'Evening',
         'Evening': 'Night',
@@ -4297,6 +4327,7 @@ function autoSelectNextShift() {
     
     if (currentShift && nextShiftMap[currentShift]) {
         nextShiftSelect.value = nextShiftMap[currentShift];
+        console.log(`🔄 Upload modal: Auto-selected next shift: ${currentShift} → ${nextShiftMap[currentShift]}`);
     }
 }
 

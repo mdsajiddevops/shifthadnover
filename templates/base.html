@@ -202,58 +202,73 @@
                         <span class="nav-text">Dashboard</span>
                     </a>
                 </div>
+                {% if is_tab_enabled('tab_handover_form') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/handover') else '' }}" href="/handover" data-tooltip="Handover Form">
                         <i class="nav-icon bi bi-arrow-left-right"></i>
                         <span class="nav-text">Handover Form</span>
                     </a>
                 </div>
+                {% endif %}
                 
+                {% if is_tab_enabled('tab_shift_reports') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/reports') or is_nav_active('/handover-reports') else '' }}" href="/reports" data-tooltip="Shift Reports">
                         <i class="nav-icon bi bi-file-earmark-text"></i>
                         <span class="nav-text">Shift Reports</span>
                     </a>
                 </div>
+                {% endif %}
+                {% if is_tab_enabled('tab_change_info') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/change-info-reports') else '' }}" href="/change-info-reports" data-tooltip="Change Information">
                         <i class="nav-icon bi bi-gear"></i>
                         <span class="nav-text">Change Info</span>
                     </a>
                 </div>
+                {% endif %}
+                {% if is_tab_enabled('tab_kb_updates') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/kb-update-reports') else '' }}" href="/kb-update-reports" data-tooltip="KB Updates">
                         <i class="nav-icon bi bi-journal-text"></i>
                         <span class="nav-text">KB Updates</span>
                     </a>
                 </div>
+                {% endif %}
+                {% if is_tab_enabled('tab_key_points') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/keypoints') else '' }}" href="/keypoints" data-tooltip="Key Points">
                         <i class="nav-icon bi bi-lightbulb"></i>
                         <span class="nav-text">Key Points</span>
                     </a>
                 </div>
+                {% endif %}
+                {% if is_tab_enabled('tab_problem_tickets') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/problem-tickets') else '' }}" href="/problem-tickets" data-tooltip="Problem Tickets">
                         <i class="nav-icon bi bi-bug"></i>
                         <span class="nav-text">Problem Tickets</span>
                     </a>
                 </div>
+                {% endif %}
             </div>
             
             <!-- Team Management Section -->
+            {% if is_tab_enabled('tab_shift_roster') or is_tab_enabled('tab_roster_upload') or is_tab_enabled('tab_team_details') or is_tab_enabled('tab_oncall_dashboard') %}
             <div class="nav-section">
                 <div class="section-title">
                     <span class="section-icon">👥</span>
                     <span>Team Management</span>
                 </div>
+                {% if is_tab_enabled('tab_shift_roster') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/roster') else '' }}" href="/roster" data-tooltip="Shift Roster">
                         <i class="nav-icon bi bi-calendar3"></i>
                         <span class="nav-text">Shift Roster</span>
                     </a>
                 </div>
-                {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
+                {% endif %}
+                {% if is_tab_enabled('tab_roster_upload') and current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/roster-upload') else '' }}" href="/roster-upload" data-tooltip="Roster Upload">
                         <i class="nav-icon bi bi-cloud-upload"></i>
@@ -261,19 +276,24 @@
                     </a>
                 </div>
                 {% endif %}
+                {% if is_tab_enabled('tab_team_details') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/team') else '' }}" href="/team" data-tooltip="Team Details">
                         <i class="nav-icon bi bi-people"></i>
                         <span class="nav-text">Team Details</span>
                     </a>
                 </div>
+                {% endif %}
+                {% if is_tab_enabled('tab_oncall_dashboard') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/teams-roster') else '' }}" href="/teams-roster" data-tooltip="On-Call Dashboard">
                         <i class="nav-icon bi bi-headset"></i>
                         <span class="nav-text">On-Call Dashboard</span>
                     </a>
                 </div>
+                {% endif %}
             </div>
+            {% endif %}
             
             <!-- Tools Section -->
             <div class="nav-section">
@@ -281,7 +301,7 @@
                     <span class="section-icon">🔧</span>
                     <span>Tools</span>
                 </div>
-                {% if is_feature_enabled('feature_servicenow_integration') and current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
+                {% if is_tab_enabled('tab_servicenow') and is_feature_enabled('feature_servicenow_integration') and current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/servicenow') else '' }}" href="/servicenow" data-tooltip="ServiceNow Integration">
                         <i class="nav-icon bi bi-cloud-arrow-down"></i>
@@ -289,12 +309,14 @@
                     </a>
                 </div>
                 {% endif %}
+                {% if is_tab_enabled('tab_escalation_matrix') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/escalation-matrix') else '' }}" href="/escalation-matrix" data-tooltip="Escalation Matrix">
                         <i class="nav-icon bi bi-exclamation-triangle"></i>
                         <span class="nav-text">Escalation Matrix</span>
                     </a>
                 </div>
+                {% endif %}
                 {% if is_tab_enabled('tab_vendor_details') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/vendor-details') else '' }}" href="/vendor-details" data-tooltip="Vendor Details">
@@ -303,7 +325,7 @@
                     </a>
                 </div>
                 {% endif %}
-                {% if is_feature_enabled('feature_ctask_assignment') and current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
+                {% if is_tab_enabled('tab_ctask_assignment') and is_feature_enabled('feature_ctask_assignment') and current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/ctask-assignment') else '' }}" href="/ctask-assignment" data-tooltip="CTask Assignment">
                         <i class="nav-icon bi bi-person-check"></i>
@@ -311,12 +333,14 @@
                     </a>
                 </div>
                 {% endif %}
+                {% if is_tab_enabled('tab_audit_logs') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/audit-logs') else '' }}" href="/audit-logs" data-tooltip="Audit Logs">
                         <i class="nav-icon bi bi-clipboard-data"></i>
                         <span class="nav-text">Audit Logs</span>
                     </a>
                 </div>
+                {% endif %}
                 {% if is_tab_enabled('tab_shift_management') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/shift-management') else '' }}" href="/shift-management/dashboard" data-tooltip="Shift Management">
@@ -392,6 +416,12 @@
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/configuration') else '' }}" href="/admin/configuration" data-tooltip="System Configuration">
                         <i class="nav-icon bi bi-toggles"></i>
                         <span class="nav-text">System Configuration</span>
+                    </a>
+                </div>
+                <div class="modern-nav-item">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/feature-management') else '' }}" href="/admin/feature-management" data-tooltip="Feature Management">
+                        <i class="nav-icon bi bi-toggle-on"></i>
+                        <span class="nav-text">Feature Management</span>
                     </a>
                 </div>
                 {% endif %}
