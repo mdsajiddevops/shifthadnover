@@ -1,21 +1,28 @@
 """
-Handover Upload Template Generator
+Handover Upload Template Generator - Enhanced Version
 
-This module generates Excel templates for bulk handover data upload.
-Users can fill in the template and upload it to quickly create handover entries.
+This module generates a simplified Excel template for bulk handover data upload.
+The template is designed for quick entry with:
+- Single consolidated sheet for all incidents (status-based classification)
+- Separate sheets for Key Points, Change Info, and KB Updates
+- Shift metadata is captured during upload, not in the template
 """
 
 import os
 from openpyxl import Workbook
-from openpyxl.styles import Font, Fill, PatternFill, Border, Side, Alignment, Protection
+from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
-from openpyxl.comments import Comment
 
 
 def generate_handover_template(output_path=None):
     """
-    Generate an Excel template for handover data upload.
+    Generate an enhanced Excel template for handover data upload.
+    
+    The template focuses on ease of use with:
+    - Single consolidated incidents sheet
+    - Status-based classification (auto-routed during upload)
+    - Separate sheets for secondary information
     
     Args:
         output_path: Path where to save the template. If None, returns the workbook object.
@@ -29,10 +36,9 @@ def generate_handover_template(output_path=None):
     # Define styles
     header_font = Font(bold=True, color='FFFFFF', size=11)
     header_fill = PatternFill(start_color='2C5AA0', end_color='2C5AA0', fill_type='solid')
-    section_fill = PatternFill(start_color='4A90E2', end_color='4A90E2', fill_type='solid')
-    required_fill = PatternFill(start_color='FFE6E6', end_color='FFE6E6', fill_type='solid')
-    optional_fill = PatternFill(start_color='E6F3FF', end_color='E6F3FF', fill_type='solid')
+    subheader_fill = PatternFill(start_color='4A90E2', end_color='4A90E2', fill_type='solid')
     example_fill = PatternFill(start_color='F5F5F5', end_color='F5F5F5', fill_type='solid')
+    required_fill = PatternFill(start_color='FFF3CD', end_color='FFF3CD', fill_type='solid')
     thin_border = Border(
         left=Side(style='thin'),
         right=Side(style='thin'),
@@ -42,369 +48,310 @@ def generate_handover_template(output_path=None):
     center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
     left_align = Alignment(horizontal='left', vertical='center', wrap_text=True)
     
-    # ==================== Sheet 1: Instructions ====================
-    ws_instructions = wb.active
-    ws_instructions.title = "Instructions"
+    # ==================== Sheet 1: Incidents (Consolidated) ====================
+    ws_incidents = wb.active
+    ws_incidents.title = "Incidents"
     
-    instructions = [
-        ("SHIFT HANDOVER UPLOAD TEMPLATE", None),
-        ("", None),
-        ("HOW TO USE THIS TEMPLATE:", None),
-        ("", None),
-        ("1. Fill in the 'Basic Info' sheet with handover date, team, and shift details", None),
-        ("2. Use the respective sheets to add incidents, changes, KB updates, and key points", None),
-        ("3. Leave rows empty if you don't have data for that section", None),
-        ("4. Save the file and upload it in the Handover Form page", None),
-        ("", None),
-        ("IMPORTANT NOTES:", None),
-        ("", None),
-        ("- Fields marked in RED are required", None),
-        ("- Fields marked in BLUE are optional", None),
-        ("- Use dropdown selections where available", None),
-        ("- Dates should be in YYYY-MM-DD format", None),
-        ("- Date-Time should be in YYYY-MM-DD HH:MM format", None),
-        ("", None),
-        ("SHEETS IN THIS TEMPLATE:", None),
-        ("", None),
-        ("1. Basic Info - Handover date, team, and shift information", None),
-        ("2. Open Incidents - Active/Pending incidents to hand over", None),
-        ("3. Closed Incidents - Incidents resolved during the shift", None),
-        ("4. Priority Incidents - High priority/escalated incidents", None),
-        ("5. Handover Incidents - Incidents requiring specific follow-up", None),
-        ("6. Escalated Incidents - Incidents escalated to other teams/management", None),
-        ("7. Change Info - Change requests during the shift", None),
-        ("8. KB Updates - Knowledge base updates", None),
-        ("9. Key Points - Important points for next shift", None),
-        ("", None),
-        ("For support, contact your team administrator.", None),
+    # Add instruction row at top
+    ws_incidents.merge_cells('A1:H1')
+    instruction_cell = ws_incidents['A1']
+    instruction_cell.value = "INCIDENT HANDOVER - Enter all incidents below. Status determines automatic classification (Open/Active, Closed, Priority, Handover, Escalated)"
+    instruction_cell.font = Font(bold=True, size=12, color='2C5AA0')
+    instruction_cell.alignment = center_align
+    ws_incidents.row_dimensions[1].height = 30
+    
+    # Headers (Row 2)
+    incident_headers = [
+        ("Application Name", 22, True),
+        ("Incident ID", 18, True),
+        ("Status", 18, True),
+        ("Priority", 12, False),
+        ("Assigned To", 20, False),
+        ("Escalated To", 18, False),
+        ("Description / Notes", 50, False),
+        ("Resolution / Next Actions", 50, False)
     ]
     
-    for row_num, (text, _) in enumerate(instructions, 1):
-        cell = ws_instructions.cell(row=row_num, column=1, value=text)
-        if row_num == 1:
-            cell.font = Font(bold=True, size=16, color='2C5AA0')
-        elif text and text.endswith(':'):
-            cell.font = Font(bold=True, size=12)
-        elif text.startswith('- '):
-            cell.font = Font(italic=True)
-    
-    ws_instructions.column_dimensions['A'].width = 80
-    
-    # ==================== Sheet 2: Basic Info ====================
-    ws_basic = wb.create_sheet("Basic Info")
-    
-    basic_headers = [
-        ("Field", "Value", "Description", "Required"),
-        ("Handover Date", "", "Date of handover (YYYY-MM-DD)", "Yes"),
-        ("Current Shift", "", "Morning/Evening/Late Evening/Night/General/OnShore/OffShore", "Yes"),
-        ("Next Shift", "", "Morning/Evening/Late Evening/Night/General/OnShore/OffShore", "Yes"),
-        ("Current Engineers", "", "Comma-separated names of current shift engineers", "No"),
-        ("Next Engineers", "", "Comma-separated names of next shift engineers", "No"),
-        ("Additional Notes", "", "Any additional notes for the handover", "No"),
-    ]
-    
-    for row_num, (field, value, desc, req) in enumerate(basic_headers, 1):
-        ws_basic.cell(row=row_num, column=1, value=field).border = thin_border
-        ws_basic.cell(row=row_num, column=2, value=value).border = thin_border
-        ws_basic.cell(row=row_num, column=3, value=desc).border = thin_border
-        ws_basic.cell(row=row_num, column=4, value=req).border = thin_border
+    for col, (header, width, required) in enumerate(incident_headers, 1):
+        cell = ws_incidents.cell(row=2, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = thin_border
+        cell.alignment = center_align
+        ws_incidents.column_dimensions[get_column_letter(col)].width = width
         
-        if row_num == 1:
-            for col in range(1, 5):
-                cell = ws_basic.cell(row=row_num, column=col)
-                cell.font = header_font
-                cell.fill = header_fill
-                cell.alignment = center_align
-        else:
-            ws_basic.cell(row=row_num, column=1).font = Font(bold=True)
-            ws_basic.cell(row=row_num, column=2).fill = required_fill if req == "Yes" else optional_fill
+        # Mark required columns
+        if required:
+            cell.value = f"{header} *"
     
-    # Add dropdown for shifts
-    shift_validation = DataValidation(
-        type="list",
-        formula1='"Morning,Evening,Late Evening,Night,General,OnShore,OffShore"',
-        allow_blank=True
-    )
-    ws_basic.add_data_validation(shift_validation)
-    shift_validation.add('B3:B4')
+    # Add example rows (Row 3-5) with different statuses
+    examples = [
+        ("OrderApp", "INC0001234", "Open", "High", "John Doe", "", "Database connection timeout during peak hours", "Monitoring - needs follow-up"),
+        ("PaymentGateway", "INC0005678", "Closed", "Medium", "", "", "SSL certificate warning", "Renewed certificate, issue resolved"),
+        ("InventorySystem", "INC0009999", "Escalated", "Critical", "", "Infrastructure Team", "Server capacity issue", "Escalated for server upgrade"),
+    ]
     
-    ws_basic.column_dimensions['A'].width = 20
-    ws_basic.column_dimensions['B'].width = 40
-    ws_basic.column_dimensions['C'].width = 50
-    ws_basic.column_dimensions['D'].width = 12
-    
-    # ==================== Sheet 3: Open Incidents ====================
-    ws_open = wb.create_sheet("Open Incidents")
-    
-    open_headers = ["Application Name", "Incident ID", "Priority", "Assigned To", "Description"]
-    for col, header in enumerate(open_headers, 1):
-        cell = ws_open.cell(row=1, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = thin_border
-        cell.alignment = center_align
-    
-    # Add example row
-    example_data = ["MyApp", "INC0001234", "High", "John Doe", "Database connection timeout issue"]
-    for col, value in enumerate(example_data, 1):
-        cell = ws_open.cell(row=2, column=col, value=value)
-        cell.fill = example_fill
-        cell.border = thin_border
-        cell.font = Font(italic=True, color='666666')
-    
-    # Add empty rows for data entry
-    for row in range(3, 23):
-        for col in range(1, 6):
-            cell = ws_open.cell(row=row, column=col, value="")
+    for row_idx, example in enumerate(examples, 3):
+        for col_idx, value in enumerate(example, 1):
+            cell = ws_incidents.cell(row=row_idx, column=col_idx, value=value)
+            cell.fill = example_fill
             cell.border = thin_border
+            cell.font = Font(italic=True, color='666666')
+            cell.alignment = left_align
     
-    # Priority dropdown
-    priority_validation = DataValidation(
-        type="list",
-        formula1='"Low,Medium,High,Critical"',
-        allow_blank=True
-    )
-    ws_open.add_data_validation(priority_validation)
-    priority_validation.add('C2:C22')
+    # Add note about examples
+    ws_incidents.merge_cells('A6:H6')
+    note_cell = ws_incidents['A6']
+    note_cell.value = "↑ Example rows above (delete or overwrite). Enter your incidents starting from row 7 ↓"
+    note_cell.font = Font(italic=True, size=10, color='999999')
+    note_cell.alignment = center_align
     
-    for col in range(1, 6):
-        ws_open.column_dimensions[get_column_letter(col)].width = 25
-    ws_open.column_dimensions['E'].width = 50
-    
-    # ==================== Sheet 4: Closed Incidents ====================
-    ws_closed = wb.create_sheet("Closed Incidents")
-    
-    closed_headers = ["Application Name", "Incident ID", "Resolution Summary"]
-    for col, header in enumerate(closed_headers, 1):
-        cell = ws_closed.cell(row=1, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = thin_border
-        cell.alignment = center_align
-    
-    example_closed = ["PaymentGateway", "INC0005678", "Fixed by restarting the service and clearing cache"]
-    for col, value in enumerate(example_closed, 1):
-        cell = ws_closed.cell(row=2, column=col, value=value)
-        cell.fill = example_fill
-        cell.border = thin_border
-        cell.font = Font(italic=True, color='666666')
-    
-    for row in range(3, 23):
-        for col in range(1, 4):
-            cell = ws_closed.cell(row=row, column=col, value="")
+    # Add empty rows for data entry (Row 7 onwards)
+    for row in range(7, 57):  # 50 rows for incidents
+        for col in range(1, 9):
+            cell = ws_incidents.cell(row=row, column=col, value="")
             cell.border = thin_border
+            if col <= 3:  # Required columns
+                cell.fill = required_fill
     
-    ws_closed.column_dimensions['A'].width = 25
-    ws_closed.column_dimensions['B'].width = 20
-    ws_closed.column_dimensions['C'].width = 60
-    
-    # ==================== Sheet 5: Priority Incidents ====================
-    ws_priority = wb.create_sheet("Priority Incidents")
-    
-    priority_headers = ["Application Name", "Incident ID", "Priority Level", "Escalated To", "Impact & Actions"]
-    for col, header in enumerate(priority_headers, 1):
-        cell = ws_priority.cell(row=1, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = thin_border
-        cell.alignment = center_align
-    
-    example_priority = ["OrderSystem", "INC0009999", "Critical", "Manager - Alice", "Major revenue impact. Escalated to vendor."]
-    for col, value in enumerate(example_priority, 1):
-        cell = ws_priority.cell(row=2, column=col, value=value)
-        cell.fill = example_fill
-        cell.border = thin_border
-        cell.font = Font(italic=True, color='666666')
-    
-    for row in range(3, 13):
-        for col in range(1, 6):
-            cell = ws_priority.cell(row=row, column=col, value="")
-            cell.border = thin_border
-    
-    priority_level_validation = DataValidation(
-        type="list",
-        formula1='"High,Critical,Emergency"',
-        allow_blank=True
-    )
-    ws_priority.add_data_validation(priority_level_validation)
-    priority_level_validation.add('C2:C12')
-    
-    for col in range(1, 6):
-        ws_priority.column_dimensions[get_column_letter(col)].width = 25
-    ws_priority.column_dimensions['E'].width = 50
-    
-    # ==================== Sheet 6: Handover Incidents ====================
-    ws_handover = wb.create_sheet("Handover Incidents")
-    
-    handover_headers = ["Application Name", "Incident ID", "Status", "Next Action By", "Notes & Next Actions"]
-    for col, header in enumerate(handover_headers, 1):
-        cell = ws_handover.cell(row=1, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = thin_border
-        cell.alignment = center_align
-    
-    example_handover = ["InventoryApp", "INC0007777", "Pending Vendor", "Jane Smith", "Waiting for vendor patch. Follow up at 10 AM."]
-    for col, value in enumerate(example_handover, 1):
-        cell = ws_handover.cell(row=2, column=col, value=value)
-        cell.fill = example_fill
-        cell.border = thin_border
-        cell.font = Font(italic=True, color='666666')
-    
-    for row in range(3, 23):
-        for col in range(1, 6):
-            cell = ws_handover.cell(row=row, column=col, value="")
-            cell.border = thin_border
-    
+    # Add Status dropdown validation
     status_validation = DataValidation(
         type="list",
-        formula1='"Monitoring,Pending Vendor,Pending Customer,In Progress,Waiting for Approval"',
-        allow_blank=True
+        formula1='"Open,In Progress,Pending,Monitoring,Closed,Resolved,Priority,Handover,Escalated"',
+        allow_blank=True,
+        showErrorMessage=True,
+        errorTitle="Invalid Status",
+        error="Please select a valid status from the dropdown"
     )
-    ws_handover.add_data_validation(status_validation)
-    status_validation.add('C2:C22')
+    ws_incidents.add_data_validation(status_validation)
+    status_validation.add('C3:C56')
     
-    for col in range(1, 6):
-        ws_handover.column_dimensions[get_column_letter(col)].width = 25
-    ws_handover.column_dimensions['E'].width = 50
-    
-    # ==================== Sheet 7: Escalated Incidents ====================
-    ws_escalated = wb.create_sheet("Escalated Incidents")
-    
-    escalated_headers = ["Application Name", "Incident ID", "Escalated To", "Escalation Reason", "Status & Next Steps"]
-    for col, header in enumerate(escalated_headers, 1):
-        cell = ws_escalated.cell(row=1, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = thin_border
-        cell.alignment = center_align
-    
-    example_escalated = ["BillingSystem", "INC0003333", "Infrastructure Team", "Requires server upgrade", "Scheduled for weekend maintenance"]
-    for col, value in enumerate(example_escalated, 1):
-        cell = ws_escalated.cell(row=2, column=col, value=value)
-        cell.fill = example_fill
-        cell.border = thin_border
-        cell.font = Font(italic=True, color='666666')
-    
-    for row in range(3, 13):
-        for col in range(1, 6):
-            cell = ws_escalated.cell(row=row, column=col, value="")
-            cell.border = thin_border
-    
-    for col in range(1, 6):
-        ws_escalated.column_dimensions[get_column_letter(col)].width = 25
-    ws_escalated.column_dimensions['D'].width = 40
-    ws_escalated.column_dimensions['E'].width = 40
-    
-    # ==================== Sheet 8: Change Info ====================
-    ws_change = wb.create_sheet("Change Info")
-    
-    change_headers = ["Application Name", "Change Number", "Description", "Date Time", "Responsible Engineer", "Status"]
-    for col, header in enumerate(change_headers, 1):
-        cell = ws_change.cell(row=1, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = thin_border
-        cell.alignment = center_align
-    
-    example_change = ["WebPortal", "CHG0001234", "SSL Certificate renewal", "2025-01-15 14:00", "Bob Wilson", "Scheduled"]
-    for col, value in enumerate(example_change, 1):
-        cell = ws_change.cell(row=2, column=col, value=value)
-        cell.fill = example_fill
-        cell.border = thin_border
-        cell.font = Font(italic=True, color='666666')
-    
-    for row in range(3, 18):
-        for col in range(1, 7):
-            cell = ws_change.cell(row=row, column=col, value="")
-            cell.border = thin_border
-    
-    change_status_validation = DataValidation(
+    # Add Priority dropdown validation
+    priority_validation = DataValidation(
         type="list",
-        formula1='"New,In Progress,Scheduled,Postponed,Completed,Cancelled"',
+        formula1='"Low,Medium,High,Critical,Emergency"',
         allow_blank=True
     )
-    ws_change.add_data_validation(change_status_validation)
-    change_status_validation.add('F2:F17')
+    ws_incidents.add_data_validation(priority_validation)
+    priority_validation.add('D3:D56')
     
-    ws_change.column_dimensions['A'].width = 20
-    ws_change.column_dimensions['B'].width = 18
-    ws_change.column_dimensions['C'].width = 40
-    ws_change.column_dimensions['D'].width = 20
-    ws_change.column_dimensions['E'].width = 22
-    ws_change.column_dimensions['F'].width = 15
-    
-    # ==================== Sheet 9: KB Updates ====================
-    ws_kb = wb.create_sheet("KB Updates")
-    
-    kb_headers = ["Application Name", "KB Number", "Description", "Responsible Person", "Status"]
-    for col, header in enumerate(kb_headers, 1):
-        cell = ws_kb.cell(row=1, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = thin_border
-        cell.alignment = center_align
-    
-    example_kb = ["HRPortal", "KB0001234", "Password reset procedure update", "Charlie Brown", "Published"]
-    for col, value in enumerate(example_kb, 1):
-        cell = ws_kb.cell(row=2, column=col, value=value)
-        cell.fill = example_fill
-        cell.border = thin_border
-        cell.font = Font(italic=True, color='666666')
-    
-    for row in range(3, 13):
-        for col in range(1, 6):
-            cell = ws_kb.cell(row=row, column=col, value="")
-            cell.border = thin_border
-    
-    kb_status_validation = DataValidation(
-        type="list",
-        formula1='"New,Draft,In Review,Published"',
-        allow_blank=True
-    )
-    ws_kb.add_data_validation(kb_status_validation)
-    kb_status_validation.add('E2:E12')
-    
-    ws_kb.column_dimensions['A'].width = 20
-    ws_kb.column_dimensions['B'].width = 15
-    ws_kb.column_dimensions['C'].width = 45
-    ws_kb.column_dimensions['D'].width = 22
-    ws_kb.column_dimensions['E'].width = 15
-    
-    # ==================== Sheet 10: Key Points ====================
+    # ==================== Sheet 2: Key Points ====================
     ws_keypoints = wb.create_sheet("Key Points")
     
-    kp_headers = ["Key Point Details", "Assigned To", "Status"]
-    for col, header in enumerate(kp_headers, 1):
-        cell = ws_keypoints.cell(row=1, column=col, value=header)
+    # Instruction row
+    ws_keypoints.merge_cells('A1:D1')
+    ws_keypoints['A1'].value = "KEY POINTS - Important items for next shift attention"
+    ws_keypoints['A1'].font = Font(bold=True, size=12, color='2C5AA0')
+    ws_keypoints['A1'].alignment = center_align
+    ws_keypoints.row_dimensions[1].height = 30
+    
+    kp_headers = [
+        ("Key Point Details", 60, True),
+        ("Assigned To", 25, False),
+        ("Status", 15, False),
+        ("Priority", 12, False)
+    ]
+    
+    for col, (header, width, required) in enumerate(kp_headers, 1):
+        cell = ws_keypoints.cell(row=2, column=col, value=f"{header} *" if required else header)
         cell.font = header_font
         cell.fill = header_fill
         cell.border = thin_border
         cell.alignment = center_align
+        ws_keypoints.column_dimensions[get_column_letter(col)].width = width
     
-    example_kp = ["Monitor server CPU usage - spikes observed at peak hours", "David Lee", "Open"]
+    # Example row
+    example_kp = ("Monitor server CPU usage - spikes observed at peak hours. Check at 2 PM.", "David Lee", "Open", "High")
     for col, value in enumerate(example_kp, 1):
-        cell = ws_keypoints.cell(row=2, column=col, value=value)
+        cell = ws_keypoints.cell(row=3, column=col, value=value)
         cell.fill = example_fill
         cell.border = thin_border
         cell.font = Font(italic=True, color='666666')
     
-    for row in range(3, 18):
-        for col in range(1, 4):
+    # Note row
+    ws_keypoints.merge_cells('A4:D4')
+    ws_keypoints['A4'].value = "↑ Example row above. Enter your key points starting from row 5 ↓"
+    ws_keypoints['A4'].font = Font(italic=True, size=10, color='999999')
+    ws_keypoints['A4'].alignment = center_align
+    
+    # Empty rows
+    for row in range(5, 25):
+        for col in range(1, 5):
             cell = ws_keypoints.cell(row=row, column=col, value="")
             cell.border = thin_border
+            if col == 1:
+                cell.fill = required_fill
     
+    # Status dropdown for key points
     kp_status_validation = DataValidation(
         type="list",
         formula1='"Open,In Progress,Closed"',
         allow_blank=True
     )
     ws_keypoints.add_data_validation(kp_status_validation)
-    kp_status_validation.add('C2:C17')
+    kp_status_validation.add('C3:C24')
     
-    ws_keypoints.column_dimensions['A'].width = 60
-    ws_keypoints.column_dimensions['B'].width = 25
-    ws_keypoints.column_dimensions['C'].width = 15
+    # Priority dropdown
+    kp_priority_validation = DataValidation(
+        type="list",
+        formula1='"Low,Medium,High"',
+        allow_blank=True
+    )
+    ws_keypoints.add_data_validation(kp_priority_validation)
+    kp_priority_validation.add('D3:D24')
+    
+    # ==================== Sheet 3: Change Information ====================
+    ws_changes = wb.create_sheet("Change Info")
+    
+    ws_changes.merge_cells('A1:F1')
+    ws_changes['A1'].value = "CHANGE INFORMATION - Scheduled or completed changes during this shift"
+    ws_changes['A1'].font = Font(bold=True, size=12, color='2C5AA0')
+    ws_changes['A1'].alignment = center_align
+    ws_changes.row_dimensions[1].height = 30
+    
+    change_headers = [
+        ("Application Name", 22, True),
+        ("Change Number", 18, True),
+        ("Description", 45, False),
+        ("Scheduled Date/Time", 22, False),
+        ("Status", 15, False),
+        ("Notes", 40, False)
+    ]
+    
+    for col, (header, width, required) in enumerate(change_headers, 1):
+        cell = ws_changes.cell(row=2, column=col, value=f"{header} *" if required else header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = thin_border
+        cell.alignment = center_align
+        ws_changes.column_dimensions[get_column_letter(col)].width = width
+    
+    # Example row
+    example_change = ("WebPortal", "CHG0001234", "SSL Certificate renewal", "2025-01-15 14:00", "Scheduled", "Coordinate with infra team")
+    for col, value in enumerate(example_change, 1):
+        cell = ws_changes.cell(row=3, column=col, value=value)
+        cell.fill = example_fill
+        cell.border = thin_border
+        cell.font = Font(italic=True, color='666666')
+    
+    ws_changes.merge_cells('A4:F4')
+    ws_changes['A4'].value = "↑ Example row above. Enter change info starting from row 5 ↓"
+    ws_changes['A4'].font = Font(italic=True, size=10, color='999999')
+    ws_changes['A4'].alignment = center_align
+    
+    for row in range(5, 20):
+        for col in range(1, 7):
+            cell = ws_changes.cell(row=row, column=col, value="")
+            cell.border = thin_border
+            if col <= 2:
+                cell.fill = required_fill
+    
+    change_status_validation = DataValidation(
+        type="list",
+        formula1='"New,Scheduled,In Progress,Completed,Postponed,Cancelled"',
+        allow_blank=True
+    )
+    ws_changes.add_data_validation(change_status_validation)
+    change_status_validation.add('E3:E19')
+    
+    # ==================== Sheet 4: KB Information ====================
+    ws_kb = wb.create_sheet("KB Info")
+    
+    ws_kb.merge_cells('A1:E1')
+    ws_kb['A1'].value = "KNOWLEDGE BASE - KB articles created or updated during this shift"
+    ws_kb['A1'].font = Font(bold=True, size=12, color='2C5AA0')
+    ws_kb['A1'].alignment = center_align
+    ws_kb.row_dimensions[1].height = 30
+    
+    kb_headers = [
+        ("Application Name", 22, False),
+        ("KB Number", 15, True),
+        ("Title / Description", 50, True),
+        ("Status", 15, False),
+        ("Notes", 35, False)
+    ]
+    
+    for col, (header, width, required) in enumerate(kb_headers, 1):
+        cell = ws_kb.cell(row=2, column=col, value=f"{header} *" if required else header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = thin_border
+        cell.alignment = center_align
+        ws_kb.column_dimensions[get_column_letter(col)].width = width
+    
+    example_kb = ("HRPortal", "KB0001234", "Password reset procedure for SSO users", "Published", "Updated for new SSO provider")
+    for col, value in enumerate(example_kb, 1):
+        cell = ws_kb.cell(row=3, column=col, value=value)
+        cell.fill = example_fill
+        cell.border = thin_border
+        cell.font = Font(italic=True, color='666666')
+    
+    ws_kb.merge_cells('A4:E4')
+    ws_kb['A4'].value = "↑ Example row above. Enter KB info starting from row 5 ↓"
+    ws_kb['A4'].font = Font(italic=True, size=10, color='999999')
+    ws_kb['A4'].alignment = center_align
+    
+    for row in range(5, 15):
+        for col in range(1, 6):
+            cell = ws_kb.cell(row=row, column=col, value="")
+            cell.border = thin_border
+            if col in [2, 3]:
+                cell.fill = required_fill
+    
+    kb_status_validation = DataValidation(
+        type="list",
+        formula1='"New,Draft,In Review,Published,Archived"',
+        allow_blank=True
+    )
+    ws_kb.add_data_validation(kb_status_validation)
+    kb_status_validation.add('D3:D14')
+    
+    # ==================== Sheet 5: Instructions ====================
+    ws_instructions = wb.create_sheet("Instructions")
+    
+    instructions = [
+        ("HANDOVER UPLOAD TEMPLATE - QUICK GUIDE", True, 16),
+        ("", False, 11),
+        ("HOW TO USE THIS TEMPLATE:", True, 12),
+        ("", False, 11),
+        ("1. Fill in the 'Incidents' sheet with all incident details", False, 11),
+        ("   - Status determines automatic classification (Open, Closed, Priority, etc.)", False, 11),
+        ("   - Required fields are marked with * and highlighted in yellow", False, 11),
+        ("", False, 11),
+        ("2. Optionally fill 'Key Points', 'Change Info', and 'KB Info' sheets", False, 11),
+        ("", False, 11),
+        ("3. Save the file and upload in the Handover Form", False, 11),
+        ("", False, 11),
+        ("4. On upload, you will select:", False, 11),
+        ("   - Team (auto-selected if you belong to one team)", False, 11),
+        ("   - Handover Date", False, 11),
+        ("   - Current Shift and Next Shift", False, 11),
+        ("   - Engineers will be auto-populated based on roster", False, 11),
+        ("", False, 11),
+        ("INCIDENT STATUS MAPPING:", True, 12),
+        ("", False, 11),
+        ("Status 'Open', 'In Progress', 'Pending' → Open/Active Incidents", False, 11),
+        ("Status 'Closed', 'Resolved' → Closed Incidents", False, 11),
+        ("Status 'Priority' → Priority Incidents (High severity)", False, 11),
+        ("Status 'Handover', 'Monitoring' → Handover Incidents (needs follow-up)", False, 11),
+        ("Status 'Escalated' → Escalated Incidents", False, 11),
+        ("", False, 11),
+        ("TIPS:", True, 12),
+        ("", False, 11),
+        ("- Delete the example rows before uploading", False, 11),
+        ("- Use dropdowns for Status and Priority fields", False, 11),
+        ("- Leave rows blank if no data for that section", False, 11),
+        ("- For support, contact your team administrator", False, 11),
+    ]
+    
+    for row_num, (text, is_bold, size) in enumerate(instructions, 1):
+        cell = ws_instructions.cell(row=row_num, column=1, value=text)
+        cell.font = Font(bold=is_bold, size=size, color='2C5AA0' if is_bold else '333333')
+    
+    ws_instructions.column_dimensions['A'].width = 80
+    
+    # Move Instructions to be first sheet
+    wb.move_sheet(ws_instructions, offset=-4)
     
     # Save or return
     if output_path:
@@ -415,12 +362,9 @@ def generate_handover_template(output_path=None):
 
 def generate_template_to_static():
     """Generate the template and save it to the static folder for download."""
-    import os
-    # Get the project root directory
     current_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(current_dir)
     
-    # Create templates directory if it doesn't exist
     static_dir = os.path.join(project_root, 'static', 'templates')
     os.makedirs(static_dir, exist_ok=True)
     
@@ -432,4 +376,3 @@ def generate_template_to_static():
 
 if __name__ == '__main__':
     generate_template_to_static()
-

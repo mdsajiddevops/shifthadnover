@@ -60,19 +60,21 @@ def shift_config_dashboard():
         if not can_view_shifts():
             return render_template('errors/403.html'), 403
         
+        # Fetch fresh user data from the database to avoid stale session data
+        fresh_user = User.query.get(current_user.id)
+        user_role = fresh_user.role if fresh_user else getattr(current_user, 'role', None)
+        user_account_id = fresh_user.account_id if fresh_user else getattr(current_user, 'account_id', None)
+        
         # Get accounts and teams for dropdowns
         accounts = Account.query.filter_by(is_active=True).all()
         
         # Filter accounts based on user role
-        user_role = getattr(current_user, 'role', None)
         if user_role == 'account_admin':
             # Account admins can only see their own account
-            user_account_id = getattr(current_user, 'account_id', None)
             if user_account_id:
                 accounts = [acc for acc in accounts if acc.id == user_account_id]
         elif user_role == 'team_admin':
             # Team admins can only see their team's account
-            user_account_id = getattr(current_user, 'account_id', None)
             if user_account_id:
                 accounts = [acc for acc in accounts if acc.id == user_account_id]
         
@@ -97,10 +99,13 @@ def get_accounts():
         
         accounts = Account.query.filter_by(is_active=True).all()
         
+        # Fetch fresh user data from the database to avoid stale session data
+        fresh_user = User.query.get(current_user.id)
+        user_role = fresh_user.role if fresh_user else getattr(current_user, 'role', None)
+        user_account_id = fresh_user.account_id if fresh_user else getattr(current_user, 'account_id', None)
+        
         # Filter based on user role
-        user_role = getattr(current_user, 'role', None)
         if user_role == 'account_admin' or user_role == 'team_admin':
-            user_account_id = getattr(current_user, 'account_id', None)
             if user_account_id:
                 accounts = [acc for acc in accounts if acc.id == user_account_id]
         
@@ -130,10 +135,16 @@ def get_teams_by_account(account_id):
         if not can_view_shifts():
             return jsonify({'success': False, 'error': 'Insufficient permissions'}), 403
         
+        # Fetch fresh user data from the database to avoid stale session data
+        fresh_user = User.query.get(current_user.id)
+        user_role = fresh_user.role if fresh_user else getattr(current_user, 'role', None)
+        user_account_id = fresh_user.account_id if fresh_user else getattr(current_user, 'account_id', None)
+        user_team_id = fresh_user.team_id if fresh_user else getattr(current_user, 'team_id', None)
+        
+        logger.info(f"[SHIFT CONFIG] User {current_user.email}: session team_id={getattr(current_user, 'team_id', None)}, fresh team_id={user_team_id}")
+        
         # Check if user has access to this account
-        user_role = getattr(current_user, 'role', None)
         if user_role in ['account_admin', 'team_admin']:
-            user_account_id = getattr(current_user, 'account_id', None)
             if user_account_id and user_account_id != account_id:
                 return jsonify({'success': False, 'error': 'Access denied to this account'}), 403
         
@@ -141,7 +152,6 @@ def get_teams_by_account(account_id):
         
         # If team admin, filter to their specific team
         if user_role == 'team_admin':
-            user_team_id = getattr(current_user, 'team_id', None)
             if user_team_id:
                 teams = [team for team in teams if team.id == user_team_id]
         

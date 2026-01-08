@@ -238,11 +238,6 @@ def get_change_requests():
             'change_tasks': []
         }), 500
 
-@misc_bp.route('/problem-tickets')
-def problem_tickets():
-    log_action('View Problem Tickets Tab', f'Path: {request.path}')
-    return render_template('coming_soon.html', title='Problem Tickets')
-
 @misc_bp.route('/kb-details')
 def kb_details():
     log_action('View KB Details Tab', f'Path: {request.path}')

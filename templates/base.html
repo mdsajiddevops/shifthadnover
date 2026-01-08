@@ -210,7 +210,7 @@
                 </div>
                 
                 <div class="modern-nav-item">
-                    <a class="modern-nav-link {{ 'active' if is_nav_active('/reports') else '' }}" href="/reports" data-tooltip="Shift Reports">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/reports') or is_nav_active('/handover-reports') else '' }}" href="/reports" data-tooltip="Shift Reports">
                         <i class="nav-icon bi bi-file-earmark-text"></i>
                         <span class="nav-text">Shift Reports</span>
                     </a>
@@ -231,6 +231,12 @@
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/keypoints') else '' }}" href="/keypoints" data-tooltip="Key Points">
                         <i class="nav-icon bi bi-lightbulb"></i>
                         <span class="nav-text">Key Points</span>
+                    </a>
+                </div>
+                <div class="modern-nav-item">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/problem-tickets') else '' }}" href="/problem-tickets" data-tooltip="Problem Tickets">
+                        <i class="nav-icon bi bi-bug"></i>
+                        <span class="nav-text">Problem Tickets</span>
                     </a>
                 </div>
             </div>
@@ -956,6 +962,54 @@
                     userProfile.classList.remove('show-dropdown');
                 }
             }
+        });
+        
+        // Fix navigation highlighting based on current URL
+        document.addEventListener('DOMContentLoaded', function() {
+            const currentPath = window.location.pathname;
+            
+            // Map of paths to nav link hrefs
+            const pathMappings = {
+                '/handover-reports': '/reports',
+                '/handover-reports/': '/reports'
+            };
+            
+            // Find the nav link that should be active
+            let targetHref = currentPath;
+            
+            // Check for mapped paths (e.g., /handover-reports -> /reports)
+            for (const [path, mappedHref] of Object.entries(pathMappings)) {
+                if (currentPath.startsWith(path)) {
+                    targetHref = mappedHref;
+                    break;
+                }
+            }
+            
+            // Find and activate the correct nav link
+            const navLinks = document.querySelectorAll('.modern-nav-link');
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                
+                // Check if this link should be active
+                let shouldBeActive = false;
+                
+                // Exact match
+                if (href === currentPath) {
+                    shouldBeActive = true;
+                }
+                // Mapped match (e.g., /reports link for /handover-reports page)
+                else if (href === targetHref) {
+                    shouldBeActive = true;
+                }
+                // Prefix match (e.g., /handover-reports/detailed/123 -> /reports)
+                else if (currentPath.startsWith(href + '/') && href !== '/') {
+                    shouldBeActive = true;
+                }
+                
+                if (shouldBeActive) {
+                    link.classList.add('active');
+                }
+            });
         });
     </script>
 

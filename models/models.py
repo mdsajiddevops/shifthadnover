@@ -627,3 +627,84 @@ class ShiftKBUpdate(db.Model):
     def __repr__(self):
         return f'<ShiftKBUpdate {self.kb_number}: {self.app_name}>'
 
+
+# Problem Ticket Management model
+class ProblemTicket(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    problem_number = db.Column(db.String(50), nullable=False)  # e.g., PRB0001234
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    app_name = db.Column(db.String(255), nullable=True)
+    priority = db.Column(db.String(32), nullable=False, default='Medium')  # Critical, High, Medium, Low
+    status = db.Column(db.String(32), nullable=False, default='Open')  # Open, In Progress, Pending, Resolved, Closed
+    root_cause = db.Column(db.Text, nullable=True)
+    workaround = db.Column(db.Text, nullable=True)
+    resolution = db.Column(db.Text, nullable=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey('team_member.id'), nullable=True)
+    created_date = db.Column(db.DateTime, nullable=True)
+    target_resolution_date = db.Column(db.DateTime, nullable=True)
+    actual_resolution_date = db.Column(db.DateTime, nullable=True)
+    account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
+    updated_at = db.Column(db.DateTime, nullable=True, onupdate=db.func.current_timestamp())
+    
+    # Relationships
+    owner = db.relationship('TeamMember', backref='problem_tickets')
+    ptasks = db.relationship('ProblemTask', backref='problem_ticket', lazy='dynamic', cascade='all, delete-orphan')
+    
+    # Unique constraint for problem number per team
+    __table_args__ = (db.UniqueConstraint('team_id', 'problem_number', name='_team_problem_number_uc'),)
+    
+    @property
+    def owner_name(self):
+        """Return owner name for template compatibility"""
+        if self.owner:
+            return self.owner.name
+        return None
+    
+    @property
+    def ptask_count(self):
+        """Return count of PTasks"""
+        return self.ptasks.count()
+    
+    @property
+    def open_ptask_count(self):
+        """Return count of open PTasks"""
+        return self.ptasks.filter(ProblemTask.status.in_(['Open', 'In Progress', 'Pending'])).count()
+
+    def __repr__(self):
+        return f'<ProblemTicket {self.problem_number}: {self.title}>'
+
+
+# Problem Task (PTask) model - linked to Problem Tickets
+class ProblemTask(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ptask_number = db.Column(db.String(50), nullable=False)  # e.g., PTASK0001234
+    problem_id = db.Column(db.Integer, db.ForeignKey('problem_ticket.id'), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(32), nullable=False, default='Open')  # Open, In Progress, Pending, Completed, Cancelled
+    assigned_to_id = db.Column(db.Integer, db.ForeignKey('team_member.id'), nullable=True)
+    assignee_name = db.Column(db.String(255), nullable=True)  # Free text assignee name (can be from any team)
+    due_date = db.Column(db.DateTime, nullable=True)
+    completion_date = db.Column(db.DateTime, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
+    updated_at = db.Column(db.DateTime, nullable=True, onupdate=db.func.current_timestamp())
+    
+    # Relationships
+    assigned_to = db.relationship('TeamMember', backref='assigned_ptasks')
+    
+    @property
+    def assigned_to_name(self):
+        """Return assigned person name - prefers free text, falls back to relationship"""
+        if self.assignee_name:
+            return self.assignee_name
+        if self.assigned_to:
+            return self.assigned_to.name
+        return None
+
+    def __repr__(self):
+        return f'<ProblemTask {self.ptask_number}: {self.title}>'
+

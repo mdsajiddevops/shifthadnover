@@ -47,14 +47,114 @@ def get_teams_for_account():
     logger.debug(f"[TEAM_API] Returning teams: {team_list}")
     return jsonify(team_list)
 
-@team_bp.route('/team-details')
-@team_bp.route('/team-details/<int:team_id>')
+@team_bp.route('/team-details', methods=['GET', 'POST'])
+@team_bp.route('/team-details/<int:team_id>', methods=['GET', 'POST'])
 @login_required
 def team_details(team_id=None):
     """Team details page with robust error handling"""
-    logger.debug(f"🔍 [TEAM_DETAILS] Route accessed - team_id: {team_id}")
+    logger.debug(f"🔍 [TEAM_DETAILS] Route accessed - team_id: {team_id}, method: {request.method}")
     logger.debug(f"🔍 [TEAM_DETAILS] Current user: {getattr(current_user, 'username', 'Unknown')}")
     logger.debug(f"🔍 [TEAM_DETAILS] Current user role: {getattr(current_user, 'role', 'Unknown')}")
+    
+    # Handle POST requests (add/edit/delete team members)
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        # Get team_id from form or URL
+        if not team_id:
+            team_id = request.form.get('team_id') or request.args.get('team_id')
+        
+        if team_id:
+            try:
+                team_id = int(team_id)
+            except (ValueError, TypeError):
+                flash('Invalid team ID.', 'error')
+                return redirect(url_for('team.team_details'))
+            
+            team = Team.query.get(team_id)
+            if not team:
+                flash('Team not found.', 'error')
+                return redirect(url_for('team.team_details'))
+            
+            # Authorization check for modifications
+            if current_user.role == 'super_admin':
+                pass  # Can modify any team
+            elif current_user.role == 'account_admin':
+                if team.account_id != current_user.account_id:
+                    flash('Access denied.', 'error')
+                    return redirect(url_for('team.team_details'))
+            elif current_user.role == 'team_admin':
+                if team.id != current_user.team_id:
+                    flash('Access denied.', 'error')
+                    return redirect(url_for('team.team_details'))
+            else:
+                flash('You do not have permission to modify team members.', 'error')
+                return redirect(url_for('team.team_details', team_id=team_id))
+            
+            if action == 'add':
+                # Add new team member
+                name = request.form.get('name', '').strip()
+                email = request.form.get('email', '').strip()
+                contact_number = request.form.get('contact_number', '').strip()
+                role = request.form.get('role', '').strip()
+                
+                if not name or not email:
+                    flash('Name and email are required.', 'error')
+                    return redirect(url_for('team.team_details', team_id=team_id))
+                
+                # Check if member already exists
+                existing = TeamMember.query.filter_by(email=email, team_id=team_id).first()
+                if existing:
+                    flash(f'A team member with email {email} already exists in this team.', 'error')
+                    return redirect(url_for('team.team_details', team_id=team_id))
+                
+                new_member = TeamMember(
+                    name=name,
+                    email=email,
+                    contact_number=contact_number,
+                    role=role,
+                    team_id=team_id,
+                    account_id=team.account_id,
+                    is_active=True
+                )
+                db.session.add(new_member)
+                db.session.commit()
+                logger.info(f"[TEAM_DETAILS] Added new member {name} to team {team.name} by {current_user.username}")
+                flash(f'Team member {name} added successfully!', 'success')
+                
+            elif action == 'edit':
+                # Edit existing team member
+                member_id = request.form.get('member_id')
+                if member_id:
+                    member = TeamMember.query.get(int(member_id))
+                    if member and member.team_id == team_id:
+                        member.name = request.form.get('edit_name', member.name).strip()
+                        member.email = request.form.get('edit_email', member.email).strip()
+                        member.contact_number = request.form.get('edit_contact', member.contact_number).strip()
+                        member.role = request.form.get('edit_role', member.role).strip()
+                        db.session.commit()
+                        logger.info(f"[TEAM_DETAILS] Updated member {member.name} by {current_user.username}")
+                        flash(f'Team member {member.name} updated successfully!', 'success')
+                    else:
+                        flash('Team member not found.', 'error')
+                        
+            elif action == 'delete':
+                # Delete (deactivate) team member
+                member_id = request.form.get('member_id')
+                if member_id:
+                    member = TeamMember.query.get(int(member_id))
+                    if member and member.team_id == team_id:
+                        member.is_active = False
+                        db.session.commit()
+                        logger.info(f"[TEAM_DETAILS] Deactivated member {member.name} by {current_user.username}")
+                        flash(f'Team member {member.name} has been removed.', 'success')
+                    else:
+                        flash('Team member not found.', 'error')
+            
+            return redirect(url_for('team.team_details', team_id=team_id))
+        else:
+            flash('Please select a team first.', 'error')
+            return redirect(url_for('team.team_details'))
     
     try:
         # Get team filter context using team access service

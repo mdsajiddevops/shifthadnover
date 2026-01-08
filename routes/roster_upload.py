@@ -93,8 +93,8 @@ def roster_upload():
             if member_name_col:
                 long_df = df.melt(id_vars=[member_name_col], var_name='Date', value_name='Shift')
                 long_df = long_df.rename(columns={member_name_col: 'Team Member'})
-                # Drop rows with missing Team Member, Date, or Shift
-                long_df = long_df.dropna(subset=['Team Member', 'Date', 'Shift'])
+                # Drop rows with missing Team Member or Date only (NOT Shift - null shift means clear)
+                long_df = long_df.dropna(subset=['Team Member', 'Date'])
                 # Fix datetime parsing with robust error handling
                 try:
                     long_df['Date'] = pd.to_datetime(long_df['Date'], errors='coerce')
@@ -205,14 +205,16 @@ def roster_upload():
                     continue
                 
                 # Handle shift code - empty/nan/O means clear the shift
-                if pd.isna(shift_code):
+                if pd.isna(shift_code) or shift_code is None:
                     shift_code = ''
                 else:
                     shift_code = str(shift_code).strip().upper()
                 
-                # Treat 'O', 'OFF', '-', 'X' as empty (clear shift)
-                clear_shift_codes = ['O', 'OFF', '-', 'X', 'NA', 'N/A', '']
-                is_clear_shift = shift_code in clear_shift_codes
+                # Treat various values as "clear shift" - remove existing roster entry
+                clear_shift_codes = ['O', 'OFF', '-', 'X', 'NA', 'N/A', '', 'NULL', 'NONE', 'CLEAR', 'NAN']
+                is_clear_shift = shift_code in clear_shift_codes or len(shift_code) == 0
+                
+                logger.debug(f"[ROSTER] Processing: member={member_name}, date={date}, shift_code='{shift_code}', is_clear={is_clear_shift}")
                 norm_name = member_name.strip().lower()
                 member = TeamMember.query.filter(
                     db.func.lower(db.func.trim(TeamMember.name)) == norm_name,

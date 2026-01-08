@@ -239,17 +239,64 @@ def delete_config(config_id):
         logger.error(f"Error deleting email configuration: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@email_config_bp.route('/debug-user', methods=['GET'])
+@login_required
+def debug_user_info():
+    """Debug endpoint to check current user's team/account info."""
+    try:
+        # Get fresh data from database
+        fresh_user = User.query.get(current_user.id)
+        
+        # Get team and account names
+        team_name = None
+        account_name = None
+        if fresh_user:
+            if fresh_user.team_id:
+                team = Team.query.get(fresh_user.team_id)
+                team_name = team.name if team else None
+            if fresh_user.account_id:
+                account = Account.query.get(fresh_user.account_id)
+                account_name = account.name if account else None
+        
+        return jsonify({
+            'success': True,
+            'session_data': {
+                'user_id': current_user.id,
+                'username': current_user.username,
+                'role': current_user.role,
+                'team_id': current_user.team_id,
+                'account_id': current_user.account_id
+            },
+            'database_data': {
+                'user_id': fresh_user.id if fresh_user else None,
+                'username': fresh_user.username if fresh_user else None,
+                'role': fresh_user.role if fresh_user else None,
+                'team_id': fresh_user.team_id if fresh_user else None,
+                'team_name': team_name,
+                'account_id': fresh_user.account_id if fresh_user else None,
+                'account_name': account_name
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error in debug endpoint: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @email_config_bp.route('/accounts', methods=['GET'])
 @login_required
 @role_required('super_admin', 'account_admin', 'team_admin')
 def get_accounts():
     """Get accounts that the user can access."""
     try:
+        # Force fresh user data
+        fresh_user = User.query.get(current_user.id)
+        user_account_id = fresh_user.account_id if fresh_user else current_user.account_id
+        
         if current_user.role == 'super_admin':
             # Only show active accounts
             accounts = Account.query.filter_by(is_active=True).order_by(Account.name).all()
         else:
-            accounts = Account.query.filter_by(id=current_user.account_id, is_active=True).all()
+            # Use fresh account_id
+            accounts = Account.query.filter_by(id=user_account_id, is_active=True).all()
         
         return jsonify({
             'success': True,
@@ -270,15 +317,24 @@ def get_teams_for_account(account_id):
         if not can_access_account(account_id):
             return jsonify({'error': 'Cannot access this account'}), 403
         
+        # Force fresh user data from database
+        fresh_user = User.query.get(current_user.id)
+        user_team_id = fresh_user.team_id if fresh_user else current_user.team_id
+        user_account_id = fresh_user.account_id if fresh_user else current_user.account_id
+        
+        logger.info(f"[EMAIL CONFIG] User {current_user.username}: session team_id={current_user.team_id}, fresh team_id={user_team_id}, account_id={user_account_id}, requested account_id={account_id}")
+        
         if current_user.role == 'team_admin':
-            # Team admin can only see their own team
+            # Team admin can only see their own team - use fresh data
             teams = Team.query.filter_by(
                 account_id=account_id,
-                id=current_user.team_id
+                id=user_team_id  # Use fresh team_id from database
             ).all()
         else:
             # Account admin and super admin can see all teams for the account
             teams = Team.query.filter_by(account_id=account_id).all()
+        
+        logger.info(f"[EMAIL CONFIG] Found {len(teams)} teams for user {current_user.username}")
         
         return jsonify({
             'success': True,

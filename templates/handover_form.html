@@ -147,15 +147,15 @@
                             </div>
                         </div>
                         <div class="d-flex align-items-center gap-3">
-                            <!-- Upload from Template Button -->
+                            <!-- Upload from Template Button - Prominent styling -->
                             <div class="d-flex align-items-center gap-2">
-                                <button type="button" class="btn btn-outline-light btn-sm" onclick="showUploadModal()" title="Upload from Excel Template">
+                                <button type="button" class="btn btn-warning btn-sm fw-bold shadow-sm" onclick="showUploadModal()" title="Upload from Excel Template" style="border: 2px solid #fff; padding: 8px 16px;">
                                     <i class="fas fa-file-upload me-1"></i>
-                                    Upload
+                                    Upload Excel
                                 </button>
-                                <a href="/api/handover/download-template" class="btn btn-outline-light btn-sm" title="Download Excel Template">
+                                <a href="/api/handover/download-template" class="btn btn-success btn-sm fw-bold shadow-sm" title="Download Excel Template" style="border: 2px solid #fff; padding: 8px 16px;">
                                     <i class="fas fa-file-download me-1"></i>
-                                    Template
+                                    Get Template
                                 </a>
                             </div>
                             <!-- Form Mode Toggle -->
@@ -174,19 +174,19 @@
                                 </div>
                             </div>
                             <div class="text-end">
-                                <span class="badge bg-light text-dark px-3 py-2">
-                                    <i class="fas fa-clipboard-check me-1"></i>
-                                    Handover Documentation
-                                </span>
+                                <a href="/help" class="btn btn-light btn-sm" title="View Help & Documentation">
+                                    <i class="fas fa-question-circle me-1"></i>
+                                    Help Guide
+                                </a>
                             </div>
                         </div>
                     </div>
                 </div>
                 
                 <div class="card-body">
-                    <!-- Upload Modal -->
+                    <!-- Enhanced Upload Modal -->
                     <div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
-                        <div class="modal-dialog modal-lg">
+                        <div class="modal-dialog modal-xl">
                             <div class="modal-content">
                                 <div class="modal-header" style="background: linear-gradient(135deg, #4a90e2 0%, #2c5aa0 100%); color: white;">
                                     <h5 class="modal-title" id="uploadModalLabel">
@@ -196,66 +196,211 @@
                                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                                 </div>
                                 <div class="modal-body">
-                                    <div class="alert alert-info">
-                                        <h6 class="alert-heading"><i class="fas fa-info-circle me-2"></i>Instructions</h6>
-                                        <ol class="mb-0 ps-3">
-                                            <li>Download the Excel template using the "Template" button</li>
-                                            <li>Fill in the handover details in the respective sheets</li>
-                                            <li>Save the file and upload it here</li>
-                                            <li>Review the parsed data before submitting</li>
-                                        </ol>
-                                    </div>
-                                    
-                                    <div class="mb-4">
-                                        <label class="form-label fw-bold">Select Excel File</label>
-                                        <input type="file" class="form-control" id="handoverUploadFile" accept=".xlsx,.xls">
-                                        <small class="text-muted">Supported formats: .xlsx, .xls</small>
-                                    </div>
-                                    
-                                    <!-- Upload Progress -->
-                                    <div id="uploadProgress" class="d-none">
-                                        <div class="d-flex align-items-center">
-                                            <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
-                                                <span class="visually-hidden">Loading...</span>
+                                    <!-- Step 1: Shift Metadata -->
+                                    <div id="uploadStep1">
+                                        <div class="alert alert-info mb-4">
+                                            <h6 class="alert-heading mb-2"><i class="fas fa-info-circle me-2"></i>Quick Upload Instructions</h6>
+                                            <ol class="mb-0 ps-3 small">
+                                                <li>Set your shift details below (team, date, shifts)</li>
+                                                <li>Upload your Excel file with incident data</li>
+                                                <li>Engineers will be auto-populated from roster</li>
+                                                <li>Incidents are auto-classified based on status</li>
+                                            </ol>
+                                        </div>
+                                        
+                                        <!-- Shift Metadata Section -->
+                                        <div class="card mb-4" style="border: 2px solid #4a90e2;">
+                                            <div class="card-header bg-light">
+                                                <h6 class="mb-0"><i class="fas fa-cog me-2 text-primary"></i>Shift Details (Fixed for this upload)</h6>
                                             </div>
-                                            <span>Processing file...</span>
+                                            <div class="card-body">
+                                                <div class="row g-3">
+                                                    <!-- Team Selection -->
+                                                    <div class="col-md-6">
+                                                        <label class="form-label fw-bold">Team <span class="text-danger">*</span></label>
+                                                        <select class="form-select" id="uploadTeamId" required>
+                                                            <option value="">Loading teams...</option>
+                                                        </select>
+                                                        <small class="text-muted" id="uploadTeamHint"></small>
+                                                    </div>
+                                                    
+                                                    <!-- Handover Date -->
+                                                    <div class="col-md-6">
+                                                        <label class="form-label fw-bold">Handover Date <span class="text-danger">*</span></label>
+                                                        <input type="date" class="form-control" id="uploadHandoverDate" required>
+                                                    </div>
+                                                    
+                                                    <!-- Current Shift -->
+                                                    <div class="col-md-6">
+                                                        <label class="form-label fw-bold">Current Shift <span class="text-danger">*</span></label>
+                                                        <select class="form-select" id="uploadCurrentShift" required>
+                                                            <option value="">Select Current Shift</option>
+                                                            <option value="Morning">Morning</option>
+                                                            <option value="Evening">Evening</option>
+                                                            <option value="Late Evening">Late Evening</option>
+                                                            <option value="Night">Night</option>
+                                                            <option value="General">General Shift</option>
+                                                            <option value="OnShore">OnShore</option>
+                                                            <option value="OffShore">OffShore</option>
+                                                        </select>
+                                                    </div>
+                                                    
+                                                    <!-- Next Shift -->
+                                                    <div class="col-md-6">
+                                                        <label class="form-label fw-bold">Next Shift <span class="text-danger">*</span></label>
+                                                        <select class="form-select" id="uploadNextShift" required>
+                                                            <option value="">Select Next Shift</option>
+                                                            <option value="Morning">Morning</option>
+                                                            <option value="Evening">Evening</option>
+                                                            <option value="Late Evening">Late Evening</option>
+                                                            <option value="Night">Night</option>
+                                                            <option value="General">General Shift</option>
+                                                            <option value="OnShore">OnShore</option>
+                                                            <option value="OffShore">OffShore</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Engineers Preview -->
+                                                <div class="row g-3 mt-2" id="uploadEngineersPreview" style="display: none;">
+                                                    <div class="col-md-6">
+                                                        <label class="form-label fw-bold small">Current Shift Engineers</label>
+                                                        <div class="border rounded p-2 bg-light" id="uploadCurrentEngineers">
+                                                            <span class="text-muted small">Select team and shift to load engineers</span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label fw-bold small">Next Shift Engineers</label>
+                                                        <div class="border rounded p-2 bg-light" id="uploadNextEngineers">
+                                                            <span class="text-muted small">Select team and shift to load engineers</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- File Upload Section -->
+                                        <div class="card mb-3">
+                                            <div class="card-header bg-light">
+                                                <h6 class="mb-0"><i class="fas fa-file-excel me-2 text-success"></i>Upload Excel File</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="mb-3">
+                                                    <input type="file" class="form-control form-control-lg" id="handoverUploadFile" accept=".xlsx,.xls">
+                                                    <div class="d-flex justify-content-between align-items-center mt-2">
+                                                        <small class="text-muted">Supported formats: .xlsx, .xls</small>
+                                                        <a href="/api/handover/download-template" class="btn btn-outline-primary btn-sm">
+                                                            <i class="fas fa-download me-1"></i>Download Template
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- File Ready Indicator (shown after file is parsed) -->
+                                                <div id="fileReadyIndicator" class="d-none">
+                                                    <div class="alert alert-success mb-0">
+                                                        <div class="d-flex align-items-center justify-content-between">
+                                                            <div>
+                                                                <i class="fas fa-check-circle me-2"></i>
+                                                                <strong>File ready!</strong> <span id="fileReadySummary"></span>
+                                                            </div>
+                                                            <button type="button" class="btn btn-success btn-sm" onclick="showUploadStep2(uploadedHandoverData)">
+                                                                <i class="fas fa-arrow-right me-1"></i>Continue to Preview
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Upload Progress -->
+                                        <div id="uploadProgress" class="d-none">
+                                            <div class="d-flex align-items-center justify-content-center py-4">
+                                                <div class="spinner-border text-primary me-3" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                                <span class="h5 mb-0">Processing file...</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Upload Error -->
+                                        <div id="uploadError" class="alert alert-danger d-none">
+                                            <h6 class="alert-heading"><i class="fas fa-times-circle me-2"></i>Error</h6>
+                                            <p class="mb-0" id="uploadErrorMessage"></p>
                                         </div>
                                     </div>
                                     
-                                    <!-- Upload Result Preview -->
-                                    <div id="uploadPreview" class="d-none">
-                                        <h6 class="text-success"><i class="fas fa-check-circle me-2"></i>File Parsed Successfully</h6>
-                                        <div class="row g-3 mb-3">
-                                            <div class="col-md-4">
-                                                <div class="card bg-light">
-                                                    <div class="card-body text-center py-2">
-                                                        <div class="h4 mb-0 text-primary" id="previewOpenIncidents">0</div>
-                                                        <small class="text-muted">Open Incidents</small>
-                                                    </div>
+                                    <!-- Step 2: Preview & Confirm -->
+                                    <div id="uploadStep2" class="d-none">
+                                        <div class="alert alert-success mb-4">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-check-circle fa-2x me-3"></i>
+                                                <div>
+                                                    <h6 class="mb-1">File Parsed Successfully!</h6>
+                                                    <span id="uploadSummaryText">Ready to apply to form</span>
                                                 </div>
                                             </div>
-                                            <div class="col-md-4">
-                                                <div class="card bg-light">
-                                                    <div class="card-body text-center py-2">
-                                                        <div class="h4 mb-0 text-success" id="previewClosedIncidents">0</div>
-                                                        <small class="text-muted">Closed Incidents</small>
-                                                    </div>
-                                                </div>
+                                        </div>
+                                        
+                                        <!-- Shift Summary -->
+                                        <div class="card mb-4" style="border-color: #4a90e2;">
+                                            <div class="card-header" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);">
+                                                <h6 class="mb-0"><i class="fas fa-calendar-check me-2"></i>Shift Details Summary</h6>
                                             </div>
-                                            <div class="col-md-4">
-                                                <div class="card bg-light">
-                                                    <div class="card-body text-center py-2">
-                                                        <div class="h4 mb-0 text-warning" id="previewKeyPoints">0</div>
-                                                        <small class="text-muted">Key Points</small>
+                                            <div class="card-body">
+                                                <div class="row text-center">
+                                                    <div class="col-md-3">
+                                                        <div class="fw-bold text-muted small">TEAM</div>
+                                                        <div id="summaryTeam" class="fw-bold">-</div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="fw-bold text-muted small">DATE</div>
+                                                        <div id="summaryDate" class="fw-bold">-</div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="fw-bold text-muted small">CURRENT SHIFT</div>
+                                                        <div id="summaryCurrentShift" class="badge bg-primary fs-6">-</div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="fw-bold text-muted small">NEXT SHIFT</div>
+                                                        <div id="summaryNextShift" class="badge bg-success fs-6">-</div>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="row g-3 mb-3">
+                                        
+                                        <!-- Data Summary Cards -->
+                                        <div class="row g-3 mb-4">
+                                            <div class="col-md-4">
+                                                <div class="card h-100 border-primary">
+                                                    <div class="card-body text-center">
+                                                        <div class="display-4 text-primary" id="previewOpenIncidents">0</div>
+                                                        <div class="text-muted">Open/Active Incidents</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="card h-100 border-success">
+                                                    <div class="card-body text-center">
+                                                        <div class="display-4 text-success" id="previewClosedIncidents">0</div>
+                                                        <div class="text-muted">Closed Incidents</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="card h-100 border-warning">
+                                                    <div class="card-body text-center">
+                                                        <div class="display-4 text-warning" id="previewKeyPoints">0</div>
+                                                        <div class="text-muted">Key Points</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row g-3 mb-4">
                                             <div class="col-md-3">
                                                 <div class="card bg-light">
                                                     <div class="card-body text-center py-2">
-                                                        <div class="h5 mb-0" id="previewPriorityIncidents">0</div>
+                                                        <div class="h4 mb-0 text-danger" id="previewPriorityIncidents">0</div>
                                                         <small class="text-muted">Priority</small>
                                                     </div>
                                                 </div>
@@ -263,7 +408,7 @@
                                             <div class="col-md-3">
                                                 <div class="card bg-light">
                                                     <div class="card-body text-center py-2">
-                                                        <div class="h5 mb-0" id="previewHandoverIncidents">0</div>
+                                                        <div class="h4 mb-0 text-info" id="previewHandoverIncidents">0</div>
                                                         <small class="text-muted">Handover</small>
                                                     </div>
                                                 </div>
@@ -271,35 +416,36 @@
                                             <div class="col-md-3">
                                                 <div class="card bg-light">
                                                     <div class="card-body text-center py-2">
-                                                        <div class="h5 mb-0" id="previewChangeInfo">0</div>
-                                                        <small class="text-muted">Changes</small>
+                                                        <div class="h4 mb-0 text-secondary" id="previewEscalatedIncidents">0</div>
+                                                        <small class="text-muted">Escalated</small>
                                                     </div>
                                                 </div>
                                             </div>
                                             <div class="col-md-3">
                                                 <div class="card bg-light">
                                                     <div class="card-body text-center py-2">
-                                                        <div class="h5 mb-0" id="previewKBUpdates">0</div>
-                                                        <small class="text-muted">KB Updates</small>
+                                                        <div class="h4 mb-0" id="previewChangeKB">0</div>
+                                                        <small class="text-muted">Changes + KB</small>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
+                                        
+                                        <!-- Warnings -->
                                         <div id="uploadWarnings" class="alert alert-warning d-none">
                                             <h6 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>Warnings</h6>
                                             <ul class="mb-0" id="uploadWarningsList"></ul>
                                         </div>
-                                    </div>
-                                    
-                                    <!-- Upload Error -->
-                                    <div id="uploadError" class="alert alert-danger d-none">
-                                        <h6 class="alert-heading"><i class="fas fa-times-circle me-2"></i>Error</h6>
-                                        <p class="mb-0" id="uploadErrorMessage"></p>
+                                        
+                                        <!-- Back Button -->
+                                        <button type="button" class="btn btn-outline-secondary" onclick="showUploadStep1()">
+                                            <i class="fas fa-arrow-left me-1"></i>Back to Edit
+                                        </button>
                                     </div>
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                    <button type="button" class="btn btn-primary" id="applyUploadBtn" onclick="applyUploadedData()" disabled>
+                                    <button type="button" class="btn btn-primary btn-lg" id="applyUploadBtn" onclick="applyUploadedData()" disabled>
                                         <i class="fas fa-check me-1"></i>Apply to Form
                                     </button>
                                 </div>
@@ -936,7 +1082,7 @@
                             </div> <!-- End of KB Updates Section -->
 
                             <!-- Key Points Section -->
-                            <div class="accordion-item">
+                            <div class="accordion-item" id="keyPointsSection">
                                 <h2 class="accordion-header" id="keyPointsHeading">
                                     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#keyPointsCollapse" aria-expanded="false" aria-controls="keyPointsCollapse">
                                         <i class="fas fa-key me-2"></i>
@@ -1027,6 +1173,23 @@
                                 </div>
                             </div> <!-- End of Key Points Section -->
                         </div> <!-- End of Handover Accordion -->
+
+                        <!-- Basic Mode Key Points Section (shown only when Basic mode is ON) -->
+                        <div id="basicModeKeyPoints" class="mb-4" style="display: none;">
+                            <div class="card border-primary">
+                                <div class="card-header bg-primary text-white">
+                                    <h5 class="mb-0"><i class="fas fa-key me-2"></i>Key Points</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="basicKeyPointsContainer">
+                                        <!-- Key points will be cloned here in basic mode -->
+                                    </div>
+                                    <button type="button" class="btn btn-outline-primary mt-2" onclick="addKeyPointBasicMode()">
+                                        <i class="fas fa-plus"></i> Add Key Point
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
                         <!-- Additional Notes -->
                         <div class="mb-4">
@@ -1296,24 +1459,84 @@ document.addEventListener('DOMContentLoaded', function() {
 function toggleFormMode() {
     const toggle = document.getElementById('formModeToggle');
     const incidentsSection = document.getElementById('incidentsSection');
-    const changeInfoSection = document.getElementById('changeInfoCollapse').closest('.accordion-item');
-    const kbUpdatesSection = document.getElementById('kbUpdatesCollapse').closest('.accordion-item');
+    const changeInfoSection = document.getElementById('changeInfoCollapse')?.closest('.accordion-item');
+    const kbUpdatesSection = document.getElementById('kbUpdatesCollapse')?.closest('.accordion-item');
+    const keyPointsSection = document.getElementById('keyPointsSection');
     const keyPointsCollapse = document.getElementById('keyPointsCollapse');
     const formModeLabel = document.getElementById('formModeLabel');
     const currentModeDisplay = document.getElementById('currentModeDisplay');
     const toggleIcon = document.getElementById('toggleIcon');
     
     if (toggle.checked) {
-        // Basic mode ON - hide complex sections, show only key points
-        incidentsSection.style.display = 'none';
+        // Basic mode ON - hide complex sections, show only key points and additional notes
+        if (incidentsSection) incidentsSection.style.display = 'none';
         if (changeInfoSection) changeInfoSection.style.display = 'none';
         if (kbUpdatesSection) kbUpdatesSection.style.display = 'none';
         
-        // Auto-expand Key Points section in basic mode
-        if (keyPointsCollapse && !keyPointsCollapse.classList.contains('show')) {
-            const keyPointsButton = document.querySelector('button[data-bs-target="#keyPointsCollapse"]');
-            if (keyPointsButton) {
-                keyPointsButton.click();
+        // IMPORTANT: Make sure Key Points section is visible and expanded
+        const keyPointsSectionEl = document.getElementById('keyPointsSection');
+        const keyPointsCollapseEl = document.getElementById('keyPointsCollapse');
+        const accordionEl = document.getElementById('handoverAccordion');
+        
+        console.log('🔍 Basic mode toggle - Elements found:', {
+            keyPointsSection: !!keyPointsSectionEl,
+            keyPointsCollapse: !!keyPointsCollapseEl,
+            accordion: !!accordionEl
+        });
+        
+        // Make sure accordion is visible
+        if (accordionEl) {
+            accordionEl.style.display = 'block';
+            accordionEl.style.visibility = 'visible';
+        }
+        
+        // Force Key Points section to be visible
+        if (keyPointsSectionEl) {
+            keyPointsSectionEl.style.display = 'block';
+            keyPointsSectionEl.style.visibility = 'visible';
+            keyPointsSectionEl.removeAttribute('hidden');
+        }
+        
+        // Force Key Points collapse content to be visible
+        if (keyPointsCollapseEl) {
+            // Remove all Bootstrap collapse classes
+            keyPointsCollapseEl.classList.remove('collapse', 'collapsing', 'hide');
+            keyPointsCollapseEl.classList.add('show');
+            // Force visibility with inline styles
+            keyPointsCollapseEl.style.cssText = 'display: block !important; visibility: visible !important; height: auto !important; overflow: visible !important;';
+            
+            // Update the button state
+            const keyPointsBtn = document.querySelector('button[data-bs-target="#keyPointsCollapse"]');
+            if (keyPointsBtn) {
+                keyPointsBtn.classList.remove('collapsed');
+                keyPointsBtn.setAttribute('aria-expanded', 'true');
+            }
+            
+            console.log('✅ Key Points collapse classes:', keyPointsCollapseEl.classList.toString());
+            console.log('✅ Key Points collapse style:', keyPointsCollapseEl.style.cssText);
+        }
+        
+        console.log('✅ Basic mode ON - Key Points should now be visible');
+        
+        // ALSO show the standalone Basic Mode Key Points section
+        const basicModeKeyPoints = document.getElementById('basicModeKeyPoints');
+        if (basicModeKeyPoints) {
+            basicModeKeyPoints.style.display = 'block';
+            // Clone key points from accordion to basic mode section
+            const originalKeyPoints = document.getElementById('keypoints-container');
+            const basicContainer = document.getElementById('basicKeyPointsContainer');
+            if (originalKeyPoints && basicContainer) {
+                // Use the same key points (don't clone, just reference the original container)
+                // Move the original container to basic mode section temporarily
+                basicContainer.innerHTML = '';
+                const keypointEntries = originalKeyPoints.querySelectorAll('.keypoint-entry');
+                if (keypointEntries.length > 0) {
+                    keypointEntries.forEach(entry => {
+                        basicContainer.appendChild(entry.cloneNode(true));
+                    });
+                } else {
+                    basicContainer.innerHTML = '<p class="text-muted">No key points yet. Click "Add Key Point" to add one.</p>';
+                }
             }
         }
         
@@ -1326,9 +1549,33 @@ function toggleFormMode() {
         showToggleNotification('✅ Basic mode ON - Showing only key points and essential fields', 'success');
     } else {
         // Basic mode OFF - show all sections
-        incidentsSection.style.display = 'block';
+        if (incidentsSection) incidentsSection.style.display = 'block';
         if (changeInfoSection) changeInfoSection.style.display = 'block';
         if (kbUpdatesSection) kbUpdatesSection.style.display = 'block';
+        
+        const keyPointsSectionEl = document.getElementById('keyPointsSection');
+        const keyPointsCollapseEl = document.getElementById('keyPointsCollapse');
+        
+        if (keyPointsSectionEl) keyPointsSectionEl.style.display = 'block';
+        
+        // Restore Key Points collapse behavior
+        if (keyPointsCollapseEl) {
+            keyPointsCollapseEl.classList.add('collapse');
+            keyPointsCollapseEl.classList.remove('show');
+            keyPointsCollapseEl.style.cssText = '';  // Clear inline styles
+            
+            const keyPointsBtn = document.querySelector('button[data-bs-target="#keyPointsCollapse"]');
+            if (keyPointsBtn) {
+                keyPointsBtn.classList.add('collapsed');
+                keyPointsBtn.setAttribute('aria-expanded', 'false');
+            }
+        }
+        
+        // Hide the standalone Basic Mode Key Points section
+        const basicModeKeyPoints = document.getElementById('basicModeKeyPoints');
+        if (basicModeKeyPoints) {
+            basicModeKeyPoints.style.display = 'none';
+        }
         
         formModeLabel.textContent = 'Basic';
         currentModeDisplay.textContent = 'OFF';
@@ -2344,7 +2591,38 @@ function addKeyPoint() {
         
         // Update section counter
         updateSectionCounters();
+        
+        // Sync to basic mode container if in basic mode
+        syncBasicModeKeyPoints();
     }, 100);
+}
+
+// Add key point in Basic mode
+function addKeyPointBasicMode() {
+    addKeyPoint();  // Use the same function
+    setTimeout(() => {
+        syncBasicModeKeyPoints();
+    }, 200);
+}
+
+// Sync key points to basic mode container
+function syncBasicModeKeyPoints() {
+    const toggle = document.getElementById('formModeToggle');
+    if (!toggle || !toggle.checked) return;  // Only sync if basic mode is on
+    
+    const originalKeyPoints = document.getElementById('keypoints-container');
+    const basicContainer = document.getElementById('basicKeyPointsContainer');
+    if (originalKeyPoints && basicContainer) {
+        basicContainer.innerHTML = '';
+        const keypointEntries = originalKeyPoints.querySelectorAll('.keypoint-entry');
+        if (keypointEntries.length > 0) {
+            keypointEntries.forEach(entry => {
+                basicContainer.appendChild(entry.cloneNode(true));
+            });
+        } else {
+            basicContainer.innerHTML = '<p class="text-muted">No key points yet. Click "Add Key Point" to add one.</p>';
+        }
+    }
 }
 
 function debugKeypoints() {
@@ -3884,26 +4162,18 @@ document.addEventListener('DOMContentLoaded', function() {
 })();
 {% endif %}
 
-// ==================== UPLOAD FUNCTIONALITY ====================
+// ==================== ENHANCED UPLOAD FUNCTIONALITY ====================
 let uploadedHandoverData = null;
+let uploadShiftMetadata = {};
+let uploadTeamsData = [];
 
-function showUploadModal() {
-    // Reset modal state
-    document.getElementById('handoverUploadFile').value = '';
-    document.getElementById('uploadProgress').classList.add('d-none');
-    document.getElementById('uploadPreview').classList.add('d-none');
-    document.getElementById('uploadError').classList.add('d-none');
-    document.getElementById('uploadWarnings').classList.add('d-none');
-    document.getElementById('applyUploadBtn').disabled = true;
-    uploadedHandoverData = null;
-    
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('uploadModal'));
-    modal.show();
-}
-
-// Handle file selection
+// Initialize upload modal on page load
 document.addEventListener('DOMContentLoaded', function() {
+    initializeUploadModal();
+});
+
+function initializeUploadModal() {
+    // File input handler
     const fileInput = document.getElementById('handoverUploadFile');
     if (fileInput) {
         fileInput.addEventListener('change', function(e) {
@@ -3912,27 +4182,225 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-});
+    
+    // Shift change handlers for auto-populating next shift
+    const currentShiftUpload = document.getElementById('uploadCurrentShift');
+    if (currentShiftUpload) {
+        currentShiftUpload.addEventListener('change', function() {
+            autoSelectNextShift();
+            loadEngineersForUpload();
+        });
+    }
+    
+    // Team/date/shift change handlers
+    ['uploadTeamId', 'uploadHandoverDate', 'uploadNextShift'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('change', loadEngineersForUpload);
+        }
+    });
+}
+
+function showUploadModal() {
+    // Reset modal state
+    resetUploadModal();
+    
+    // Load user teams
+    loadUserTeams();
+    
+    // Set today's date
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('uploadHandoverDate').value = today;
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('uploadModal'));
+    modal.show();
+}
+
+function resetUploadModal() {
+    document.getElementById('handoverUploadFile').value = '';
+    document.getElementById('uploadProgress').classList.add('d-none');
+    document.getElementById('uploadStep1').classList.remove('d-none');
+    document.getElementById('uploadStep2').classList.add('d-none');
+    document.getElementById('uploadError').classList.add('d-none');
+    document.getElementById('uploadWarnings').classList.add('d-none');
+    document.getElementById('applyUploadBtn').disabled = true;
+    document.getElementById('uploadEngineersPreview').style.display = 'none';
+    uploadedHandoverData = null;
+    uploadShiftMetadata = {};
+}
+
+function loadUserTeams() {
+    fetch('/api/handover/user-teams')
+        .then(response => response.json())
+        .then(data => {
+            const teamSelect = document.getElementById('uploadTeamId');
+            const teamHint = document.getElementById('uploadTeamHint');
+            
+            if (data.success) {
+                uploadTeamsData = data.teams;
+                
+                teamSelect.innerHTML = '';
+                
+                if (data.auto_select && data.selected_team) {
+                    // Single team - auto-select
+                    teamSelect.innerHTML = `<option value="${data.selected_team.id}" selected>${data.selected_team.name}</option>`;
+                    teamHint.innerHTML = `<i class="fas fa-check-circle text-success me-1"></i>Team auto-selected based on your assignment`;
+                    teamSelect.disabled = true;
+                } else if (data.teams.length > 0) {
+                    // Multiple teams - allow selection
+                    teamSelect.innerHTML = '<option value="">Select Team</option>';
+                    
+                    // Group by account for super_admin
+                    let currentAccount = null;
+                    data.teams.forEach(team => {
+                        if (team.account_name !== currentAccount) {
+                            if (currentAccount !== null) {
+                                teamSelect.innerHTML += '</optgroup>';
+                            }
+                            teamSelect.innerHTML += `<optgroup label="${team.account_name}">`;
+                            currentAccount = team.account_name;
+                        }
+                        teamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
+                    });
+                    if (currentAccount !== null) {
+                        teamSelect.innerHTML += '</optgroup>';
+                    }
+                    
+                    teamHint.innerHTML = `<i class="fas fa-info-circle me-1"></i>Select the team for this handover`;
+                    teamSelect.disabled = false;
+                } else {
+                    teamSelect.innerHTML = '<option value="">No teams available</option>';
+                    teamHint.innerHTML = '<span class="text-danger">You are not assigned to any team</span>';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error loading teams:', error);
+            document.getElementById('uploadTeamId').innerHTML = '<option value="">Error loading teams</option>';
+        });
+}
+
+function autoSelectNextShift() {
+    const currentShift = document.getElementById('uploadCurrentShift').value;
+    const nextShiftSelect = document.getElementById('uploadNextShift');
+    
+    const nextShiftMap = {
+        'Morning': 'Evening',
+        'Evening': 'Night',
+        'Late Evening': 'Night',
+        'Night': 'Morning',
+        'General': 'General',
+        'OnShore': 'OffShore',
+        'OffShore': 'OnShore'
+    };
+    
+    if (currentShift && nextShiftMap[currentShift]) {
+        nextShiftSelect.value = nextShiftMap[currentShift];
+    }
+}
+
+function loadEngineersForUpload() {
+    const teamId = document.getElementById('uploadTeamId').value;
+    const dateValue = document.getElementById('uploadHandoverDate').value;
+    const currentShift = document.getElementById('uploadCurrentShift').value;
+    const nextShift = document.getElementById('uploadNextShift').value;
+    
+    if (!teamId || !currentShift || !nextShift) {
+        document.getElementById('uploadEngineersPreview').style.display = 'none';
+        return;
+    }
+    
+    document.getElementById('uploadEngineersPreview').style.display = '';
+    document.getElementById('uploadCurrentEngineers').innerHTML = '<span class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Loading...</span>';
+    document.getElementById('uploadNextEngineers').innerHTML = '<span class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Loading...</span>';
+    
+    fetch('/api/handover/get-engineers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            team_id: teamId,
+            date: dateValue,
+            current_shift: currentShift,
+            next_shift: nextShift
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            uploadShiftMetadata.currentEngineers = data.current_engineers;
+            uploadShiftMetadata.nextEngineers = data.next_engineers;
+            uploadShiftMetadata.allTeamMembers = data.all_team_members;
+            
+            // Display current engineers
+            const currentEngDiv = document.getElementById('uploadCurrentEngineers');
+            if (data.current_engineers.length > 0) {
+                const isAllMembers = data.current_engineers.some(e => e.shift_name === 'All');
+                const badgeClass = isAllMembers ? 'bg-secondary' : 'bg-primary';
+                currentEngDiv.innerHTML = data.current_engineers.map(e => 
+                    `<span class="badge ${badgeClass} me-1 mb-1">${e.name}</span>`
+                ).join('');
+                if (isAllMembers) {
+                    currentEngDiv.innerHTML += '<br><small class="text-muted">All team members (no roster for this date)</small>';
+                }
+            } else {
+                currentEngDiv.innerHTML = '<span class="text-muted small">No team members found</span>';
+            }
+            
+            // Display next engineers
+            const nextEngDiv = document.getElementById('uploadNextEngineers');
+            if (data.next_engineers.length > 0) {
+                const isAllMembers = data.next_engineers.some(e => e.shift_name === 'All');
+                const badgeClass = isAllMembers ? 'bg-secondary' : 'bg-success';
+                nextEngDiv.innerHTML = data.next_engineers.map(e => 
+                    `<span class="badge ${badgeClass} me-1 mb-1">${e.name}</span>`
+                ).join('');
+                if (isAllMembers) {
+                    nextEngDiv.innerHTML += '<br><small class="text-muted">All team members (no roster for this date)</small>';
+                }
+            } else {
+                nextEngDiv.innerHTML = '<span class="text-muted small">No team members found</span>';
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error loading engineers:', error);
+        document.getElementById('uploadCurrentEngineers').innerHTML = '<span class="text-danger small">Error loading</span>';
+        document.getElementById('uploadNextEngineers').innerHTML = '<span class="text-danger small">Error loading</span>';
+    });
+}
 
 function uploadHandoverFile(file) {
+    // Validate shift metadata first
+    const teamId = document.getElementById('uploadTeamId').value;
+    const dateValue = document.getElementById('uploadHandoverDate').value;
+    const currentShift = document.getElementById('uploadCurrentShift').value;
+    const nextShift = document.getElementById('uploadNextShift').value;
+    
+    if (!teamId || !dateValue || !currentShift || !nextShift) {
+        document.getElementById('uploadError').classList.remove('d-none');
+        document.getElementById('uploadErrorMessage').textContent = 'Please fill in all shift details (Team, Date, Current Shift, Next Shift) before uploading.';
+        return;
+    }
+    
+    // Store metadata
+    uploadShiftMetadata.teamId = teamId;
+    uploadShiftMetadata.teamName = document.getElementById('uploadTeamId').selectedOptions[0]?.text || '';
+    uploadShiftMetadata.date = dateValue;
+    uploadShiftMetadata.currentShift = currentShift;
+    uploadShiftMetadata.nextShift = nextShift;
+    
     const progressDiv = document.getElementById('uploadProgress');
-    const previewDiv = document.getElementById('uploadPreview');
     const errorDiv = document.getElementById('uploadError');
-    const warningsDiv = document.getElementById('uploadWarnings');
     const applyBtn = document.getElementById('applyUploadBtn');
     
-    // Reset and show progress
-    previewDiv.classList.add('d-none');
     errorDiv.classList.add('d-none');
-    warningsDiv.classList.add('d-none');
     applyBtn.disabled = true;
     progressDiv.classList.remove('d-none');
     
-    // Create form data
     const formData = new FormData();
     formData.append('file', file);
     
-    // Upload and parse
     fetch('/api/handover/upload', {
         method: 'POST',
         body: formData
@@ -3944,31 +4412,20 @@ function uploadHandoverFile(file) {
         if (data.success) {
             uploadedHandoverData = data.data;
             
-            // Update preview counters
-            document.getElementById('previewOpenIncidents').textContent = data.data.summary.open_incidents_count;
-            document.getElementById('previewClosedIncidents').textContent = data.data.summary.closed_incidents_count;
-            document.getElementById('previewKeyPoints').textContent = data.data.summary.key_points_count;
-            document.getElementById('previewPriorityIncidents').textContent = data.data.summary.priority_incidents_count;
-            document.getElementById('previewHandoverIncidents').textContent = data.data.summary.handover_incidents_count;
-            document.getElementById('previewChangeInfo').textContent = data.data.summary.change_info_count;
-            document.getElementById('previewKBUpdates').textContent = data.data.summary.kb_updates_count;
+            // Show file ready indicator
+            const fileReadyIndicator = document.getElementById('fileReadyIndicator');
+            document.getElementById('fileReadySummary').textContent = 
+                `${data.data.summary.total_entries} entries parsed.`;
+            fileReadyIndicator.classList.remove('d-none');
             
-            // Show warnings if any
-            if (data.data.warnings && data.data.warnings.length > 0) {
-                const warningsList = document.getElementById('uploadWarningsList');
-                warningsList.innerHTML = data.data.warnings.map(w => `<li>${w}</li>`).join('');
-                warningsDiv.classList.remove('d-none');
-            }
-            
-            previewDiv.classList.remove('d-none');
-            applyBtn.disabled = false;
+            // Auto-advance to step 2
+            showUploadStep2(data.data);
         } else {
             document.getElementById('uploadErrorMessage').textContent = data.error || 'Failed to parse file';
             if (data.errors && data.errors.length > 0) {
                 document.getElementById('uploadErrorMessage').innerHTML = 
                     data.error + '<ul class="mt-2 mb-0">' + 
-                    data.errors.map(e => `<li>${e}</li>`).join('') + 
-                    '</ul>';
+                    data.errors.map(e => `<li>${e}</li>`).join('') + '</ul>';
             }
             errorDiv.classList.remove('d-none');
         }
@@ -3980,72 +4437,106 @@ function uploadHandoverFile(file) {
     });
 }
 
+function showUploadStep1() {
+    document.getElementById('uploadStep1').classList.remove('d-none');
+    document.getElementById('uploadStep2').classList.add('d-none');
+    document.getElementById('applyUploadBtn').disabled = true;
+    
+    // Show file ready indicator if data is already loaded
+    const fileReadyIndicator = document.getElementById('fileReadyIndicator');
+    if (uploadedHandoverData && uploadedHandoverData.summary) {
+        document.getElementById('fileReadySummary').textContent = 
+            `${uploadedHandoverData.summary.total_entries} entries parsed.`;
+        fileReadyIndicator.classList.remove('d-none');
+    } else {
+        fileReadyIndicator.classList.add('d-none');
+    }
+}
+
+function showUploadStep2(data) {
+    document.getElementById('uploadStep1').classList.add('d-none');
+    document.getElementById('uploadStep2').classList.remove('d-none');
+    document.getElementById('applyUploadBtn').disabled = false;
+    
+    // Update summary
+    document.getElementById('summaryTeam').textContent = uploadShiftMetadata.teamName;
+    document.getElementById('summaryDate').textContent = uploadShiftMetadata.date;
+    document.getElementById('summaryCurrentShift').textContent = uploadShiftMetadata.currentShift;
+    document.getElementById('summaryNextShift').textContent = uploadShiftMetadata.nextShift;
+    document.getElementById('uploadSummaryText').textContent = `${data.summary.total_entries} entries ready to import`;
+    
+    // Update counters
+    document.getElementById('previewOpenIncidents').textContent = data.summary.open_incidents || 0;
+    document.getElementById('previewClosedIncidents').textContent = data.summary.closed_incidents || 0;
+    document.getElementById('previewKeyPoints').textContent = data.summary.key_points || 0;
+    document.getElementById('previewPriorityIncidents').textContent = data.summary.priority_incidents || 0;
+    document.getElementById('previewHandoverIncidents').textContent = data.summary.handover_incidents || 0;
+    document.getElementById('previewEscalatedIncidents').textContent = data.summary.escalated_incidents || 0;
+    document.getElementById('previewChangeKB').textContent = (data.summary.change_info || 0) + (data.summary.kb_updates || 0);
+    
+    // Show warnings if any
+    const warningsDiv = document.getElementById('uploadWarnings');
+    if (data.warnings && data.warnings.length > 0) {
+        document.getElementById('uploadWarningsList').innerHTML = data.warnings.map(w => `<li>${w}</li>`).join('');
+        warningsDiv.classList.remove('d-none');
+    } else {
+        warningsDiv.classList.add('d-none');
+    }
+}
+
 function applyUploadedData() {
-    if (!uploadedHandoverData) {
+    if (!uploadedHandoverData || !uploadShiftMetadata.teamId) {
         alert('No data to apply. Please upload a file first.');
         return;
     }
     
     const data = uploadedHandoverData;
     
-    // Apply basic info
-    if (data.basic_info) {
-        // Handover date
-        if (data.basic_info.handover_date) {
-            const dateField = document.getElementById('handover_date');
-            if (dateField) {
-                // Parse date in various formats
-                let dateValue = data.basic_info.handover_date;
-                if (dateValue.includes('/')) {
-                    const parts = dateValue.split('/');
-                    if (parts.length === 3) {
-                        dateValue = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
-                    }
-                }
-                dateField.value = dateValue;
-            }
-        }
-        
-        // Current shift
-        if (data.basic_info.current_shift) {
-            const currentShiftField = document.getElementById('current_shift_type');
-            if (currentShiftField) {
-                currentShiftField.value = data.basic_info.current_shift;
-                currentShiftField.dispatchEvent(new Event('change'));
-            }
-        }
-        
-        // Next shift
-        if (data.basic_info.next_shift) {
-            const nextShiftField = document.getElementById('next_shift_type');
-            if (nextShiftField) {
-                nextShiftField.value = data.basic_info.next_shift;
-            }
-        }
-        
-        // Additional notes
-        if (data.basic_info.additional_notes) {
-            const notesField = document.getElementById('additional_notes');
-            if (notesField) {
-                notesField.value = data.basic_info.additional_notes;
-            }
-        }
+    // Apply shift metadata from upload screen
+    document.getElementById('handover_date').value = uploadShiftMetadata.date;
+    
+    const teamSelect = document.getElementById('team_id');
+    if (teamSelect) {
+        teamSelect.value = uploadShiftMetadata.teamId;
+        teamSelect.dispatchEvent(new Event('change'));
     }
     
-    // Apply Open Incidents
-    applyIncidents(data.open_incidents, 'open');
+    const currentShiftField = document.getElementById('current_shift_type');
+    if (currentShiftField) {
+        currentShiftField.value = uploadShiftMetadata.currentShift;
+        currentShiftField.dispatchEvent(new Event('change'));
+    }
     
-    // Apply Closed Incidents
-    applyIncidents(data.closed_incidents, 'closed');
+    const nextShiftField = document.getElementById('next_shift_type');
+    if (nextShiftField) {
+        nextShiftField.value = uploadShiftMetadata.nextShift;
+    }
     
-    // Apply Priority Incidents
-    applyIncidents(data.priority_incidents, 'priority');
+    // Set engineers in hidden fields
+    if (uploadShiftMetadata.currentEngineers && uploadShiftMetadata.currentEngineers.length > 0) {
+        const currentEngNames = uploadShiftMetadata.currentEngineers.map(e => e.name).join(', ');
+        document.getElementById('current_engineers').value = currentEngNames;
+        document.getElementById('current_engineers_list').innerHTML = uploadShiftMetadata.currentEngineers.map(e => 
+            `<span class="badge bg-primary me-1 mb-1">${e.name}</span>`
+        ).join('');
+    }
     
-    // Apply Handover Incidents
-    applyIncidents(data.handover_incidents, 'handover');
+    if (uploadShiftMetadata.nextEngineers && uploadShiftMetadata.nextEngineers.length > 0) {
+        const nextEngNames = uploadShiftMetadata.nextEngineers.map(e => e.name).join(', ');
+        document.getElementById('next_engineers').value = nextEngNames;
+        document.getElementById('next_engineers_list').innerHTML = uploadShiftMetadata.nextEngineers.map(e => 
+            `<span class="badge bg-success me-1 mb-1">${e.name}</span>`
+        ).join('');
+    }
     
-    // Apply Escalated Incidents
-    applyIncidents(data.escalated_incidents, 'escalated');
+    // Apply incidents from consolidated sheet (classified by status)
+    if (data.incidents) {
+        applyClassifiedIncidents(data.incidents.open, 'open');
+        applyClassifiedIncidents(data.incidents.closed, 'closed');
+        applyClassifiedIncidents(data.incidents.priority, 'priority');
+        applyClassifiedIncidents(data.incidents.handover, 'handover');
+        applyClassifiedIncidents(data.incidents.escalated, 'escalated');
+    }
     
     // Apply Change Info
     applyChangeInfo(data.change_info);
@@ -4067,13 +4558,13 @@ function applyUploadedData() {
     showUploadSuccessMessage(data.summary.total_entries);
 }
 
-function applyIncidents(incidents, type) {
+function applyClassifiedIncidents(incidents, type) {
     if (!incidents || incidents.length === 0) return;
     
     const container = document.getElementById(`${type}-incidents-container`);
     if (!container) return;
     
-    // Clear existing entries (except first empty one)
+    // Clear existing entries (keep first one as template)
     const existingEntries = container.querySelectorAll('.incident-entry');
     existingEntries.forEach((entry, index) => {
         if (index > 0) entry.remove();
@@ -4081,28 +4572,24 @@ function applyIncidents(incidents, type) {
     
     incidents.forEach((inc, index) => {
         if (index > 0) {
-            // Add new incident entry
             addIncident(type);
         }
         
-        // Fill in the data
         const entries = container.querySelectorAll('.incident-entry');
-        const entry = entries[index];
+        const entry = entries[index] || entries[entries.length - 1];
+        
         if (entry) {
-            fillIncidentEntry(entry, inc, type);
+            fillClassifiedIncidentEntry(entry, inc, type);
         }
     });
     
-    // Fill first entry if exists
-    if (incidents.length > 0) {
-        const firstEntry = container.querySelector('.incident-entry');
-        if (firstEntry) {
-            fillIncidentEntry(firstEntry, incidents[0], type);
-        }
+    // Fill first entry
+    if (incidents.length > 0 && container.querySelector('.incident-entry')) {
+        fillClassifiedIncidentEntry(container.querySelector('.incident-entry'), incidents[0], type);
     }
 }
 
-function fillIncidentEntry(entry, data, type) {
+function fillClassifiedIncidentEntry(entry, data, type) {
     const appNameField = entry.querySelector(`input[name="${type}_incident_app[]"]`);
     const incidentIdField = entry.querySelector(`input[name="${type}_incident_id[]"]`);
     
@@ -4111,37 +4598,31 @@ function fillIncidentEntry(entry, data, type) {
     
     if (type === 'open') {
         const priorityField = entry.querySelector(`select[name="open_incident_priority[]"]`);
-        const assignedField = entry.querySelector(`select[name="open_incident_assigned[]"]`);
         const descField = entry.querySelector(`textarea[name="open_incident_description[]"]`);
-        
         if (priorityField) priorityField.value = data.priority || 'Medium';
-        if (descField) descField.value = data.description || '';
-        // Assigned To will need to be matched to team member
+        if (descField) descField.value = data.description || data.resolution || '';
     } else if (type === 'closed') {
         const resolutionField = entry.querySelector(`textarea[name="closed_incident_resolution[]"]`);
-        if (resolutionField) resolutionField.value = data.resolution || '';
+        if (resolutionField) resolutionField.value = data.resolution || data.description || '';
     } else if (type === 'priority') {
         const levelField = entry.querySelector(`select[name="priority_incident_level[]"]`);
         const escalatedField = entry.querySelector(`input[name="priority_incident_escalated[]"]`);
         const impactField = entry.querySelector(`textarea[name="priority_incident_impact[]"]`);
-        
-        if (levelField) levelField.value = data.priority_level || 'High';
+        if (levelField) levelField.value = data.priority || 'High';
         if (escalatedField) escalatedField.value = data.escalated_to || '';
-        if (impactField) impactField.value = data.impact_actions || '';
+        if (impactField) impactField.value = data.description || '';
     } else if (type === 'handover') {
         const statusField = entry.querySelector(`select[name="handover_incident_status[]"]`);
         const notesField = entry.querySelector(`textarea[name="handover_incident_notes[]"]`);
-        
         if (statusField) statusField.value = data.status || 'Monitoring';
-        if (notesField) notesField.value = data.notes || '';
+        if (notesField) notesField.value = data.resolution || data.description || '';
     } else if (type === 'escalated') {
         const escalatedToField = entry.querySelector(`input[name="escalated_incident_to[]"]`);
         const reasonField = entry.querySelector(`textarea[name="escalated_incident_reason[]"]`);
         const statusField = entry.querySelector(`textarea[name="escalated_incident_status[]"]`);
-        
         if (escalatedToField) escalatedToField.value = data.escalated_to || '';
-        if (reasonField) reasonField.value = data.reason || '';
-        if (statusField) statusField.value = data.status_next_steps || '';
+        if (reasonField) reasonField.value = data.description || '';
+        if (statusField) statusField.value = data.resolution || '';
     }
 }
 

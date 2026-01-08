@@ -423,6 +423,10 @@ app.register_blueprint(system_health_bp)
 from routes.handover_upload import handover_upload_bp
 app.register_blueprint(handover_upload_bp)
 
+# Register problem tickets blueprint
+from routes.problem_tickets import problem_tickets_bp
+app.register_blueprint(problem_tickets_bp)
+
 # Add template global functions
 @app.template_global()
 def is_tab_enabled(tab_name):
@@ -552,8 +556,15 @@ def strptime_filter(date_string, format='%Y-%m-%d'):
 
 @login_manager.user_loader
 def load_user(user_id):
-    from models.models import User
-    return User.query.get(int(user_id))
+    from models.models import User, db
+    # Force fresh query from database to ensure updated team/account info
+    user = User.query.get(int(user_id))
+    if user:
+        # Expire the instance to force reload on next access
+        db.session.expire(user)
+        # Re-query to get fresh data
+        user = User.query.get(int(user_id))
+    return user
 
 # Auto-start CTask assignment service when Flask app starts
 _services_initialized = False  # Flag to prevent duplicate initialization
