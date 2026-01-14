@@ -1648,7 +1648,8 @@ def edit_handover(shift_id):
             description = change_descriptions[i].strip() if i < len(change_descriptions) else ''
             datetime_str = change_datetimes[i].strip() if i < len(change_datetimes) else ''
             responsible_person = change_responsible_persons[i].strip() if i < len(change_responsible_persons) else ''
-            
+            status = change_statuses[i].strip() if i < len(change_statuses) else 'New'
+
             if not app_name and not change_number and not description and not datetime_str and not responsible_person:  # Skip completely empty entries
                 continue
                 
@@ -1686,8 +1687,9 @@ def edit_handover(shift_id):
                 existing_record.description = description
                 existing_record.change_datetime = change_datetime
                 existing_record.responsible_engineer_id = responsible_engineer_id
+                existing_record.status = status
                 updated_change_info_ids.add(existing_record.id)
-                logger.debug(f"🔧 Updated existing Change Info {existing_record.id}")
+                logger.debug(f"🔧 Updated existing Change Info {existing_record.id} with status={status}")
             else:
                 # Create new record
                 new_record = ShiftChangeInfo(
@@ -1697,11 +1699,12 @@ def edit_handover(shift_id):
                     description=description,
                     change_datetime=change_datetime,
                     responsible_engineer_id=responsible_engineer_id,
+                    status=status,
                     account_id=shift.account_id,
                     team_id=shift.team_id
                 )
                 db.session.add(new_record)
-                logger.debug(f"🔧 Created new Change Info for shift {shift.id}")
+                logger.debug(f"🔧 Created new Change Info for shift {shift.id} with status={status}")
         
         # Remove Change Info records that weren't updated (deleted from form)
         change_infos_to_delete = [record for record in existing_change_infos if record.id not in updated_change_info_ids]
