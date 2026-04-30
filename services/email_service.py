@@ -179,9 +179,9 @@ def send_handover_email(shift):
         subject_prefix = f"{account_name} "
     elif team_name:
         subject_prefix = f"{team_name} "
-    
+
     subject = f"{subject_prefix}🔄 {shift.current_shift_type} to {shift.next_shift_type} Shift Handover - {shift.date}"
-    
+
     # Initialize variables for recipient tracking (to fix variable scoping issue)
     configured_recipients = None
     priority_alert_recipients = None
@@ -361,7 +361,7 @@ def send_handover_email(shift):
         ShiftKeyPoint.shift_id == shift.id,
         ShiftKeyPoint.status.in_(['Open', 'In Progress'])
     ).all()
-    
+
     logger.debug(f"[EMAIL_SERVICE] 📋 Found {len(key_points)} active key_points for shift_id={shift.id}")
     
     # Query additional handover data for complete email content
@@ -370,23 +370,40 @@ def send_handover_email(shift):
     from models.models import ShiftChangeInfo, ShiftKBUpdate
     from datetime import timedelta
     
-    # 🔧 FIX: Query change_infos by shift_id to only include changes attached to this handover
-    # Only show changes that were explicitly added to this handover form
-    change_infos = ShiftChangeInfo.query.filter(
-        ShiftChangeInfo.shift_id == shift.id,
+    # 🔧 FIX: Query change_infos by date/team/account with deduplication
+    # This ensures ALL pending changes for this date appear in the email without duplicates
+    raw_change_infos = ShiftChangeInfo.query.filter(
+        ShiftChangeInfo.account_id == shift.account_id,
+        ShiftChangeInfo.team_id == shift.team_id,
+        ShiftChangeInfo.created_at >= shift.date,
+        ShiftChangeInfo.created_at < shift.date + timedelta(days=1),
         ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
     ).order_by(ShiftChangeInfo.id.desc()).all()
     
-    logger.debug(f"[EMAIL_SERVICE] 📋 Found {len(change_infos)} change_infos for shift_id={shift.id}")
+    # Deduplicate by change_number - keep most recent version
+    change_map = {}
+    for ci in raw_change_infos:
+        key = ci.change_number.strip().lower() if ci.change_number else f"{ci.app_name}_{ci.description[:30] if ci.description else ''}"
+        if key not in change_map:
+            change_map[key] = ci
+    change_infos = list(change_map.values())
     
-    # 🔧 FIX: Query kb_updates by shift_id to only include KBs attached to this handover
-    # Only show KB updates that were explicitly added to this handover form
-    kb_updates = ShiftKBUpdate.query.filter(
-        ShiftKBUpdate.shift_id == shift.id,
+    # 🔧 FIX: Same for kb_updates - query by date/team/account with deduplication
+    raw_kb_updates = ShiftKBUpdate.query.filter(
+        ShiftKBUpdate.account_id == shift.account_id,
+        ShiftKBUpdate.team_id == shift.team_id,
+        ShiftKBUpdate.created_at >= shift.date,
+        ShiftKBUpdate.created_at < shift.date + timedelta(days=1),
         ShiftKBUpdate.status != 'Published'
     ).order_by(ShiftKBUpdate.id.desc()).all()
     
-    logger.debug(f"[EMAIL_SERVICE] 📋 Found {len(kb_updates)} kb_updates for shift_id={shift.id}")
+    # Deduplicate by kb_number
+    kb_map = {}
+    for kb in raw_kb_updates:
+        key = kb.kb_number.strip().lower() if kb.kb_number else f"{kb.app_name}_{kb.description[:30] if kb.description else ''}"
+        if key not in kb_map:
+            kb_map[key] = kb
+    kb_updates = list(kb_map.values())
     
     additional_notes = getattr(shift, 'additional_notes', None) or getattr(shift, 'notes', None) or ''
     

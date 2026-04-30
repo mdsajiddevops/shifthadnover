@@ -435,14 +435,38 @@ app.register_blueprint(collaboration_bp)
 # Add template global functions
 @app.template_global()
 def is_tab_enabled(tab_name):
-    """Check if a specific tab is enabled based on database configuration."""
+    """Check if a specific tab is enabled based on database configuration.
+    Checks hierarchy: Team-level > Account-level > Global default
+    """
     try:
-        from models.app_config import AppConfig
-        # Get the configuration value from database
-        config_value = AppConfig.get_config(tab_name, default='true')
-        return config_value.lower() == 'true'
+        from models.team_feature_config import TeamFeatureConfig
+        from flask_login import current_user
+        
+        # Get user's account and team IDs if authenticated
+        account_id = None
+        team_id = None
+        
+        if current_user.is_authenticated:
+            # Fetch fresh user data to avoid stale session issues
+            from models.models import User
+            fresh_user = User.query.get(current_user.id)
+            if fresh_user:
+                account_id = fresh_user.account_id
+                team_id = fresh_user.team_id
+        
+        # Check feature status with hierarchy
+        return TeamFeatureConfig.get_feature_status(
+            feature_key=tab_name,
+            account_id=account_id,
+            team_id=team_id,
+            default=True  # Default to enabled if no config found
+        )
     except Exception as e:
         # Fallback to default values if database not available
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Error checking tab status for {tab_name}: {e}")
+        
         enabled_tabs = {
             'tab_kb_articles': True,
             'tab_vendor_details': True,
@@ -481,6 +505,54 @@ def is_feature_enabled(feature_name):
             'feature_ctask_assignment': True
         }
         return enabled_features.get(feature_name, True)
+
+from functools import wraps
+from flask_login import current_user
+
+def feature_required(feature_key):
+    """Decorator to protect routes based on feature/tab visibility.
+    Checks if a feature is enabled for the current user's team/account.
+    If disabled, redirects to dashboard with an error message.
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            try:
+                from models.team_feature_config import TeamFeatureConfig
+                from models.models import User
+                
+                # Get user's account and team IDs
+                account_id = None
+                team_id = None
+                
+                if current_user.is_authenticated:
+                    # Fetch fresh user data to avoid stale session issues
+                    fresh_user = User.query.get(current_user.id)
+                    if fresh_user:
+                        account_id = fresh_user.account_id
+                        team_id = fresh_user.team_id
+                
+                # Check if feature is enabled
+                is_enabled = TeamFeatureConfig.get_feature_status(
+                    feature_key=feature_key,
+                    account_id=account_id,
+                    team_id=team_id,
+                    default=True  # Default to enabled if no config found
+                )
+                
+                if not is_enabled:
+                    flash('This feature is not available for your team/account.', 'warning')
+                    return redirect(url_for('dashboard.dashboard'))
+                
+                return f(*args, **kwargs)
+                
+            except Exception as e:
+                # On error, allow access (fail open) but log the error
+                logger.warning(f"Error checking feature {feature_key}: {e}")
+                return f(*args, **kwargs)
+        
+        return decorated_function
+    return decorator
 
 @app.template_global()
 def is_servicenow_enabled_and_configured():

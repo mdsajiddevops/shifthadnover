@@ -117,16 +117,6 @@
         border-left: 4px solid #198754;
     }
     
-    /* Ensure descriptions display fully without truncation */
-    .item-card p.text-muted,
-    .item-card .description-text {
-        word-wrap: break-word;
-        word-break: break-word;
-        white-space: pre-wrap;
-        overflow-wrap: break-word;
-        line-height: 1.6;
-    }
-    
     .empty-section {
         text-align: center;
         padding: 3rem 2rem;
@@ -511,9 +501,8 @@
                                         {% endif %}
                                     </div>
                                     
-                                    {# 🔧 FIX: Use incident.handover - that's where all incident descriptions are stored #}
-                                    {% if incident.handover %}
-                                        <p class="mb-2 text-muted">{{ incident.handover }}</p>
+                                    {% if incident.description %}
+                                        <p class="mb-2 text-muted">{{ incident.description }}</p>
                                     {% endif %}
                                     
                                     <div class="meta-info">

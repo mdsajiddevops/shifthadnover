@@ -66,6 +66,7 @@ def detect_user_shift(user_id, account_id, team_id, date):
     """
     from models.models import TeamMember, ShiftRoster, User
 
+
     # Shift code to type mapping
     code_to_type = {
         'D': 'Morning', 'E': 'Evening', 'LE': 'Late Evening', 'N': 'Night',
@@ -1017,44 +1018,44 @@ def edit_handover(shift_id):
         collab_draft_keypoints = []
         collab_draft_changeinfos = []
         collab_draft_kbupdates = []
-        
+
         if is_collaboration_enabled():
             logger.debug(f"🔄 COLLABORATIVE DRAFT MERGE: Starting for shift {shift_id}")
-            
+
             # Get all collaborative draft data for this shift
             collab_draft_incidents = DraftIncident.query.filter_by(shift_id=shift_id).all()
             collab_draft_keypoints = DraftKeyPoint.query.filter_by(shift_id=shift_id).all()
             collab_draft_changeinfos = DraftChangeInfo.query.filter_by(shift_id=shift_id).all()
             collab_draft_kbupdates = DraftKBUpdate.query.filter_by(shift_id=shift_id).all()
-            
+
             logger.debug(f"🔄 Found collaborative drafts:")
             logger.debug(f"   - {len(collab_draft_incidents)} draft incidents")
             logger.debug(f"   - {len(collab_draft_keypoints)} draft keypoints")
             logger.debug(f"   - {len(collab_draft_changeinfos)} draft change infos")
             logger.debug(f"   - {len(collab_draft_kbupdates)} draft KB updates")
-        
+
         # Convert to mutable form data (ImmutableMultiDict -> MultiDict)
         from werkzeug.datastructures import MultiDict
         mutable_form = MultiDict(request.form)
-        
+
         # Merge draft incidents into form data
         # Group by incident type
         incident_type_mapping = {
             'Open': 'open',
-            'Closed': 'closed', 
+            'Closed': 'closed',
             'Priority': 'priority',
             'Handover': 'handover',
             'Escalated': 'escalated'
         }
-        
+
         for draft_inc in collab_draft_incidents:
             inc_type = draft_inc.incident_type or 'Open'
             prefix = incident_type_mapping.get(inc_type, 'open')
-            
+
             # Check if this incident is already in form (by incident_id)
             existing_ids = mutable_form.getlist(f'{prefix}_incident_id[]')
             inc_id = draft_inc.incident_id or draft_inc.title or ''
-            
+
             if inc_id not in existing_ids:
                 # Add this collaborative draft to form data
                 mutable_form.add(f'{prefix}_incident_id[]', inc_id)
@@ -1062,7 +1063,7 @@ def edit_handover(shift_id):
                 mutable_form.add(f'{prefix}_incident_priority[]', draft_inc.priority or 'Medium')
                 mutable_form.add(f'{prefix}_incident_description[]', draft_inc.description or '')
                 mutable_form.add(f'{prefix}_incident_assigned[]', str(draft_inc.assigned_to_id) if draft_inc.assigned_to_id else '')
-                
+
                 # Type-specific fields
                 if inc_type == 'Closed':
                     mutable_form.add(f'{prefix}_incident_resolution[]', draft_inc.resolution or draft_inc.description or '')
@@ -1078,9 +1079,9 @@ def edit_handover(shift_id):
                 elif inc_type == 'Priority':
                     mutable_form.add(f'{prefix}_incident_level[]', draft_inc.priority or 'High')
                     mutable_form.add(f'{prefix}_incident_impact[]', draft_inc.description or '')
-                    
+
                 logger.debug(f"🔄 MERGED draft incident: {inc_id} ({inc_type}) from user {draft_inc.created_by_id}")
-        
+
         # Merge draft keypoints into form data
         existing_kp_descriptions = mutable_form.getlist('keypoint_description[]')
         for draft_kp in collab_draft_keypoints:
@@ -1091,7 +1092,7 @@ def edit_handover(shift_id):
                 mutable_form.add('keypoint_status[]', draft_kp.status or 'Open')
                 mutable_form.add('keypoint_jira_id[]', draft_kp.jira_id or '')
                 logger.debug(f"🔄 MERGED draft keypoint: '{kp_desc[:30]}...' from user {draft_kp.created_by_id}")
-        
+
         # Merge draft change infos into form data
         existing_change_numbers = mutable_form.getlist('change_number[]')
         for draft_ci in collab_draft_changeinfos:
@@ -1104,7 +1105,7 @@ def edit_handover(shift_id):
                 mutable_form.add('change_responsible_engineer[]', str(draft_ci.responsible_engineer_id) if draft_ci.responsible_engineer_id else '')
                 mutable_form.add('change_status[]', draft_ci.status or 'New')
                 logger.debug(f"🔄 MERGED draft change info: {change_num} from user {draft_ci.created_by_id}")
-        
+
         # Merge draft KB updates into form data
         existing_kb_numbers = mutable_form.getlist('kb_number[]')
         for draft_kb in collab_draft_kbupdates:
@@ -1116,15 +1117,15 @@ def edit_handover(shift_id):
                 mutable_form.add('kb_responsible_person[]', str(draft_kb.responsible_engineer_id) if draft_kb.responsible_engineer_id else '')
                 mutable_form.add('kb_status[]', draft_kb.status or 'New')
                 logger.debug(f"🔄 MERGED draft KB update: {kb_num} from user {draft_kb.created_by_id}")
-        
+
         # Replace request.form with merged data for subsequent processing
         # We need to use a context that allows modification
         request.form = mutable_form
-        
+
         logger.debug(f"🔄 COLLABORATIVE DRAFT MERGE: Complete")
         logger.debug(f"   Form now has {len(mutable_form)} fields")
         # ============================================================================
-        
+
         # Audit log: editing handover
         db.session.add(AuditLog(
             user_id=current_user.id,
@@ -1973,7 +1974,7 @@ def edit_handover(shift_id):
                 deleted_changeinfos = DraftChangeInfo.query.filter_by(shift_id=shift_id).delete()
                 # Delete all draft KB updates for this shift
                 deleted_kbupdates = DraftKBUpdate.query.filter_by(shift_id=shift_id).delete()
-                
+
                 db.session.commit()
                 logger.debug(f"🧹 CLEANUP COMPLETE: Removed {deleted_incidents} drafts incidents, "
                             f"{deleted_keypoints} draft keypoints, {deleted_changeinfos} draft change infos, "
@@ -1983,7 +1984,7 @@ def edit_handover(shift_id):
                 # Don't fail the save if cleanup fails - data is already saved
                 db.session.rollback()
         # ============================================================================
-        
+
         # 🔥🔥🔥 FINAL DATABASE STATE VERIFICATION 🔥🔥🔥
         logger.debug(f"🎯🎯🎯 FINAL VERIFICATION: DATA SAVED TO DATABASE 🎯🎯🎯")
         logger.debug(f"   Shift ID: {shift.id}")
@@ -2226,7 +2227,7 @@ def edit_handover(shift_id):
     logger.debug(f"[EDIT_DEBUG]   Change infos: {len(change_infos)} items")
     logger.debug(f"[EDIT_DEBUG]   KB updates: {len(kb_updates)} items")
     logger.debug(f"[EDIT_DEBUG]   is_edit_mode flag: True")
-    
+
     # Enable collaboration for draft handovers
     enable_collaboration = (shift.status == 'draft')
     logger.debug(f"[EDIT_DEBUG]   enable_collaboration: {enable_collaboration}")
@@ -2647,7 +2648,7 @@ def handover():
                             f"[SHIFT_CHECK] Recovered TeamMember id={user_team_member.id} for user "
                             f"{current_user.username} by email match (user_id link was NULL)."
                         )
-                
+
                 if user_team_member:
                     # Check if this team member is in the shift roster for the current shift
                     roster_entry = ShiftRoster.query.filter_by(

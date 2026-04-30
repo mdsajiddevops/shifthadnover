@@ -1,6 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, abort
 from flask_login import login_required, current_user
-from sqlalchemy import func
 from models.models import TeamMember, Account, Team, User, db
 from services.team_access_service import TeamAccessService
 from services.multi_team_service import MultiTeamService
@@ -103,13 +102,8 @@ def team_details(team_id=None):
                     flash('Name and email are required.', 'error')
                     return redirect(url_for('team.team_details', team_id=team_id))
                 
-                # Check if member already exists (case-insensitive email match
-                # to prevent duplicate rows like 'Eloy_Leyva@epam.com' vs 'eloy_leyva@epam.com'
-                # under case-sensitive DB collations).
-                existing = TeamMember.query.filter(
-                    func.lower(TeamMember.email) == email.lower(),
-                    TeamMember.team_id == team_id,
-                ).first()
+                # Check if member already exists
+                existing = TeamMember.query.filter_by(email=email, team_id=team_id).first()
                 if existing:
                     flash(f'A team member with email {email} already exists in this team.', 'error')
                     return redirect(url_for('team.team_details', team_id=team_id))

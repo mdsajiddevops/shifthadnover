@@ -1,5 +1,0 @@
-# Add Gunicorn for production WSGI server
-gunicorn==21.2.0
-
-# Add curl for health checks
-# Note: This will be installed in the Dockerfile system packages

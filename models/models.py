@@ -305,16 +305,16 @@ class User(db.Model, UserMixin):
         
         if query.first() is not None:
             return True
-        
+
         # Fallback: check legacy team_id field on User model
         # This handles users who haven't been migrated to UserTeamMembership yet
         if self.team_id == team_id:
             # Also check account_id if provided
             if account_id is None or self.account_id == account_id:
                 return True
-        
+
         return False
-    
+
     def is_member_of_team_ids(self, team_ids, account_id=None):
         """Check if user is a member of any of the specified teams"""
         if not team_ids:
@@ -331,12 +331,12 @@ class User(db.Model, UserMixin):
         
         if query.first() is not None:
             return True
-        
+
         # Fallback: check legacy team_id field on User model
         if self.team_id and self.team_id in team_ids:
             if account_id is None or self.account_id == account_id:
                 return True
-        
+
         return False
     
     def get_team_names(self, account_id=None, separator=', '):

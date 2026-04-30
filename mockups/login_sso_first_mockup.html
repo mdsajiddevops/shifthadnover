@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Screen Mockup - SSO First</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        /* Left Panel - Feature Showcase */
+        .left-panel {
+            flex: 0 0 55%;
+            max-width: 55%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 3rem;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .left-panel::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 50%);
+            animation: rotate 30s linear infinite;
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .feature-icon {
+            width: 80px;
+            height: 80px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+            position: relative;
+            z-index: 1;
+        }
+        
+        .feature-icon i {
+            font-size: 2.5rem;
+        }
+        
+        .feature-content {
+            text-align: center;
+            max-width: 500px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .feature-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255,255,255,0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            margin-bottom: 1.5rem;
+            backdrop-filter: blur(5px);
+        }
+        
+        .feature-content h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            line-height: 1.2;
+        }
+        
+        .feature-content p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+        
+        /* Right Panel - Login */
+        .right-panel {
+            flex: 0 0 45%;
+            max-width: 45%;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 3rem 4rem;
+            box-shadow: -10px 0 40px rgba(0,0,0,0.1);
+        }
+        
+        .right-panel-inner {
+            max-width: 400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .login-header .logo {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            color: white;
+            font-size: 1.5rem;
+        }
+        
+        .login-header .greeting {
+            font-size: 1rem;
+            color: #667eea;
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+        
+        .login-header h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: 0.5rem;
+        }
+        
+        .login-header p {
+            color: #6c757d;
+            font-size: 0.95rem;
+        }
+        
+        /* SSO Section Container */
+        .sso-container {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        
+        /* Recommended Badge - Above Button */
+        .recommended-badge {
+            position: absolute;
+            top: -10px;
+            right: 15px;
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            color: #667eea;
+            padding: 0.3rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+        
+        .recommended-badge i {
+            margin-right: 0.25rem;
+            font-size: 0.65rem;
+        }
+        
+        /* SSO Primary Button */
+        .sso-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 1.1rem 2rem;
+            border-radius: 12px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            width: 100%;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            white-space: nowrap;
+        }
+        
+        .sso-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.5);
+        }
+        
+        .sso-primary i {
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+        
+        .sso-description {
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin-bottom: 2rem;
+        }
+        
+        .sso-description i {
+            color: #28a745;
+            margin-right: 0.25rem;
+        }
+        
+        /* Divider */
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 1.5rem 0;
+            color: #adb5bd;
+            font-size: 0.85rem;
+        }
+        
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #e9ecef;
+        }
+        
+        .divider span {
+            padding: 0 1rem;
+        }
+        
+        /* Alternative Login Link */
+        .alt-login-link {
+            text-align: center;
+            margin-top: 1rem;
+        }
+        
+        .alt-login-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 1.05rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            border: 2px solid #e9ecef;
+        }
+        
+        .alt-login-link a:hover {
+            background: #f8f9fa;
+            border-color: #667eea;
+        }
+        
+        .alt-login-link a i {
+            font-size: 1.1rem;
+        }
+        
+        /* Credentials Form (Hidden by default) */
+        .credentials-form {
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+        
+        .credentials-form.show {
+            display: block;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        
+        .form-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+        }
+        
+        .form-label i {
+            color: #667eea;
+            font-size: 0.9rem;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+        
+        .form-control::placeholder {
+            color: #adb5bd;
+        }
+        
+        .form-select {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            background: #f8f9fa url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23667eea' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e") no-repeat right 1rem center/12px 12px;
+            appearance: none;
+            cursor: pointer;
+        }
+        
+        .form-select:focus {
+            outline: none;
+            border-color: #667eea;
+            background-color: white;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+        
+        .form-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+        
+        .remember-me input {
+            width: 16px;
+            height: 16px;
+            accent-color: #667eea;
+        }
+        
+        .forgot-link {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        
+        .forgot-link:hover {
+            text-decoration: underline;
+        }
+        
+        .btn-signin {
+            width: 100%;
+            padding: 0.875rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-signin:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        /* Back to SSO Link */
+        .back-to-sso {
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+        
+        .back-to-sso a {
+            color: #6c757d;
+            text-decoration: none;
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .back-to-sso a:hover {
+            color: #667eea;
+        }
+        
+        /* Help Section */
+        .help-section {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #e9ecef;
+            text-align: center;
+        }
+        
+        .help-section p {
+            color: #6c757d;
+            font-size: 0.85rem;
+        }
+        
+        .help-section a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .help-section a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Feature Grid (for carousel) */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-top: 3rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .feature-item {
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.25rem;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .feature-item:hover {
+            background: rgba(255,255,255,0.25);
+            transform: translateY(-3px);
+        }
+        
+        .feature-item i {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        
+        .feature-item span {
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        
+        /* Responsive */
+        @media (max-width: 992px) {
+            .left-panel {
+                display: none;
+            }
+            
+            .right-panel {
+                width: 100%;
+                max-width: 450px;
+                margin: 2rem auto;
+                border-radius: 20px;
+            }
+        }
+        
+        /* Demo Notice */
+        .demo-notice {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #ffc107;
+            color: #1a1a2e;
+            padding: 0.75rem;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            z-index: 9999;
+        }
+        
+        .demo-notice i {
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Demo Notice -->
+    <div class="demo-notice">
+        <i class="bi bi-info-circle"></i>
+        MOCKUP PREVIEW - This is a design demo for the new SSO-first login screen
+    </div>
+    
+    <!-- Left Panel -->
+    <div class="left-panel">
+        <div class="feature-icon">
+            <i class="bi bi-people-fill"></i>
+        </div>
+        
+        <div class="feature-content">
+            <div class="feature-badge">
+                <i class="bi bi-stars"></i>
+                Powerful Features
+            </div>
+            <h1>Everything You Need<br>In One Place</h1>
+            <p>Track incidents, manage key points, and ensure smooth transitions between shifts with real-time collaboration tools.</p>
+        </div>
+        
+        <div class="feature-grid">
+            <div class="feature-item">
+                <i class="bi bi-clipboard-check"></i>
+                <span>Handovers</span>
+            </div>
+            <div class="feature-item">
+                <i class="bi bi-bell"></i>
+                <span>Alerts</span>
+            </div>
+            <div class="feature-item">
+                <i class="bi bi-graph-up"></i>
+                <span>Analytics</span>
+            </div>
+            <div class="feature-item">
+                <i class="bi bi-people"></i>
+                <span>Teams</span>
+            </div>
+            <div class="feature-item">
+                <i class="bi bi-calendar3"></i>
+                <span>Roster</span>
+            </div>
+            <div class="feature-item">
+                <i class="bi bi-file-earmark-text"></i>
+                <span>Reports</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Right Panel - Login -->
+    <div class="right-panel">
+        <div class="right-panel-inner">
+            <div class="login-header">
+                <p class="greeting">👋 Hello there!</p>
+                <h2>Welcome to ShiftOps</h2>
+                <p>Sign in to continue your journey</p>
+            </div>
+            
+            <!-- SSO Section (Default View) -->
+            <div id="ssoSection">
+                <div class="sso-container">
+                    <button class="sso-primary" onclick="window.location.href='/sso/login'">
+                        <i class="bi bi-building"></i>
+                        EPAM Single Sign-On
+                    </button>
+                </div>
+            
+            <p class="sso-description">
+                <i class="bi bi-shield-check"></i>
+                Secure authentication with your corporate account
+            </p>
+            
+            <div class="divider">
+                <span>or</span>
+            </div>
+            
+            <div class="alt-login-link">
+                <a href="#" onclick="showCredentialsForm(); return false;">
+                    <i class="bi bi-key"></i>
+                    Sign in with credentials
+                </a>
+            </div>
+        </div>
+        
+        <!-- Credentials Form (Hidden by default) -->
+        <div id="credentialsForm" class="credentials-form">
+            <form>
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="bi bi-building"></i>
+                        ORGANIZATION
+                    </label>
+                    <select class="form-select">
+                        <option value="">Select your organization</option>
+                        <option value="1">CTC</option>
+                        <option value="2">EPAM</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="bi bi-people"></i>
+                        TEAM
+                    </label>
+                    <select class="form-select">
+                        <option value="">Select your team</option>
+                        <option value="1">Supply Chain L2</option>
+                        <option value="2">DBA Team</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="bi bi-person"></i>
+                        USERNAME
+                    </label>
+                    <input type="text" class="form-control" placeholder="Enter your username">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="bi bi-lock"></i>
+                        PASSWORD
+                    </label>
+                    <input type="password" class="form-control" placeholder="Enter your password">
+                </div>
+                
+                <div class="form-options">
+                    <label class="remember-me">
+                        <input type="checkbox">
+                        Remember me
+                    </label>
+                    <a href="#" class="forgot-link">Forgot password?</a>
+                </div>
+                
+                <button type="submit" class="btn-signin">
+                    <i class="bi bi-box-arrow-in-right"></i>
+                    Sign In
+                </button>
+            </form>
+            
+            <div class="back-to-sso">
+                <a href="#" onclick="showSSOSection(); return false;">
+                    <i class="bi bi-arrow-left"></i>
+                    Back to SSO login
+                </a>
+            </div>
+        </div>
+        
+            <div class="help-section">
+                <p>Need assistance? <a href="#">Contact your administrator</a></p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showCredentialsForm() {
+            document.getElementById('ssoSection').style.display = 'none';
+            document.getElementById('credentialsForm').classList.add('show');
+        }
+        
+        function showSSOSection() {
+            document.getElementById('credentialsForm').classList.remove('show');
+            document.getElementById('ssoSection').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
+

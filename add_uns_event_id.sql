@@ -11,3 +11,11 @@ CREATE INDEX IF NOT EXISTS idx_uns_event_id ON email_delivery_log(uns_event_id);
 -- Verify the column was added
 DESCRIBE email_delivery_log;
 
+
+
+
+
+
+
+
+

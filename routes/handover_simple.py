@@ -163,8 +163,7 @@ def handover():
             # No teams = no members
             tm_query = tm_query.filter(False)
     
-    # Filter out disabled/inactive team members
-    team_members = tm_query.filter_by(is_active=True).all()
+    team_members = tm_query.all()
     
     # Get current date and time
     ist_now = datetime.now(pytz.timezone('Asia/Kolkata'))

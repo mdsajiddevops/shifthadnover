@@ -1,8 +1,12 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from models.app_config import AppConfig
-from models.models import db
+from models.models import db, Account, Team
+from models.team_feature_config import TeamFeatureConfig
 from services.audit_service import log_action
+import logging
+
+logger = logging.getLogger(__name__)
 
 config_bp = Blueprint('config', __name__)
 
@@ -268,3 +272,327 @@ def clear_servicenow_configuration():
     except Exception as e:
         log_action('ServiceNow Configuration Clear Error', f'Error: {str(e)}')
         return jsonify({'error': f'Failed to clear configuration: {str(e)}'}), 500
+
+# ============================================================================
+# Team/Account Feature Management Routes
+# ============================================================================
+
+@config_bp.route('/admin/feature-management')
+@login_required
+def feature_management():
+    """Main feature management page for superadmin to control tabs per team/account"""
+    if current_user.role != 'super_admin':
+        flash('Access denied. Super admin privileges required.', 'danger')
+        return redirect(url_for('dashboard.dashboard'))
+    
+    try:
+        # Get all accounts and teams
+        accounts = Account.query.filter_by(is_active=True).order_by(Account.name).all()
+        teams_by_account = {}
+        
+        for account in accounts:
+            teams_by_account[account.id] = Team.query.filter_by(
+                account_id=account.id, 
+                is_active=True
+            ).order_by(Team.name).all()
+        
+        # Get all available features
+        available_features = TeamFeatureConfig.get_all_available_features()
+        
+        # Convert teams_by_account dict to a format that can be serialized to JSON
+        # teams_by_account is already a dict with account_id as key and list of Team objects as value
+        # We need to convert Team objects to dicts
+        teams_by_account_dict = {}
+        for account_id, teams_list in teams_by_account.items():
+            teams_by_account_dict[account_id] = [
+                {
+                    'id': team.id,
+                    'name': team.name,
+                    'account_id': team.account_id,
+                    'is_active': team.is_active
+                }
+                for team in teams_list
+            ]
+        
+        # Convert accounts to list of dicts
+        accounts_list = [
+            {
+                'id': acc.id,
+                'name': acc.name,
+                'is_active': acc.is_active
+            }
+            for acc in accounts
+        ]
+        
+        return render_template('admin/feature_management.html',
+                             accounts=accounts_list,
+                             teams_by_account=teams_by_account_dict,
+                             available_features=available_features)
+    
+    except Exception as e:
+        logger.error(f"Error loading feature management page: {e}", exc_info=True)
+        flash(f'Error loading feature management: {str(e)}', 'danger')
+        return redirect(url_for('dashboard.dashboard'))
+
+@config_bp.route('/api/feature-management/accounts')
+@login_required
+def api_get_accounts():
+    """API endpoint to get all accounts for feature management"""
+    if current_user.role != 'super_admin':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        accounts = Account.query.filter_by(is_active=True).order_by(Account.name).all()
+        accounts_data = [{
+            'id': acc.id,
+            'name': acc.name,
+            'is_active': acc.is_active
+        } for acc in accounts]
+        
+        return jsonify({'success': True, 'accounts': accounts_data})
+    
+    except Exception as e:
+        logger.error(f"Error getting accounts: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@config_bp.route('/api/feature-management/accounts/<int:account_id>/teams')
+@login_required
+def api_get_teams_by_account(account_id):
+    """API endpoint to get teams for a specific account"""
+    if current_user.role != 'super_admin':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        teams = Team.query.filter_by(account_id=account_id, is_active=True).order_by(Team.name).all()
+        teams_data = [{
+            'id': team.id,
+            'name': team.name,
+            'account_id': team.account_id,
+            'is_active': team.is_active
+        } for team in teams]
+        
+        return jsonify({'success': True, 'teams': teams_data})
+    
+    except Exception as e:
+        logger.error(f"Error getting teams: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@config_bp.route('/api/feature-management/features')
+@login_required
+def api_get_available_features():
+    """API endpoint to get all available features"""
+    if current_user.role != 'super_admin':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        features = TeamFeatureConfig.get_all_available_features()
+        features_data = []
+        
+        # Group by category
+        features_by_category = {}
+        for feature_key, feature_name, category in features:
+            if category not in features_by_category:
+                features_by_category[category] = []
+            features_by_category[category].append({
+                'key': feature_key,
+                'name': feature_name,
+                'category': category
+            })
+        
+        return jsonify({
+            'success': True,
+            'features': features_data,
+            'features_by_category': features_by_category
+        })
+    
+    except Exception as e:
+        logger.error(f"Error getting features: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@config_bp.route('/api/feature-management/config', methods=['GET'])
+@login_required
+def api_get_feature_config():
+    """API endpoint to get feature configuration for a scope"""
+    if current_user.role != 'super_admin':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        scope_type = request.args.get('scope_type')  # 'account' or 'team'
+        scope_id = request.args.get('scope_id', type=int)
+        
+        if not scope_type or not scope_id:
+            return jsonify({'success': False, 'error': 'Missing scope_type or scope_id'}), 400
+        
+        if scope_type not in ['account', 'team']:
+            return jsonify({'success': False, 'error': 'Invalid scope_type'}), 400
+        
+        # Get all configurations for this scope
+        configs = TeamFeatureConfig.query.filter_by(
+            scope_type=scope_type,
+            scope_id=scope_id
+        ).all()
+        
+        config_map = {}
+        for config in configs:
+            config_map[config.feature_key] = {
+                'is_enabled': config.is_enabled,
+                'description': config.description,
+                'updated_at': config.updated_at.isoformat() if config.updated_at else None,
+                'updated_by': config.updated_by
+            }
+        
+        return jsonify({'success': True, 'configs': config_map})
+    
+    except Exception as e:
+        logger.error(f"Error getting feature config: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@config_bp.route('/api/feature-management/config', methods=['POST'])
+@login_required
+def api_set_feature_config():
+    """API endpoint to set feature configuration for a scope"""
+    if current_user.role != 'super_admin':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        data = request.get_json()
+        scope_type = data.get('scope_type')  # 'account' or 'team'
+        scope_id = data.get('scope_id')
+        feature_key = data.get('feature_key')
+        is_enabled = data.get('is_enabled', True)
+        description = data.get('description')
+        
+        if not all([scope_type, scope_id, feature_key]):
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        
+        if scope_type not in ['account', 'team']:
+            return jsonify({'success': False, 'error': 'Invalid scope_type'}), 400
+        
+        # Validate scope exists
+        if scope_type == 'account':
+            scope_obj = Account.query.get(scope_id)
+            scope_name = scope_obj.name if scope_obj else None
+        else:
+            scope_obj = Team.query.get(scope_id)
+            scope_name = scope_obj.name if scope_obj else None
+        
+        if not scope_obj:
+            return jsonify({'success': False, 'error': f'{scope_type.capitalize()} not found'}), 404
+        
+        # Set the configuration
+        config = TeamFeatureConfig.set_feature_status(
+            scope_type=scope_type,
+            scope_id=scope_id,
+            feature_key=feature_key,
+            is_enabled=is_enabled,
+            description=description,
+            updated_by=current_user.email
+        )
+        
+        log_action(
+            'Update Feature Configuration',
+            f'Updated {feature_key} for {scope_type} "{scope_name}" to {is_enabled}'
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'Feature configuration updated successfully',
+            'config': {
+                'id': config.id,
+                'scope_type': config.scope_type,
+                'scope_id': config.scope_id,
+                'feature_key': config.feature_key,
+                'is_enabled': config.is_enabled
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f"Error setting feature config: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@config_bp.route('/api/feature-management/config/bulk', methods=['POST'])
+@login_required
+def api_bulk_set_feature_config():
+    """API endpoint to bulk update feature configurations for a scope"""
+    if current_user.role != 'super_admin':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        data = request.get_json()
+        scope_type = data.get('scope_type')  # 'account' or 'team'
+        scope_id = data.get('scope_id')
+        feature_updates = data.get('feature_updates', {})  # {feature_key: is_enabled}
+        
+        if not all([scope_type, scope_id]):
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        
+        if scope_type not in ['account', 'team']:
+            return jsonify({'success': False, 'error': 'Invalid scope_type'}), 400
+        
+        # Validate scope exists
+        if scope_type == 'account':
+            scope_obj = Account.query.get(scope_id)
+            scope_name = scope_obj.name if scope_obj else None
+        else:
+            scope_obj = Team.query.get(scope_id)
+            scope_name = scope_obj.name if scope_obj else None
+        
+        if not scope_obj:
+            return jsonify({'success': False, 'error': f'{scope_type.capitalize()} not found'}), 404
+        
+        # Bulk update
+        TeamFeatureConfig.bulk_update_features(
+            scope_type=scope_type,
+            scope_id=scope_id,
+            feature_updates=feature_updates,
+            updated_by=current_user.email
+        )
+        
+        log_action(
+            'Bulk Update Feature Configuration',
+            f'Updated {len(feature_updates)} features for {scope_type} "{scope_name}"'
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'Updated {len(feature_updates)} feature configurations successfully'
+        })
+    
+    except Exception as e:
+        logger.error(f"Error bulk setting feature config: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@config_bp.route('/api/feature-management/config/<int:config_id>', methods=['DELETE'])
+@login_required
+def api_delete_feature_config(config_id):
+    """API endpoint to delete a feature configuration (reset to default)"""
+    if current_user.role != 'super_admin':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        config = TeamFeatureConfig.query.get(config_id)
+        if not config:
+            return jsonify({'success': False, 'error': 'Configuration not found'}), 404
+        
+        scope_name = f"{config.scope_type}:{config.scope_id}"
+        feature_key = config.feature_key
+        
+        db.session.delete(config)
+        db.session.commit()
+        
+        log_action(
+            'Delete Feature Configuration',
+            f'Deleted {feature_key} configuration for {scope_name}'
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Feature configuration deleted successfully'
+        })
+    
+    except Exception as e:
+        logger.error(f"Error deleting feature config: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
