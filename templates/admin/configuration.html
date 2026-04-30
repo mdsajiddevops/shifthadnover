@@ -1,5 +1,25 @@
 {% extends "base.html" %}
 {% block content %}
+<!-- Page Header -->
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-gear me-2"></i>System Configuration
+            </h1>
+            <p class="page-subtitle mb-0">Configure system-wide settings and feature toggles</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-danger px-3 py-2">
+                <i class="bi bi-shield-exclamation me-1"></i>Super Admin Only
+            </span>
+            <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-light">
+                <i class="bi bi-arrow-left me-1"></i>Back
+            </a>
+        </div>
+    </div>
+</div>
+
 <style>
     .config-card {
         border: none;
@@ -30,10 +50,6 @@
 
 <div class="container-fluid px-0">
     <div class="card shadow-sm p-4 mb-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2 class="mb-0">System Configuration</h2>
-            <span class="badge bg-danger">Super Admin Only</span>
-        </div>
         
         <div class="alert alert-info">
             <i class="fas fa-info-circle me-2"></i>
@@ -153,6 +169,24 @@
                                     <div class="form-check form-switch">
                                         <input class="form-check-input config-toggle" type="checkbox" name="tab_post_mortems"
                                                {% if postmortem_config and postmortem_config.config_value == 'true' %}checked{% endif %}>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Shift Management Dashboard -->
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex justify-content-between align-items-center p-3 border rounded">
+                                    <div>
+                                        <strong>Shift Management Dashboard</strong>
+                                        <div class="config-description">Advanced shift management and scheduling</div>
+                                        {% set shift_mgmt_config = all_configs|selectattr('config_key', 'equalto', 'tab_shift_management')|first %}
+                                        <span class="config-status {{ 'status-enabled' if shift_mgmt_config and shift_mgmt_config.config_value == 'true' else 'status-disabled' }}">
+                                            {{ 'Enabled' if shift_mgmt_config and shift_mgmt_config.config_value == 'true' else 'Disabled' }}
+                                        </span>
+                                    </div>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input config-toggle" type="checkbox" name="tab_shift_management"
+                                               {% if shift_mgmt_config and shift_mgmt_config.config_value == 'true' %}checked{% endif %}>
                                     </div>
                                 </div>
                             </div>

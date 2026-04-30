@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-people-fill me-2"></i>{{ action }} Team
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <!-- Flash Messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' if category == 'success' else 'info' }} alert-dismissible fade show" role="alert">
+                                    <i class="bi bi-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' if category == 'success' else 'info-circle' }} me-2"></i>
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <form method="post" id="teamForm" novalidate>
+                        <div class="mb-3">
+                            <label for="name" class="form-label fw-semibold">
+                                <i class="bi bi-people me-1"></i>Team Name
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="name" 
+                                   name="name" 
+                                   value="{{ team.name if team else '' }}" 
+                                   required
+                                   placeholder="Enter team name"
+                                   minlength="2"
+                                   maxlength="100">
+                            <div class="invalid-feedback">
+                                Please provide a valid team name (2-100 characters).
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="account_id" class="form-label fw-semibold">
+                                <i class="bi bi-building me-1"></i>Account
+                            </label>
+                            <select class="form-select" id="account_id" name="account_id" required>
+                                <option value="">Select an account...</option>
+                                {% for account in accounts %}
+                                <option value="{{ account.id }}" 
+                                        {% if team and team.account_id == account.id %}selected{% endif %}>
+                                    {{ account.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="invalid-feedback">
+                                Please select an account for this team.
+                            </div>
+                        </div>
+
+                        <!-- Email Configuration Section -->
+                        <div class="mb-4">
+                            <h6 class="fw-semibold text-muted mb-3">
+                                <i class="bi bi-envelope-at me-1"></i>Email Configuration
+                            </h6>
+                            
+                            <div class="mb-3">
+                                <label for="email_recipients" class="form-label fw-semibold">
+                                    <i class="bi bi-people-fill me-1"></i>Handover Email Recipients
+                                </label>
+                                <textarea class="form-control" 
+                                         id="email_recipients" 
+                                         name="email_recipients" 
+                                         rows="3"
+                                         placeholder="Enter comma-separated email addresses for handover notifications&#10;Example: team-app@company.com, manager@company.com"
+                                >{{ team.email_recipients if team and team.email_recipients else '' }}</textarea>
+                                <div class="form-text">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Comma-separated email addresses that will receive handover notifications for this team.
+                                    Leave empty to use global configuration.
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="priority_alert_recipients" class="form-label fw-semibold">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>Priority Alert Recipients
+                                </label>
+                                <textarea class="form-control" 
+                                         id="priority_alert_recipients" 
+                                         name="priority_alert_recipients" 
+                                         rows="3"
+                                         placeholder="Enter comma-separated email addresses for priority/escalated incidents&#10;Example: oncall@company.com, senior-manager@company.com"
+                                >{{ team.priority_alert_recipients if team and team.priority_alert_recipients else '' }}</textarea>
+                                <div class="form-text">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Additional email addresses that will be notified when handovers contain high-priority or escalated incidents.
+                                    Leave empty to use global configuration.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 justify-content-end">
+                            <a href="{{ url_for('admin.teams') }}" class="btn btn-secondary">
+                                <i class="bi bi-x-circle me-1"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>{{ action }} Team
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for Form Validation -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('teamForm');
+    const nameInput = document.getElementById('name');
+    const accountSelect = document.getElementById('account_id');
+    
+    // Bootstrap form validation
+    form.addEventListener('submit', function(event) {
+        if (!form.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        
+        form.classList.add('was-validated');
+    });
+    
+    // Real-time validation feedback
+    nameInput.addEventListener('input', function() {
+        validateName();
+    });
+    
+    accountSelect.addEventListener('change', function() {
+        validateAccount();
+    });
+    
+    // Email validation
+    const emailRecipientsTextarea = document.getElementById('email_recipients');
+    const priorityAlertRecipientsTextarea = document.getElementById('priority_alert_recipients');
+    
+    if (emailRecipientsTextarea) {
+        emailRecipientsTextarea.addEventListener('blur', function() {
+            validateEmailList(this);
+        });
+    }
+    
+    if (priorityAlertRecipientsTextarea) {
+        priorityAlertRecipientsTextarea.addEventListener('blur', function() {
+            validateEmailList(this);
+        });
+    }
+    
+    function validateName() {
+        const name = nameInput.value.trim();
+        if (name.length < 2) {
+            nameInput.setCustomValidity('Team name must be at least 2 characters long');
+        } else if (name.length > 100) {
+            nameInput.setCustomValidity('Team name must be less than 100 characters');
+        } else {
+            nameInput.setCustomValidity('');
+        }
+    }
+    
+    function validateAccount() {
+        if (!accountSelect.value) {
+            accountSelect.setCustomValidity('Please select an account');
+        } else {
+            accountSelect.setCustomValidity('');
+        }
+    }
+    
+    function validateEmailList(textarea) {
+        const value = textarea.value.trim();
+        if (!value) {
+            // Empty is allowed - will use global configuration
+            textarea.setCustomValidity('');
+            return;
+        }
+        
+        const emails = value.split(',').map(email => email.trim()).filter(email => email);
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const invalidEmails = [];
+        
+        for (const email of emails) {
+            if (!emailRegex.test(email)) {
+                invalidEmails.push(email);
+            }
+        }
+        
+        if (invalidEmails.length > 0) {
+            textarea.setCustomValidity(`Invalid email addresses: ${invalidEmails.join(', ')}`);
+        } else {
+            textarea.setCustomValidity('');
+        }
+    }
+});
+</script>
+{% endblock %}

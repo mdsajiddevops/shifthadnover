@@ -7,9 +7,13 @@ from flask import Blueprint, request, redirect, url_for, flash, session, render_
 from flask_login import login_user, logout_user, current_user
 from urllib.parse import urlparse, urljoin
 import requests
+import logging
 from datetime import datetime
 from models.models import db, User, Account, Team, TeamMember
 from models.sso_config import SSOConfig
+
+# Module logger
+logger = logging.getLogger(__name__)
 # Remove audit import for now - will use Flask logging instead
 import xml.etree.ElementTree as ET
 import base64
@@ -18,6 +22,7 @@ import hashlib
 import secrets
 import re
 from difflib import SequenceMatcher
+import logging
 
 sso_auth = Blueprint('sso_auth', __name__, url_prefix='/auth/sso')
 
@@ -71,9 +76,14 @@ def initiate_sso(provider):
 def sso_callback(provider):
     """Handle SSO callback from provider"""
     try:
-        # Log callback details for debugging
+        # Enhanced debugging for callback investigation
         current_app.logger.info(f"SSO callback for provider: {provider}")
+        current_app.logger.info(f"Request method: {request.method}")
+        current_app.logger.info(f"Request URL: {request.url}")
         current_app.logger.info(f"Request args: {dict(request.args)}")
+        current_app.logger.info(f"Request form: {dict(request.form)}")
+        current_app.logger.info(f"Request headers: {dict(request.headers)}")
+        current_app.logger.info(f"Request query string: {request.query_string}")
         
         # Check for OAuth errors
         if request.args.get('error'):
@@ -158,6 +168,8 @@ def _initiate_azure_ad_login(config, account_id):
 
 def _initiate_oauth_login(config, account_id):
     """Initiate generic OAuth 2.0 login"""
+    from urllib.parse import urlencode, quote_plus
+    
     session['sso_account_id'] = account_id
     
     # Store provider type for callback handling
@@ -168,7 +180,7 @@ def _initiate_oauth_login(config, account_id):
     state = secrets.token_hex(16)
     session['oauth_state'] = state
     
-    # Build authorization URL
+    # Build authorization URL with proper URL encoding
     params = {
         'client_id': config.get('client_id'),
         'response_type': 'code',
@@ -178,13 +190,16 @@ def _initiate_oauth_login(config, account_id):
     }
     
     auth_url = config.get('authorization_endpoint')
-    query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+    
+    # Use proper URL encoding for query parameters
+    query_string = urlencode(params)
     redirect_url = f"{auth_url}?{query_string}"
     
     # Debug logging
     current_app.logger.info(f"OAuth redirect URL: {redirect_url}")
     current_app.logger.info(f"Client ID: {config.get('client_id')}")
     current_app.logger.info(f"Redirect URI: {config.get('redirect_uri')}")
+    current_app.logger.info(f"Authorization endpoint: {auth_url}")
     
     return redirect(redirect_url)
 
@@ -608,6 +623,10 @@ def _process_sso_user(user_data, provider_type, account_id):
         
         # Log the user in
         login_user(user)
+        
+        # Create session token for session management
+        from routes.auth import create_user_session
+        create_user_session(user)
         
         # Log SSO authentication
         current_app.logger.info(f'SSO login successful for user {user.email} via {provider_type}')

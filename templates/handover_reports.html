@@ -4,545 +4,1496 @@
 
 {% block extra_css %}
 <style>
-    .reports-table {
-        border-collapse: separate;
-        border-spacing: 0;
-        border: 1px solid #f0f8ff;
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+/* ================================================
+   SHIFT HANDOVER REPORTS - MODERN LIGHT DESIGN
+   ================================================ */
+
+/* Page Container */
+.reports-page {
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+    min-height: 100vh;
+    padding: 1.5rem;
+}
+
+/* Page Header */
+.reports-header {
+    background: linear-gradient(135deg, #6b8dd6 0%, #8e7cc3 100%);
+    border-radius: 20px;
+    padding: 2rem;
+    color: white;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 8px 30px rgba(107, 141, 214, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.reports-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 50%;
+    height: 200%;
+    background: radial-gradient(ellipse, rgba(255,255,255,0.15) 0%, transparent 70%);
+}
+
+.reports-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.reports-header p {
+    opacity: 0.9;
+    margin: 0;
+}
+
+.header-stats {
+    display: flex;
+    gap: 1rem;
+}
+
+.stat-badge {
+    background: rgba(255,255,255,0.2);
+    backdrop-filter: blur(10px);
+    padding: 0.75rem 1.25rem;
+    border-radius: 12px;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.3);
+}
+
+.stat-badge .number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    display: block;
+}
+
+.stat-badge .label {
+    font-size: 0.75rem;
+    opacity: 0.9;
+}
+
+/* Quick Access Cards */
+.quick-access-card {
+    background: white;
+    border-radius: 16px;
+    padding: 1.25rem;
+    border: none;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+.quick-access-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+.quick-access-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.quick-access-icon.info { background: #e3f2fd; color: #1976d2; }
+.quick-access-icon.success { background: #e8f5e9; color: #388e3c; }
+
+/* Filter Card */
+.filter-card {
+    background: white;
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    border: none;
+}
+
+.filter-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+.filter-card-header i {
+    color: #6b8dd6;
+    font-size: 1.25rem;
+}
+
+.filter-card-header h5 {
+    margin: 0;
+    font-weight: 600;
+    color: #495057;
+}
+
+.filter-form .form-label {
+    font-weight: 600;
+    color: #6c757d;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+
+.filter-form .form-control,
+.filter-form .form-select {
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    padding: 0.6rem 1rem;
+    transition: all 0.3s ease;
+}
+
+.filter-form .form-control:focus,
+.filter-form .form-select:focus {
+    border-color: #6b8dd6;
+    box-shadow: 0 0 0 3px rgba(107, 141, 214, 0.15);
+}
+
+.btn-filter {
+    background: linear-gradient(135deg, #6b8dd6 0%, #8e7cc3 100%);
+    border: none;
+    border-radius: 10px;
+    padding: 0.6rem 1.5rem;
+    font-weight: 600;
+    color: white;
+    transition: all 0.3s ease;
+}
+
+.btn-filter:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(107, 141, 214, 0.4);
+    color: white;
+}
+
+/* Date Group Card */
+.date-group-card {
+    background: white;
+    border-radius: 16px;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 2px 15px rgba(0,0,0,0.06);
+    overflow: hidden;
+    border: none;
+}
+
+.date-group-header {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.date-group-header:hover {
+    background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+}
+
+.date-group-header .date-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.date-icon {
+    width: 45px;
+    height: 45px;
+    background: linear-gradient(135deg, #6b8dd6 0%, #8e7cc3 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.25rem;
+}
+
+.date-text h6 {
+    margin: 0;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.date-text small {
+    color: #6c757d;
+}
+
+.date-badge {
+    background: #6b8dd6;
+    color: white;
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+/* Shift Entry Card */
+.shift-entry {
+    border-bottom: 1px solid #f0f0f0;
+    padding: 1.25rem 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.shift-entry:last-child {
+    border-bottom: none;
+}
+
+.shift-entry:hover {
+    background: #fafbff;
+}
+
+.shift-entry-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    cursor: pointer;
+}
+
+.shift-meta {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.shift-type-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.shift-type-badge.morning { background: #fff8e1; color: #f57c00; border: 1px solid #ffe0b2; }
+.shift-type-badge.evening { background: #e3f2fd; color: #1976d2; border: 1px solid #bbdefb; }
+.shift-type-badge.night { background: #ede7f6; color: #5e35b1; border: 1px solid #d1c4e9; }
+.shift-type-badge.default { background: #f5f5f5; color: #616161; border: 1px solid #e0e0e0; }
+
+.submitted-by {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.submitted-by i { color: #6b8dd6; }
+
+.status-badge {
+    padding: 0.4rem 0.75rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.status-badge.completed { background: #e8f5e9; color: #2e7d32; }
+.status-badge.draft { background: #fff3e0; color: #ef6c00; }
+
+/* Draft Edit Button - Prominent styling */
+.draft-edit-btn {
+    background: linear-gradient(135deg, #f39c12, #e67e22) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 600;
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(243, 156, 18, 0.4);
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    animation: pulse-draft 2s infinite;
+}
+
+.draft-edit-btn:hover {
+    background: linear-gradient(135deg, #e67e22, #d35400) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(243, 156, 18, 0.5);
+    color: white !important;
+}
+
+@keyframes pulse-draft {
+    0%, 100% { box-shadow: 0 2px 8px rgba(243, 156, 18, 0.4); }
+    50% { box-shadow: 0 2px 15px rgba(243, 156, 18, 0.7); }
+}
+
+/* Delete Draft Button - Super Admin Only */
+.draft-delete-btn {
+    background: linear-gradient(135deg, #dc3545, #c82333) !important;
+    border: none !important;
+    color: white !important;
+    padding: 0.4rem 1rem !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+    display: inline-flex;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+.draft-delete-btn:hover {
+    background: linear-gradient(135deg, #c82333, #a71d2a) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.5);
+}
+
+.draft-delete-btn i {
+    margin-right: 0.3rem;
+}
+
+/* Delete Confirmation Modal */
+.delete-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.delete-modal-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.delete-modal-content {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    max-width: 450px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.delete-modal-overlay.show .delete-modal-content {
+    transform: scale(1);
+}
+
+.delete-modal-icon {
+    width: 70px;
+    height: 70px;
+    background: #ffebee;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem;
+}
+
+.delete-modal-icon i {
+    font-size: 2rem;
+    color: #dc3545;
+}
+
+.delete-modal-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #2c3e50;
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+
+.delete-modal-subtitle {
+    color: #6c757d;
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.delete-modal-details {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.delete-modal-details p {
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
+}
+
+.delete-modal-details strong {
+    color: #495057;
+}
+
+.delete-modal-warning {
+    background: #fff3cd;
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.85rem;
+    color: #856404;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.delete-modal-warning i {
+    color: #ffc107;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.delete-modal-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.delete-modal-btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.delete-modal-btn.cancel {
+    background: #e9ecef;
+    color: #495057;
+}
+
+.delete-modal-btn.cancel:hover {
+    background: #dee2e6;
+}
+
+.delete-modal-btn.confirm {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+    color: white;
+}
+
+.delete-modal-btn.confirm:hover {
+    background: linear-gradient(135deg, #c82333, #a71d2a);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+}
+
+.shift-summary-badges {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.summary-badge {
+    padding: 0.35rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.summary-badge.incidents { background: #ffebee; color: #c62828; }
+.summary-badge.keypoints { background: #fff8e1; color: #f57c00; }
+.summary-badge.changes { background: #e3f2fd; color: #1565c0; }
+.summary-badge.kb { background: #e8f5e9; color: #2e7d32; }
+
+/* Shift Details Section */
+.shift-details {
+    display: none;
+    padding-top: 1rem;
+}
+
+.shift-details.show {
+    display: block;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Section Cards */
+.section-card {
+    background: #fafbfc;
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    border: 1px solid #e9ecef;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.section-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+}
+
+.section-icon.incidents { background: #ffebee; color: #c62828; }
+.section-icon.changes { background: #e3f2fd; color: #1565c0; }
+.section-icon.keypoints { background: #fff8e1; color: #f57c00; }
+.section-icon.kb { background: #e8f5e9; color: #2e7d32; }
+.section-icon.notes { background: #f3e5f5; color: #7b1fa2; }
+
+.section-title {
+    font-weight: 600;
+    color: #495057;
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.section-count {
+    background: #e9ecef;
+    color: #495057;
+    padding: 0.25rem 0.6rem;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: auto;
+}
+
+/* Item Cards */
+.item-card {
+    background: white;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid #e9ecef;
+    transition: all 0.2s ease;
+}
+
+.item-card:last-child {
+    margin-bottom: 0;
+}
+
+.item-card:hover {
+    border-color: #d0d0d0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.item-type-badge {
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.item-type-badge.open { background: #e3f2fd; color: #1565c0; }
+.item-type-badge.closed { background: #e8f5e9; color: #2e7d32; }
+.item-type-badge.escalated { background: #fff3e0; color: #ef6c00; }
+.item-type-badge.priority { background: #ffebee; color: #c62828; }
+.item-type-badge.handover { background: #e0f7fa; color: #00838f; }
+
+.item-title {
+    font-weight: 600;
+    margin: 0.5rem 0;
+    font-size: 0.95rem;
+}
+
+.item-title.open { color: #1565c0; }
+.item-title.closed { color: #2e7d32; }
+.item-title.escalated { color: #ef6c00; }
+.item-title.priority { color: #c62828; }
+.item-title.handover { color: #00838f; }
+
+.item-description {
+    color: #6c757d;
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+    line-height: 1.5;
+    word-wrap: break-word;
+    word-break: break-word;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+}
+
+.item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+.item-meta span {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.priority-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.priority-badge.high { background: #ffebee; color: #c62828; }
+.priority-badge.medium { background: #fff3e0; color: #ef6c00; }
+.priority-badge.low { background: #e8f5e9; color: #2e7d32; }
+
+/* Key Point Status */
+.kp-status {
+    padding: 0.3rem 0.6rem;
+    border-radius: 15px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.kp-status.open { background: #e3f2fd; color: #1565c0; }
+.kp-status.in-progress { background: #fff3e0; color: #ef6c00; }
+.kp-status.closed { background: #e8f5e9; color: #2e7d32; }
+
+/* KB Status */
+.kb-status {
+    padding: 0.3rem 0.6rem;
+    border-radius: 15px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.kb-status.published { background: #e8f5e9; color: #2e7d32; }
+.kb-status.in-review { background: #fff3e0; color: #ef6c00; }
+.kb-status.draft { background: #f5f5f5; color: #616161; }
+
+/* Additional Notes */
+.notes-content {
+    background: white;
+    border-radius: 10px;
+    padding: 1rem;
+    border: 1px solid #e9ecef;
+    font-size: 0.9rem;
+    color: #495057;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+/* Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e9ecef;
+}
+
+.btn-details {
+    background: linear-gradient(135deg, #6b8dd6 0%, #8e7cc3 100%);
+    color: white;
+    border: none;
+    padding: 0.5rem 1.25rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+}
+
+.btn-details:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(107, 141, 214, 0.4);
+    color: white;
+}
+
+.btn-edit {
+    background: white;
+    color: #6c757d;
+    border: 2px solid #e9ecef;
+    padding: 0.5rem 1.25rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+}
+
+.btn-edit:hover {
+    border-color: #6b8dd6;
+    color: #6b8dd6;
+}
+
+/* Export Buttons */
+.export-section {
+    border-color: #e9ecef !important;
+}
+
+.btn-export {
+    padding: 0.5rem 1rem;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.btn-export:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.btn-export-csv {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+}
+
+.btn-export-csv:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    color: white;
+}
+
+.btn-export-excel {
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    color: white;
+}
+
+.btn-export-excel:hover {
+    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+    color: white;
+}
+
+.btn-export-pdf {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+}
+
+.btn-export-pdf:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    color: white;
+}
+
+/* Empty State */
+.empty-state {
+    background: white;
+    border-radius: 16px;
+    padding: 4rem 2rem;
+    text-align: center;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+
+.empty-state-icon {
+    font-size: 4rem;
+    color: #dee2e6;
+    margin-bottom: 1rem;
+}
+
+.empty-state h5 {
+    color: #495057;
+    margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+    color: #6c757d;
+}
+
+/* Expand/Collapse Icon */
+.expand-icon {
+    width: 32px;
+    height: 32px;
+    background: #f0f0f0;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.expand-icon.expanded {
+    background: #6b8dd6;
+    color: white;
+    transform: rotate(180deg);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .reports-header {
+        padding: 1.5rem;
     }
     
-    .reports-table th {
-        font-weight: 600;
-        color: #495057;
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        border-bottom: 1px solid #f0f8ff;
-        border-right: 1px solid #f0f8ff;
-        padding: 16px 12px;
-        font-size: 0.95rem;
-    }
-    
-    .reports-table th:last-child {
-        border-right: none;
-    }
-    
-    .reports-table td {
-        vertical-align: middle;
-        border-bottom: 1px solid #f0f8ff;
-        border-right: 1px solid #f0f8ff;
-        padding: 16px 12px;
-        background-color: #ffffff;
-        transition: background-color 0.2s ease;
-    }
-    
-    .reports-table td:last-child {
-        border-right: none;
-    }
-    
-    .reports-table tbody tr:hover td {
-        background-color: #f8f9ff;
-    }
-    
-    .reports-table tbody tr:last-child td {
-        border-bottom: none;
-    }
-    
-    .incident-col, .keypoints-col {
-        min-width: 320px;
-        max-width: 450px;
-        background-color: #fdfdff !important;
-    }
-    
-    .incident-accordion .accordion-item {
-        border-radius: 8px;
-        overflow: hidden;
-        border: 1px solid #f0f8ff;
-        margin-bottom: 8px;
-    }
-    
-    .incident-accordion .accordion-button {
-        border-radius: 8px;
-        font-size: 0.85rem;
-        background: linear-gradient(135deg, #ffffff, #f8f9fa);
-        border: 1px solid #e9ecef;
-        padding: 12px 15px;
-        transition: all 0.3s ease;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    
-    .incident-accordion .accordion-button:hover {
-        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-        transform: translateY(-1px);
-        box-shadow: 0 3px 8px rgba(0,0,0,0.1);
-    }
-    
-    .incident-accordion .accordion-button:not(.collapsed) {
-        background: linear-gradient(135deg, #e3f2fd, #f0f8ff);
-        color: #1976d2;
-        border-color: #2196f3;
-        box-shadow: 0 2px 6px rgba(33, 150, 243, 0.15);
-    }
-    
-    .incident-accordion .accordion-body {
-        padding: 12px;
-        background-color: #fafbff;
-        border-top: 1px solid #f0f8ff;
-    }
-    
-    .keypoint-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
-        border: 1px solid #f0f8ff;
-        border-radius: 8px;
-        margin-bottom: 8px;
-        transition: all 0.2s ease;
-    }
-    
-    .keypoint-card:hover {
-        border-color: #e3f2fd;
-        box-shadow: 0 2px 8px rgba(33, 150, 243, 0.08);
-    }
-    
-    .keypoint-card .card-body {
-        padding: 12px;
-    }
-    
-    .empty-state {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        border: 1px dashed #f0f8ff;
-        border-radius: 8px;
-        padding: 24px;
-        text-align: center;
-        color: #6c757d;
-    }
-    
-    .empty-state i {
+    .reports-header h1 {
         font-size: 1.5rem;
-        opacity: 0.6;
-        margin-bottom: 8px;
     }
     
-    .table-responsive {
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+    .header-stats {
+        flex-wrap: wrap;
     }
     
-    .sticky-top {
-        position: sticky;
-        top: 0;
-        z-index: 10;
+    .shift-meta {
+        flex-direction: column;
+        align-items: flex-start;
     }
     
-    .card {
-        border-radius: 12px;
-        transition: all 0.3s ease;
+    .shift-summary-badges {
+        margin-top: 0.5rem;
     }
-    
-    .card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.1) !important;
-    }
-    
-    .btn {
-        border-radius: 8px;
-        font-weight: 500;
-    }
-    
-    .badge {
-        border-radius: 6px;
-        font-weight: 500;
-    }
-    
-    .form-control, .form-select {
-        border-radius: 8px;
-        border: 1px solid #e0e0e0;
-        transition: all 0.3s ease;
-    }
-    
-    .form-control:focus, .form-select:focus {
-        border-color: #4285f4;
-        box-shadow: 0 0 0 0.2rem rgba(66, 133, 244, 0.25);
-    }
-    
-    @media (max-width: 768px) {
-        .incident-col, .keypoints-col {
-            min-width: 250px;
-        }
-    }
+}
+
+/* Code blocks for change/kb numbers */
+.code-badge {
+    background: #f8f9fa;
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 0.8rem;
+    color: #6b8dd6;
+    border: 1px solid #e9ecef;
+}
+
+/* ================================================
+   UNIFIED TABLE STYLES
+   ================================================ */
+
+.unified-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    table-layout: auto;
+}
+
+.unified-table thead {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.unified-table thead th {
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+    color: #495057;
+    text-align: left;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.unified-table tbody tr {
+    border-bottom: 1px solid #f0f0f0;
+    transition: all 0.2s ease;
+}
+
+.unified-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.unified-table tbody tr:hover {
+    background: #fafbff;
+}
+
+.unified-table tbody td {
+    padding: 0.875rem 1rem;
+    vertical-align: top;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+/* Type column - fixed width, no wrapping */
+.unified-table tbody td:first-child {
+    white-space: nowrap;
+    width: 90px;
+    min-width: 90px;
+}
+
+/* Table Type Badge */
+.table-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+.table-type-badge.open { background: #e3f2fd; color: #1565c0; }
+.table-type-badge.closed { background: #e8f5e9; color: #2e7d32; }
+.table-type-badge.escalated { background: #fff3e0; color: #ef6c00; }
+.table-type-badge.priority { background: #ffebee; color: #c62828; }
+.table-type-badge.handover { background: #e0f7fa; color: #00838f; }
+
+/* Table Title */
+.table-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+}
+
+.table-title.open { color: #1565c0; }
+.table-title.closed { color: #2e7d32; }
+.table-title.escalated { color: #ef6c00; }
+.table-title.priority { color: #c62828; }
+.table-title.handover { color: #00838f; }
+
+/* Table Description */
+.table-description {
+    color: #6c757d;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
+    margin-top: 0.25rem;
+}
+
+/* Table Priority Badge */
+.table-priority-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.table-priority-badge.high, .table-priority-badge.critical { background: #ffebee; color: #c62828; }
+.table-priority-badge.medium { background: #fff3e0; color: #ef6c00; }
+.table-priority-badge.low { background: #e8f5e9; color: #2e7d32; }
+
+/* Table App Name */
+.table-app-name {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.table-app-name.changes { color: #1565c0; }
+.table-app-name.kb { color: #2e7d32; }
+
+/* Table Status Badge */
+.table-status-badge {
+    display: inline-block;
+    padding: 0.3rem 0.6rem;
+    border-radius: 15px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.table-status-badge.open { background: #e3f2fd; color: #1565c0; }
+.table-status-badge.in-progress { background: #fff3e0; color: #ef6c00; }
+.table-status-badge.closed { background: #e8f5e9; color: #2e7d32; }
+.table-status-badge.published { background: #e8f5e9; color: #2e7d32; }
+.table-status-badge.completed { background: #e8f5e9; color: #2e7d32; }
+.table-status-badge.implemented { background: #e0f2f1; color: #00796b; }
+.table-status-badge.cancelled { background: #ffebee; color: #c62828; }
+.table-status-badge.new { background: #e3f2fd; color: #1565c0; }
+.table-status-badge.in-review { background: #fff3e0; color: #ef6c00; }
+.table-status-badge.draft { background: #f5f5f5; color: #616161; }
+
+/* Table Responsive */
+.table-responsive {
+    overflow-x: auto;
+    border-radius: 8px;
+    background: white;
+    border: 1px solid #e9ecef;
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-0">
-    <!-- Header Section -->
-    <div class="mb-4">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h1 class="h3 mb-1 text-primary">Shift Handover Reports</h1>
-                <p class="text-muted mb-0">View and export detailed shift handover reports with incidents and key points</p>
+<div class="reports-page">
+    
+    <!-- Team Selector for Multi-Team Users -->
+    {% if team_filter_context and team_filter_context.show_team_filter %}
+    {% include 'components/team_selector.html' %}
+    {% endif %}
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="page-header-content">
+            <div class="page-header-left">
+                <h1><i class="bi bi-clipboard-data"></i>Shift Handover Reports</h1>
+                <p>View and manage all shift handover reports with detailed tracking</p>
             </div>
-            <div class="d-flex align-items-center gap-2">
-                {% if shift_data %}
-                <span class="badge bg-primary fs-6 px-3 py-2">
-                    <i class="bi bi-file-earmark-text me-2"></i>{{ shift_data|length }} Reports
-                </span>
-                {% endif %}
-                {% if date_filter %}
-                <span class="badge bg-info fs-6 px-3 py-2">
-                    <i class="bi bi-calendar-date me-2"></i>{{ date_filter }}
-                </span>
-                {% endif %}
+        </div>
+    </div>
+
+    <!-- Quick Access Cards -->
+    <div class="row mb-4 g-3">
+        <div class="col-md-6">
+            <div class="quick-access-card">
+                <div class="d-flex align-items-center">
+                    <div class="quick-access-icon info">
+                        <i class="bi bi-gear"></i>
+                    </div>
+                    <div class="ms-3 flex-grow-1">
+                        <h6 class="mb-1 fw-semibold">Change Information</h6>
+                        <p class="mb-2 text-muted small">View all application changes from handovers</p>
+                        <a href="/change-info-reports" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-arrow-right me-1"></i>View Changes
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="quick-access-card">
+                <div class="d-flex align-items-center">
+                    <div class="quick-access-icon success">
+                        <i class="bi bi-journal-text"></i>
+                    </div>
+                    <div class="ms-3 flex-grow-1">
+                        <h6 class="mb-1 fw-semibold">KB Updates</h6>
+                        <p class="mb-2 text-muted small">Track knowledge base updates and status</p>
+                        <a href="/kb-update-reports" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-arrow-right me-1"></i>View KB Updates
+                        </a>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Filter Section -->
-    <div class="card mb-4 border-0 shadow-sm">
-        <div class="card-header bg-light border-0 py-3">
-            <h5 class="mb-0 text-secondary">
-                <i class="bi bi-funnel me-2"></i>Filter Reports
-            </h5>
+    <div class="filter-card">
+        <div class="filter-card-header">
+            <i class="bi bi-funnel"></i>
+            <h5>Filter Reports</h5>
         </div>
-        <div class="card-body">
-            <form method="get" class="row g-3 align-items-end">
+        <form method="get" class="filter-form">
+            <div class="row g-3 align-items-end">
                 {% if current_user.role == 'super_admin' %}
                 <div class="col-md-3">
-                    <label for="account_id" class="form-label fw-semibold text-secondary">
-                        <i class="bi bi-building me-1"></i>Account
-                    </label>
+                    <label class="form-label"><i class="bi bi-building me-1"></i>Account</label>
                     <select name="account_id" id="account_id" class="form-select" onchange="updateTeamsDropdown(this.value)">
                         <option value="">All Accounts</option>
                         {% for account in accounts %}
-                        <option value="{{ account.id }}" {% if selected_account_id == account.id %}selected{% endif %}>
-                            {{ account.name }}
-                        </option>
+                        <option value="{{ account.id }}" {% if selected_account_id == account.id %}selected{% endif %}>{{ account.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
                 {% endif %}
                 <div class="col-md-3">
-                    <label for="team_id" class="form-label fw-semibold text-secondary">
-                        <i class="bi bi-people me-1"></i>Team
-                    </label>
+                    <label class="form-label"><i class="bi bi-people me-1"></i>Team</label>
                     <select name="team_id" id="team_id" class="form-select">
                         <option value="">All Teams</option>
                         {% for team in teams %}
-                        <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>
-                            {{ team.name }}
-                        </option>
+                        <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label for="date" class="form-label fw-semibold text-secondary">
-                        <i class="bi bi-calendar3 me-1"></i>Date
-                    </label>
-                    <input type="date" name="date" id="date" class="form-control" value="{{ date_filter }}">
+                    <label class="form-label"><i class="bi bi-calendar3 me-1"></i>Date</label>
+                    <input type="date" name="date" class="form-control" value="{{ date_filter }}">
                 </div>
                 <div class="col-md-2">
-                    <label for="shift_type" class="form-label fw-semibold text-secondary">
-                        <i class="bi bi-clock me-1"></i>Shift
-                    </label>
-                    <select name="shift_type" id="shift_type" class="form-select">
+                    <label class="form-label"><i class="bi bi-clock me-1"></i>Shift</label>
+                    <select name="shift_type" class="form-select">
                         <option value="">All Shifts</option>
                         <option value="Morning" {% if shift_type_filter=='Morning' %}selected{% endif %}>Morning</option>
                         <option value="Evening" {% if shift_type_filter=='Evening' %}selected{% endif %}>Evening</option>
                         <option value="Night" {% if shift_type_filter=='Night' %}selected{% endif %}>Night</option>
-                        <option value="OnShore" {% if shift_type_filter=='OnShore' %}selected{% endif %}>OnShore</option>
-                        <option value="OffShore" {% if shift_type_filter=='OffShore' %}selected{% endif %}>OffShore</option>
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100">
+                    <button type="submit" class="btn btn-filter w-100">
                         <i class="bi bi-search me-1"></i>Filter
                     </button>
                 </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Export Section -->
-    <div class="card mb-4 border-0 shadow-sm">
-        <div class="card-header bg-light border-0 py-3">
-            <h5 class="mb-0 text-secondary">
-                <i class="bi bi-download me-2"></i>Export Reports
-            </h5>
-        </div>
-        <div class="card-body">
-            <form method="get" action="{{ url_for('reports.export_handover_bulk') }}" class="row g-3 align-items-end">
-                <input type="hidden" name="account_id" value="{{ selected_account_id }}">
-                <input type="hidden" name="team_id" value="{{ selected_team_id }}">
-                <input type="hidden" name="date" value="{{ date_filter }}">
-                <input type="hidden" name="shift_type" value="{{ shift_type_filter }}">
-                <div class="col-md-4">
-                    <label for="format" class="form-label fw-semibold text-secondary">
-                        <i class="bi bi-file-earmark me-1"></i>Export Format
-                    </label>
-                    <select name="format" id="format" class="form-select">
-                        <option value="csv">
-                            <i class="bi bi-file-earmark-excel"></i> Excel/CSV Format
-                        </option>
-                        <option value="pdf">
-                            <i class="bi bi-file-earmark-pdf"></i> PDF Format
-                        </option>
-                    </select>
+            </div>
+        </form>
+        
+        <!-- Export Section -->
+        <div class="export-section mt-3 pt-3 border-top">
+            <div class="d-flex align-items-center justify-content-between">
+                <div class="export-label">
+                    <i class="bi bi-download me-2 text-primary"></i>
+                    <span class="fw-semibold text-secondary">Export Reports:</span>
                 </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-success w-100">
-                        <i class="bi bi-download me-1"></i>Download
-                    </button>
+                <div class="export-buttons d-flex gap-2">
+                    <a href="{{ url_for('reports.export_handover_bulk', format='csv', account_id=request.args.get('account_id', ''), team_id=request.args.get('team_id', ''), date=request.args.get('date', ''), shift_type=request.args.get('shift_type', '')) }}" 
+                       class="btn btn-export btn-export-csv" title="Export as CSV">
+                        <i class="bi bi-filetype-csv me-1"></i>CSV
+                    </a>
+                    <a href="{{ url_for('reports.export_handover_bulk', format='excel', account_id=request.args.get('account_id', ''), team_id=request.args.get('team_id', ''), date=request.args.get('date', ''), shift_type=request.args.get('shift_type', '')) }}" 
+                       class="btn btn-export btn-export-excel" title="Export as Excel">
+                        <i class="bi bi-file-earmark-excel me-1"></i>Excel
+                    </a>
+                    <a href="{{ url_for('reports.export_handover_bulk', format='pdf', account_id=request.args.get('account_id', ''), team_id=request.args.get('team_id', ''), date=request.args.get('date', ''), shift_type=request.args.get('shift_type', '')) }}" 
+                       class="btn btn-export btn-export-pdf" title="Export as PDF">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+                    </a>
                 </div>
-                <div class="col-md-6">
-                    <div class="alert alert-info mb-0">
-                        <i class="bi bi-info-circle me-2"></i>
-                        Export includes all filtered reports with incidents and key points
-                    </div>
-                </div>
-            </form>
+            </div>
+            <small class="text-muted mt-2 d-block">
+                <i class="bi bi-info-circle me-1"></i>
+                Export will include all reports matching your current filters
+            </small>
         </div>
     </div>
 
     <!-- Reports Section -->
-    {% if shift_data %}
-    <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white border-0 py-3">
-            <h5 class="mb-0 text-secondary">
-                <i class="bi bi-table me-2"></i>Detailed Shift Reports
-            </h5>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0 reports-table">
-                    <thead class="table-light sticky-top">
-                        <tr>
-                            <th class="border-0 fw-semibold py-3 px-4" style="width: 120px;">
-                                <i class="bi bi-calendar3 me-1"></i>Date
-                            </th>
-                            <th class="border-0 fw-semibold py-3" style="width: 120px;">
-                                <i class="bi bi-clock me-1"></i>Shift
-                            </th>
-                            <th class="border-0 fw-semibold py-3" style="width: 100px;">
-                                <i class="bi bi-flag me-1"></i>Status
-                            </th>
-                            <th class="border-0 fw-semibold py-3" style="width: 150px;">
-                                <i class="bi bi-person me-1"></i>Submitted By
-                            </th>
-                            <th class="border-0 fw-semibold py-3 incident-col">
-                                <i class="bi bi-shield-exclamation me-1 text-danger"></i>
-                                <span style="color: #dc3545; font-weight: 600;">Incident Reports</span>
-                            </th>
-                            <th class="border-0 fw-semibold py-3 keypoints-col">
-                                <i class="bi bi-key me-1" style="color: #ffc107;"></i>
-                                <span style="color: #17a2b8; font-weight: 600;">Key Points</span>
-                            </th>
-                            <th class="border-0 fw-semibold py-3" style="width: 120px;">
-                                <i class="bi bi-gear me-1"></i>Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    {% for entry in shift_data %}
-                        <tr class="border-bottom">
-                            <td class="py-3 px-4">
-                                <div class="d-flex align-items-center">
-                                    <span class="fw-semibold">{{ entry.shift.date }}</span>
-                                </div>
-                            </td>
-                            <td class="py-3">
-                                <span class="badge text-dark fs-6 px-3 py-2" style="
-                                    {% if entry.shift.current_shift_type == 'Morning' %}background-color: #fff3cd; border: 1px solid #ffeaa7;{% elif entry.shift.current_shift_type == 'Evening' %}background-color: #cfe2ff; border: 1px solid #a6c8ff;{% elif entry.shift.current_shift_type == 'Night' %}background-color: #e2e3e5; border: 1px solid #c6c8ca;{% else %}background-color: #f8f9fa; border: 1px solid #dee2e6;{% endif %}">
-                                    {% if entry.shift.current_shift_type == 'Morning' %}<i class="bi bi-sun me-1"></i>{% elif entry.shift.current_shift_type == 'Evening' %}<i class="bi bi-sunset me-1"></i>{% elif entry.shift.current_shift_type == 'Night' %}<i class="bi bi-moon me-1"></i>{% else %}<i class="bi bi-clock me-1"></i>{% endif %}
-                                    {{ entry.shift.current_shift_type }}
+    {% if grouped_shift_data %}
+    <div class="reports-list">
+        {% set iteration_data = ordered_date_keys if ordered_date_keys else grouped_shift_data.keys() %}
+        {% for date_str in iteration_data %}
+            {% set date_entries = grouped_shift_data[date_str] %}
+            {% set date_obj = date_entries[0].shift['date'] %}
+            
+            <div class="date-group-card">
+                <!-- Date Header -->
+                <div class="date-group-header" onclick="toggleDateGroup('{{ date_str }}')">
+                    <div class="date-info">
+                        <div class="date-icon">
+                            <i class="bi bi-calendar-date"></i>
+                        </div>
+                        <div class="date-text">
+                            <h6>{{ date_obj.strftime('%B %d, %Y') }}</h6>
+                            <small>{{ date_entries|length }} shift{{ 's' if date_entries|length != 1 else '' }} reported</small>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <span class="date-badge">{{ date_entries|length }}</span>
+                        <div class="expand-icon" id="expand-{{ date_str }}">
+                            <i class="bi bi-chevron-down"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Shifts for this date -->
+                <div class="date-group-content" id="content-{{ date_str }}" style="display: none;">
+                    {% for entry in date_entries %}
+                    <div class="shift-entry">
+                        <!-- Shift Header -->
+                        <div class="shift-entry-header" onclick="toggleShiftDetails('{{ entry.shift['id'] }}')">
+                            <div class="shift-meta">
+                                {% set shift_type = entry.shift['current_shift_type']|lower %}
+                                <span class="shift-type-badge {{ shift_type if shift_type in ['morning', 'evening', 'night'] else 'default' }}">
+                                    <i class="bi bi-{% if shift_type == 'morning' %}sunrise{% elif shift_type == 'evening' %}sunset{% elif shift_type == 'night' %}moon-stars{% else %}clock{% endif %}"></i>
+                                    {{ entry.shift['current_shift_type'] }} → {{ entry.shift['next_shift_type'] }}
                                 </span>
-                            </td>
-                            <td class="py-3">
-                                {% if entry.shift.status == 'draft' %}
-                                    <span class="badge text-dark fs-6 px-3 py-2" style="background-color: #fff3cd; border: 1px solid #ffeaa7;">
-                                        <i class="bi bi-pencil me-1"></i>Draft
+                                <span class="submitted-by">
+                                    <i class="bi bi-person-circle"></i>
+                                    {{ entry.submitted_by }}
+                                </span>
+                                <span class="status-badge {{ 'completed' if entry.shift.status != 'draft' else 'draft' }}">
+                                    <i class="bi bi-{% if entry.shift.status != 'draft' %}check-circle{% else %}pencil{% endif %} me-1"></i>
+                                    {{ 'Completed' if entry.shift.status != 'draft' else 'Draft' }}
+                                </span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="shift-summary-badges">
+                                    {% if entry.incidents %}
+                                    <span class="summary-badge incidents">
+                                        <i class="bi bi-exclamation-triangle"></i>{{ entry.incidents|length }} incidents
                                     </span>
-                                {% else %}
-                                    <span class="badge text-dark fs-6 px-3 py-2" style="background-color: #d1edff; border: 1px solid #a6d5f7;">
-                                        <i class="bi bi-check-circle me-1"></i>Sent
+                                    {% endif %}
+                                    {% if entry.key_points %}
+                                    <span class="summary-badge keypoints">
+                                        <i class="bi bi-key"></i>{{ entry.key_points|length }} key points
                                     </span>
-                                {% endif %}
-                            </td>
-                            <td class="py-3">
-                                <div class="d-flex align-items-center">
-                                    <i class="bi bi-person-circle text-info me-2"></i>
-                                    <span class="fw-semibold">{{ entry.submitted_by }}</span>
+                                    {% endif %}
+                                    {% if entry.change_infos %}
+                                    <span class="summary-badge changes">
+                                        <i class="bi bi-gear"></i>{{ entry.change_infos|length }} changes
+                                    </span>
+                                    {% endif %}
+                                    {% if entry.kb_updates %}
+                                    <span class="summary-badge kb">
+                                        <i class="bi bi-journal"></i>{{ entry.kb_updates|length }} KBs
+                                    </span>
+                                    {% endif %}
                                 </div>
-                            </td>
-                            <td class="incident-col py-3">
-                                {% if entry.incidents %}
-                                    <div class="accordion incident-accordion" id="incidentsAccordion{{ entry.shift.id }}">
-                                        {% for inc in entry.incidents %}
-                                        <div class="accordion-item mb-2 border-0 shadow-sm">
-                                            <h6 class="accordion-header" id="incident{{ loop.index }}{{ entry.shift.id }}">
-                                                <button class="accordion-button collapsed border-0 py-2 px-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseIncident{{ loop.index }}{{ entry.shift.id }}" aria-expanded="false">
-                                                    <span class="badge me-2 px-2 py-1 fw-semibold" style="
-                                                        {% if inc.type == 'Open' %}background: linear-gradient(45deg, #ff6b6b, #ee5a52); color: white; border: 1px solid #dc3545;
-                                                        {% elif inc.type == 'Closed' %}background: linear-gradient(45deg, #51cf66, #40c057); color: white; border: 1px solid #198754;
-                                                        {% elif inc.type == 'Priority' %}background: linear-gradient(45deg, #ffd43b, #fab005); color: #333; border: 1px solid #fd7e14;
-                                                        {% elif inc.type == 'Handover' %}background: linear-gradient(45deg, #74c0fc, #339af0); color: white; border: 1px solid #0d6efd;
-                                                        {% else %}background: linear-gradient(45deg, #868e96, #495057); color: white; border: 1px solid #6c757d;{% endif %}
-                                                        box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-size: 0.75rem;">
-                                                        {% if inc.type == 'Open' %}<i class="bi bi-exclamation-circle me-1"></i>🔴 Active
-                                                        {% elif inc.type == 'Closed' %}<i class="bi bi-check-circle me-1"></i>✅ Resolved
-                                                        {% elif inc.type == 'Priority' %}<i class="bi bi-star-fill me-1"></i>⭐ Priority
-                                                        {% elif inc.type == 'Handover' %}<i class="bi bi-arrow-right me-1"></i>📋 Handover
-                                                        {% else %}<i class="bi bi-circle me-1"></i>⚫ Escalated{% endif %}
+                                {% if entry.shift['status'] == 'draft' %}
+                                <a href="{{ url_for('handover.edit_handover', shift_id=entry.shift['id']) }}" 
+                                   class="btn btn-warning btn-sm draft-edit-btn" 
+                                   onclick="event.stopPropagation();"
+                                   title="Edit Draft">
+                                    <i class="bi bi-pencil-square me-1"></i>Edit Draft
+                                </a>
+                                {% if current_user.role == 'super_admin' %}
+                                <button type="button" 
+                                   class="btn btn-danger btn-sm draft-delete-btn" 
+                                   onclick="event.stopPropagation(); showDeleteModal({{ entry.shift['id'] }}, '{{ entry.shift.date.strftime('%b %d, %Y') if entry.shift.date else 'Unknown' }}', '{{ entry.shift.current_shift_type }} → {{ entry.shift.next_shift_type }}', '{{ entry.team_name|default('Unknown') }}')"
+                                   title="Delete Draft">
+                                    <i class="bi bi-trash"></i>Delete
+                                </button>
+                                {% endif %}
+                                {% endif %}
+                                <div class="expand-icon" id="shift-expand-{{ entry.shift['id'] }}">
+                                    <i class="bi bi-chevron-down"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Shift Details (Hidden by default) -->
+                        <div class="shift-details" id="details-{{ entry.shift['id'] }}">
+                            
+                            <!-- Incidents Section - Unified Table View -->
+                            {% if entry.incidents %}
+                            <div class="section-card">
+                                <div class="section-header">
+                                    <div class="section-icon incidents">
+                                        <i class="bi bi-exclamation-triangle"></i>
+                                    </div>
+                                    <h6 class="section-title">Incident Details</h6>
+                                    <span class="section-count">{{ entry.incidents|length }}</span>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="unified-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 85px;">Type</th>
+                                                <th>Title / Description</th>
+                                                <th style="width: 70px;">Priority</th>
+                                                <th style="width: 100px;">Assigned To</th>
+                                                <th style="width: 80px;">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for inc in entry.incidents %}
+                                            {% set incident_type = (inc.type|lower) if inc.type else 'open' %}
+                                            <tr>
+                                                <td>
+                                                    <span class="table-type-badge {{ incident_type }}">
+                                                        <i class="bi bi-{% if incident_type == 'closed' %}check-circle{% elif incident_type == 'escalated' %}arrow-up-circle{% elif incident_type == 'priority' %}exclamation-triangle{% elif incident_type == 'handover' %}arrow-right-circle{% else %}circle{% endif %}"></i>
+                                                        {{ inc.type or 'Open' }}
                                                     </span>
-                                                    <span class="text-truncate fw-semibold">{{ inc.title }}</span>
-                                                </button>
-                                            </h6>
-                                            <div id="collapseIncident{{ loop.index }}{{ entry.shift.id }}" class="accordion-collapse collapse" data-bs-parent="#incidentsAccordion{{ entry.shift.id }}">
-                                                <div class="accordion-body bg-light">
-                                                    <div class="mb-2">
-                                                        <strong class="text-primary">{{ inc.title }}</strong>
-                                                    </div>
-                                                    {% if inc.status %}
-                                                    <div class="mb-2">
-                                                        <small class="text-secondary">
-                                                            <i class="bi bi-flag me-1"></i><strong>Status:</strong> {{ inc.status }}
-                                                        </small>
-                                                    </div>
-                                                    {% endif %}
-                                                    {% if inc.priority %}
-                                                    <div class="mb-2">
-                                                        <small class="text-secondary">
-                                                            <i class="bi bi-exclamation-triangle me-1"></i><strong>Priority:</strong> {{ inc.priority }}
-                                                        </small>
-                                                    </div>
-                                                    {% endif %}
-                                                    {% if inc.assigned_to %}
-                                                    <div class="mb-2">
-                                                        <small class="text-secondary">
-                                                            <i class="bi bi-person me-1"></i><strong>Assigned To:</strong> {{ inc.assigned_to }}
-                                                        </small>
-                                                    </div>
-                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <div class="table-title {{ incident_type }}">{{ inc.title or 'Incident #' ~ inc.id }}</div>
                                                     {% if inc.description %}
-                                                    <div class="mb-2">
-                                                        <small class="text-secondary">
-                                                            <i class="bi bi-chat-text me-1"></i><strong>Description:</strong> {{ inc.description }}
-                                                        </small>
-                                                    </div>
+                                                    <div class="table-description">{{ inc.description }}</div>
                                                     {% endif %}
-                                                    {% if inc.escalated_to %}
-                                                    <div class="mb-2">
-                                                        <small class="text-secondary">
-                                                            <i class="bi bi-arrow-up-circle me-1"></i><strong>Escalated To:</strong> {{ inc.escalated_to }}
-                                                        </small>
-                                                    </div>
-                                                    {% endif %}
-                                                    {% if inc.handover %}
-                                                    <div class="mb-0">
-                                                        <small class="text-secondary">
-                                                            <i class="bi bi-info-circle me-1"></i><strong>Handover Notes:</strong> {{ inc.handover }}
-                                                        </small>
-                                                    </div>
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        {% endfor %}
+                                                </td>
+                                                <td>
+                                                    {% if inc.priority %}
+                                                    <span class="table-priority-badge {{ inc.priority|lower }}">{{ inc.priority }}</span>
+                                                    {% else %}-{% endif %}
+                                                </td>
+                                                <td class="text-muted small">{{ inc.assigned_to or '-' }}</td>
+                                                <td class="text-muted small">{{ inc.status or '-' }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Change Info Section - Unified Table View -->
+                            {% if entry.change_infos %}
+                            <div class="section-card">
+                                <div class="section-header">
+                                    <div class="section-icon changes">
+                                        <i class="bi bi-gear"></i>
                                     </div>
-                                {% else %}
-                                    <div class="empty-state text-center py-4" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-radius: 8px; border: 2px dashed #dee2e6;">
-                                        <i class="bi bi-shield-check text-success mb-2" style="font-size: 2rem;"></i>
-                                        <div class="fw-medium text-success mb-1">All Clear! 🎉</div>
-                                        <small class="text-muted">No incidents reported for this shift</small>
-                                    </div>
-                                {% endif %}
-                            </td>
-                            <td class="keypoints-col py-3">
-                                {% if entry.key_points %}
-                                    {% for kp in entry.key_points %}
-                                        <div class="card mb-2 border-0 shadow-sm">
-                                            <div class="card-body p-3">
-                                                <div class="text-dark mb-2" style="font-size: 0.85rem; color: black !important;">{{ kp.description }}</div>
-                                                <div class="d-flex flex-wrap gap-2 align-items-center">
-                                                    <span class="badge bg-{{ 'success' if kp.status == 'Closed' else 'warning' if kp.status == 'In Progress' else 'secondary' }}" style="font-size: 0.7rem;">
-                                                        {% if kp.status == 'Closed' %}<i class="bi bi-check-circle me-1"></i>{% elif kp.status == 'In Progress' %}<i class="bi bi-clock me-1"></i>{% else %}<i class="bi bi-pause-circle me-1"></i>{% endif %}
-                                                        {{ kp.status }}
+                                    <h6 class="section-title">Change Details</h6>
+                                    <span class="section-count">{{ entry.change_infos|length }}</span>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="unified-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 150px;">Application</th>
+                                                <th style="width: 130px;">Change Number</th>
+                                                <th>Description</th>
+                                                <th style="width: 120px;">Engineer</th>
+                                                <th style="width: 160px;">Scheduled</th>
+                                                <th style="width: 110px;">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for change in entry.change_infos %}
+                                            <tr>
+                                                <td><span class="table-app-name changes">{{ change.app_name }}</span></td>
+                                                <td>{% if change.change_number %}<span class="code-badge">{{ change.change_number }}</span>{% else %}-{% endif %}</td>
+                                                <td class="table-description">{{ change.description[:80] if change.description else '-' }}{% if change.description and change.description|length > 80 %}...{% endif %}</td>
+                                                <td class="text-muted small">{{ change.responsible or '-' }}</td>
+                                                <td class="text-muted small">{{ change.change_datetime.strftime('%b %d, %Y %I:%M %p') if change.change_datetime else '-' }}</td>
+                                                <td>
+                                                    {% if change.status %}
+                                                    <span class="table-status-badge {{ 'completed' if change.status == 'Completed' else 'cancelled' if change.status == 'Cancelled' else 'implemented' if change.status == 'Implemented' else 'in-progress' if change.status == 'In Progress' else 'new' }}">
+                                                        {{ change.status }}
                                                     </span>
-                                                </div>
-                                                <div class="mt-2">
-                                                    <small class="text-muted">
-                                                        <i class="bi bi-person me-1"></i>{{ kp.responsible }}
-                                                    </small>
-                                                    {% if kp.jira_id %}
-                                                    <br><small class="text-primary">
-                                                        <i class="bi bi-link-45deg me-1"></i>JIRA: {{ kp.jira_id }}
-                                                    </small>
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    {% endfor %}
-                                {% else %}
-                                    <div class="empty-state">
-                                        <i class="bi bi-list-check"></i>
-                                        <div class="fw-medium" style="color: #198754;">
-                                            <i class="bi bi-check-circle-fill me-2" style="color: #28a745;"></i>
-                                            <span style="background: linear-gradient(45deg, #28a745, #20c997); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 600;">All Good! 📝</span>
-                                        </div>
-                                        <small class="text-muted">No specific key points documented for this shift</small>
-                                    </div>
-                                {% endif %}
-                            </td>
-                            <td class="py-3">
-                                <div class="d-flex flex-column align-items-start">
-                                    {% if entry.shift.status == 'draft' %}
-                                    <a href="{{ url_for('handover.edit_handover', shift_id=entry.shift.id) }}" class="btn btn-primary btn-sm mb-2">
-                                        <i class="bi bi-pencil me-1"></i>Edit
-                                    </a>
-                                    {% else %}
-                                    <span class="badge bg-light text-dark border mb-2">
-                                        <i class="bi bi-lock me-1"></i>Final
-                                    </span>
-                                    {% endif %}
-                                    
-                                    {% if entry.shift.additional_notes and entry.shift.additional_notes.strip() %}
-                                    <button class="btn btn-outline-info btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#notes-{{ entry.shift.id }}" aria-expanded="false" title="Additional Notes">
-                                        <i class="bi bi-sticky me-1"></i>Notes
-                                    </button>
-                                    {% endif %}
+                                                    {% else %}-{% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
                                 </div>
-                                
-                                {% if entry.shift.additional_notes and entry.shift.additional_notes.strip() %}
-                                <div class="collapse mt-2" id="notes-{{ entry.shift.id }}">
-                                    <div class="card card-body border-info" style="font-size: 0.85rem; max-width: 300px;">
-                                        <div class="text-info mb-1"><i class="bi bi-sticky me-1"></i><strong>Additional Notes:</strong></div>
-                                        <div class="text-dark">{{ entry.shift.additional_notes }}</div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Key Points Section - Unified Table View -->
+                            {% if entry.key_points %}
+                            <div class="section-card">
+                                <div class="section-header">
+                                    <div class="section-icon keypoints">
+                                        <i class="bi bi-key"></i>
                                     </div>
+                                    <h6 class="section-title">Key Points</h6>
+                                    <span class="section-count">{{ entry.key_points|length }}</span>
                                 </div>
+                                <div class="table-responsive">
+                                    <table class="unified-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Description</th>
+                                                <th style="width: 140px;">Assigned To</th>
+                                                <th style="width: 110px;">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for kp in entry.key_points %}
+                                            <tr>
+                                                <td>{{ kp.description }}</td>
+                                                <td class="text-muted small">{{ kp.responsible if kp.responsible and kp.responsible != 'N/A' else '-' }}</td>
+                                                <td>
+                                                    <span class="table-status-badge {{ 'closed' if kp.status == 'Closed' else 'in-progress' if kp.status == 'In Progress' else 'open' }}">
+                                                        {{ kp.status or 'Open' }}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- KB Updates Section - Unified Table View -->
+                            {% if entry.kb_updates %}
+                            <div class="section-card">
+                                <div class="section-header">
+                                    <div class="section-icon kb">
+                                        <i class="bi bi-journal-text"></i>
+                                    </div>
+                                    <h6 class="section-title">Knowledge Base Updates</h6>
+                                    <span class="section-count">{{ entry.kb_updates|length }}</span>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="unified-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 150px;">Application</th>
+                                                <th style="width: 130px;">KB Number</th>
+                                                <th>Description</th>
+                                                <th style="width: 120px;">Author</th>
+                                                <th style="width: 100px;">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for kb in entry.kb_updates %}
+                                            <tr>
+                                                <td><span class="table-app-name kb">{{ kb.app_name }}</span></td>
+                                                <td>{% if kb.kb_number %}<span class="code-badge">{{ kb.kb_number }}</span>{% else %}-{% endif %}</td>
+                                                <td class="table-description">{{ kb.description[:80] if kb.description else '-' }}{% if kb.description and kb.description|length > 80 %}...{% endif %}</td>
+                                                <td class="text-muted small">{{ kb.responsible or '-' }}</td>
+                                                <td>
+                                                    {% if kb.status %}
+                                                    <span class="table-status-badge {{ 'published' if kb.status == 'Published' else 'in-review' if kb.status == 'In Review' else 'draft' }}">
+                                                        {{ kb.status }}
+                                                    </span>
+                                                    {% else %}-{% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Additional Notes -->
+                            {% if entry.shift.additional_notes and entry.shift.additional_notes.strip() %}
+                            <div class="section-card">
+                                <div class="section-header">
+                                    <div class="section-icon notes">
+                                        <i class="bi bi-sticky"></i>
+                                    </div>
+                                    <h6 class="section-title">Additional Notes</h6>
+                                </div>
+                                <div class="notes-content">{{ entry.shift.additional_notes }}</div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Action Buttons -->
+                            <div class="action-buttons">
+                                <a href="/handover-reports/detailed/{{ entry.shift['id'] }}" class="btn-details">
+                                    <i class="bi bi-eye me-1"></i>Full Details
+                                </a>
+                                {% if entry.shift['status'] == 'draft' %}
+                                <a href="{{ url_for('handover.edit_handover', shift_id=entry.shift['id']) }}" class="btn-edit">
+                                    <i class="bi bi-pencil me-1"></i>Edit
+                                </a>
+                                {% if current_user.role == 'super_admin' %}
+                                <button type="button" class="btn btn-danger btn-sm draft-delete-btn"
+                                   onclick="showDeleteModal({{ entry.shift['id'] }}, '{{ entry.shift.date.strftime('%b %d, %Y') if entry.shift.date else 'Unknown' }}', '{{ entry.shift.current_shift_type }} → {{ entry.shift.next_shift_type }}', '{{ entry.team_name|default('Unknown') }}')">
+                                    <i class="bi bi-trash"></i>Delete Draft
+                                </button>
                                 {% endif %}
-                            </td>
-                        </tr>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
                     {% endfor %}
-                    </tbody>
-                </table>
+                </div>
             </div>
-        </div>
+        {% endfor %}
     </div>
     {% else %}
     <!-- Empty State -->
-    <div class="card border-0 shadow-sm">
-        <div class="card-body text-center py-5">
-            <div class="mb-3">
-                <i class="bi bi-file-earmark-text" style="font-size: 3rem; color: #6c757d;"></i>
-            </div>
-            <h5 class="text-muted">No Reports Found</h5>
-            <p class="text-muted mb-0">No shift handover reports match your current filters. Try adjusting your search criteria.</p>
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <i class="bi bi-file-earmark-text"></i>
         </div>
+        <h5>No Reports Found</h5>
+        <p>No shift handover reports match your current filters. Try adjusting your search criteria.</p>
+        <a href="{{ url_for('handover.handover') }}" class="btn btn-filter mt-3">
+            <i class="bi bi-plus-circle me-1"></i>Create New Handover
+        </a>
     </div>
     {% endif %}
 </div>
 
-<!-- Enhanced JavaScript for Modern Interactions -->
 <script>
+function toggleDateGroup(dateStr) {
+    const content = document.getElementById('content-' + dateStr);
+    const expandIcon = document.getElementById('expand-' + dateStr);
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        expandIcon.classList.add('expanded');
+    } else {
+        content.style.display = 'none';
+        expandIcon.classList.remove('expanded');
+    }
+}
+
+function toggleShiftDetails(shiftId) {
+    const details = document.getElementById('details-' + shiftId);
+    const expandIcon = document.getElementById('shift-expand-' + shiftId);
+    
+    if (details.classList.contains('show')) {
+        details.classList.remove('show');
+        expandIcon.classList.remove('expanded');
+    } else {
+        details.classList.add('show');
+        expandIcon.classList.add('expanded');
+    }
+}
+
 function updateTeamsDropdown(accountId) {
     const teamSelect = document.getElementById('team_id');
     
@@ -551,152 +1502,126 @@ function updateTeamsDropdown(accountId) {
         return;
     }
     
-    // Show modern loading state
-    teamSelect.innerHTML = '<option value="">🔄 Loading teams...</option>';
+    teamSelect.innerHTML = '<option value="">Loading...</option>';
     teamSelect.disabled = true;
-    teamSelect.style.opacity = '0.6';
     
     fetch('/get_teams?account_id=' + accountId)
         .then(response => response.json())
         .then(data => {
-            teamSelect.innerHTML = '<option value="">All Teams</option>';
+            let options = '<option value="">All Teams</option>';
             data.teams.forEach(team => {
-                teamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
+                options += `<option value="${team.id}">${team.name}</option>`;
             });
+            teamSelect.innerHTML = options;
         })
         .catch(error => {
-            console.error('Error loading teams:', error);
-            teamSelect.innerHTML = '<option value="">⚠️ Error loading teams</option>';
+            console.error('Error:', error);
+            teamSelect.innerHTML = '<option value="">Error loading teams</option>';
         })
         .finally(() => {
             teamSelect.disabled = false;
-            teamSelect.style.opacity = '1';
         });
 }
 
-// Enhanced modern interactions
+// Auto-expand first date group on page load
 document.addEventListener('DOMContentLoaded', function() {
-    // Add staggered fade-in animations
-    const elements = document.querySelectorAll('.fade-in-up');
-    elements.forEach((el, index) => {
-        el.style.animationDelay = `${index * 0.1}s`;
-    });
-
-    // Enhanced hover effects for interactive rows
-    const tableRows = document.querySelectorAll('.interactive-row');
-    tableRows.forEach(row => {
-        row.addEventListener('mouseenter', function() {
-            this.style.transform = 'translateY(-2px) scale(1.005)';
-            this.style.zIndex = '5';
-        });
-        
-        row.addEventListener('mouseleave', function() {
-            this.style.transform = 'translateY(0) scale(1)';
-            this.style.zIndex = '1';
-        });
-    });
-
-    // Smooth accordion transitions
-    const accordionButtons = document.querySelectorAll('.modern-accordion-button');
-    accordionButtons.forEach(button => {
-        button.addEventListener('click', function(event) {
-            // Add ripple effect
-            const ripple = document.createElement('span');
-            ripple.style.cssText = `
-                position: absolute;
-                border-radius: 50%;
-                background: rgba(255, 255, 255, 0.3);
-                transform: scale(0);
-                animation: ripple 0.6s linear;
-                width: 20px;
-                height: 20px;
-                left: ${event.offsetX - 10}px;
-                top: ${event.offsetY - 10}px;
-                pointer-events: none;
-            `;
-            
-            this.style.position = 'relative';
-            this.appendChild(ripple);
-            
-            setTimeout(() => {
-                ripple.remove();
-            }, 600);
-        });
-    });
-
-    // Modern form enhancements
-    const modernInputs = document.querySelectorAll('.modern-input, .modern-select');
-    modernInputs.forEach(input => {
-        // Add focus animations
-        input.addEventListener('focus', function() {
-            this.style.transform = 'scale(1.02)';
-            this.style.background = 'rgba(255, 255, 255, 0.15)';
-        });
-        
-        input.addEventListener('blur', function() {
-            this.style.transform = 'scale(1)';
-            this.style.background = 'rgba(255, 255, 255, 0.1)';
-        });
-    });
-
-    // Enhanced button interactions
-    const modernButtons = document.querySelectorAll('.btn-modern');
-    modernButtons.forEach(btn => {
-        btn.addEventListener('mousedown', function() {
-            this.style.transform = 'translateY(-2px) scale(0.98)';
-        });
-        
-        btn.addEventListener('mouseup', function() {
-            this.style.transform = 'translateY(-2px) scale(1)';
-        });
-        
-        btn.addEventListener('mouseleave', function() {
-            this.style.transform = 'translateY(0) scale(1)';
-        });
-    });
-
-    // Keypoint card animations
-    const keypointCards = document.querySelectorAll('.keypoint-card');
-    keypointCards.forEach(card => {
-        card.addEventListener('mouseenter', function() {
-            this.style.transform = 'translateY(-3px) scale(1.02)';
-        });
-        
-        card.addEventListener('mouseleave', function() {
-            this.style.transform = 'translateY(0) scale(1)';
-        });
-    });
-
-    // Add loading states for export buttons
-    const exportForms = document.querySelectorAll('form[action*="export"]');
-    exportForms.forEach(form => {
-        form.addEventListener('submit', function() {
-            const submitBtn = this.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                const originalHTML = submitBtn.innerHTML;
-                submitBtn.innerHTML = '<span class="loading-spinner me-2"></span>Exporting...';
-                submitBtn.disabled = true;
-                
-                setTimeout(() => {
-                    submitBtn.innerHTML = originalHTML;
-                    submitBtn.disabled = false;
-                }, 3000);
-            }
-        });
-    });
+    const firstDateGroup = document.querySelector('.date-group-header');
+    if (firstDateGroup) {
+        firstDateGroup.click();
+    }
 });
 
-// Add CSS animations dynamically
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes ripple {
-        to {
-            transform: scale(4);
-            opacity: 0;
-        }
+// Delete Draft Modal Functions
+let deleteShiftId = null;
+
+function showDeleteModal(shiftId, date, shiftType, teamName) {
+    deleteShiftId = shiftId;
+    document.getElementById('delete-shift-date').textContent = date;
+    document.getElementById('delete-shift-type').textContent = shiftType;
+    document.getElementById('delete-shift-team').textContent = teamName;
+    document.getElementById('deleteModal').classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function hideDeleteModal() {
+    deleteShiftId = null;
+    document.getElementById('deleteModal').classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function confirmDelete() {
+    if (!deleteShiftId) return;
+    
+    // Show loading state
+    const confirmBtn = document.querySelector('.delete-modal-btn.confirm');
+    const originalText = confirmBtn.innerHTML;
+    confirmBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Deleting...';
+    confirmBtn.disabled = true;
+    
+    // Submit the form
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/handover-reports/delete-draft/' + deleteShiftId;
+    
+    // Add CSRF token if needed
+    const csrfToken = document.querySelector('meta[name="csrf-token"]');
+    if (csrfToken) {
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrf_token';
+        csrfInput.value = csrfToken.content;
+        form.appendChild(csrfInput);
     }
-`;
-document.head.appendChild(style);
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        hideDeleteModal();
+    }
+});
+
+// Close modal on overlay click
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('delete-modal-overlay')) {
+        hideDeleteModal();
+    }
+});
 </script>
 
+<!-- Delete Confirmation Modal -->
+{% if current_user.role == 'super_admin' %}
+<div class="delete-modal-overlay" id="deleteModal">
+    <div class="delete-modal-content">
+        <div class="delete-modal-icon">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+        </div>
+        <h4 class="delete-modal-title">Delete Draft Report?</h4>
+        <p class="delete-modal-subtitle">This action cannot be undone.</p>
+        
+        <div class="delete-modal-details">
+            <p><strong>Date:</strong> <span id="delete-shift-date">-</span></p>
+            <p><strong>Shift:</strong> <span id="delete-shift-type">-</span></p>
+            <p><strong>Team:</strong> <span id="delete-shift-team">-</span></p>
+        </div>
+        
+        <div class="delete-modal-warning">
+            <i class="bi bi-info-circle-fill"></i>
+            <span>All associated data including incidents, key points, change info, and KB updates will be permanently deleted.</span>
+        </div>
+        
+        <div class="delete-modal-buttons">
+            <button type="button" class="delete-modal-btn cancel" onclick="hideDeleteModal()">
+                <i class="bi bi-x-lg me-1"></i>Cancel
+            </button>
+            <button type="button" class="delete-modal-btn confirm" onclick="confirmDelete()">
+                <i class="bi bi-trash me-1"></i>Delete Draft
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

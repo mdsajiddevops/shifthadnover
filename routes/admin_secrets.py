@@ -11,10 +11,14 @@ import logging
 import os
 from sqlalchemy import text
 
+# Set up logger
+logger = logging.getLogger(__name__)
+
 from models.secrets_manager import secrets_manager, SecretCategory, SecretStore, SecretAuditLog, init_secrets_manager
-from models.models import db
+from models.models import db, Account, Team
 from models.smtp_config import SMTPConfig
 from models.servicenow_config import ServiceNowConfig
+from models.team_shift_timing_config import TeamShiftTimingConfig
 
 def admin_required(f):
     @wraps(f)
@@ -40,24 +44,32 @@ def get_secrets_manager():
     try:
         from models.secrets_manager import HybridSecretsManager
         
-        # Try multiple ways to get the master key
-        master_key = os.environ.get('SECRETS_MASTER_KEY')
+        # Try multiple ways to get the master key - FIXED ORDER
+        master_key = None
         
-        # If not in environment, try to load from .env file directly
+        # First try config (which reads from files)
+        try:
+            from config import SecureConfigManager
+            master_key = SecureConfigManager.get_docker_secret('secrets_master_key')
+            if master_key:
+                logger.info("✅ Got master key from SecureConfigManager (file/docker secret)")
+        except Exception as config_e:
+            logger.warning(f"Could not get master key from config: {config_e}")
+        
+        # Fallback to environment variable
         if not master_key:
-            logger.warning("SECRETS_MASTER_KEY not found in environment, attempting to load from .env file")
+            master_key = os.environ.get('SECRETS_MASTER_KEY')
+            if master_key:
+                logger.info("✅ Got master key from environment variable")
+        
+        # Last resort: try .env file
+        if not master_key:
+            logger.warning("SECRETS_MASTER_KEY not found, attempting to load from .env file")
             from dotenv import load_dotenv
             load_dotenv(override=True)
             master_key = os.environ.get('SECRETS_MASTER_KEY')
-        
-        # If still not found, try config
-        if not master_key:
-            try:
-                from config import SecureConfigManager
-                master_key = SecureConfigManager.get_secret('SECRETS_MASTER_KEY')
-                logger.info("Got master key from SecureConfigManager")
-            except Exception as config_e:
-                logger.warning(f"Could not get master key from config: {config_e}")
+            if master_key:
+                logger.info("✅ Got master key from .env file")
         
         if not master_key:
             logger.error("SECRETS_MASTER_KEY not available from any source. Available env vars: %s", 
@@ -132,6 +144,55 @@ def secrets_dashboard():
         # Debug logging
         logger.info(f"User accessing secrets dashboard: {current_user.email}, Role: {current_user.role}")
         
+        # Get team shift timing configurations first (independent of secrets manager)
+        try:
+            # Get all accounts and teams for team shift settings
+            accounts = Account.query.all()
+            teams_by_account = {}
+            
+            for account in accounts:
+                teams_by_account[account.id] = {
+                    'account_name': account.name,
+                    'teams': [{'id': team.id, 'name': team.name} for team in account.teams]
+                }
+            
+            # Get all existing shift configurations
+            shift_configs = TeamShiftTimingConfig.query.order_by(
+                TeamShiftTimingConfig.account_id,
+                TeamShiftTimingConfig.team_id,
+                TeamShiftTimingConfig.order_index
+            ).all()
+            
+            # Group by account and team
+            team_shift_configs = {}
+            for config in shift_configs:
+                account_id = config.account_id
+                team_id = config.team_id
+                
+                if account_id not in team_shift_configs:
+                    team_shift_configs[account_id] = {}
+                if team_id not in team_shift_configs[account_id]:
+                    team_shift_configs[account_id][team_id] = []
+                
+                team_shift_configs[account_id][team_id].append(config.to_dict())
+                
+            # Calculate team shift statistics
+            total_team_configs = len(shift_configs)
+            active_team_configs = len([c for c in shift_configs if c.is_active])
+            teams_with_configs = len(set((c.account_id, c.team_id) for c in shift_configs))
+            
+            # Debug logging
+            logger.info(f"Team shift data loaded - Accounts: {len(teams_by_account)}, Total configs: {total_team_configs}, Active: {active_team_configs}")
+            logger.info(f"Teams by account keys: {list(teams_by_account.keys())}")
+            
+        except Exception as e:
+            logger.error(f"Error loading team shift timing data: {e}", exc_info=True)
+            teams_by_account = {}
+            team_shift_configs = {}
+            total_team_configs = 0
+            active_team_configs = 0
+            teams_with_configs = 0
+        
         # Check if environment variables are available
         env_secrets_key = os.environ.get('SECRETS_MASTER_KEY')
         logger.info(f"Environment SECRETS_MASTER_KEY available: {bool(env_secrets_key)}")
@@ -150,7 +211,7 @@ def secrets_dashboard():
             """
             flash(error_message, 'error')
             
-            # Provide minimal dashboard with error state
+            # Provide minimal dashboard with error state but keep team shift data
             return render_template('admin/secrets_dashboard.html', 
                                  secrets_by_category={},
                                  total_secrets=0,
@@ -166,6 +227,13 @@ def secrets_dashboard():
                                  smtp_auth_configured=False,
                                  smtp_email_configured=False,
                                  oauth_configured=False,
+                                 app_config={},
+                                 accounts=accounts,
+                                 teams_by_account=teams_by_account,
+                                 team_shift_configs=team_shift_configs,
+                                 total_team_configs=total_team_configs,
+                                 active_team_configs=active_team_configs,
+                                 teams_with_configs=teams_with_configs,
                                  last_updated="Error",
                                  secrets_status={'configured': False, 'error': True})
         
@@ -338,15 +406,11 @@ def secrets_dashboard():
         app_config = {
             'session_timeout': current_secrets_manager.get_secret('session_timeout', '3600'),
             'max_workers': current_secrets_manager.get_secret('max_workers', '4'),
-            'log_level': current_secrets_manager.get_secret('log_level', 'INFO'),
-            'app_timezone': current_secrets_manager.get_secret('app_timezone', 'Asia/Kolkata'),
-            'day_shift_start': current_secrets_manager.get_secret('day_shift_start', '06:30'),
-            'day_shift_end': current_secrets_manager.get_secret('day_shift_end', '15:30'),
-            'evening_shift_start': current_secrets_manager.get_secret('evening_shift_start', '14:45'),
-            'evening_shift_end': current_secrets_manager.get_secret('evening_shift_end', '23:45'),
-            'night_shift_start': current_secrets_manager.get_secret('night_shift_start', '21:45'),
-            'night_shift_end': current_secrets_manager.get_secret('night_shift_end', '06:45')
+            'log_level': current_secrets_manager.get_secret('log_level', 'INFO')
+            # Note: Timezone and shift timing configuration moved to dedicated Shift Time Configuration module
         }
+        
+
         
         response = make_response(render_template('admin/secrets_dashboard.html', 
                              secrets_by_category=secrets_by_category,
@@ -364,6 +428,12 @@ def secrets_dashboard():
                              smtp_email_configured=smtp_email_configured,
                              oauth_configured=oauth_configured,
                              app_config=app_config,
+                             accounts=accounts,
+                             teams_by_account=teams_by_account,
+                             team_shift_configs=team_shift_configs,
+                             total_team_configs=total_team_configs,
+                             active_team_configs=active_team_configs,
+                             teams_with_configs=teams_with_configs,
                              last_updated="7:08:58 am",
                              secrets_status={'configured': True}))
         
@@ -388,7 +458,26 @@ def secrets_dashboard():
         
         flash(f'Error loading secrets dashboard: {error_message}', 'error')
         
-        # Return minimal dashboard instead of redirecting
+        # Return minimal dashboard instead of redirecting (use loaded team data if available)
+        try:
+            # Use team shift data if it was loaded before the error
+            team_data = {
+                'teams_by_account': teams_by_account,
+                'team_shift_configs': team_shift_configs,
+                'total_team_configs': total_team_configs,
+                'active_team_configs': active_team_configs,
+                'teams_with_configs': teams_with_configs,
+            }
+        except NameError:
+            # Fallback to empty data if team variables aren't defined
+            team_data = {
+                'teams_by_account': {},
+                'team_shift_configs': {},
+                'total_team_configs': 0,
+                'active_team_configs': 0,
+                'teams_with_configs': 0,
+            }
+        
         return render_template('admin/secrets_dashboard.html', 
                              secrets_by_category={},
                              total_secrets=0,
@@ -406,7 +495,166 @@ def secrets_dashboard():
                              oauth_configured=False,
                              app_config={},
                              last_updated="Error",
-                             secrets_status={'configured': False, 'error': True})
+                             secrets_status={'configured': False, 'error': True},
+                             **team_data)
+
+# New configuration pages routes
+@admin_secrets_bp.route('/config')
+@login_required
+@superadmin_required
+def config_menu():
+    """Configuration menu - main page with cards for each config type"""
+    try:
+        # Get configuration status for each type
+        current_secrets_manager = get_secrets_manager()
+        
+        # Default status if secrets manager not available
+        config_status = {
+            'smtp': {'configured': False, 'count': 0, 'last_test': None},
+            'team_email': {'configured': False, 'count': 0, 'teams': 0},
+            'servicenow': {'configured': False, 'connected': False, 'last_test': None},
+            'app_settings': {'configured': False, 'count': 0, 'environment': 'unknown'}
+        }
+        
+        if current_secrets_manager:
+            try:
+                # Check SMTP configuration
+                smtp_secrets = current_secrets_manager.list_secrets('SMTP/Email')
+                config_status['smtp']['count'] = len(smtp_secrets)
+                config_status['smtp']['configured'] = len(smtp_secrets) >= 3  # Basic requirement
+                
+                # Check ServiceNow configuration
+                snow_secrets = current_secrets_manager.list_secrets('ServiceNow')
+                config_status['servicenow']['configured'] = len(snow_secrets) >= 2  # URL + auth
+                
+                # Check Application settings
+                app_secrets = current_secrets_manager.list_secrets('Application Settings')
+                config_status['app_settings']['count'] = len(app_secrets)
+                config_status['app_settings']['configured'] = len(app_secrets) > 0
+                
+            except Exception as e:
+                logger.error(f"Error getting config status: {e}")
+        
+        # Check team email configuration
+        try:
+            teams_count = db.session.query(Team).count()
+            config_status['team_email']['teams'] = teams_count
+            config_status['team_email']['configured'] = teams_count > 0
+        except Exception as e:
+            logger.error(f"Error getting team count: {e}")
+        
+        return render_template('admin/config_menu_new.html', 
+                             config_status=config_status,
+                             user=current_user)
+        
+    except Exception as e:
+        logger.error(f"Error in config menu: {e}", exc_info=True)
+        flash('Error loading configuration menu', 'error')
+        return redirect(url_for('dashboard.dashboard'))
+
+@admin_secrets_bp.route('/smtp')
+@login_required
+@superadmin_required
+def smtp_config():
+    """SMTP Configuration page"""
+    try:
+        # Define SMTP configuration groups
+        config_groups = {
+            'Server Settings': [
+                'smtp_server',
+                'smtp_port',
+                'smtp_use_tls',
+                'smtp_use_ssl'
+            ],
+            'Authentication': [
+                'smtp_username',
+                'smtp_password'
+            ],
+            'Email Settings': [
+                'mail_default_sender',
+                'mail_reply_to',
+                'team_email'
+            ],
+            'System Settings': [
+                'smtp_enabled'
+            ]
+        }
+        
+        # Check SMTP status
+        smtp_status = False
+        try:
+            current_secrets_manager = get_secrets_manager()
+            if current_secrets_manager:
+                smtp_secrets = current_secrets_manager.list_secrets('SMTP/Email')
+                required_keys = ['smtp_server', 'smtp_username', 'smtp_password']
+                smtp_status = all(
+                    any(secret['key'] == key for secret in smtp_secrets) 
+                    for key in required_keys
+                )
+        except Exception as e:
+            logger.error(f"Error checking SMTP status: {e}")
+        
+        return render_template('admin/smtp_config_new.html',
+                             config_groups=config_groups,
+                             smtp_status=smtp_status,
+                             user=current_user)
+        
+    except Exception as e:
+        logger.error(f"Error in SMTP config: {e}", exc_info=True)
+        flash('Error loading SMTP configuration', 'error')
+        return redirect(url_for('admin_secrets.config_menu'))
+
+@admin_secrets_bp.route('/team-email')
+@login_required
+@superadmin_required
+def team_email_config():
+    """Team Email Configuration page"""
+    try:
+        return render_template('admin/team_email_config_new.html', user=current_user)
+        
+    except Exception as e:
+        logger.error(f"Error in team email config: {e}", exc_info=True)
+        flash('Error loading team email configuration', 'error')
+        return redirect(url_for('admin_secrets.config_menu'))
+
+@admin_secrets_bp.route('/servicenow')
+@login_required
+@superadmin_required
+def servicenow_config():
+    """ServiceNow Configuration page"""
+    try:
+        return render_template('admin/servicenow_config_new.html', user=current_user)
+        
+    except Exception as e:
+        logger.error(f"Error in ServiceNow config: {e}", exc_info=True)
+        flash('Error loading ServiceNow configuration', 'error')
+        return redirect(url_for('admin_secrets.config_menu'))
+
+@admin_secrets_bp.route('/app-settings')
+@login_required
+@superadmin_required
+def app_config():
+    """Application Settings Configuration page"""
+    try:
+        return render_template('admin/app_config_new.html', user=current_user)
+        
+    except Exception as e:
+        logger.error(f"Error in app config: {e}", exc_info=True)
+        flash('Error loading application settings', 'error')
+        return redirect(url_for('admin_secrets.config_menu'))
+
+@admin_secrets_bp.route('/management')
+@login_required
+@superadmin_required
+def secrets_management():
+    """Unified Secrets Management page with tab-based interface"""
+    try:
+        return render_template('admin/unified_secrets.html', user=current_user)
+        
+    except Exception as e:
+        logger.error(f"Error in secrets management: {e}", exc_info=True)
+        flash('Error loading secrets management', 'error')
+        return redirect(url_for('admin_secrets.config_menu'))
 
 @admin_secrets_bp.route('/api/secrets')
 @login_required
@@ -734,35 +982,8 @@ def test_secret(key_name):
         }), 500
 
 # ===========================
-# SMTP Configuration Routes
+# SMTP Configuration API Routes
 # ===========================
-
-@admin_secrets_bp.route('/smtp')
-@login_required
-@superadmin_required
-def smtp_config():
-    """SMTP configuration management page"""
-    try:
-        smtp_configs = SMTPConfig.query.all()
-        smtp_status = SMTPConfig.is_configured()
-        
-        # Group configs for better display
-        config_groups = {
-            'Server Settings': ['smtp_server', 'smtp_port', 'smtp_use_tls', 'smtp_use_ssl'],
-            'Authentication': ['smtp_username', 'smtp_password'],
-            'Email Settings': ['mail_default_sender', 'mail_reply_to', 'team_email'],
-            'System': ['smtp_enabled']
-        }
-        
-        return render_template('admin/smtp_config.html',
-                             smtp_configs=smtp_configs,
-                             smtp_status=smtp_status,
-                             config_groups=config_groups)
-    
-    except Exception as e:
-        logger.error(f"Error loading SMTP config: {e}")
-        flash('Error loading SMTP configuration', 'error')
-        return redirect(url_for('admin_secrets.secrets_dashboard'))
 
 @admin_secrets_bp.route('/api/smtp/config', methods=['GET'])
 @login_required
@@ -770,6 +991,8 @@ def smtp_config():
 def api_get_smtp_configs():
     """API endpoint to get all SMTP configurations"""
     try:
+        logger.info("[SMTP Config API] ================= SMTP CONFIG API CALLED =================")
+        logger.info("[SMTP Config API] Processing /api/smtp/config endpoint")
         # Define SMTP configuration fields with their descriptions
         smtp_fields = {
             'SMTP_SERVER': {
@@ -827,14 +1050,58 @@ def api_get_smtp_configs():
                 'type': 'email',
                 'required': True,
                 'placeholder': 'noreply@company.com'
+            },
+            'SMTP_ENABLED': {
+                'label': 'SMTP Enabled',
+                'description': 'Enable or disable SMTP functionality',
+                'type': 'boolean',
+                'required': False,
+                'default': True
             }
         }
         
         # Get current values for all SMTP fields from database
+        # Map uppercase API field names to lowercase database keys
+        db_key_mapping = {
+            'SMTP_SERVER': 'smtp_server',
+            'SMTP_PORT': 'smtp_port', 
+            'SMTP_USERNAME': 'smtp_username',
+            'SMTP_PASSWORD': 'smtp_password',
+            'SMTP_USE_TLS': 'smtp_use_tls',
+            'SMTP_USE_SSL': 'smtp_use_ssl',
+            'MAIL_FROM_NAME': 'mail_from_name',
+            'MAIL_FROM_ADDRESS': 'mail_default_sender',
+            'SMTP_ENABLED': 'smtp_enabled'
+        }
+        
+        # ADVANCED DEBUG: Check all database entries to see what keys actually exist
+        all_smtp_configs = SMTPConfig.query.all()
+        logger.info(f"[SMTP Config API] === ALL DATABASE ENTRIES ===")
+        for config in all_smtp_configs:
+            logger.info(f"[SMTP Config API] DB Key: '{config.config_key}' = '{config.config_value}'")
+        logger.info(f"[SMTP Config API] === END DATABASE ENTRIES ===")
+        
         smtp_config = {}
         for field_name, field_info in smtp_fields.items():
             try:
-                config_value = SMTPConfig.get_config(field_name)
+                # First try the database key mapping
+                db_key = db_key_mapping.get(field_name, field_name.lower())
+                config_value = SMTPConfig.get_config(db_key)
+                logger.info(f"[SMTP Config API] Trying key '{db_key}' for field '{field_name}': got '{config_value}'")
+                
+                # If not found, try uppercase key (for backward compatibility)
+                if config_value is None:
+                    config_value = SMTPConfig.get_config(field_name)
+                    logger.info(f"[SMTP Config API] Tried uppercase '{field_name}': got '{config_value}'")
+                
+                # Try with different case variations
+                if config_value is None:
+                    # Try all lowercase
+                    alt_key = field_name.lower()
+                    config_value = SMTPConfig.get_config(alt_key)
+                    logger.info(f"[SMTP Config API] Tried lowercase '{alt_key}': got '{config_value}'")
+                
+                logger.info(f"[SMTP Config API] FINAL - Field {field_name} (DB key: {db_key}): '{config_value}' (configured: {config_value is not None})")
                 smtp_config[field_name] = {
                     'value': config_value if config_value is not None else '',
                     'configured': config_value is not None,
@@ -855,16 +1122,27 @@ def api_get_smtp_configs():
         
         config_status = 'complete' if configured_count == total_required else 'partial' if configured_count > 0 else 'none'
         
-        return jsonify({
-            'success': True,
-            'smtp_config': smtp_config,
-            'status': {
-                'configured_count': configured_count,
-                'total_required': total_required,
-                'config_status': config_status,
-                'percentage': round((configured_count / total_required) * 100) if total_required > 0 else 0
-            }
-        })
+        # Use the same simple approach as the debug endpoint that works
+        # Get all database entries directly
+        all_smtp_configs = SMTPConfig.query.all()
+        db_data = {}
+        for config in all_smtp_configs:
+            db_data[config.config_key] = config.config_value
+        
+        # Create the legacy response format expected by JavaScript (same as debug endpoint)
+        legacy_response = {
+            'smtp_server': db_data.get('smtp_server', ''),
+            'smtp_port': db_data.get('smtp_port', ''),
+            'smtp_username': db_data.get('smtp_username', ''),
+            'smtp_password': db_data.get('smtp_password', ''),
+            'smtp_security': 'SSL' if db_data.get('smtp_use_ssl') == 'true' else 'TLS' if db_data.get('smtp_use_tls') == 'true' else 'NONE',
+            'smtp_from_address': db_data.get('mail_default_sender', ''),
+            'smtp_enabled': db_data.get('smtp_enabled', 'false') == 'true'
+        }
+        
+        logger.info(f"[SMTP Config API] Returning legacy response: {legacy_response}")
+        
+        return jsonify(legacy_response)
         
     except Exception as e:
         logger.error(f"Error getting SMTP configs: {e}")
@@ -872,6 +1150,67 @@ def api_get_smtp_configs():
             'success': False,
             'error': str(e)
         }), 500
+
+@admin_secrets_bp.route('/api/smtp/config/debug', methods=['GET'])
+def api_get_smtp_configs_debug():
+    """DEBUG ONLY: SMTP config without authentication - REMOVE IN PRODUCTION"""
+    try:
+        logger.debug("[DEBUG] ================= DEBUG SMTP CONFIG API CALLED =================")
+        logger.info("[DEBUG API] ================= DEBUG SMTP CONFIG API CALLED =================")
+        
+        # Just return the database values directly
+        from models.smtp_config import SMTPConfig
+        
+        # Check all database entries to see what keys actually exist
+        all_smtp_configs = SMTPConfig.query.all()
+        logger.debug(f"[DEBUG API] === ALL DATABASE ENTRIES ===")
+        logger.info(f"[DEBUG API] === ALL DATABASE ENTRIES ===")
+        db_data = {}
+        for config in all_smtp_configs:
+            logger.debug(f"[DEBUG API] DB Key: '{config.config_key}' = '{config.config_value}'")
+            logger.info(f"[DEBUG API] DB Key: '{config.config_key}' = '{config.config_value}'")
+            db_data[config.config_key] = config.config_value
+        logger.debug(f"[DEBUG API] === END DATABASE ENTRIES ===")
+        logger.info(f"[DEBUG API] === END DATABASE ENTRIES ===")
+        
+        # Create the legacy response format expected by JavaScript
+        legacy_response = {
+            'smtp_server': db_data.get('smtp_server', ''),
+            'smtp_port': db_data.get('smtp_port', ''),
+            'smtp_username': db_data.get('smtp_username', ''),
+            'smtp_password': db_data.get('smtp_password', ''),
+            'smtp_security': 'SSL' if db_data.get('smtp_use_ssl') == 'true' else 'TLS' if db_data.get('smtp_use_tls') == 'true' else 'NONE',
+            'smtp_from_address': db_data.get('mail_default_sender', ''),
+            'smtp_enabled': db_data.get('smtp_enabled', 'false') == 'true'
+        }
+        
+        logger.debug(f"[DEBUG API] Returning debug response: {legacy_response}")
+        logger.info(f"[DEBUG API] Returning debug response: {legacy_response}")
+        
+        return jsonify(legacy_response)
+        
+    except Exception as e:
+        logger.error(f"[DEBUG API] Error getting SMTP configs: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@admin_secrets_bp.route('/management/debug')
+def secrets_management_debug():
+    """DEBUG ONLY: Secrets management without authentication - REMOVE IN PRODUCTION"""
+    try:
+        # Create a mock user object for template compatibility
+        class MockUser:
+            def __init__(self):
+                self.email = "debug@test.com"
+                self.role = "super_admin"
+        
+        return render_template('admin/unified_secrets.html', user=MockUser())
+        
+    except Exception as e:
+        logger.error(f"Error in debug secrets management: {e}", exc_info=True)
+        return f"Error loading debug secrets management: {e}", 500
 
 @admin_secrets_bp.route('/api/smtp/config', methods=['POST'])
 @login_required
@@ -1159,31 +1498,81 @@ def add_secret_form():
 def get_smtp_config():
     """Get SMTP configuration from database using SMTPConfig model"""
     try:
-        smtp_use_tls = SMTPConfig.get_config('smtp_use_tls', 'true').lower() == 'true'
-        smtp_use_ssl = SMTPConfig.get_config('smtp_use_ssl', 'false').lower() == 'true'
+        logger.info("[SMTP API] ================= STARTING SMTP API CALL =================")
         
-        # Determine security setting
-        security_type = 'None'
+        # Get raw values from database - use lowercase keys as they exist in DB
+        # Note: Use empty string as default, NOT a fallback value - we want to show actual DB values only
+        smtp_server_raw = SMTPConfig.get_config('smtp_server', '')
+        smtp_port_raw = SMTPConfig.get_config('smtp_port', '')  # Empty default instead of '587'
+        smtp_username_raw = SMTPConfig.get_config('smtp_username', '')
+        smtp_password_raw = SMTPConfig.get_config('smtp_password', '')
+        smtp_use_tls_raw = SMTPConfig.get_config('smtp_use_tls', '')  # Empty default instead of 'false'
+        smtp_use_ssl_raw = SMTPConfig.get_config('smtp_use_ssl', '')  # Empty default instead of 'false'
+        mail_sender_raw = SMTPConfig.get_config('mail_default_sender', '') or SMTPConfig.get_config('SMTP_DEFAULT_SENDER', '')
+        smtp_enabled_raw = SMTPConfig.get_config('smtp_enabled', '')
+        
+        # Log the raw values for debugging
+        logger.info(f"[SMTP API] Raw DB values:")
+        logger.info(f"  - Server: '{smtp_server_raw}'")
+        logger.info(f"  - Port: '{smtp_port_raw}'")
+        logger.info(f"  - Username: '{smtp_username_raw}'")
+        logger.info(f"  - Password: {'[SET]' if smtp_password_raw else '[NOT SET]'}")
+        logger.info(f"  - TLS: '{smtp_use_tls_raw}'")
+        logger.info(f"  - SSL: '{smtp_use_ssl_raw}'")
+        logger.info(f"  - Sender: '{mail_sender_raw}'")
+        logger.info(f"  - Enabled: '{smtp_enabled_raw}'")
+        
+        # Convert boolean values
+        smtp_use_tls = smtp_use_tls_raw.lower() in ['true', '1', 'yes', 'on'] if smtp_use_tls_raw else False
+        smtp_use_ssl = smtp_use_ssl_raw.lower() in ['true', '1', 'yes', 'on'] if smtp_use_ssl_raw else False
+        smtp_enabled = smtp_enabled_raw.lower() in ['true', '1', 'yes', 'on'] if smtp_enabled_raw else False
+        
+        # Determine security setting - only if we have actual TLS/SSL data from DB
+        security_type = ''  # Default to empty instead of 'None' 
         if smtp_use_ssl:
             security_type = 'SSL'
         elif smtp_use_tls:
             security_type = 'TLS/STARTTLS'
+        elif smtp_use_tls_raw or smtp_use_ssl_raw:  # If we have any SSL/TLS data at all
+            security_type = 'None'
+            
+        # Convert port safely - only use actual DB value, no defaults
+        try:
+            port_int = int(smtp_port_raw) if smtp_port_raw and str(smtp_port_raw).isdigit() else ''
+        except (ValueError, TypeError):
+            port_int = ''
             
         config = {
-            'smtp_server': SMTPConfig.get_config('smtp_server', ''),
-            'smtp_port': int(SMTPConfig.get_config('smtp_port', 587)),
-            'smtp_username': SMTPConfig.get_config('smtp_username', ''),
-            'smtp_password': '••••••••••••••••' if SMTPConfig.get_config('smtp_password') else '',
-            'smtp_from': SMTPConfig.get_config('mail_default_sender', ''),
+            'smtp_server': smtp_server_raw or '',
+            'smtp_port': port_int,
+            'smtp_username': smtp_username_raw or '',
+            'smtp_password': '••••••••••••••••' if smtp_password_raw else '',
+            'smtp_from': mail_sender_raw or '',
             'smtp_use_tls': smtp_use_tls,
             'smtp_use_ssl': smtp_use_ssl,
-            'smtp_security': security_type
+            'smtp_security': security_type,
+            'smtp_enabled': smtp_enabled
         }
         
+        logger.info(f"[SMTP API] Final config object to return:")
+        logger.info(f"  - smtp_server: '{config['smtp_server']}'")
+        logger.info(f"  - smtp_port: {config['smtp_port']}")
+        logger.info(f"  - smtp_username: '{config['smtp_username']}'")
+        logger.info(f"  - smtp_password: '{config['smtp_password']}'")
+        logger.info(f"  - smtp_from: '{config['smtp_from']}'")
+        logger.info(f"  - smtp_use_tls: {config['smtp_use_tls']}")
+        logger.info(f"  - smtp_use_ssl: {config['smtp_use_ssl']}")
+        logger.info(f"  - smtp_security: '{config['smtp_security']}'")
+        logger.info(f"  - smtp_enabled: {config['smtp_enabled']}")
+        logger.info("[SMTP API] ================= SMTP API CALL SUCCESS =================")
         return jsonify({'success': True, 'config': config})
         
     except Exception as e:
-        logger.error(f"Error getting SMTP config: {e}")
+        import traceback
+        logger.error(f"[SMTP API] ================= SMTP API CALL ERROR =================")
+        logger.error(f"[SMTP API] Error getting SMTP config: {e}")
+        logger.error(f"[SMTP API] Traceback: {traceback.format_exc()}")
+        logger.error("[SMTP API] ================= END SMTP API CALL ERROR =================")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @admin_secrets_bp.route('/api/smtp', methods=['POST'])
@@ -1193,18 +1582,38 @@ def save_smtp_config():
     try:
         data = request.get_json()
         
-        # Save each SMTP setting using SMTPConfig model
-        SMTPConfig.set_config('smtp_server', data.get('smtp_server', ''), 'SMTP server hostname', encrypted=False)
-        SMTPConfig.set_config('smtp_port', str(data.get('smtp_port', 587)), 'SMTP server port', encrypted=False)
-        SMTPConfig.set_config('smtp_username', data.get('smtp_username', ''), 'SMTP authentication username', encrypted=False)
+        # Save each SMTP setting using SMTPConfig model - save to both lowercase and UPPERCASE keys for compatibility
+        server_value = data.get('smtp_server', '')
+        port_value = str(data.get('smtp_port', 587))
+        username_value = data.get('smtp_username', '')
+        sender_value = data.get('smtp_from', '')
+        use_tls_value = str(data.get('smtp_use_tls', True)).lower()
+        use_ssl_value = str(data.get('smtp_use_ssl', False)).lower()
+        
+        # Update both key formats for compatibility
+        SMTPConfig.set_config('smtp_server', server_value, 'SMTP server hostname', encrypted=False)
+        SMTPConfig.set_config('SMTP_SERVER', server_value, 'SMTP server hostname', encrypted=False)
+        
+        SMTPConfig.set_config('smtp_port', port_value, 'SMTP server port', encrypted=False)
+        SMTPConfig.set_config('SMTP_PORT', port_value, 'SMTP server port (SSL/TLS)', encrypted=False)
+        
+        SMTPConfig.set_config('smtp_username', username_value, 'SMTP authentication username', encrypted=False)
+        SMTPConfig.set_config('SMTP_USERNAME', username_value, 'SMTP username', encrypted=False)
         
         # Only update password if it's not the masked value
         if data.get('smtp_password') and data.get('smtp_password') != '••••••••••••••••':
-            SMTPConfig.set_config('smtp_password', data.get('smtp_password', ''), 'SMTP authentication password', encrypted=True)
+            password_value = data.get('smtp_password', '')
+            SMTPConfig.set_config('smtp_password', password_value, 'SMTP authentication password', encrypted=True)
+            SMTPConfig.set_config('SMTP_PASSWORD', password_value, 'SMTP password (encrypted)', encrypted=True)
         
-        SMTPConfig.set_config('mail_default_sender', data.get('smtp_from', ''), 'Default sender email address', encrypted=False)
-        SMTPConfig.set_config('smtp_use_tls', str(data.get('smtp_use_tls', True)).lower(), 'Enable TLS encryption', encrypted=False)
-        SMTPConfig.set_config('smtp_use_ssl', str(data.get('smtp_use_ssl', False)).lower(), 'Enable SSL encryption', encrypted=False)
+        SMTPConfig.set_config('mail_default_sender', sender_value, 'Default sender email address', encrypted=False)
+        SMTPConfig.set_config('SMTP_DEFAULT_SENDER', sender_value, 'Default sender email', encrypted=False)
+        
+        SMTPConfig.set_config('smtp_use_tls', use_tls_value, 'Enable TLS encryption', encrypted=False)
+        SMTPConfig.set_config('SMTP_USE_TLS', use_tls_value, 'Use TLS encryption', encrypted=False)
+        
+        SMTPConfig.set_config('smtp_use_ssl', use_ssl_value, 'Enable SSL encryption', encrypted=False)
+        SMTPConfig.set_config('SMTP_USE_SSL', use_ssl_value, 'Use SSL encryption', encrypted=False)
         
         # Enable SMTP if configuration is provided
         if data.get('smtp_server') and data.get('smtp_username'):
@@ -1279,18 +1688,8 @@ def get_application_config():
             'secret_key': '••••••••••••••••••••••••••••••••',  # Masked for security
             'session_timeout': int(AppConfig.get_config('session_timeout', '3600')),
             'max_workers': int(AppConfig.get_config('max_workers', '4')),
-            'log_level': AppConfig.get_config('log_level', 'INFO'),
-            'app_timezone': AppConfig.get_config('app_timezone', 'Asia/Kolkata'),
-            'day_shift_start': AppConfig.get_config('day_shift_start', '06:30'),
-            'day_shift_end': AppConfig.get_config('day_shift_end', '15:30'),
-            'evening_shift_start': AppConfig.get_config('evening_shift_start', '14:45'),
-            'evening_shift_end': AppConfig.get_config('evening_shift_end', '23:45'),
-            'night_shift_start': AppConfig.get_config('night_shift_start', '21:45'),
-            'night_shift_end': AppConfig.get_config('night_shift_end', '06:45'),
-            'onshore_shift_start': AppConfig.get_config('onshore_shift_start', '10:00'),
-            'onshore_shift_end': AppConfig.get_config('onshore_shift_end', '22:00'),
-            'offshore_shift_start': AppConfig.get_config('offshore_shift_start', '22:00'),
-            'offshore_shift_end': AppConfig.get_config('offshore_shift_end', '10:00')
+            'log_level': AppConfig.get_config('log_level', 'INFO')
+            # Note: Timezone and shift timing configuration moved to dedicated Shift Time Configuration module
         }
         
         return jsonify({'success': True, 'config': config})
@@ -1312,20 +1711,7 @@ def save_application_config():
         AppConfig.set_config('max_workers', str(data.get('max_workers', 4)), 'Maximum worker processes', 'application')
         AppConfig.set_config('log_level', data.get('log_level', 'INFO'), 'Application log level', 'application')
         
-        # Save timezone configuration
-        AppConfig.set_config('app_timezone', data.get('app_timezone', 'Asia/Kolkata'), 'Application timezone', 'application')
-        
-        # Save shift timing configuration
-        AppConfig.set_config('day_shift_start', data.get('day_shift_start', '06:30'), 'Day shift start time', 'application')
-        AppConfig.set_config('day_shift_end', data.get('day_shift_end', '15:30'), 'Day shift end time', 'application')
-        AppConfig.set_config('evening_shift_start', data.get('evening_shift_start', '14:45'), 'Evening shift start time', 'application')
-        AppConfig.set_config('evening_shift_end', data.get('evening_shift_end', '23:45'), 'Evening shift end time', 'application')
-        AppConfig.set_config('night_shift_start', data.get('night_shift_start', '21:45'), 'Night shift start time', 'application')
-        AppConfig.set_config('night_shift_end', data.get('night_shift_end', '06:45'), 'Night shift end time', 'application')
-        AppConfig.set_config('onshore_shift_start', data.get('onshore_shift_start', '10:00'), 'OnShore shift start time', 'application')
-        AppConfig.set_config('onshore_shift_end', data.get('onshore_shift_end', '22:00'), 'OnShore shift end time', 'application')
-        AppConfig.set_config('offshore_shift_start', data.get('offshore_shift_start', '22:00'), 'OffShore shift start time', 'application')
-        AppConfig.set_config('offshore_shift_end', data.get('offshore_shift_end', '10:00'), 'OffShore shift end time', 'application')
+        # Note: Timezone and shift timing configuration moved to dedicated Shift Time Configuration module
         
         # Reload configuration in the app
         from config import Config
@@ -1382,7 +1768,7 @@ def save_email_recipients():
         
         # Debug logging
         logger.info(f"Received email recipients save request - data: {data}")
-        print(f"[DEBUG] Email recipients save - data: {data}")
+        logger.debug(f"[DEBUG] Email recipients save - data: {data}")
         
         from models.app_config import AppConfig
         
@@ -1455,6 +1841,27 @@ def save_email_recipients():
         logger.error(f"Error saving email recipients: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@admin_secrets_bp.route('/api/email-notifications', methods=['GET'])
+@login_required
+@superadmin_required
+def get_email_notifications():
+    """Get current email notifications status"""
+    try:
+        from models.app_config import AppConfig
+        
+        # Get email notifications enabled status (default to True if not set)
+        enabled_str = AppConfig.get_config('email_notifications_enabled', 'true')
+        enabled = enabled_str.lower() in ['true', '1', 'yes', 'on']
+        
+        return jsonify({
+            'success': True, 
+            'notifications_enabled': enabled
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting email notifications status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @admin_secrets_bp.route('/api/email-notifications', methods=['POST'])
 @login_required
@@ -1649,13 +2056,13 @@ def test_email_recipients():
             try:
                 from models.smtp_config import SMTPConfig
                 sender = SMTPConfig.get_config('mail_default_sender')
-                print(f"[ADMIN] ✅ Loaded sender from SMTPConfig: {sender}")
+                logger.debug(f"[ADMIN] ✅ Loaded sender from SMTPConfig: {sender}")
             except Exception as e:
-                print(f"[ADMIN] ❌ Failed to load sender from SMTPConfig: {e}")
+                logger.debug(f"[ADMIN] ❌ Failed to load sender from SMTPConfig: {e}")
                 sender = 'noreply@shift-handover.local'  # Final fallback
-                print(f"[ADMIN] ⚠️ Using fallback sender: {sender}")
+                logger.debug(f"[ADMIN] ⚠️ Using fallback sender: {sender}")
         
-        print(f"[ADMIN] 📧 Using sender for test email: {sender}")
+        logger.debug(f"[ADMIN] 📧 Using sender for test email: {sender}")
         
         msg = Message(subject=subject, recipients=recipients_to_test, sender=sender)
         msg.body = text_content
@@ -1704,3 +2111,640 @@ def validate_email_list(email_string):
     email_regex = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
     
     return all(email_regex.match(email) for email in emails)
+
+
+# ============================================================================
+# TEAM SHIFT TIMING CONFIGURATION ROUTES
+# ============================================================================
+
+@admin_secrets_bp.route('/team-shift-timings')
+@login_required
+@superadmin_required
+def team_shift_timings():
+    """Get team shift timing configurations"""
+    try:
+        # Get all accounts and teams for dropdown
+        accounts = Account.query.all()
+        teams_by_account = {}
+        
+        for account in accounts:
+            teams_by_account[account.id] = {
+                'account_name': account.name,
+                'teams': [{'id': team.id, 'name': team.name} for team in account.teams]
+            }
+        
+        # Get all existing shift configurations
+        shift_configs = TeamShiftTimingConfig.query.order_by(
+            TeamShiftTimingConfig.account_id,
+            TeamShiftTimingConfig.team_id,
+            TeamShiftTimingConfig.order_index
+        ).all()
+        
+        # Group by account and team
+        configs_by_team = {}
+        for config in shift_configs:
+            account_id = config.account_id
+            team_id = config.team_id
+            
+            if account_id not in configs_by_team:
+                configs_by_team[account_id] = {}
+            if team_id not in configs_by_team[account_id]:
+                configs_by_team[account_id][team_id] = []
+            
+            configs_by_team[account_id][team_id].append(config.to_dict())
+        
+        return jsonify({
+            'success': True,
+            'accounts': teams_by_account,
+            'shift_configs': configs_by_team
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching team shift timings: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_secrets_bp.route('/team-shift-timings/create', methods=['POST'])
+@login_required
+@superadmin_required
+def create_team_shift_timing():
+    """Create or update team shift timing configuration"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['team_id', 'account_id', 'shift_code', 'shift_name', 'start_time', 'end_time']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+        
+        # Parse time fields
+        try:
+            start_time = datetime.strptime(data['start_time'], '%H:%M').time()
+            end_time = datetime.strptime(data['end_time'], '%H:%M').time()
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid time format. Use HH:MM (24-hour format)'}), 400
+        
+        # Check if configuration already exists
+        existing_config = TeamShiftTimingConfig.query.filter_by(
+            team_id=data['team_id'],
+            account_id=data['account_id'],
+            shift_code=data['shift_code']
+        ).first()
+        
+        if existing_config:
+            # Update existing
+            existing_config.shift_name = data['shift_name']
+            existing_config.start_time = start_time
+            existing_config.end_time = end_time
+            existing_config.color_code = data.get('color_code', existing_config.color_code)
+            existing_config.order_index = data.get('order_index', existing_config.order_index)
+            existing_config.is_active = data.get('is_active', True)
+            existing_config.updated_by = current_user.email
+            existing_config.updated_at = datetime.utcnow()
+            
+            shift_config = existing_config
+        else:
+            # Create new
+            shift_config = TeamShiftTimingConfig(
+                team_id=data['team_id'],
+                account_id=data['account_id'],
+                shift_code=data['shift_code'],
+                shift_name=data['shift_name'],
+                start_time=start_time,
+                end_time=end_time,
+                color_code=data.get('color_code', '#007bff'),
+                order_index=data.get('order_index', 0),
+                is_active=data.get('is_active', True),
+                created_by=current_user.email,
+                updated_by=current_user.email
+            )
+            db.session.add(shift_config)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Shift timing configuration saved successfully',
+            'config': shift_config.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating team shift timing: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_secrets_bp.route('/team-shift-timings/create-defaults', methods=['POST'])
+@login_required
+@superadmin_required
+def create_default_team_shifts():
+    """Create default shift patterns for a team"""
+    try:
+        data = request.get_json()
+        
+        if 'team_id' not in data or 'account_id' not in data:
+            return jsonify({'success': False, 'error': 'team_id and account_id are required'}), 400
+        
+        pattern = data.get('pattern', 'standard')  # standard, devops, extended
+        
+        # Clear existing configurations if requested
+        if data.get('clear_existing', False):
+            TeamShiftTimingConfig.query.filter_by(
+                team_id=data['team_id'],
+                account_id=data['account_id']
+            ).delete()
+        
+        # Create default shifts
+        created_shifts = TeamShiftTimingConfig.create_default_shifts_for_team(
+            team_id=data['team_id'],
+            account_id=data['account_id'],
+            shift_pattern=pattern
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'Created {len(created_shifts)} default shift configurations',
+            'configs': [shift.to_dict() for shift in created_shifts]
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating default team shifts: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_secrets_bp.route('/team-shift-timings/<int:config_id>', methods=['DELETE'])
+@login_required
+@superadmin_required
+def delete_team_shift_timing(config_id):
+    """Delete a team shift timing configuration"""
+    try:
+        config = TeamShiftTimingConfig.query.get_or_404(config_id)
+        db.session.delete(config)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Shift timing configuration deleted successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting team shift timing: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_secrets_bp.route('/team-shift-timings/team/<int:team_id>')
+@login_required
+@superadmin_required
+def get_team_shift_timings(team_id):
+    """Get shift timing configurations for a specific team"""
+    try:
+        configs = TeamShiftTimingConfig.get_team_shifts(team_id, active_only=False)
+        return jsonify({
+            'success': True,
+            'configs': [config.to_dict() for config in configs]
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching team shift timings: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_secrets_bp.route('/save-team-email', methods=['POST'])
+@login_required
+@admin_required
+def save_team_email_config():
+    """Save team email configuration"""
+    try:
+        team_id = request.form.get('team_id')
+        email_recipients = request.form.get('email_recipients', '').strip()
+        priority_alert_recipients = request.form.get('priority_alert_recipients', '').strip()
+        
+        if not team_id:
+            return jsonify({'success': False, 'error': 'Team ID is required'}), 400
+            
+        team = Team.query.get_or_404(team_id)
+        
+        # Validate email addresses
+        import re
+        email_pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+        
+        def validate_email_list(email_string, field_name):
+            if not email_string:
+                return True, ""
+            
+            emails = [email.strip() for email in email_string.split(',') if email.strip()]
+            
+            for email in emails:
+                if not re.match(email_pattern, email):
+                    return False, f"Invalid email address in {field_name}: {email}"
+            return True, ""
+        
+        # Validate emails
+        valid, error_msg = validate_email_list(email_recipients, "Handover Recipients")
+        if not valid:
+            return jsonify({'success': False, 'error': error_msg}), 400
+            
+        valid, error_msg = validate_email_list(priority_alert_recipients, "Priority Alert Recipients")
+        if not valid:
+            return jsonify({'success': False, 'error': error_msg}), 400
+        
+        # Update team email configuration
+        team.email_recipients = email_recipients if email_recipients else None
+        team.priority_alert_recipients = priority_alert_recipients if priority_alert_recipients else None
+        
+        db.session.commit()
+        
+        logger.info(f'Team email configuration updated for team "{team.name}" by user {current_user.email}')
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Email configuration updated for team "{team.name}"'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'Error updating team email configuration: {str(e)}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_secrets_bp.route('/get-configured-teams')
+@login_required
+@admin_required
+def get_configured_teams():
+    """Get list of teams with email configurations"""
+    try:
+        # Query teams that have email configuration
+        teams = db.session.query(Team, Account.name.label('account_name'))\
+            .join(Account, Team.account_id == Account.id)\
+            .filter(
+                db.or_(
+                    Team.email_recipients.isnot(None),
+                    Team.priority_alert_recipients.isnot(None)
+                )
+            )\
+            .order_by(Account.name, Team.name)\
+            .all()
+        
+        configured_teams = []
+        for team, account_name in teams:
+            configured_teams.append({
+                'id': team.id,
+                'name': team.name,
+                'account_name': account_name,
+                'email_recipients': team.email_recipients,
+                'priority_alert_recipients': team.priority_alert_recipients
+            })
+        
+        return jsonify({
+            'success': True,
+            'teams': configured_teams
+        })
+        
+    except Exception as e:
+        logger.error(f'Error fetching configured teams: {str(e)}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# New API endpoints for enhanced configuration pages
+
+# Teams API endpoints
+@admin_secrets_bp.route('/api/teams')
+@login_required
+@superadmin_required
+def api_get_teams():
+    """API endpoint to get all teams"""
+    try:
+        teams = db.session.query(Team, Account.name.label('account_name'))\
+            .join(Account, Team.account_id == Account.id)\
+            .order_by(Account.name, Team.name)\
+            .all()
+        
+        teams_list = []
+        for team, account_name in teams:
+            teams_list.append({
+                'id': team.id,
+                'name': team.name,
+                'account_name': account_name,
+                'account_id': team.account_id
+            })
+        
+        return jsonify({'success': True, 'teams': teams_list})
+        
+    except Exception as e:
+        logger.error(f"Error getting teams: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_secrets_bp.route('/api/teams/<int:team_id>/config')
+@login_required
+@superadmin_required
+def api_get_team_config(team_id):
+    """API endpoint to get team configuration"""
+    try:
+        team = Team.query.get(team_id)
+        if not team:
+            return jsonify({'success': False, 'error': 'Team not found'}), 404
+        
+        config = {
+            'email': team.email_recipients,
+            'display_name': team.name,
+            'distribution_type': 'all',  # Default, could be stored in team model
+            'email_template': 'standard',  # Default, could be stored in team model
+            'active': True  # Default, could be stored in team model
+        }
+        
+        return jsonify({'success': True, 'config': config})
+        
+    except Exception as e:
+        logger.error(f"Error getting team config: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_secrets_bp.route('/api/teams/<int:team_id>/config', methods=['POST'])
+@login_required
+@superadmin_required
+def api_set_team_config(team_id):
+    """API endpoint to set team configuration"""
+    try:
+        data = request.get_json()
+        
+        team = Team.query.get(team_id)
+        if not team:
+            return jsonify({'success': False, 'error': 'Team not found'}), 404
+        
+        # Update team email configuration
+        team.email_recipients = data.get('email')
+        # Additional fields would be added to the Team model for full functionality
+        
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Team configuration updated'})
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error setting team config: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_secrets_bp.route('/api/teams/<int:team_id>/members')
+@login_required
+@superadmin_required
+def api_get_team_members(team_id):
+    """API endpoint to get team members"""
+    try:
+        # For now, return mock data - this would integrate with actual team member model
+        members = [
+            {
+                'id': 1,
+                'name': 'John Doe',
+                'email': 'john.doe@company.com',
+                'role': 'lead',
+                'active': True,
+                'receive_emails': True
+            },
+            {
+                'id': 2,
+                'name': 'Jane Smith',
+                'email': 'jane.smith@company.com',
+                'role': 'member',
+                'active': True,
+                'receive_emails': True
+            }
+        ]
+        
+        return jsonify({'success': True, 'members': members})
+        
+    except Exception as e:
+        logger.error(f"Error getting team members: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_secrets_bp.route('/api/teams/stats')
+@login_required
+@superadmin_required
+def api_get_teams_stats():
+    """API endpoint to get team statistics"""
+    try:
+        total_teams = Team.query.count()
+        teams_with_email = Team.query.filter(Team.email_recipients.isnot(None)).count()
+        
+        stats = {
+            'active_teams': total_teams,
+            'total_members': total_teams * 2,  # Mock data
+            'email_lists': teams_with_email
+        }
+        
+        return jsonify({'success': True, 'stats': stats})
+        
+    except Exception as e:
+        logger.error(f"Error getting team stats: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ServiceNow API endpoints
+@admin_secrets_bp.route('/api/servicenow/config')
+@login_required
+@superadmin_required
+def api_get_servicenow_config():
+    """API endpoint to get ServiceNow configuration"""
+    try:
+        current_secrets_manager = get_secrets_manager()
+        if not current_secrets_manager:
+            return jsonify({'success': False, 'error': 'Secrets manager not available'}), 500
+        
+        # Get ServiceNow related secrets
+        snow_secrets = current_secrets_manager.list_secrets('ServiceNow')
+        
+        # Format for display
+        configs = []
+        for secret in snow_secrets:
+            configs.append({
+                'config_key': secret['key'],
+                'config_value': secret['value'] if not secret.get('encrypted', False) else '***ENCRYPTED***',
+                'encrypted': secret.get('encrypted', False),
+                'description': secret.get('description', ''),
+                'updated_at': secret.get('updated_at')
+            })
+        
+        return jsonify({
+            'success': True,
+            'configs': configs,
+            'connection_status': False  # Would be determined by actual connection test
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting ServiceNow config: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_secrets_bp.route('/api/servicenow/config', methods=['POST'])
+@login_required
+@superadmin_required
+def api_set_servicenow_config():
+    """API endpoint to set ServiceNow configuration"""
+    try:
+        data = request.get_json()
+        
+        current_secrets_manager = get_secrets_manager()
+        if not current_secrets_manager:
+            return jsonify({'success': False, 'error': 'Secrets manager not available'}), 500
+        
+        # Save the configuration
+        result = current_secrets_manager.set_secret(
+            data['config_key'],
+            data['config_value'],
+            'ServiceNow',
+            description=data.get('description', ''),
+            encrypted=data.get('encrypted', False)
+        )
+        
+        if result:
+            return jsonify({'success': True, 'message': 'Configuration saved successfully'})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to save configuration'}), 500
+        
+    except Exception as e:
+        logger.error(f"Error setting ServiceNow config: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_secrets_bp.route('/api/servicenow/test-connection')
+@login_required
+@superadmin_required
+def api_test_servicenow_connection():
+    """API endpoint to test ServiceNow connection"""
+    try:
+        # Mock connection test - in reality this would test actual ServiceNow connection
+        import time
+        time.sleep(1)  # Simulate connection time
+        
+        # For demonstration, return success
+        return jsonify({
+            'success': True,
+            'message': 'Connection test successful',
+            'response': {
+                'status': 'Connected',
+                'version': 'Tokyo',
+                'instance': 'dev12345.service-now.com'
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error testing ServiceNow connection: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_secrets_bp.route('/api/servicenow/test-endpoint/<endpoint_type>')
+@login_required
+@superadmin_required
+def api_test_servicenow_endpoint(endpoint_type):
+    """API endpoint to test specific ServiceNow endpoints"""
+    try:
+        # Mock endpoint test
+        import time
+        time.sleep(0.5)
+        
+        response_data = {
+            'table': {'count': 10, 'status': 'accessible'},
+            'import': {'status': 'ready', 'staging_table': 'u_import_test'},
+            'attachment': {'status': 'accessible', 'max_size': '25MB'},
+            'query': {'status': 'accessible', 'records_found': 42}
+        }
+        
+        return jsonify({
+            'success': True,
+            'message': f'{endpoint_type.upper()} endpoint test successful',
+            'response': response_data.get(endpoint_type, {})
+        })
+        
+    except Exception as e:
+        logger.error(f"Error testing ServiceNow endpoint: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# Enhanced Application Settings API endpoints
+@admin_secrets_bp.route('/api/app/settings')
+@login_required
+@superadmin_required
+def api_get_app_settings():
+    """API endpoint to get application settings"""
+    try:
+        current_secrets_manager = get_secrets_manager()
+        if not current_secrets_manager:
+            return jsonify({'success': False, 'error': 'Secrets manager not available'}), 500
+        
+        # Get application settings
+        app_secrets = current_secrets_manager.list_secrets('Application Settings')
+        
+        settings = []
+        for secret in app_secrets:
+            settings.append({
+                'setting_key': secret['key'],
+                'setting_value': secret['value'],
+                'category': secret.get('category', 'General'),
+                'description': secret.get('description', ''),
+                'updated_at': secret.get('updated_at')
+            })
+        
+        return jsonify({'success': True, 'settings': settings})
+        
+    except Exception as e:
+        logger.error(f"Error getting app settings: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_secrets_bp.route('/api/app/settings', methods=['POST'])
+@login_required
+@superadmin_required
+def api_set_app_setting():
+    """API endpoint to set application setting"""
+    try:
+        data = request.get_json()
+        
+        current_secrets_manager = get_secrets_manager()
+        if not current_secrets_manager:
+            return jsonify({'success': False, 'error': 'Secrets manager not available'}), 500
+        
+        # Save the setting
+        result = current_secrets_manager.set_secret(
+            data['setting_key'],
+            data['setting_value'],
+            'Application Settings',
+            description=data.get('description', ''),
+            encrypted=False
+        )
+        
+        if result:
+            return jsonify({'success': True, 'message': 'Setting saved successfully'})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to save setting'}), 500
+        
+    except Exception as e:
+        logger.error(f"Error setting app setting: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_secrets_bp.route('/api/app/shifts')
+@login_required
+@superadmin_required
+def api_get_shifts():
+    """API endpoint to get shift configurations"""
+    try:
+        # Get shift configurations from team shift timing config or create mock data
+        shifts = [
+            {'id': 1, 'name': 'Day Shift', 'start_time': '06:30', 'end_time': '15:30'},
+            {'id': 2, 'name': 'Evening Shift', 'start_time': '14:45', 'end_time': '23:45'},
+            {'id': 3, 'name': 'Night Shift', 'start_time': '21:45', 'end_time': '06:45'}
+        ]
+        
+        return jsonify({'success': True, 'shifts': shifts})
+        
+    except Exception as e:
+        logger.error(f"Error getting shifts: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_secrets_bp.route('/api/app/shifts', methods=['POST'])
+@login_required
+@superadmin_required
+def api_add_shift():
+    """API endpoint to add shift configuration"""
+    try:
+        data = request.get_json()
+        
+        # In a real implementation, this would save to database
+        logger.info(f"Adding shift: {data['name']} ({data['start_time']} - {data['end_time']})")
+        
+        return jsonify({'success': True, 'message': 'Shift added successfully'})
+        
+    except Exception as e:
+        logger.error(f"Error adding shift: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

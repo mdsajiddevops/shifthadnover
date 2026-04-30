@@ -2,8 +2,211 @@
 
 {% block title %}Account Settings{% endblock %}
 
+{% block extra_css %}
+<style>
+    .settings-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 30px;
+        margin-bottom: 25px;
+        box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+    }
+    
+    .settings-header h2 {
+        margin: 0;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .settings-header p {
+        margin: 10px 0 0 0;
+        opacity: 0.9;
+    }
+    
+    .settings-card {
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+    
+    .settings-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    }
+    
+    .settings-card .card-header {
+        background: transparent;
+        border-bottom: 2px solid #f0f2f5;
+        padding: 20px 25px;
+    }
+    
+    .settings-card .card-header h5 {
+        margin: 0;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .settings-card .card-body {
+        padding: 25px;
+    }
+    
+    .setting-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 15px 0;
+        border-bottom: 1px solid #f0f2f5;
+    }
+    
+    .setting-item:last-child {
+        border-bottom: none;
+    }
+    
+    .setting-info {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+    
+    .setting-icon {
+        width: 45px;
+        height: 45px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+    }
+    
+    .setting-icon.blue { background: rgba(66, 133, 244, 0.1); color: #4285f4; }
+    .setting-icon.green { background: rgba(40, 167, 69, 0.1); color: #28a745; }
+    .setting-icon.orange { background: rgba(255, 152, 0, 0.1); color: #ff9800; }
+    .setting-icon.purple { background: rgba(156, 39, 176, 0.1); color: #9c27b0; }
+    .setting-icon.red { background: rgba(244, 67, 54, 0.1); color: #f44336; }
+    .setting-icon.teal { background: rgba(0, 150, 136, 0.1); color: #009688; }
+    
+    .setting-details h6 {
+        margin: 0 0 3px 0;
+        font-weight: 600;
+        color: #2c3e50;
+    }
+    
+    .setting-details small {
+        color: #6c757d;
+    }
+    
+    .form-switch .form-check-input {
+        width: 50px;
+        height: 26px;
+        cursor: pointer;
+    }
+    
+    .form-switch .form-check-input:checked {
+        background-color: #28a745;
+        border-color: #28a745;
+    }
+    
+    .quick-action-btn {
+        padding: 12px 20px;
+        border-radius: 10px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+    }
+    
+    .quick-action-btn:hover {
+        transform: translateY(-2px);
+    }
+    
+    .quick-action-btn.primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .quick-action-btn.primary:hover {
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+    
+    .session-info {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 12px;
+        padding: 20px;
+    }
+    
+    .session-detail {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 0;
+    }
+    
+    .session-detail i {
+        width: 30px;
+        color: #667eea;
+    }
+    
+    .status-badge {
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    
+    .status-badge.active {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+    }
+    
+    .status-badge.sso {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .preference-select {
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
+        padding: 8px 12px;
+        min-width: 150px;
+        transition: all 0.3s ease;
+    }
+    
+    .preference-select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+    
+    .security-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 15px;
+        background: rgba(40, 167, 69, 0.1);
+        border-radius: 8px;
+        color: #28a745;
+        font-weight: 500;
+    }
+    
+    .security-status.warning {
+        background: rgba(255, 193, 7, 0.1);
+        color: #ffc107;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
+    <!-- Page Header -->
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
@@ -20,58 +223,397 @@
         </div>
     </div>
 
+    <!-- Settings Header -->
     <div class="row">
         <div class="col-12">
-            <div class="card">
+            <div class="settings-header">
+                <h2>
+                    <i class="bi bi-person-gear"></i>
+                    Hello, {{ user.username }}!
+                </h2>
+                <p>Manage your account settings and preferences from this dashboard.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Account Overview -->
+        <div class="col-lg-6 mb-4">
+            <div class="card settings-card">
                 <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-gear me-2"></i>Account Preferences
+                    <h5>
+                        <i class="bi bi-person-badge text-primary"></i>
+                        Account Overview
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle me-2"></i>
-                        Account settings are currently managed by your system administrator. 
-                        For changes to your account preferences, please contact your admin or use the 
-                        <a href="/profile" class="alert-link">Profile</a> page to update personal information.
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6 class="text-primary mb-3">Current Settings</h6>
-                            <table class="table table-borderless">
-                                <tr>
-                                    <td><strong>Username:</strong></td>
-                                    <td>{{ user.username }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Role:</strong></td>
-                                    <td>{{ user.role|title|replace('_', ' ') }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Account Status:</strong></td>
-                                    <td><span class="badge bg-success">Active</span></td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Last Login:</strong></td>
-                                    <td>Current Session</td>
-                                </tr>
-                            </table>
-                        </div>
-                        <div class="col-md-6">
-                            <h6 class="text-primary mb-3">Quick Actions</h6>
-                            <div class="d-grid gap-2">
-                                <a href="/profile" class="btn btn-outline-primary">
-                                    <i class="bi bi-person me-2"></i>Edit Profile
-                                </a>
-                                <a href="/notifications" class="btn btn-outline-info">
-                                    <i class="bi bi-bell me-2"></i>Manage Notifications
-                                </a>
-                                <a href="/help" class="btn btn-outline-secondary">
-                                    <i class="bi bi-question-circle me-2"></i>Get Help
-                                </a>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-icon blue">
+                                <i class="bi bi-person"></i>
+                            </div>
+                            <div class="setting-details">
+                                <h6>Username</h6>
+                                <small>{{ user.username }}</small>
                             </div>
                         </div>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-icon purple">
+                                <i class="bi bi-shield-check"></i>
+                            </div>
+                            <div class="setting-details">
+                                <h6>Role</h6>
+                                <small>{{ user.role|title|replace('_', ' ') }}</small>
+                            </div>
+                        </div>
+                        <span class="badge bg-primary">{{ user.role|title|replace('_', ' ') }}</span>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-icon green">
+                                <i class="bi bi-building"></i>
+                            </div>
+                            <div class="setting-details">
+                                <h6>Organization</h6>
+                                <small>{% if account %}{{ account.name }}{% else %}Not Assigned{% endif %}</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-icon teal">
+                                <i class="bi bi-people"></i>
+                            </div>
+                            <div class="setting-details">
+                                <h6>Team</h6>
+                                <small>{% if team %}{{ team.name }}{% else %}Not Assigned{% endif %}</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-icon orange">
+                                <i class="bi bi-patch-check"></i>
+                            </div>
+                            <div class="setting-details">
+                                <h6>Account Status</h6>
+                                <small>Your account is active</small>
+                            </div>
+                        </div>
+                        <span class="status-badge active">
+                            <i class="bi bi-check-circle me-1"></i>Active
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session Information -->
+        <div class="col-lg-6 mb-4">
+            <div class="card settings-card">
+                <div class="card-header">
+                    <h5>
+                        <i class="bi bi-laptop text-info"></i>
+                        Current Session
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="session-info">
+                        <div class="session-detail">
+                            <i class="bi bi-clock-history"></i>
+                            <div>
+                                <strong>Session Started:</strong>
+                                <span class="ms-2 text-muted">Current Active Session</span>
+                            </div>
+                        </div>
+                        <div class="session-detail">
+                            <i class="bi bi-geo-alt"></i>
+                            <div>
+                                <strong>Location:</strong>
+                                <span class="ms-2 text-muted">Based on IP Address</span>
+                            </div>
+                        </div>
+                        <div class="session-detail">
+                            <i class="bi bi-display"></i>
+                            <div>
+                                <strong>Device:</strong>
+                                <span class="ms-2 text-muted">Web Browser</span>
+                            </div>
+                        </div>
+                        <div class="session-detail">
+                            <i class="bi bi-key"></i>
+                            <div>
+                                <strong>Authentication:</strong>
+                                <span class="status-badge sso ms-2">
+                                    {% if user.sso_id %}
+                                        <i class="bi bi-building me-1"></i>EPAM SSO
+                                    {% else %}
+                                        <i class="bi bi-person me-1"></i>Credentials
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-danger w-100">
+                            <i class="bi bi-box-arrow-right me-2"></i>Sign Out of This Session
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Notification Preferences -->
+        <div class="col-lg-6 mb-4">
+            <div class="card settings-card">
+                <div class="card-header">
+                    <h5>
+                        <i class="bi bi-bell text-warning"></i>
+                        Notification Preferences
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-icon orange">
+                                <i class="bi bi-envelope"></i>
+                            </div>
+                            <div class="setting-details">
+                                <h6>Email Notifications</h6>
+                                <small>Receive shift handover emails</small>
+                            </div>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="emailNotifications" checked disabled>
+                        </div>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-icon blue">
+                                <i class="bi bi-bell"></i>
+                            </div>
+                            <div class="setting-details">
+                                <h6>In-App Notifications</h6>
+                                <small>Show notifications in dashboard</small>
+                            </div>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="appNotifications" checked disabled>
+                        </div>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-icon red">
+                                <i class="bi bi-exclamation-triangle"></i>
+                            </div>
+                            <div class="setting-details">
+                                <h6>Incident Alerts</h6>
+                                <small>Get notified for incident assignments</small>
+                            </div>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="incidentAlerts" checked disabled>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3 mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <small>Notification preferences are managed at system level. Contact your administrator for changes.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Security Settings -->
+        <div class="col-lg-6 mb-4">
+            <div class="card settings-card">
+                <div class="card-header">
+                    <h5>
+                        <i class="bi bi-shield-lock text-success"></i>
+                        Security
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-icon green">
+                                <i class="bi bi-key"></i>
+                            </div>
+                            <div class="setting-details">
+                                <h6>Password</h6>
+                                <small>Last changed: Not tracked</small>
+                            </div>
+                        </div>
+                        <a href="/profile#passwordForm" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-pencil me-1"></i>Change
+                        </a>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-icon purple">
+                                <i class="bi bi-fingerprint"></i>
+                            </div>
+                            <div class="setting-details">
+                                <h6>Two-Factor Authentication</h6>
+                                <small>{% if user.sso_id %}Managed by SSO Provider{% else %}Not available{% endif %}</small>
+                            </div>
+                        </div>
+                        <span class="security-status">
+                            {% if user.sso_id %}
+                                <i class="bi bi-check-circle"></i>SSO Managed
+                            {% else %}
+                                <i class="bi bi-dash-circle"></i>N/A
+                            {% endif %}
+                        </span>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-icon teal">
+                                <i class="bi bi-clock-history"></i>
+                            </div>
+                            <div class="setting-details">
+                                <h6>Login History</h6>
+                                <small>View recent login activity</small>
+                            </div>
+                        </div>
+                        <span class="text-muted small">Available in Audit Logs</span>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <div class="security-status w-100 justify-content-center">
+                            <i class="bi bi-shield-check"></i>
+                            <span>Your account is secure</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="card settings-card">
+                <div class="card-header">
+                    <h5>
+                        <i class="bi bi-lightning text-primary"></i>
+                        Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3 col-sm-6">
+                            <a href="/profile" class="quick-action-btn btn btn-outline-primary w-100">
+                                <i class="bi bi-person-circle"></i>
+                                <span>Edit Profile</span>
+                            </a>
+                        </div>
+                        <div class="col-md-3 col-sm-6">
+                            <a href="/notifications" class="quick-action-btn btn btn-outline-info w-100">
+                                <i class="bi bi-bell"></i>
+                                <span>Notifications</span>
+                            </a>
+                        </div>
+                        <div class="col-md-3 col-sm-6">
+                            <a href="/help" class="quick-action-btn btn btn-outline-success w-100">
+                                <i class="bi bi-question-circle"></i>
+                                <span>Help & Support</span>
+                            </a>
+                        </div>
+                        <div class="col-md-3 col-sm-6">
+                            <a href="/about" class="quick-action-btn btn btn-outline-secondary w-100">
+                                <i class="bi bi-info-circle"></i>
+                                <span>About App</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- App Preferences -->
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="card settings-card">
+                <div class="card-header">
+                    <h5>
+                        <i class="bi bi-palette text-info"></i>
+                        Preferences
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <div class="setting-icon blue">
+                                        <i class="bi bi-globe"></i>
+                                    </div>
+                                    <div class="setting-details">
+                                        <h6>Timezone</h6>
+                                        <small>Display time settings</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <select class="preference-select form-select mt-2" disabled>
+                                <option selected>IST (UTC+5:30)</option>
+                                <option>UTC</option>
+                                <option>EST (UTC-5)</option>
+                                <option>PST (UTC-8)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <div class="setting-icon purple">
+                                        <i class="bi bi-calendar3"></i>
+                                    </div>
+                                    <div class="setting-details">
+                                        <h6>Date Format</h6>
+                                        <small>Preferred date display</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <select class="preference-select form-select mt-2" disabled>
+                                <option selected>DD/MM/YYYY</option>
+                                <option>MM/DD/YYYY</option>
+                                <option>YYYY-MM-DD</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <div class="setting-icon teal">
+                                        <i class="bi bi-translate"></i>
+                                    </div>
+                                    <div class="setting-details">
+                                        <h6>Language</h6>
+                                        <small>Interface language</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <select class="preference-select form-select mt-2" disabled>
+                                <option selected>English (US)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="alert alert-secondary mt-4 mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <small>Preference customization will be available in a future update.</small>
                     </div>
                 </div>
             </div>

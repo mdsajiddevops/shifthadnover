@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+{% set page_title = "Configuration Management" %}
+
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+    body {
+        background: #f8f9fa;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    .config-header {
+        background: #ffffff;
+        color: #2c3e50;
+        padding: 2rem;
+        border-bottom: 1px solid #e9ecef;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .config-header h1 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 600;
+        color: #2c3e50;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .config-header p {
+        margin: 0.5rem 0 0 0;
+        color: #6c757d;
+        font-size: 1rem;
+        font-weight: 400;
+    }
+    
+    .config-card {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 1px solid #e9ecef;
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+    
+    .config-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        border-color: #0d6efd;
+    }
+    
+    .config-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        display: block;
+    }
+    
+    .config-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        color: #2c3e50;
+    }
+    
+    .config-description {
+        color: #6c757d;
+        margin-bottom: 1.5rem;
+        line-height: 1.6;
+        font-size: 0.95rem;
+    }
+    
+    .config-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    
+    .status-configured {
+        background: #d1e7dd;
+        border: 1px solid #badbcc;
+        color: #0f5132;
+    }
+    
+    .status-partial {
+        background: #fff3cd;
+        border: 1px solid #ffecb5;
+        color: #664d03;
+    }
+    
+    .status-not-configured {
+        background: #f8d7da;
+        border: 1px solid #f5c2c7;
+        color: #842029;
+    }
+    
+    .config-actions {
+        margin-top: auto;
+    }
+    
+    .btn-config {
+        width: 100%;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 0.95rem;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.15s ease;
+        text-decoration: none;
+        margin-bottom: 0.5rem;
+    }
+    
+    .btn-primary {
+        background: #0d6efd;
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        background: #0b5ed7;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+        color: white;
+        text-decoration: none;
+    }
+    
+    .btn-outline-primary {
+        background: transparent;
+        color: #0d6efd;
+        border: 2px solid #0d6efd;
+    }
+    
+    .btn-outline-primary:hover {
+        background: #0d6efd;
+        color: white;
+        text-decoration: none;
+    }
+    
+    .stats-container {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 1px solid #e9ecef;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    
+    .stats-row {
+        display: flex;
+        justify-content: space-around;
+        text-align: center;
+    }
+    
+    .stat-item {
+        flex: 1;
+    }
+    
+    .stat-number {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stat-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    
+    .text-success { color: #198754 !important; }
+    .text-warning { color: #ffc107 !important; }
+    .text-danger { color: #dc3545 !important; }
+    .text-primary { color: #0d6efd !important; }
+    
+    @media (max-width: 768px) {
+        .config-card {
+            margin-bottom: 1rem;
+        }
+        
+        .stats-row {
+            flex-direction: column;
+            gap: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="config-header">
+    <h1><i class="fas fa-cogs"></i> Configuration Management</h1>
+    <p>Manage your application settings, integrations, and system configurations</p>
+</div>
+
+<div class="container-fluid">
+    <!-- Configuration Statistics -->
+    <div class="stats-container">
+        <div class="stats-row">
+            <div class="stat-item">
+                <div class="stat-number text-success">{{ configured_count or 0 }}</div>
+                <div class="stat-label">Configured</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number text-warning">{{ partial_count or 0 }}</div>
+                <div class="stat-label">Partial</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number text-danger">{{ missing_count or 0 }}</div>
+                <div class="stat-label">Not Configured</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number text-primary">{{ total_configs or 4 }}</div>
+                <div class="stat-label">Total Configurations</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Configuration Cards -->
+    <div class="row">
+        <!-- SMTP Configuration -->
+        <div class="col-md-6 col-lg-3">
+            <div class="config-card">
+                <i class="fas fa-envelope config-icon text-primary"></i>
+                <h3 class="config-title">SMTP Email</h3>
+                <p class="config-description">
+                    Configure email server settings for notifications, alerts, and system communications.
+                </p>
+                <div class="config-status {{ 'status-configured' if smtp_configured else 'status-not-configured' }}">
+                    <i class="fas {{ 'fa-check-circle' if smtp_configured else 'fa-times-circle' }}"></i>
+                    {{ 'Configured' if smtp_configured else 'Not Configured' }}
+                </div>
+                <div class="config-actions">
+                    <a href="{{ url_for('admin_secrets.smtp_config') }}" class="btn-config btn-primary">
+                        <i class="fas fa-cog"></i> Configure SMTP
+                    </a>
+                    {% if smtp_configured %}
+                    <a href="{{ url_for('admin_secrets.smtp_config') }}?test=true" class="btn-config btn-outline-primary">
+                        <i class="fas fa-vial"></i> Test Connection
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Team Email Configuration -->
+        <div class="col-md-6 col-lg-3">
+            <div class="config-card">
+                <i class="fas fa-users config-icon text-success"></i>
+                <h3 class="config-title">Team Email Lists</h3>
+                <p class="config-description">
+                    Set up team-specific email distribution lists for handover notifications and alerts.
+                </p>
+                <div class="config-status {{ 'status-configured' if team_email_configured else 'status-not-configured' }}">
+                    <i class="fas {{ 'fa-check-circle' if team_email_configured else 'fa-times-circle' }}"></i>
+                    {{ team_email_count or 0 }} Teams Configured
+                </div>
+                <div class="config-actions">
+                    <a href="{{ url_for('admin_secrets.team_email_config') }}" class="btn-config btn-primary">
+                        <i class="fas fa-envelope-open-text"></i> Manage Teams
+                    </a>
+                    {% if team_email_configured %}
+                    <a href="{{ url_for('admin_secrets.team_email_config') }}?test=true" class="btn-config btn-outline-primary">
+                        <i class="fas fa-paper-plane"></i> Test Recipients
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- ServiceNow Configuration -->
+        <div class="col-md-6 col-lg-3">
+            <div class="config-card">
+                <i class="fas fa-ticket-alt config-icon text-info"></i>
+                <h3 class="config-title">ServiceNow Integration</h3>
+                <p class="config-description">
+                    Connect to ServiceNow for automated ticket creation and incident management workflows.
+                </p>
+                <div class="config-status {{ 'status-configured' if servicenow_configured else 'status-not-configured' }}">
+                    <i class="fas {{ 'fa-check-circle' if servicenow_configured else 'fa-times-circle' }}"></i>
+                    {{ 'Connected' if servicenow_configured else 'Not Connected' }}
+                </div>
+                <div class="config-actions">
+                    <a href="{{ url_for('admin_secrets.servicenow_config') }}" class="btn-config btn-primary">
+                        <i class="fas fa-link"></i> Configure ServiceNow
+                    </a>
+                    {% if servicenow_configured %}
+                    <a href="{{ url_for('admin_secrets.servicenow_config') }}?test=true" class="btn-config btn-outline-primary">
+                        <i class="fas fa-plug"></i> Test Connection
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Application Settings -->
+        <div class="col-md-6 col-lg-3">
+            <div class="config-card">
+                <i class="fas fa-server config-icon text-warning"></i>
+                <h3 class="config-title">Application Settings</h3>
+                <p class="config-description">
+                    Configure core application settings including shift timings, timezone, and system parameters.
+                </p>
+                <div class="config-status {{ 'status-configured' if app_configured else 'status-partial' }}">
+                    <i class="fas {{ 'fa-check-circle' if app_configured else 'fa-exclamation-triangle' }}"></i>
+                    {{ 'Configured' if app_configured else 'Default Settings' }}
+                </div>
+                <div class="config-actions">
+                    <a href="{{ url_for('admin_secrets.app_config') }}" class="btn-config btn-primary">
+                        <i class="fas fa-sliders-h"></i> Application Settings
+                    </a>
+                    <a href="{{ url_for('admin_secrets.app_config') }}?section=shifts" class="btn-config btn-outline-primary">
+                        <i class="fas fa-clock"></i> Shift Timings
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="config-card">
+                <h3 class="config-title">
+                    <i class="fas fa-bolt text-primary"></i> Quick Actions
+                </h3>
+                <div class="row">
+                    <div class="col-md-3">
+                        <a href="{{ url_for('admin_secrets.secrets_dashboard') }}" class="btn-config btn-outline-primary">
+                            <i class="fas fa-download"></i> Legacy Dashboard
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="#" class="btn-config btn-outline-primary" onclick="testAllConnections()">
+                            <i class="fas fa-vial"></i> Test All Connections
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="#" class="btn-config btn-outline-primary" onclick="backupConfigs()">
+                            <i class="fas fa-save"></i> Backup Configurations
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{{ url_for('admin_secrets.secrets_dashboard') }}" class="btn-config btn-outline-primary">
+                            <i class="fas fa-shield-alt"></i> Legacy Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function testAllConnections() {
+    alert('Test All Connections feature coming soon!');
+}
+
+function backupConfigs() {
+    alert('Backup Configurations feature coming soon!');
+}
+</script>
+{% endblock %}

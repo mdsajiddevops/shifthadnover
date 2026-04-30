@@ -1,13 +1,19 @@
 
-from flask import Blueprint, render_template, request, flash
+from flask import Blueprint, render_template, request, flash, session
 from flask_login import login_required, current_user
 from models.models import Incident, TeamMember, ShiftRoster, ShiftKeyPoint, Shift, Account, Team, User, db
+from services.team_access_service import TeamAccessService
+from services.multi_team_service import apply_team_filtering
 import plotly.graph_objs as go
 import plotly
 import json
 from datetime import datetime, timedelta, time as dt_time
 import pytz
 from sqlalchemy import func, or_, and_
+import logging
+
+# Module logger
+logger = logging.getLogger(__name__)
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -54,79 +60,58 @@ def get_shift_type_and_next(now):
 
 def get_engineers_for_shift(date, shift_code, account_id=None, team_id=None):
     # shift_code: 'E' (Evening), 'D' (Day/Morning), 'N' (Night)
-    print(f"[DEBUG] *** GET_ENGINEERS_FOR_SHIFT CALLED ***")
-    print(f"[DEBUG] Parameters: date={date}, shift_code={shift_code}, account_id={account_id}, team_id={team_id}")
+    logger.debug(f"[DEBUG] *** GET_ENGINEERS_FOR_SHIFT CALLED ***")
+    logger.debug(f"[DEBUG] Parameters: date={date}, shift_code={shift_code}, account_id={account_id}, team_id={team_id}")
     
     query = ShiftRoster.query.filter_by(date=date, shift_code=shift_code)
     
-    # SECURITY FIX: Apply enhanced role-based filtering to match roster security
+    # Apply team-based filtering using the new service
     if account_id and team_id:
         # When specific account/team provided (admin filtering)
-        print(f"[DEBUG] Applying admin filtering: account_id={account_id}, team_id={team_id}")
+        logger.debug(f"[DEBUG] Applying admin filtering: account_id={account_id}, team_id={team_id}")
         query = query.filter_by(account_id=account_id, team_id=team_id)
     elif current_user.is_authenticated:
-        if current_user.role == 'super_admin':
-            # Super admin sees all data (no additional filtering)
-            print(f"[DEBUG] Super admin access - no additional filtering")
-            pass
-        elif current_user.role == 'account_admin':
-            # Account admin sees only their account data
-            if not current_user.account_id:
-                print(f"[DEBUG] Account admin has no account_id - returning empty")
-                return []  # No account assigned = no results
-            print(f"[DEBUG] Account admin filtering: account_id={current_user.account_id}")
-            query = query.filter_by(account_id=current_user.account_id)
-        else:
-            # Regular users and team admins - ONLY their own team
-            if not current_user.team_id:
-                print(f"[DEBUG] Regular user has no team_id - returning empty")
-                return []  # No team assigned = no results
-            print(f"[DEBUG] Regular user filtering: account_id={current_user.account_id}, team_id={current_user.team_id}")
-            query = query.filter_by(account_id=current_user.account_id, team_id=current_user.team_id)
+        # Use TeamAccessService for proper multi-team filtering
+        query = TeamAccessService.apply_team_filter(query, ShiftRoster)
+        logger.debug(f"[DEBUG] Applied team filter for user {current_user.username}")
+        
+        # Debug: show effective team IDs
+        effective_teams = TeamAccessService.get_effective_team_ids()
+        effective_account = TeamAccessService.get_effective_account_id()
+        logger.debug(f"[DEBUG] Effective teams: {effective_teams}, account: {effective_account}")
+    else:
+        logger.debug(f"[DEBUG] User not authenticated - returning empty results")
+        return []
     
     entries = query.all()
-    print(f"[DEBUG] ShiftRoster query found {len(entries)} entries")
+    logger.debug(f"[DEBUG] ShiftRoster query found {len(entries)} entries")
     for i, entry in enumerate(entries):
-        print(f"[DEBUG] Entry {i+1}: team_member_id={entry.team_member_id}, account_id={entry.account_id}, team_id={entry.team_id}")
+        logger.debug(f"[DEBUG] Entry {i+1}: team_member_id={entry.team_member_id}, account_id={entry.account_id}, team_id={entry.team_id}")
     
     member_ids = [e.team_member_id for e in entries]
     
     if not member_ids:
-        print(f"[DEBUG] No member_ids found - returning empty list")
+        logger.debug(f"[DEBUG] No member_ids found - returning empty list")
         return []
     
     # Apply same security filtering to TeamMember query
     tm_query = TeamMember.query.filter(TeamMember.id.in_(member_ids))
-    print(f"[DEBUG] TeamMember base query for member_ids: {member_ids}")
+    logger.debug(f"[DEBUG] TeamMember base query for member_ids: {member_ids}")
     
     if account_id and team_id:
         # When specific account/team provided (admin filtering)
-        print(f"[DEBUG] Applying TeamMember admin filtering: account_id={account_id}, team_id={team_id}")
+        logger.debug(f"[DEBUG] Applying TeamMember admin filtering: account_id={account_id}, team_id={team_id}")
         tm_query = tm_query.filter_by(account_id=account_id, team_id=team_id)
     elif current_user.is_authenticated:
-        if current_user.role == 'super_admin':
-            # Super admin sees all team members (no additional filtering)
-            print(f"[DEBUG] TeamMember super admin access - no additional filtering")
-            pass
-        elif current_user.role == 'account_admin':
-            # Account admin sees only their account team members
-            if current_user.account_id:
-                print(f"[DEBUG] TeamMember account admin filtering: account_id={current_user.account_id}")
-                tm_query = tm_query.filter_by(account_id=current_user.account_id)
-        else:
-            # Regular users and team admins - ONLY their own team members
-            if current_user.team_id:
-                print(f"[DEBUG] TeamMember regular user filtering: account_id={current_user.account_id}, team_id={current_user.team_id}")
-                tm_query = tm_query.filter_by(account_id=current_user.account_id, team_id=current_user.team_id)
-            else:
-                print(f"[DEBUG] TeamMember regular user has no team_id - returning empty")
-                return []  # No team assigned = no results
+        # Use TeamAccessService for consistent multi-team filtering
+        tm_query = TeamAccessService.apply_team_filter(tm_query, TeamMember)
+        logger.debug(f"[DEBUG] Applied team filter to TeamMember query for user {current_user.username}")
     
     final_members = tm_query.all()
-    print(f"[DEBUG] Final TeamMember query returned {len(final_members)} members")
+    logger.debug(f"[DEBUG] Final TeamMember query returned {len(final_members)} members")
     for i, member in enumerate(final_members):
         team_name = member.team.name if member.team else 'Unknown'
-        print(f"[DEBUG] Final member {i+1}: {member.name} (Team: {team_name}, Account: {member.account_id})")
+        logger.debug(f"[DEBUG] Final member {i+1}: {member.name} (Team: {team_name}, Account: {member.account_id})")
     
     return final_members
 
@@ -155,8 +140,10 @@ def get_incident_trends_data(range_type, start_date=None, end_date=None):
         func.date(Incident.created_at).between(start_date, end_date)
     )
     
-    if current_user.role not in ['super_admin']:
-        query = query.filter_by(account_id=current_user.account_id, team_id=current_user.team_id)
+    # Apply team-based filtering for incident trends
+    if current_user.is_authenticated:
+        # Use TeamAccessService for consistent multi-team filtering
+        query = TeamAccessService.apply_team_filter(query, Incident)
     
     results = query.group_by(func.date(Incident.created_at)).all()
     
@@ -182,7 +169,7 @@ def get_incident_trends_data(range_type, start_date=None, end_date=None):
 @dashboard_bp.route('/')
 @login_required
 def dashboard():
-    print(f"[DEBUG] Dashboard: Starting dashboard route execution...", flush=True)
+    logger.debug(f"[DEBUG] Dashboard: Starting dashboard route execution...")
     
     # Check if user just completed onboarding
     if request.args.get('onboarding_complete') == 'true':
@@ -199,27 +186,50 @@ def dashboard():
     
     ist_now = get_ist_now()
     today = ist_now.date()
-    shift_map = {'Morning': 'D', 'Evening': 'E', 'Night': 'N'}
+    # Enhanced shift mapping to support additional shift codes
+    shift_map = {'Morning': 'D', 'Evening': 'E', 'Late Evening': 'LE', 'Night': 'N', 'General': 'G', 'OnShore': 'OS', 'OffShore': 'OF'}
+    
+    # Additional shift codes mapping (bidirectional relationships)
+    additional_shift_codes = {
+        'Morning': ['G', 'OS'],      # Morning also shows General and OnShore engineers
+        'Evening': [],               # No additional codes for Evening
+        'Late Evening': ['N'],       # Late Evening also shows Night engineers
+        'Night': ['LE', 'OF'],       # Night also shows Late Evening and OffShore engineers
+        'General': ['D'],            # General also shows Morning (Day) engineers
+        'OnShore': ['D'],            # OnShore also shows Morning (Day) engineers
+        'OffShore': ['N']            # OffShore also shows Night engineers
+    }
+    
     current_shift_type, next_shift_type = get_shift_type_and_next(ist_now)
     current_shift_code = shift_map[current_shift_type]
-    next_shift_code = shift_map[next_shift_type]
     next_shift_code = shift_map[next_shift_type]
     next_date = today + timedelta(days=1)
 
     from flask import session
-    print(f"[DEBUG] Dashboard: current_user.is_authenticated={getattr(current_user, 'is_authenticated', None)}, id={getattr(current_user, 'id', None)}, username={getattr(current_user, 'username', None)}")
+    logger.debug(f"[DEBUG] Dashboard: current_user.is_authenticated={getattr(current_user, 'is_authenticated', None)}, id={getattr(current_user, 'id', None)}, username={getattr(current_user, 'username', None)}")
     
     # 🆕 ENHANCED DASHBOARD FILTERING - Handle filter parameters and session storage
     accounts = []
     teams = []
     selected_account_id = None
     selected_team_id = None
+    team_filter_context = None  # Initialize for all user roles
     
     # Update session with filter values if provided in URL
     if request.args.get('account_id'):
         session['dashboard_selected_account_id'] = request.args.get('account_id')
     if request.args.get('team_id'):
         session['dashboard_selected_team_id'] = request.args.get('team_id')
+        # Also update the TeamAccessService session key for multi-team users
+        try:
+            team_id_int = int(request.args.get('team_id'))
+            # Validate user has access to this team before setting in session
+            user_team_ids = TeamAccessService.get_user_team_ids()
+            if team_id_int in user_team_ids:
+                session['selected_team_id'] = team_id_int
+                logger.debug(f"[DASHBOARD] Updated selected_team_id in session to {team_id_int}")
+        except (ValueError, TypeError):
+            pass
     
     if current_user.role == 'super_admin':
         # Super Admin: Can filter by any account and team
@@ -236,6 +246,8 @@ def dashboard():
         # For filtering data
         filter_account_id = selected_account_id
         filter_team_id = selected_team_id
+        # Super admin doesn't need team filter context (they have full access)
+        team_filter_context = None
         
     elif current_user.role == 'account_admin':
         # Account Admin: Can filter by teams within their account
@@ -247,22 +259,46 @@ def dashboard():
         
         # If no team selected, default to show all teams in the account (None means all)
         filter_team_id = selected_team_id
+        # Account admin doesn't need team filter context (they have full account access)
+        team_filter_context = None
         
     else:
-        # Regular users and team admins: Fixed to their team
+        # Regular users and team admins: Use multi-team service
         filter_account_id = current_user.account_id
-        filter_team_id = current_user.team_id
         accounts = [Account.query.get(filter_account_id)] if filter_account_id else []
-        teams = [Team.query.get(filter_team_id)] if filter_team_id else []
+        
+        # Check if URL explicitly requests a team
+        url_team_id = request.args.get('team_id')
+        if url_team_id:
+            try:
+                url_team_id_int = int(url_team_id)
+                user_team_ids = TeamAccessService.get_user_team_ids()
+                if url_team_id_int in user_team_ids:
+                    # Force update session before getting team_filter_context
+                    session['selected_team_id'] = url_team_id_int
+                    logger.debug(f"[DASHBOARD] Regular user explicitly selected team_id={url_team_id_int} from URL")
+            except (ValueError, TypeError):
+                pass
+        
+        # Get team filter context using team access service
+        url_team_id = request.args.get('team_id', type=int)
+        team_filter_context = TeamAccessService.get_team_filter_context(url_team_id=url_team_id)
+        
+        teams = team_filter_context['user_teams']
         selected_account_id = filter_account_id
-        selected_team_id = filter_team_id
+        selected_team_id = team_filter_context['selected_team_id']
+        
+        logger.debug(f"[DASHBOARD] Regular user {current_user.username}: selected_team_id={selected_team_id}, primary_team_id={team_filter_context.get('primary_team_id')}")
+        
+        # Set filter team ID - None means show all user's teams
+        filter_team_id = selected_team_id
 
     # Get incidents handed over TO the current shift from the previous shift
     # This shows only incidents that were specifically handed over, not all incidents
     
     # 🔧 FIXED LOGIC: Find ONLY the PREVIOUS SHIFT handover (not old handovers from previous days)
     # Show only the immediately previous shift handover details
-    print(f"[DEBUG] Dashboard: Looking for PREVIOUS SHIFT handover TO {current_shift_type} shift")
+    logger.debug(f"[DEBUG] Dashboard: Looking for PREVIOUS SHIFT handover TO {current_shift_type} shift")
     
     def get_previous_shift_handover(current_shift, today_date, account_id, team_id):
         """Get the previous shift handover based on current shift and date"""
@@ -291,7 +327,7 @@ def dashboard():
             
         prev_shift_type, search_date = previous_shift_map[current_shift]
         
-        print(f"[DEBUG] Looking for {prev_shift_type} → {current_shift} handover on {search_date}")
+        logger.debug(f"[DEBUG] Looking for {prev_shift_type} → {current_shift} handover on {search_date}")
         
         # Look for handover FROM previous shift TO current shift on the correct date
         handover = Shift.query.filter_by(
@@ -304,9 +340,9 @@ def dashboard():
         ).order_by(Shift.id.desc()).first()
         
         if handover:
-            print(f"[DEBUG] Found previous shift handover: ID={handover.id}, {handover.current_shift_type}→{handover.next_shift_type}, date={handover.date}")
+            logger.debug(f"[DEBUG] Found previous shift handover: ID={handover.id}, {handover.current_shift_type}→{handover.next_shift_type}, date={handover.date}")
         else:
-            print(f"[DEBUG] No previous shift handover found for {prev_shift_type}→{current_shift} on {search_date}")
+            logger.debug(f"[DEBUG] No previous shift handover found for {prev_shift_type}→{current_shift} on {search_date}")
             
         return handover
     
@@ -315,7 +351,7 @@ def dashboard():
         target_handover = get_previous_shift_handover(current_shift_type, today, filter_account_id, filter_team_id)
         
         if target_handover:
-            print(f"[DEBUG] Dashboard: Found target handover ID={target_handover.id}, {target_handover.current_shift_type}→{target_handover.next_shift_type}, date={target_handover.date}")
+            logger.debug(f"[DEBUG] Dashboard: Found target handover ID={target_handover.id}, {target_handover.current_shift_type}→{target_handover.next_shift_type}, date={target_handover.date}")
             
             # Get only Open incidents and Handover incidents from the target shift
             # 🔧 FIXED: Only show Open and Handover incidents in "Recent Handover Incidents"
@@ -328,7 +364,7 @@ def dashboard():
                 Incident.status != 'Closed'  # Exclude closed incidents
             ).all()
             
-            print(f"[DEBUG] Dashboard: Found {len(raw_incidents)} raw incidents from handover")
+            logger.debug(f"[DEBUG] Dashboard: Found {len(raw_incidents)} raw incidents from handover")
             
             # 🔧 ENHANCED LOGIC: Filter out incidents that were closed in newer handovers
             open_incidents = []
@@ -346,11 +382,11 @@ def dashboard():
                 if not newer_closed_incident:
                     # This incident was not closed in a newer handover, so show it
                     open_incidents.append(incident)
-                    print(f"[DEBUG] Dashboard: Including incident '{incident.title}' (type: {incident.type}, priority: {incident.priority})")
+                    logger.debug(f"[DEBUG] Dashboard: Including incident '{incident.title}' (type: {incident.type}, priority: {incident.priority})")
                 else:
-                    print(f"[DEBUG] Dashboard: Incident '{incident.title}' was closed in shift {newer_closed_incident.shift_id}, not showing")
+                    logger.debug(f"[DEBUG] Dashboard: Incident '{incident.title}' was closed in shift {newer_closed_incident.shift_id}, not showing")
         else:
-            print(f"[DEBUG] Dashboard: No handover found TO {current_shift_type} shift")
+            logger.debug(f"[DEBUG] Dashboard: No handover found TO {current_shift_type} shift")
             open_incidents = []
             
     elif filter_account_id:
@@ -473,29 +509,87 @@ def dashboard():
                 
                 if not newer_closed_incident:
                     open_incidents.append(incident)
-    # Current shift engineers
+    # Enhanced current shift engineers with multiple shift codes
+    logger.debug(f"[DEBUG] *** ENHANCED CURRENT SHIFT ENGINEERS CALCULATION ***")
+    logger.debug(f"[DEBUG] Current shift type: {current_shift_type}, Primary shift code: {current_shift_code}")
+    logger.debug(f"[DEBUG] Additional shift codes for {current_shift_type}: {additional_shift_codes.get(current_shift_type, [])}")
+    logger.debug(f"[DEBUG] Filter account_id: {filter_account_id}, Filter team_id: {filter_team_id}")
+    
+    current_engineers = []
+    
+    # Get engineers for primary shift code
     if current_shift_type == 'Night' and ist_now.time() < dt_time(6,45):
         night_date = today - timedelta(days=1)
-        current_engineers = get_engineers_for_shift(night_date, current_shift_code, filter_account_id, filter_team_id)
+        primary_engineers = get_engineers_for_shift(night_date, current_shift_code, filter_account_id, filter_team_id)
+        logger.debug(f"[DEBUG] Using night date: {night_date} for primary current shift")
     else:
-        current_engineers = get_engineers_for_shift(today, current_shift_code, filter_account_id, filter_team_id)
-    # Next shift engineers
-    print(f"[DEBUG] *** NEXT SHIFT ENGINEERS CALCULATION ***")
-    print(f"[DEBUG] Current time: {ist_now.strftime('%H:%M:%S')}")
-    print(f"[DEBUG] Next shift type: {next_shift_type}, Next shift code: {next_shift_code}")
-    print(f"[DEBUG] Current user: {current_user.username}, Role: {current_user.role}")
-    print(f"[DEBUG] User account_id: {current_user.account_id}, team_id: {current_user.team_id}")
-    print(f"[DEBUG] Filter account_id: {filter_account_id}, Filter team_id: {filter_team_id}")
+        primary_engineers = get_engineers_for_shift(today, current_shift_code, filter_account_id, filter_team_id)
+        logger.debug(f"[DEBUG] Using today date: {today} for primary current shift")
     
-    # Modified: Always use TODAY's date to match roster filter behavior
-    # This ensures dashboard and roster show consistent data
-    print(f"[DEBUG] Using TODAY date for {next_shift_type} shift: {today}")
-    next_shift_engineers = get_engineers_for_shift(today, next_shift_code, filter_account_id, filter_team_id)
+    # Add shift code info to engineers
+    for engineer in primary_engineers:
+        engineer.display_shift_code = current_shift_code
+        engineer.is_primary_shift = True
+    current_engineers.extend(primary_engineers)
     
-    print(f"[DEBUG] DASHBOARD RESULT: Found {len(next_shift_engineers)} engineers for next shift")
+    # Get engineers for additional shift codes in this category
+    for add_shift_code in additional_shift_codes.get(current_shift_type, []):
+        if current_shift_type == 'Night' and ist_now.time() < dt_time(6,45):
+            add_engineers = get_engineers_for_shift(night_date, add_shift_code, filter_account_id, filter_team_id)
+        else:
+            add_engineers = get_engineers_for_shift(today, add_shift_code, filter_account_id, filter_team_id)
+        
+        # Add shift code info to engineers
+        for engineer in add_engineers:
+            engineer.display_shift_code = add_shift_code
+            engineer.is_primary_shift = False
+        current_engineers.extend(add_engineers)
+        logger.debug(f"[DEBUG] Added {len(add_engineers)} engineers from shift code {add_shift_code}")
+    
+    logger.debug(f"[DEBUG] ENHANCED DASHBOARD RESULT: Found {len(current_engineers)} total engineers for current shift")
+    for i, engineer in enumerate(current_engineers):
+        team_name = engineer.team.name if engineer.team else 'Unknown'
+        shift_display = f" ({engineer.display_shift_code})" if not engineer.is_primary_shift else ""
+        logger.debug(f"[DEBUG] Current Engineer {i+1}: {engineer.name}{shift_display} (Team: {team_name}, Account: {engineer.account_id})")
+    # Enhanced next shift engineers with multiple shift codes
+    logger.debug(f"[DEBUG] *** ENHANCED NEXT SHIFT ENGINEERS CALCULATION ***")
+    logger.debug(f"[DEBUG] Current time: {ist_now.strftime('%H:%M:%S')}")
+    logger.debug(f"[DEBUG] Next shift type: {next_shift_type}, Primary shift code: {next_shift_code}")
+    logger.debug(f"[DEBUG] Additional shift codes for {next_shift_type}: {additional_shift_codes.get(next_shift_type, [])}")
+    logger.debug(f"[DEBUG] Current user: {current_user.username}, Role: {current_user.role}")
+    user_teams = current_user.get_teams()
+    user_team_ids = [team.id for team in user_teams] if user_teams else []
+    logger.debug(f"[DEBUG] User account_id: {current_user.account_id}, team_ids: {user_team_ids}")
+    logger.debug(f"[DEBUG] Filter account_id: {filter_account_id}, Filter team_id: {filter_team_id}")
+    
+    next_shift_engineers = []
+    
+    # Get engineers for primary next shift code
+    logger.debug(f"[DEBUG] Using TODAY date for {next_shift_type} shift: {today}")
+    primary_next_engineers = get_engineers_for_shift(today, next_shift_code, filter_account_id, filter_team_id)
+    
+    # Add shift code info to engineers
+    for engineer in primary_next_engineers:
+        engineer.display_shift_code = next_shift_code
+        engineer.is_primary_shift = True
+    next_shift_engineers.extend(primary_next_engineers)
+    
+    # Get engineers for additional shift codes in this category
+    for add_shift_code in additional_shift_codes.get(next_shift_type, []):
+        add_next_engineers = get_engineers_for_shift(today, add_shift_code, filter_account_id, filter_team_id)
+        
+        # Add shift code info to engineers
+        for engineer in add_next_engineers:
+            engineer.display_shift_code = add_shift_code
+            engineer.is_primary_shift = False
+        next_shift_engineers.extend(add_next_engineers)
+        logger.debug(f"[DEBUG] Added {len(add_next_engineers)} engineers from next shift code {add_shift_code}")
+    
+    logger.debug(f"[DEBUG] ENHANCED DASHBOARD RESULT: Found {len(next_shift_engineers)} total engineers for next shift")
     for i, engineer in enumerate(next_shift_engineers):
         team_name = engineer.team.name if engineer.team else 'Unknown'
-        print(f"[DEBUG] Engineer {i+1}: {engineer.name} (Team: {team_name}, Account: {engineer.account_id})")
+        shift_display = f" ({engineer.display_shift_code})" if not engineer.is_primary_shift else ""
+        logger.debug(f"[DEBUG] Next Engineer {i+1}: {engineer.name}{shift_display} (Team: {team_name}, Account: {engineer.account_id})")
     if filter_account_id and filter_team_id:
         # 🔧 ENHANCED KEY POINT FILTERING: Use same logic as new handover form for consistency
         # Get all key points, then apply intelligent filtering
@@ -504,14 +598,14 @@ def dashboard():
             ShiftKeyPoint.team_id == filter_team_id
         ).order_by(ShiftKeyPoint.id.desc())
         
-        print(f"[DASHBOARD DEBUG] Total key points for team: {all_kps_query.count()}")
+        logger.debug(f"[DASHBOARD DEBUG] Total key points for team: {all_kps_query.count()}")
         
         # Filter to only Open/In Progress status
         all_prev_kps = all_kps_query.filter(
             ShiftKeyPoint.status.in_(['Open', 'In Progress'])
         ).all()
         
-        print(f"[DASHBOARD DEBUG] Open/In Progress key points: {len(all_prev_kps)}")
+        logger.debug(f"[DASHBOARD DEBUG] Open/In Progress key points: {len(all_prev_kps)}")
         
         # Additional check: exclude key points from shifts that have been submitted with 'Closed' status
         filtered_kps = []
@@ -519,20 +613,20 @@ def dashboard():
             # Check if this key point's shift was submitted and this key point was marked closed
             shift = Shift.query.get(kp.shift_id)
             if shift and shift.status == 'sent':
-                # This is from a submitted handover - check if there's a newer version that closed this key point
+                # This is from a submitted handover - check if there's a newer version that closed this key point (CASE-INSENSITIVE)
                 newer_closed = ShiftKeyPoint.query.filter(
-                    ShiftKeyPoint.description == kp.description,
+                    func.lower(ShiftKeyPoint.description) == kp.description.lower(),
                     ShiftKeyPoint.jira_id == kp.jira_id,
                     ShiftKeyPoint.status == 'Closed',
                     ShiftKeyPoint.id > kp.id
                 ).first()
                 if newer_closed:
-                    print(f"[DASHBOARD DEBUG] Excluding key point ID {kp.id} - found newer closed version ID {newer_closed.id}")
+                    logger.debug(f"[DASHBOARD DEBUG] Excluding key point ID {kp.id} - found newer closed version ID {newer_closed.id}")
                     continue
             filtered_kps.append(kp)
         
         all_prev_kps = filtered_kps
-        print(f"[DASHBOARD DEBUG] After submission filtering: {len(all_prev_kps)} key points remain")
+        logger.debug(f"[DASHBOARD DEBUG] After submission filtering: {len(all_prev_kps)} key points remain")
         
         # Deduplicate: keep only the latest (by id) for each (description, normalized_jira_id) pair
         kp_map = {}
@@ -545,32 +639,32 @@ def dashboard():
             if key not in kp_map or kp.id > kp_map[key].id:
                 kp_map[key] = kp
         
-        print(f"[DASHBOARD DEBUG] After deduplication: {len(kp_map)} unique key points")
+        logger.debug(f"[DASHBOARD DEBUG] After deduplication: {len(kp_map)} unique key points")
         
         # Attach assigned user info to each key point
         open_key_points = []
         from models.models import TeamMember, User
         for kp in kp_map.values():
             assigned_user = None
-            print(f"[DASHBOARD DEBUG] Processing key point ID {kp.id}: {kp.description[:30]}...")
-            print(f"[DASHBOARD DEBUG] responsible_engineer_id: {kp.responsible_engineer_id}")
+            logger.debug(f"[DASHBOARD DEBUG] Processing key point ID {kp.id}: {kp.description[:30]}...")
+            logger.debug(f"[DASHBOARD DEBUG] responsible_engineer_id: {kp.responsible_engineer_id}")
             
             if kp.responsible_engineer_id:
                 team_member = TeamMember.query.get(kp.responsible_engineer_id)
-                print(f"[DASHBOARD DEBUG] Team member found: {team_member.name if team_member else 'None'}")
+                logger.debug(f"[DASHBOARD DEBUG] Team member found: {team_member.name if team_member else 'None'}")
                 
                 if team_member:
                     # Prefer linked user if available, else fallback to team member name
                     if team_member.user_id:
                         user = User.query.get(team_member.user_id)
                         assigned_user = user.username if user else team_member.name
-                        print(f"[DASHBOARD DEBUG] Using user: {assigned_user}")
+                        logger.debug(f"[DASHBOARD DEBUG] Using user: {assigned_user}")
                     else:
                         assigned_user = team_member.name
-                        print(f"[DASHBOARD DEBUG] Using team member name: {assigned_user}")
+                        logger.debug(f"[DASHBOARD DEBUG] Using team member name: {assigned_user}")
             
             kp.assigned_to_display = assigned_user or "Unassigned"
-            print(f"[DASHBOARD DEBUG] Final assigned_to_display: {kp.assigned_to_display}")
+            logger.debug(f"[DASHBOARD DEBUG] Final assigned_to_display: {kp.assigned_to_display}")
             open_key_points.append(kp)
         
         # Get priority incidents ONLY Priority type from the target handover
@@ -605,28 +699,63 @@ def dashboard():
             priority_incidents = []
             
     elif filter_account_id:
-        # 🔧 FIXED: Get ALL key points first, then deduplicate, then filter by status
-        # This ensures we find the latest key point even if it's closed
-        all_key_points = ShiftKeyPoint.query.filter_by(account_id=filter_account_id).all()
-        
-        # Apply deduplication logic: keep only the latest (by id) for each (description, jira_id) pair
-        kp_map = {}
-        for kp in all_key_points:
-            key = (kp.description, kp.jira_id)
-            if key not in kp_map or kp.id > kp_map[key].id:
-                kp_map[key] = kp
-        
-        # Filter to only show Open and In Progress after deduplication
-        # Attach assigned user info to each key point
-        open_key_points = []
-        from models.models import TeamMember, User
-        for kp in kp_map.values():
-            if kp.status in ['Open', 'In Progress']:
+        # 🔧 ENHANCED: Check if regular user should get team-level filtering
+        if current_user.role not in ['super_admin', 'account_admin'] and filter_team_id:
+            # Regular users should get team-level filtering like the first branch
+            all_kps_query = ShiftKeyPoint.query.filter(
+                ShiftKeyPoint.account_id == filter_account_id,
+                ShiftKeyPoint.team_id == filter_team_id
+            ).order_by(ShiftKeyPoint.id.desc())
+            
+            logger.debug(f"[DASHBOARD DEBUG] Team-level filtering for regular user - Total key points for team: {all_kps_query.count()}")
+            
+            # Filter to only Open/In Progress status
+            all_prev_kps = all_kps_query.filter(
+                ShiftKeyPoint.status.in_(['Open', 'In Progress'])
+            ).all()
+            
+            logger.debug(f"[DASHBOARD DEBUG] Open/In Progress key points: {len(all_prev_kps)}")
+            
+            # Additional check: exclude key points from shifts that have been submitted with 'Closed' status
+            filtered_kps = []
+            for kp in all_prev_kps:
+                # Check if this key point's shift was submitted and this key point was marked closed
+                shift = Shift.query.get(kp.shift_id)
+                if shift and shift.status == 'sent':
+                    # This is from a submitted handover - check if there's a newer version that closed this key point
+                    newer_closed = ShiftKeyPoint.query.filter(
+                        ShiftKeyPoint.description == kp.description,
+                        ShiftKeyPoint.jira_id == kp.jira_id,
+                        ShiftKeyPoint.status == 'Closed',
+                        ShiftKeyPoint.id > kp.id
+                    ).first()
+                    if newer_closed:
+                        logger.debug(f"[DASHBOARD DEBUG] Excluding key point ID {kp.id} - found newer closed version ID {newer_closed.id}")
+                        continue
+                filtered_kps.append(kp)
+            
+            all_prev_kps = filtered_kps
+            logger.debug(f"[DASHBOARD DEBUG] After submission filtering: {len(all_prev_kps)} key points remain")
+            
+            # Deduplicate: keep only the latest (by id) for each (description, normalized_jira_id) pair
+            kp_map = {}
+            for kp in all_prev_kps:
+                if kp.status == 'Closed':
+                    continue
+                # Normalize JIRA ID: treat None, NULL, empty string, and 'None' as equivalent
+                normalized_jira = kp.jira_id if kp.jira_id and kp.jira_id.lower() not in ['none', 'null', ''] else None
+                key = (kp.description, normalized_jira)
+                if key not in kp_map or kp.id > kp_map[key].id:
+                    kp_map[key] = kp
+            
+            # Convert to list and attach assigned user info
+            open_key_points = []
+            from models.models import TeamMember, User
+            for kp in kp_map.values():
                 assigned_user = None
                 if kp.responsible_engineer_id:
                     team_member = TeamMember.query.get(kp.responsible_engineer_id)
                     if team_member:
-                        # Prefer linked user if available, else fallback to team member name
                         if team_member.user_id:
                             user = User.query.get(team_member.user_id)
                             assigned_user = user.username if user else team_member.name
@@ -634,8 +763,41 @@ def dashboard():
                             assigned_user = team_member.name
                 kp.assigned_to_display = assigned_user or "Unassigned"
                 open_key_points.append(kp)
+                
+            logger.debug(f"[DASHBOARD DEBUG] Final deduplicated key points for team: {len(open_key_points)}")
+        else:
+            # Account admin or super admin - show account-level filtering
+            # 🔧 FIXED: Get ALL key points first, then deduplicate, then filter by status
+            # This ensures we find the latest key point even if it's closed
+            all_key_points = ShiftKeyPoint.query.filter_by(account_id=filter_account_id).all()
+            
+            # Apply deduplication logic: keep only the latest (by id) for each (description, jira_id) pair
+            kp_map = {}
+            for kp in all_key_points:
+                key = (kp.description, kp.jira_id)
+                if key not in kp_map or kp.id > kp_map[key].id:
+                    kp_map[key] = kp
+            
+            # Filter to only show Open and In Progress after deduplication
+            # Attach assigned user info to each key point
+            open_key_points = []
+            from models.models import TeamMember, User
+            for kp in kp_map.values():
+                if kp.status in ['Open', 'In Progress']:
+                    assigned_user = None
+                    if kp.responsible_engineer_id:
+                        team_member = TeamMember.query.get(kp.responsible_engineer_id)
+                        if team_member:
+                            # Prefer linked user if available, else fallback to team member name
+                            if team_member.user_id:
+                                user = User.query.get(team_member.user_id)
+                                assigned_user = user.username if user else team_member.name
+                            else:
+                                assigned_user = team_member.name
+                    kp.assigned_to_display = assigned_user or "Unassigned"
+                    open_key_points.append(kp)
         
-        # Get priority incidents ONLY Priority type from the target handover
+        # Get priority incidents for account-level filtering (both cases need this)
         # 🔧 FIXED: Only show Priority incidents in account admin view
         if target_handover:
             priority_incidents = Incident.query.filter(
@@ -746,8 +908,18 @@ def dashboard():
     priority_counts = []
     for d in date_list:
         base_incident_query = db.session.query(Incident).join(Shift, Incident.shift_id == Shift.id)
-        if current_user.role != 'admin':
-            base_incident_query = base_incident_query.filter(Incident.account_id==current_user.account_id, Incident.team_id==current_user.team_id)
+        if current_user.role not in ['super_admin', 'admin']:
+            if current_user.role == 'account_admin':
+                base_incident_query = base_incident_query.filter(Incident.account_id == current_user.account_id)
+            else:
+                # Regular users - use multi-team filtering
+                base_incident_query = apply_team_filtering(
+                    base_incident_query,
+                    Incident,
+                    current_user,
+                    selected_team_id=filter_team_id,
+                    account_id=current_user.account_id
+                )
         open_c = base_incident_query.filter(Incident.type=='Open', Shift.date==d).count()
         closed_c = base_incident_query.filter(Incident.type=='Closed', Shift.date==d).count()
         handover_c = base_incident_query.filter(Incident.type=='Handover', Shift.date==d).count()
@@ -774,7 +946,7 @@ def dashboard():
     graphJSON = json.dumps({'data': data, 'layout': layout}, cls=plotly.utils.PlotlyJSONEncoder)
 
     # Calculate priority distribution for pie chart
-    print(f"[DEBUG] Dashboard: Starting priority distribution calculation...", flush=True)
+    logger.debug(f"[DEBUG] Dashboard: Starting priority distribution calculation...")
     priority_distribution = {
         'critical': 0,
         'high': 0, 
@@ -782,7 +954,7 @@ def dashboard():
         'low': 0
     }
     
-    print(f"[DEBUG] Dashboard: Processing {len(open_incidents)} open incidents for priority distribution...", flush=True)
+    logger.debug(f"[DEBUG] Dashboard: Processing {len(open_incidents)} open incidents for priority distribution...")
     for incident in open_incidents:
         if hasattr(incident, 'priority') and incident.priority:
             priority_lower = incident.priority.lower()
@@ -791,37 +963,37 @@ def dashboard():
             elif priority_lower == 'urgent':  # Handle alternate naming
                 priority_distribution['critical'] += 1
 
-    print(f"[DEBUG] Dashboard: Priority distribution completed: {priority_distribution}", flush=True)
+    logger.debug(f"[DEBUG] Dashboard: Priority distribution completed: {priority_distribution}")
 
-    print(f"[DEBUG] Dashboard: *** NOTIFICATION SECTION REACHED ***", flush=True)
-    print(f"[DEBUG] Dashboard: About to query notifications...", flush=True)
+    logger.debug(f"[DEBUG] Dashboard: *** NOTIFICATION SECTION REACHED ***")
+    logger.debug(f"[DEBUG] Dashboard: About to query notifications...")
     # Get pending notifications for the current user
     pending_notifications = []
     pending_count = 0
     try:
-        print(f"[DEBUG] Dashboard: Importing HandoverNotification model...", flush=True)
+        logger.debug(f"[DEBUG] Dashboard: Importing HandoverNotification model...")
         from models.handover_enhanced import HandoverNotification
         from models.models import User  # Ensure User import is available
-        print(f"[DEBUG] Dashboard: Model imported successfully", flush=True)
+        logger.debug(f"[DEBUG] Dashboard: Model imported successfully")
         
-        print(f"[DEBUG] Dashboard: Querying notifications for user_id={current_user.id}", flush=True)
+        logger.debug(f"[DEBUG] Dashboard: Querying notifications for user_id={current_user.id}")
         pending_notifications = HandoverNotification.query.filter_by(
             recipient_id=current_user.id,
             is_read=False
         ).order_by(HandoverNotification.created_at.desc()).all()
         
         pending_count = len(pending_notifications)
-        print(f"[DEBUG] Dashboard: Found {pending_count} unread notifications for user {current_user.id} ({current_user.username})", flush=True)
+        logger.debug(f"[DEBUG] Dashboard: Found {pending_count} unread notifications for user {current_user.id} ({current_user.username})")
         
         for notif in pending_notifications:
-            print(f"[DEBUG] Dashboard: Notification ID {notif.id}: {notif.title}", flush=True)
+            logger.debug(f"[DEBUG] Dashboard: Notification ID {notif.id}: {notif.title}")
             
     except ImportError as e:
-        print(f"[ERROR] Dashboard: Import error for HandoverNotification: {e}", flush=True)
+        logger.error(f"[ERROR] Dashboard: Import error for HandoverNotification: {e}")
         pending_notifications = []
         pending_count = 0
     except Exception as e:
-        print(f"[ERROR] Dashboard: Error getting pending notifications: {e}", flush=True)
+        logger.error(f"[ERROR] Dashboard: Error getting pending notifications: {e}")
         import traceback
         traceback.print_exc()
         pending_notifications = []
@@ -850,5 +1022,6 @@ def dashboard():
         start_date=start_date or from_date.strftime('%Y-%m-%d'),
         end_date=end_date or to_date.strftime('%Y-%m-%d'),
         pending_count=pending_count,
-        pending_notifications=pending_notifications
+        pending_notifications=pending_notifications,
+        team_filter_context=team_filter_context
     )

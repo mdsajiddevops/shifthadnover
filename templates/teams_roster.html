@@ -1,0 +1,610 @@
+{% extends "base.html" %}
+
+{% block title %}On-Call Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .teams-roster-container {
+        background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+        min-height: 100vh;
+        padding: 2rem 0;
+        color: white;
+    }
+
+    /* Old custom header styles renamed to avoid conflict */
+    .teams-roster-header-old {
+        text-align: center;
+        margin-bottom: 2rem;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 2rem;
+        border-radius: 15px;
+        backdrop-filter: blur(15px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    }
+
+    /* Dashboard-style stats cards */
+    .stats-overview {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: rgba(255, 255, 255, 0.95);
+        padding: 1.5rem;
+        border-radius: 15px;
+        text-align: center;
+        backdrop-filter: blur(15px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin: 0;
+        text-shadow: none;
+    }
+
+    .stat-label {
+        color: #4b5563;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+        font-weight: 500;
+    }
+
+
+
+    /* Team Grid Layout */
+    .teams-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 2rem;
+        padding: 0;
+    }
+
+    .team-card {
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 15px;
+        backdrop-filter: blur(15px);
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    }
+
+    .team-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+        background: rgba(255, 255, 255, 1);
+    }
+
+    .team-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .team-info {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .team-icon {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #1e40af, #3b82f6);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.2rem;
+        box-shadow: 0 2px 8px rgba(30, 64, 175, 0.3);
+    }
+
+    .team-details h3 {
+        margin: 0;
+        color: #1f2937;
+        font-size: 1.3rem;
+        font-weight: 600;
+    }
+
+    .team-details .team-member-count {
+        color: #6b7280;
+        font-size: 0.9rem;
+        margin: 0;
+    }
+
+    .team-stats {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .stat-badge {
+        background: rgba(30, 64, 175, 0.15);
+        padding: 0.3rem 0.8rem;
+        border-radius: 15px;
+        font-size: 0.8rem;
+        color: #1e40af;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-weight: 600;
+        border: 1px solid rgba(30, 64, 175, 0.2);
+    }
+
+    /* Current Shift Section */
+    .current-shift-section {
+        margin-top: 0;
+    }
+
+    /* Member Tiles Grid */
+    .members-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 0.75rem;
+        margin-top: 1rem;
+    }
+
+    .member-tile {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        text-align: left;
+        padding: 0.75rem;
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 12px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        gap: 0.75rem;
+    }
+
+    .member-tile:hover {
+        background: rgba(255, 255, 255, 1);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .member-avatar-container {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .member-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #1e40af, #3b82f6);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 0;
+        border: 2px solid rgba(30, 64, 175, 0.2);
+        box-shadow: 0 2px 8px rgba(30, 64, 175, 0.3);
+        flex-shrink: 0;
+    }
+
+    .status-dot {
+        position: absolute;
+        top: -2px;
+        right: -2px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        animation: pulse 2s infinite;
+    }
+
+    .status-dot.oncall {
+        background-color: #28a745;  /* Green for on call (active duty) */
+        animation: pulse 2s infinite;
+    }
+
+    .status-dot.online {
+        background-color: #0d6efd;  /* Blue for online (standby) */
+        animation: pulse 2s infinite;
+    }
+
+    .status-dot.offline {
+        background-color: #6c757d;  /* Gray for offline */
+        animation: none;
+    }
+
+    .member-info {
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+        min-width: 0;
+        gap: 0.25rem;
+    }
+
+    .member-status {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+
+    .member-status .badge {
+        font-size: 0.7rem;
+        font-weight: 500;
+        padding: 0.2rem 0.5rem;
+        border-radius: 10px;
+        align-self: flex-start;
+    }
+
+    .member-name {
+        color: #1f2937;
+        font-size: 0.85rem;
+        font-weight: 600;
+        line-height: 1.2;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-shadow: none;
+        margin: 0;
+    }
+
+    .member-role {
+        color: #6b7280;
+        font-size: 0.7rem;
+        margin-top: 0.15rem;
+        font-weight: 500;
+    }
+
+    .no-members {
+        color: #6b7280;
+        font-style: italic;
+        font-size: 0.9rem;
+        padding: 2rem;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 12px;
+        border: 1px dashed rgba(107, 114, 128, 0.3);
+    }
+
+    .no-shift-config {
+        text-align: center;
+        padding: 2rem;
+        color: rgba(255, 255, 255, 0.7);
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        border: 1px dashed rgba(255, 255, 255, 0.2);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .current-time-badge {
+        background: rgba(30, 64, 175, 0.15);
+        color: #1e40af;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-family: 'Courier New', monospace;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(30, 64, 175, 0.3);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+    }
+    }
+
+    /* Loading Animation */
+    .loading {
+        animation: shimmer 1.5s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+
+    /* Tooltip for member tiles */
+    .member-tile[title]:hover::after {
+        content: attr(title);
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 0.5rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        white-space: nowrap;
+        z-index: 1000;
+        margin-bottom: 5px;
+    }
+
+    .member-tile {
+        position: relative;
+    }
+
+    @media (max-width: 992px) {
+        .teams-grid {
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        }
+        
+        .stats-overview {
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        }
+    }
+
+    @media (max-width: 768px) {
+        .teams-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .stats-overview {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .teams-roster-header-old h1 {
+            font-size: 2rem;
+        }
+
+        .members-grid {
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 0.5rem;
+        }
+
+        .member-tile {
+            padding: 0.5rem;
+            gap: 0.5rem;
+        }
+
+        .member-avatar {
+            width: 35px;
+            height: 35px;
+            font-size: 0.9rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .stats-overview {
+            grid-template-columns: 1fr;
+        }
+        
+        .teams-roster-container {
+            padding: 1rem 0;
+        }
+        
+        .teams-roster-header-old {
+            padding: 1.5rem 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="page-header-content">
+            <div class="page-header-left">
+                <h1><i class="bi bi-people-fill"></i>On-Call Dashboard</h1>
+                <p>View on-call engineers and team availability at a glance</p>
+            </div>
+        </div>
+    </div>
+
+<div class="teams-roster-container" style="background: #f8fafc; min-height: auto; padding: 1.5rem 0;">
+    <div class="container-fluid">
+
+        <!-- Dashboard-style Stats Overview -->
+        {% if accounts_data %}
+        <div class="stats-overview">
+            <div class="stat-card">
+                <div class="stat-number" style="color: #1e40af;">
+                    <i class="bi bi-building" style="font-size: 1.5rem; margin-right: 0.5rem;"></i>
+                    {{ accounts_data[0].account.name if accounts_data and accounts_data[0].account else 'N/A' }}
+                </div>
+                <div class="stat-label">Account</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ accounts_data|sum(attribute='team_count') }}</div>
+                <div class="stat-label">Total Teams</div>
+            </div>
+            <div class="stat-card">
+                {% set total_on_duty = namespace(count=0) %}
+                {% for account_data in accounts_data %}
+                    {% for team_data in account_data.teams %}
+                        {% if team_data.current_shift.members %}
+                            {% set total_on_duty.count = total_on_duty.count + team_data.current_shift.members|length %}
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+                <div class="stat-number">{{ total_on_duty.count }}</div>
+                <div class="stat-label">On Duty Now</div>
+            </div>
+        </div>
+        {% endif %}
+
+
+
+        <!-- Team Selector Component -->
+        {% include 'components/team_selector.html' %}
+        
+        <!-- Teams Grid -->
+        {% if accounts_data %}
+
+            <div class="teams-grid">
+                {% for account_data in accounts_data %}
+                    {% for team_data in account_data.teams %}
+                    <div class="team-card">
+                        <div class="team-header">
+                            <div class="team-info">
+                                <div class="team-icon">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div class="team-details">
+                                    <h3>{{ team_data.team.name }}</h3>
+                                    <p class="team-member-count">
+                                        {% if team_data.current_shift.members %}
+                                            {{ team_data.current_shift.members|length }} members on duty
+                                        {% else %}
+                                            No members on duty
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="team-stats">
+                                {% if team_data.current_shift.members %}
+                                    <div class="stat-badge">
+                                        <i class="fas fa-circle" style="color: #4ade80;"></i>
+                                        {{ team_data.current_shift.members|length }}
+                                    </div>
+                                {% else %}
+                                    <div class="stat-badge">
+                                        <i class="fas fa-circle" style="color: #6b7280;"></i>
+                                        0
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <!-- Team Members -->
+                        {% if team_data.current_shift.config or team_data.current_shift.members %}
+                            <div class="current-shift-section">
+
+                                {% if team_data.current_shift.members %}
+                                    <div class="members-grid">
+                                        {% for member in team_data.current_shift.members %}
+                                            <div class="member-tile">
+                                                <div class="member-avatar-container">
+                                                    <div class="member-avatar">{{ member.initials }}</div>
+                                                    <div class="status-dot {{ member.availability_status or 'offline' }}" 
+                                                         title="{{ member.status_display or 'Offline' }}"></div>
+                                                </div>
+                                                <div class="member-info">
+                                                    <div class="member-name" title="{{ member.display_name }}">{{ member.display_name }}</div>
+                                                    <div class="member-status">
+                                                        <span class="badge {{ member.status_badge_class or 'bg-secondary' }}">
+                                                            {{ member.status_display or 'Offline' }}
+                                                        </span>
+                                                        {% if member.last_checkin %}
+                                                            <small class="text-muted d-block">
+                                                                Last: {{ member.last_checkin.strftime('%H:%M') }}
+                                                            </small>
+                                                        {% endif %}
+                                                    </div>
+                                                    {% if member.display_shift_code is defined and member.is_primary_shift is defined and not member.is_primary_shift %}
+                                                        <div class="member-role">{{ member.display_shift_code }}</div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <div class="no-members">
+                                        <i class="fas fa-user-slash"></i>
+                                        <p>No members on duty</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <div class="no-shift-config">
+                                <i class="fas fa-clock"></i>
+                                <h5>No Active Shift</h5>
+                                <p>No shift configuration or members on duty currently.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-building"></i>
+                <h3>No Accounts Available</h3>
+                <p>You don't have access to any accounts or no accounts are configured.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Real-time clock update
+function updateClock() {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    const dateString = now.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+    
+    const clockElement = document.querySelector('.current-time-badge');
+    if (clockElement) {
+        clockElement.innerHTML = `<i class="fas fa-clock"></i> ${timeString} - ${dateString}`;
+    }
+}
+
+// Initialize page functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Update clock immediately and then every minute
+    updateClock();
+    setInterval(updateClock, 60000);
+    
+    // Add hover effects to member tiles
+    document.querySelectorAll('.member-tile').forEach(tile => {
+        tile.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-2px) scale(1.05)';
+        });
+        
+        tile.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0) scale(1)';
+        });
+    });
+    
+    // Add loading animation to stats
+    document.querySelectorAll('.stat-number').forEach(stat => {
+        stat.classList.add('loading');
+        setTimeout(() => {
+            stat.classList.remove('loading');
+        }, 1500);
+    });
+    
+    // Auto-refresh every 5 minutes to keep data current
+    setTimeout(() => {
+        window.location.reload();
+    }, 300000);
+});
+
+// Enhanced console logging for debugging
+console.log('🎯 On-Call Dashboard - View Loaded');
+console.log('📊 Total teams displayed:', document.querySelectorAll('.team-card').length);
+console.log('👥 Total members on duty:', document.querySelectorAll('.member-tile').length);
+</script>
+{% endblock %}

@@ -6,6 +6,8 @@ from models.app_config import AppConfig
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 from functools import wraps
+import logging
+logger = logging.getLogger(__name__)
 
 # Force reload timestamp: 2025-10-11 11:47:00 - ULTRA MODERN TEMPLATE ACTIVATED
 misc_bp = Blueprint('misc', __name__)
@@ -85,10 +87,10 @@ def change_management():
         
         # Get assignment groups
         assignment_groups = servicenow_service.get_configured_assignment_groups()
-        print(f"DEBUG: Assignment groups configured: {assignment_groups}")
+        logger.debug(f"DEBUG: Assignment groups configured: {assignment_groups}")
         
         if not assignment_groups:
-            print("DEBUG: No assignment groups configured")
+            logger.debug("DEBUG: No assignment groups configured")
             return render_template('change_management_ultra_modern_clean.html', 
                                  title='Change Management',
                                  error='No assignment groups configured',
@@ -97,16 +99,16 @@ def change_management():
                                  current_time=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))        
         
         # Fetch change data directly
-        print(f"DEBUG: About to fetch change data for assignment groups: {assignment_groups}")
+        logger.debug(f"DEBUG: About to fetch change data for assignment groups: {assignment_groups}")
         change_data = servicenow_service.get_change_requests_for_assignment_group(
             assignment_groups=assignment_groups
         )
-        print(f"DEBUG: Change data returned: {change_data}")
+        logger.debug(f"DEBUG: Change data returned: {change_data}")
         
         # Log success for debugging
         cr_count = len(change_data.get('change_requests', []))
         ct_count = len(change_data.get('change_tasks', []))
-        print(f"DEBUG: Final counts - CRs: {cr_count}, CTs: {ct_count}")
+        logger.debug(f"DEBUG: Final counts - CRs: {cr_count}, CTs: {ct_count}")
         log_action('Change Management Data Loaded Successfully', 
                   f'CRs: {cr_count}, CTs: {ct_count}, Assignment Groups: {assignment_groups}')
 
@@ -127,7 +129,7 @@ def change_management():
         
     except Exception as e:
         error_msg = f'Failed to fetch change data: {str(e)}'
-        print(f"DEBUG: Exception in change_management: {error_msg}")
+        logger.debug(f"DEBUG: Exception in change_management: {error_msg}")
         import traceback
         traceback.print_exc()
         log_action('Error in change_management', f'Error: {error_msg}')
@@ -157,16 +159,16 @@ def change_management_modern():
                                  current_time=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         
         # Fetch change data directly
-        print(f"DEBUG: About to fetch change data for assignment groups: {assignment_groups}")
+        logger.debug(f"DEBUG: About to fetch change data for assignment groups: {assignment_groups}")
         change_data = servicenow_service.get_change_requests_for_assignment_group(
             assignment_groups=assignment_groups
         )
-        print(f"DEBUG: Change data returned: {change_data}")
+        logger.debug(f"DEBUG: Change data returned: {change_data}")
         
         # Log success for debugging
         cr_count = len(change_data.get('change_requests', []))
         ct_count = len(change_data.get('change_tasks', []))
-        print(f"DEBUG: Final counts - CRs: {cr_count}, CTs: {ct_count}")
+        logger.debug(f"DEBUG: Final counts - CRs: {cr_count}, CTs: {ct_count}")
         log_action('Change Management Modern Data Loaded Successfully', 
                   f'CRs: {cr_count}, CTs: {ct_count}, Assignment Groups: {assignment_groups}')
 
@@ -235,11 +237,6 @@ def get_change_requests():
             'change_requests': [],
             'change_tasks': []
         }), 500
-
-@misc_bp.route('/problem-tickets')
-def problem_tickets():
-    log_action('View Problem Tickets Tab', f'Path: {request.path}')
-    return render_template('coming_soon.html', title='Problem Tickets')
 
 @misc_bp.route('/kb-details')
 def kb_details():

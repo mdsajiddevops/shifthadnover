@@ -26,6 +26,7 @@ def admin_configuration():
             'tab_change_management',
             'tab_problem_tickets',
             'tab_post_mortems',
+            'tab_shift_management',
             'feature_servicenow_integration',
             'feature_ctask_assignment'
         ]

@@ -1,0 +1,1002 @@
+{% extends "base.html" %}
+
+{% block title %}Application Settings - Admin Panel{% endblock %}
+
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<style>
+    .config-card {
+        background: #ffffff;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+    }
+    
+    .config-card:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        transform: translateY(-2px);
+    }
+    
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .form-group {
+        position: relative;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .form-control, .form-select {
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+        transform: translateY(-1px);
+    }
+    
+    .btn {
+        border-radius: 8px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.15s ease;
+        text-decoration: none;
+    }
+    
+    .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        text-decoration: none;
+    }
+    
+    .btn-primary { background: #0d6efd; color: white; }
+    .btn-success { background: #198754; color: white; }
+    .btn-outline-secondary { 
+        background: transparent; 
+        color: #6c757d; 
+        border: 1px solid #6c757d; 
+    }
+    
+    .time-input-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .time-input {
+        flex: 1;
+    }
+    
+    .shift-card {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: #f8f9fa;
+        transition: all 0.3s ease;
+    }
+    
+    .shift-card:hover {
+        background: #e9ecef;
+        border-color: #0d6efd;
+    }
+    
+    .shift-header {
+        display: flex;
+        justify-content: between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    
+    .shift-name {
+        font-weight: 600;
+        color: #495057;
+        margin: 0;
+    }
+    
+    .setting-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        border: 1px solid #e9ecef;
+    }
+    
+    .setting-info {
+        flex: 1;
+    }
+    
+    .setting-name {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.25rem;
+    }
+    
+    .setting-description {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin: 0;
+    }
+    
+    .setting-value {
+        min-width: 200px;
+        text-align: right;
+    }
+    
+    .feature-toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .toggle-switch {
+        position: relative;
+        width: 60px;
+        height: 34px;
+    }
+    
+    .toggle-input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: .4s;
+        border-radius: 34px;
+    }
+    
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 26px;
+        width: 26px;
+        left: 4px;
+        bottom: 4px;
+        background-color: white;
+        transition: .4s;
+        border-radius: 50%;
+    }
+    
+    .toggle-input:checked + .toggle-slider {
+        background-color: #198754;
+    }
+    
+    .toggle-input:checked + .toggle-slider:before {
+        transform: translateX(26px);
+    }
+    
+    @media (max-width: 768px) {
+        .form-row {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        
+        .setting-item {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 1rem;
+        }
+        
+        .setting-value {
+            text-align: left;
+            min-width: unset;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">⚙️ Application Settings</h2>
+                    <p class="text-muted mb-0">Configure application behavior, features, and system settings</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('admin_secrets.config_menu') }}" class="btn btn-outline-secondary me-2">
+                        <i class="fas fa-arrow-left"></i> Back to Menu
+                    </a>
+                    <button class="btn btn-success" onclick="saveAllSettings()">
+                        <i class="fas fa-save"></i> Save All Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Information -->
+    <div class="config-card">
+        <h4 class="mb-3">
+            <i class="fas fa-info-circle"></i> Application Information
+        </h4>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Application Name</label>
+                <input type="text" class="form-control" id="appName" 
+                       placeholder="Shift Handover System">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Version</label>
+                <input type="text" class="form-control" id="appVersion" 
+                       placeholder="1.0.0" readonly>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Environment</label>
+                <select class="form-select" id="environment">
+                    <option value="development">Development</option>
+                    <option value="staging">Staging</option>
+                    <option value="production">Production</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Debug Mode</label>
+                <select class="form-select" id="debugMode">
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shift Configuration -->
+    <div class="config-card">
+        <h4 class="mb-3">
+            <i class="fas fa-clock"></i> Shift Configuration
+        </h4>
+        <div id="shiftsContainer">
+            <!-- Populated by JavaScript -->
+        </div>
+        <button class="btn btn-outline-primary" onclick="addShift()">
+            <i class="fas fa-plus"></i> Add Shift
+        </button>
+    </div>
+
+    <!-- Feature Toggles -->
+    <div class="config-card">
+        <h4 class="mb-3">
+            <i class="fas fa-toggle-on"></i> Feature Toggles
+        </h4>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="feature-toggle">
+                    <label class="toggle-switch">
+                        <input type="checkbox" class="toggle-input" id="enableNotifications">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div>
+                        <div class="fw-bold">Email Notifications</div>
+                        <div class="text-muted">Send email alerts for handovers and incidents</div>
+                    </div>
+                </div>
+                
+                <div class="feature-toggle">
+                    <label class="toggle-switch">
+                        <input type="checkbox" class="toggle-input" id="enableServicenow">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div>
+                        <div class="fw-bold">ServiceNow Integration</div>
+                        <div class="text-muted">Integrate with ServiceNow for incident management</div>
+                    </div>
+                </div>
+                
+                <div class="feature-toggle">
+                    <label class="toggle-switch">
+                        <input type="checkbox" class="toggle-input" id="enableAuditLog">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div>
+                        <div class="fw-bold">Audit Logging</div>
+                        <div class="text-muted">Track all user actions and system changes</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="feature-toggle">
+                    <label class="toggle-switch">
+                        <input type="checkbox" class="toggle-input" id="enableSso">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div>
+                        <div class="fw-bold">Single Sign-On (SSO)</div>
+                        <div class="text-muted">Enable SSO authentication</div>
+                    </div>
+                </div>
+                
+                <div class="feature-toggle">
+                    <label class="toggle-switch">
+                        <input type="checkbox" class="toggle-input" id="enableAutoHandover">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div>
+                        <div class="fw-bold">Auto Handover</div>
+                        <div class="text-muted">Automatically create handovers at shift change</div>
+                    </div>
+                </div>
+                
+                <div class="feature-toggle">
+                    <label class="toggle-switch">
+                        <input type="checkbox" class="toggle-input" id="enableMobileApp">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div>
+                        <div class="fw-bold">Mobile App Support</div>
+                        <div class="text-muted">Enable mobile application features</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Settings -->
+    <div class="config-card">
+        <h4 class="mb-3">
+            <i class="fas fa-cogs"></i> System Settings
+        </h4>
+        
+        <div class="setting-item">
+            <div class="setting-info">
+                <div class="setting-name">Session Timeout</div>
+                <div class="setting-description">User session timeout in minutes</div>
+            </div>
+            <div class="setting-value">
+                <input type="number" class="form-control" id="sessionTimeout" 
+                       value="30" min="5" max="1440" style="width: 100px;">
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-info">
+                <div class="setting-name">Max Upload Size</div>
+                <div class="setting-description">Maximum file upload size in MB</div>
+            </div>
+            <div class="setting-value">
+                <input type="number" class="form-control" id="maxUploadSize" 
+                       value="10" min="1" max="100" style="width: 100px;">
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-info">
+                <div class="setting-name">Auto-Save Interval</div>
+                <div class="setting-description">Auto-save forms every X minutes</div>
+            </div>
+            <div class="setting-value">
+                <input type="number" class="form-control" id="autoSaveInterval" 
+                       value="5" min="1" max="60" style="width: 100px;">
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-info">
+                <div class="setting-name">Pagination Size</div>
+                <div class="setting-description">Number of records per page</div>
+            </div>
+            <div class="setting-value">
+                <select class="form-select" id="paginationSize" style="width: 120px;">
+                    <option value="10">10</option>
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-info">
+                <div class="setting-name">Date Format</div>
+                <div class="setting-description">System-wide date display format</div>
+            </div>
+            <div class="setting-value">
+                <select class="form-select" id="dateFormat" style="width: 150px;">
+                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                    <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                    <option value="DD-MM-YYYY">DD-MM-YYYY</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-info">
+                <div class="setting-name">Time Zone</div>
+                <div class="setting-description">Default system timezone</div>
+            </div>
+            <div class="setting-value">
+                <select class="form-select" id="timezone" style="width: 200px;">
+                    <option value="UTC">UTC</option>
+                    <option value="America/New_York">Eastern Time</option>
+                    <option value="America/Chicago">Central Time</option>
+                    <option value="America/Denver">Mountain Time</option>
+                    <option value="America/Los_Angeles">Pacific Time</option>
+                    <option value="Europe/London">London</option>
+                    <option value="Asia/Tokyo">Tokyo</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Settings -->
+    <div class="config-card">
+        <h4 class="mb-3">
+            <i class="fas fa-shield-alt"></i> Security Settings
+        </h4>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Password Min Length</label>
+                <input type="number" class="form-control" id="passwordMinLength" 
+                       value="8" min="4" max="32">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password Complexity</label>
+                <select class="form-select" id="passwordComplexity">
+                    <option value="low">Low (Letters only)</option>
+                    <option value="medium">Medium (Letters + Numbers)</option>
+                    <option value="high">High (Letters + Numbers + Special)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Login Attempts Limit</label>
+                <input type="number" class="form-control" id="maxLoginAttempts" 
+                       value="5" min="1" max="20">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Account Lockout Duration (minutes)</label>
+                <input type="number" class="form-control" id="lockoutDuration" 
+                       value="15" min="1" max="1440">
+            </div>
+        </div>
+        
+        <div class="feature-toggle">
+            <label class="toggle-switch">
+                <input type="checkbox" class="toggle-input" id="enableTwoFactor">
+                <span class="toggle-slider"></span>
+            </label>
+            <div>
+                <div class="fw-bold">Two-Factor Authentication</div>
+                <div class="text-muted">Require 2FA for all users</div>
+            </div>
+        </div>
+        
+        <div class="feature-toggle">
+            <label class="toggle-switch">
+                <input type="checkbox" class="toggle-input" id="enableIpWhitelist">
+                <span class="toggle-slider"></span>
+            </label>
+            <div>
+                <div class="fw-bold">IP Address Whitelist</div>
+                <div class="text-muted">Restrict access to whitelisted IP addresses</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current Configuration -->
+    <div class="config-card">
+        <h4 class="mb-3">
+            <i class="fas fa-list"></i> Current Configuration
+        </h4>
+        <div class="table-responsive">
+            <table class="table table-hover" id="configTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Setting</th>
+                        <th>Value</th>
+                        <th>Category</th>
+                        <th>Last Updated</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="configTableBody">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Shift Modal -->
+<div class="modal fade" id="addShiftModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Shift</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addShiftForm">
+                    <div class="mb-3">
+                        <label class="form-label">Shift Name</label>
+                        <input type="text" class="form-control" id="shiftName" 
+                               placeholder="Day Shift" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <label class="form-label">Start Time</label>
+                            <input type="time" class="form-control" id="shiftStartTime" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">End Time</label>
+                            <input type="time" class="form-control" id="shiftEndTime" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveShift()">Add Shift</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="mt-2">Processing...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+let currentSettings = {};
+let shifts = [];
+
+// Load settings on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadSettings();
+    loadShifts();
+});
+
+// Load application settings
+function loadSettings() {
+    fetch('/admin/secrets/api/app/settings')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentSettings = {};
+                data.settings.forEach(setting => {
+                    currentSettings[setting.setting_key] = setting;
+                });
+                populateForm();
+                populateSettingsTable(data.settings);
+            } else {
+                showAlert('Error loading settings: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showAlert('Error loading settings: ' + error.message, 'error');
+        });
+}
+
+// Load shift configuration
+function loadShifts() {
+    fetch('/admin/secrets/api/app/shifts')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                shifts = data.shifts;
+                populateShifts();
+            }
+        })
+        .catch(error => {
+            console.error('Error loading shifts:', error);
+        });
+}
+
+// Populate form with current settings
+function populateForm() {
+    // Application Information
+    setFieldValue('appName', 'app_name');
+    setFieldValue('appVersion', 'app_version');
+    setFieldValue('environment', 'environment');
+    setFieldValue('debugMode', 'debug_mode');
+    
+    // Feature Toggles
+    setCheckboxValue('enableNotifications', 'enable_notifications');
+    setCheckboxValue('enableServicenow', 'enable_servicenow');
+    setCheckboxValue('enableAuditLog', 'enable_audit_log');
+    setCheckboxValue('enableSso', 'enable_sso');
+    setCheckboxValue('enableAutoHandover', 'enable_auto_handover');
+    setCheckboxValue('enableMobileApp', 'enable_mobile_app');
+    
+    // System Settings
+    setFieldValue('sessionTimeout', 'session_timeout');
+    setFieldValue('maxUploadSize', 'max_upload_size');
+    setFieldValue('autoSaveInterval', 'auto_save_interval');
+    setFieldValue('paginationSize', 'pagination_size');
+    setFieldValue('dateFormat', 'date_format');
+    setFieldValue('timezone', 'timezone');
+    
+    // Security Settings
+    setFieldValue('passwordMinLength', 'password_min_length');
+    setFieldValue('passwordComplexity', 'password_complexity');
+    setFieldValue('maxLoginAttempts', 'max_login_attempts');
+    setFieldValue('lockoutDuration', 'lockout_duration');
+    setCheckboxValue('enableTwoFactor', 'enable_two_factor');
+    setCheckboxValue('enableIpWhitelist', 'enable_ip_whitelist');
+}
+
+// Helper function to set field values
+function setFieldValue(fieldId, settingKey) {
+    const field = document.getElementById(fieldId);
+    const setting = currentSettings[settingKey];
+    
+    if (field && setting) {
+        field.value = setting.setting_value || '';
+    }
+}
+
+// Helper function to set checkbox values
+function setCheckboxValue(fieldId, settingKey) {
+    const field = document.getElementById(fieldId);
+    const setting = currentSettings[settingKey];
+    
+    if (field && setting) {
+        field.checked = setting.setting_value === 'true';
+    }
+}
+
+// Populate shifts section
+function populateShifts() {
+    const container = document.getElementById('shiftsContainer');
+    container.innerHTML = '';
+    
+    shifts.forEach((shift, index) => {
+        const shiftDiv = document.createElement('div');
+        shiftDiv.className = 'shift-card';
+        shiftDiv.innerHTML = `
+            <div class="shift-header">
+                <h6 class="shift-name">${shift.name}</h6>
+                <button class="btn btn-sm btn-outline-danger" onclick="removeShift(${index})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <label class="form-label">Start Time</label>
+                    <input type="time" class="form-control" value="${shift.start_time}" 
+                           onchange="updateShift(${index}, 'start_time', this.value)">
+                </div>
+                <div class="col-6">
+                    <label class="form-label">End Time</label>
+                    <input type="time" class="form-control" value="${shift.end_time}"
+                           onchange="updateShift(${index}, 'end_time', this.value)">
+                </div>
+            </div>
+        `;
+        container.appendChild(shiftDiv);
+    });
+}
+
+// Add new shift
+function addShift() {
+    const modal = new bootstrap.Modal(document.getElementById('addShiftModal'));
+    modal.show();
+}
+
+// Save new shift
+function saveShift() {
+    const name = document.getElementById('shiftName').value;
+    const startTime = document.getElementById('shiftStartTime').value;
+    const endTime = document.getElementById('shiftEndTime').value;
+    
+    if (!name || !startTime || !endTime) {
+        showAlert('Please fill in all shift details', 'warning');
+        return;
+    }
+    
+    const newShift = {
+        name: name,
+        start_time: startTime,
+        end_time: endTime
+    };
+    
+    fetch('/admin/secrets/api/app/shifts', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newShift)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('Shift added successfully!', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('addShiftModal')).hide();
+            loadShifts(); // Refresh shifts
+        } else {
+            showAlert('Error adding shift: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showAlert('Error adding shift: ' + error.message, 'error');
+    });
+}
+
+// Update existing shift
+function updateShift(index, field, value) {
+    shifts[index][field] = value;
+    
+    const updatedShift = shifts[index];
+    
+    fetch(`/admin/secrets/api/app/shifts/${updatedShift.id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedShift)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            showAlert('Error updating shift: ' + data.error, 'error');
+            loadShifts(); // Reload to revert changes
+        }
+    })
+    .catch(error => {
+        showAlert('Error updating shift: ' + error.message, 'error');
+    });
+}
+
+// Remove shift
+function removeShift(index) {
+    const shift = shifts[index];
+    
+    if (confirm(`Are you sure you want to remove the "${shift.name}" shift?`)) {
+        fetch(`/admin/secrets/api/app/shifts/${shift.id}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Shift removed successfully!', 'success');
+                loadShifts(); // Refresh shifts
+            } else {
+                showAlert('Error removing shift: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showAlert('Error removing shift: ' + error.message, 'error');
+        });
+    }
+}
+
+// Save all settings
+function saveAllSettings() {
+    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    modal.show();
+    
+    const settings = [];
+    
+    // Collect all settings
+    const settingMappings = {
+        // Application Information
+        'app_name': document.getElementById('appName').value,
+        'app_version': document.getElementById('appVersion').value,
+        'environment': document.getElementById('environment').value,
+        'debug_mode': document.getElementById('debugMode').value,
+        
+        // Feature Toggles
+        'enable_notifications': document.getElementById('enableNotifications').checked.toString(),
+        'enable_servicenow': document.getElementById('enableServicenow').checked.toString(),
+        'enable_audit_log': document.getElementById('enableAuditLog').checked.toString(),
+        'enable_sso': document.getElementById('enableSso').checked.toString(),
+        'enable_auto_handover': document.getElementById('enableAutoHandover').checked.toString(),
+        'enable_mobile_app': document.getElementById('enableMobileApp').checked.toString(),
+        
+        // System Settings
+        'session_timeout': document.getElementById('sessionTimeout').value,
+        'max_upload_size': document.getElementById('maxUploadSize').value,
+        'auto_save_interval': document.getElementById('autoSaveInterval').value,
+        'pagination_size': document.getElementById('paginationSize').value,
+        'date_format': document.getElementById('dateFormat').value,
+        'timezone': document.getElementById('timezone').value,
+        
+        // Security Settings
+        'password_min_length': document.getElementById('passwordMinLength').value,
+        'password_complexity': document.getElementById('passwordComplexity').value,
+        'max_login_attempts': document.getElementById('maxLoginAttempts').value,
+        'lockout_duration': document.getElementById('lockoutDuration').value,
+        'enable_two_factor': document.getElementById('enableTwoFactor').checked.toString(),
+        'enable_ip_whitelist': document.getElementById('enableIpWhitelist').checked.toString()
+    };
+    
+    Object.entries(settingMappings).forEach(([key, value]) => {
+        if (value) {
+            settings.push({
+                setting_key: key,
+                setting_value: value,
+                category: getSettingCategory(key),
+                description: getSettingDescription(key)
+            });
+        }
+    });
+    
+    // Save all settings
+    Promise.all(settings.map(setting => 
+        fetch('/admin/secrets/api/app/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(setting)
+        })
+    ))
+    .then(responses => Promise.all(responses.map(r => r.json())))
+    .then(results => {
+        const failed = results.filter(r => !r.success);
+        if (failed.length > 0) {
+            throw new Error(`Failed to save ${failed.length} settings`);
+        }
+        
+        showAlert('All settings saved successfully!', 'success');
+        loadSettings(); // Refresh display
+    })
+    .catch(error => {
+        showAlert('Error saving settings: ' + error.message, 'error');
+    })
+    .finally(() => {
+        modal.hide();
+    });
+}
+
+// Get setting category
+function getSettingCategory(key) {
+    if (key.startsWith('app_') || key === 'environment' || key === 'debug_mode') {
+        return 'Application';
+    } else if (key.startsWith('enable_')) {
+        return 'Features';
+    } else if (key.startsWith('password_') || key === 'max_login_attempts' || key === 'lockout_duration' || key === 'enable_two_factor' || key === 'enable_ip_whitelist') {
+        return 'Security';
+    } else {
+        return 'System';
+    }
+}
+
+// Get setting description
+function getSettingDescription(key) {
+    const descriptions = {
+        'app_name': 'Application display name',
+        'app_version': 'Current application version',
+        'environment': 'Runtime environment',
+        'debug_mode': 'Debug logging enabled',
+        'enable_notifications': 'Email notification system',
+        'enable_servicenow': 'ServiceNow integration',
+        'enable_audit_log': 'Audit trail logging',
+        'enable_sso': 'Single sign-on authentication',
+        'enable_auto_handover': 'Automatic shift handover',
+        'enable_mobile_app': 'Mobile application support',
+        'session_timeout': 'User session timeout (minutes)',
+        'max_upload_size': 'Maximum file upload size (MB)',
+        'auto_save_interval': 'Auto-save frequency (minutes)',
+        'pagination_size': 'Records per page',
+        'date_format': 'Date display format',
+        'timezone': 'System timezone',
+        'password_min_length': 'Minimum password length',
+        'password_complexity': 'Password complexity requirements',
+        'max_login_attempts': 'Maximum login attempts',
+        'lockout_duration': 'Account lockout duration (minutes)',
+        'enable_two_factor': 'Two-factor authentication required',
+        'enable_ip_whitelist': 'IP address access control'
+    };
+    return descriptions[key] || `Configuration for ${key}`;
+}
+
+// Populate settings table
+function populateSettingsTable(settings) {
+    const tbody = document.getElementById('configTableBody');
+    tbody.innerHTML = '';
+    
+    settings.forEach(setting => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><code>${setting.setting_key}</code></td>
+            <td>
+                <span class="setting-value-display">
+                    ${setting.setting_value || '<em>Not set</em>'}
+                </span>
+            </td>
+            <td>
+                <span class="badge bg-primary">${setting.category || 'General'}</span>
+            </td>
+            <td>${setting.updated_at ? new Date(setting.updated_at).toLocaleDateString() : 'N/A'}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteSetting('${setting.setting_key}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Delete setting
+function deleteSetting(settingKey) {
+    if (confirm(`Are you sure you want to delete the setting "${settingKey}"?`)) {
+        fetch(`/admin/secrets/api/app/settings/${settingKey}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Setting deleted successfully!', 'success');
+                loadSettings();
+            } else {
+                showAlert('Error deleting setting: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showAlert('Error deleting setting: ' + error.message, 'error');
+        });
+    }
+}
+
+// Show alert messages
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}

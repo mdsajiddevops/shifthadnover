@@ -3,8 +3,12 @@ from flask_login import login_required, current_user
 from models.models import db, User, TeamMember
 from werkzeug.security import generate_password_hash, check_password_hash
 from services.audit_service import log_action
-from datetime import datetime
+from datetime import datetime, timedelta
+import logging
 
+
+# Module logger
+logger = logging.getLogger(__name__)
 user_profile_bp = Blueprint('user_profile', __name__)
 
 @user_profile_bp.route('/profile')
@@ -78,7 +82,7 @@ def edit_profile():
         
     except Exception as e:
         db.session.rollback()
-        print(f"Profile update error: {str(e)}")  # Debug logging
+        logger.debug(f"Profile update error: {str(e)}")  # Debug logging
         flash(f'Failed to update profile: {str(e)}', 'error')
         
     return redirect(url_for('user_profile.profile'))
@@ -133,7 +137,7 @@ def change_password():
         
     except Exception as e:
         db.session.rollback()
-        print(f"Password change error: {str(e)}")  # Debug logging
+        logger.debug(f"Password change error: {str(e)}")  # Debug logging
         flash(f'Failed to change password: {str(e)}', 'error')
         
     return redirect(url_for('user_profile.profile'))
@@ -142,13 +146,20 @@ def change_password():
 @login_required
 def account_settings():
     """Account settings page"""
-    return render_template('account_settings.html', user=current_user)
+    # Get account and team information for the user
+    account = current_user.account if current_user.account_id else None
+    team = current_user.team if current_user.team_id else None
+    
+    return render_template('account_settings.html', 
+                         user=current_user,
+                         account=account,
+                         team=team)
 
 @user_profile_bp.route('/notifications')
 @login_required
 def notifications():
     """Notifications page"""
-    print(f"[NOTIFICATIONS DEBUG] User {current_user.username} (ID: {current_user.id}) accessing notifications", flush=True)
+    logger.debug(f"[NOTIFICATIONS DEBUG] User {current_user.username} (ID: {current_user.id}) accessing notifications")
     
     # Get notifications for the current user
     incident_assignments = []
@@ -157,14 +168,14 @@ def notifications():
     try:
         from models.handover_enhanced import HandoverNotification
         
-        print(f"[NOTIFICATIONS DEBUG] Looking for HandoverNotification records for user_id: {current_user.id}", flush=True)
+        logger.debug(f"[NOTIFICATIONS DEBUG] Looking for HandoverNotification records for user_id: {current_user.id}")
         
         # Get all notifications for current user (both read and unread)
         all_notifications = HandoverNotification.query.filter_by(
             recipient_id=current_user.id
         ).order_by(HandoverNotification.created_at.desc()).all()
         
-        print(f"[NOTIFICATIONS DEBUG] Found {len(all_notifications)} total notifications", flush=True)
+        logger.debug(f"[NOTIFICATIONS DEBUG] Found {len(all_notifications)} total notifications")
         
         # Count unread notifications (same logic as dashboard)
         unread_notifications = HandoverNotification.query.filter_by(
@@ -172,13 +183,13 @@ def notifications():
             is_read=False
         ).all()
         
-        print(f"[NOTIFICATIONS DEBUG] Found {len(unread_notifications)} unread notifications (same as dashboard logic)", flush=True)
+        logger.debug(f"[NOTIFICATIONS DEBUG] Found {len(unread_notifications)} unread notifications (same as dashboard logic)")
         
         for unread in unread_notifications:
-            print(f"[NOTIFICATIONS DEBUG] Unread notification ID {unread.id}: {unread.title} (Type: {unread.notification_type})", flush=True)
+            logger.debug(f"[NOTIFICATIONS DEBUG] Unread notification ID {unread.id}: {unread.title} (Type: {unread.notification_type})")
         
         for notification in all_notifications:
-            print(f"[NOTIFICATIONS DEBUG] Processing notification ID {notification.id}: {notification.title} (Read: {notification.is_read})", flush=True)
+            logger.debug(f"[NOTIFICATIONS DEBUG] Processing notification ID {notification.id}: {notification.title} (Read: {notification.is_read})")
             
             # Convert notification to display format
             priority_map = {'critical': 'high', 'high': 'high', 'medium': 'medium', 'low': 'low'}
@@ -229,75 +240,137 @@ def notifications():
                 })
             
     except Exception as e:
-        print(f"[NOTIFICATIONS DEBUG] Error fetching notifications: {str(e)}", flush=True)
+        logger.debug(f"[NOTIFICATIONS DEBUG] Error fetching notifications: {str(e)}")
         current_app.logger.error(f"Error fetching notifications: {str(e)}")
         import traceback
         traceback.print_exc()
     
-    print(f"[NOTIFICATIONS DEBUG] Created {len(incident_assignments)} notification items", flush=True)
-    print(f"[NOTIFICATIONS DEBUG] Created {len(pending_assignments)} pending assignment items", flush=True)
+    logger.debug(f"[NOTIFICATIONS DEBUG] Created {len(incident_assignments)} notification items")
+    logger.debug(f"[NOTIFICATIONS DEBUG] Created {len(pending_assignments)} pending assignment items")
     
     # Log the pending assignments for comparison with dashboard
     if pending_assignments:
-        print(f"[NOTIFICATIONS DEBUG] Pending assignments (should match dashboard):", flush=True)
+        logger.debug(f"[NOTIFICATIONS DEBUG] Pending assignments (should match dashboard):")
         for assignment in pending_assignments:
-            print(f"  - ID {assignment['notification_id']}: {assignment['incident_title']}", flush=True)
+            logger.debug(f"  - ID {assignment['notification_id']}: {assignment['incident_title']}")
     else:
-        print(f"[NOTIFICATIONS DEBUG] No pending assignments (dashboard should also show 0)", flush=True)
+        logger.debug(f"[NOTIFICATIONS DEBUG] No pending assignments (dashboard should also show 0)")
     
     # Debug: Show exactly what's being passed to template
-    print(f"[NOTIFICATIONS DEBUG] TEMPLATE DATA - pending_assignments length: {len(pending_assignments)}", flush=True)
-    print(f"[NOTIFICATIONS DEBUG] TEMPLATE DATA - notifications length: {len(incident_assignments)}", flush=True)
+    logger.debug(f"[NOTIFICATIONS DEBUG] TEMPLATE DATA - pending_assignments length: {len(pending_assignments)}")
+    logger.debug(f"[NOTIFICATIONS DEBUG] TEMPLATE DATA - notifications length: {len(incident_assignments)}")
     if pending_assignments:
-        print(f"[NOTIFICATIONS DEBUG] TEMPLATE DATA - First pending assignment: {pending_assignments[0]}", flush=True)
+        logger.debug(f"[NOTIFICATIONS DEBUG] TEMPLATE DATA - First pending assignment: {pending_assignments[0]}")
     
-    # Static notifications for other system events
-    static_notifications = [
-        {
-            'id': 1001,
-            'title': 'Profile Updated',
-            'message': 'Your profile was successfully updated',
-            'type': 'success',
-            'timestamp': datetime.now(),
-            'read': False
-        }
-    ]
-    
-    # Combine incident assignments and static notifications
-    all_notifications = incident_assignments + static_notifications
     # Sort by timestamp, newest first
-    all_notifications.sort(key=lambda x: x['timestamp'], reverse=True)
+    incident_assignments.sort(key=lambda x: x['timestamp'], reverse=True)
     
-    # Pass both notifications and pending_assignments to template
+    # Pass notifications and pending_assignments to template
     return render_template('notifications_enhanced.html', 
-                         notifications=all_notifications,
-                         pending_assignments=pending_assignments)
+                         notifications=incident_assignments,
+                         pending_assignments=pending_assignments,
+                         unread_count=len([n for n in incident_assignments if not n.get('read', True)]))
 
 @user_profile_bp.route('/alerts')
 @login_required
 def alerts():
-    """System alerts page"""
-    # This would typically fetch system alerts from database
-    # For now, we'll show a placeholder page
-    alerts_data = [
-        {
+    """System alerts and status page"""
+    from models.models import Shift, Incident, ShiftKeyPoint, ShiftChangeInfo
+    from sqlalchemy import func
+    
+    # Get real system metrics
+    system_status = {
+        'database': {'status': 'operational', 'message': 'Database connection healthy'},
+        'email': {'status': 'operational', 'message': 'Email service available'},
+        'application': {'status': 'operational', 'message': 'All services running normally'}
+    }
+    
+    # Check for any real issues
+    alerts_data = []
+    
+    try:
+        # Check database connectivity
+        db.session.execute(db.text('SELECT 1'))
+        system_status['database'] = {'status': 'operational', 'message': 'Database connection healthy'}
+    except Exception as e:
+        system_status['database'] = {'status': 'error', 'message': f'Database issue: {str(e)[:50]}'}
+        alerts_data.append({
             'id': 1,
-            'title': 'High Priority Incident',
-            'message': 'Multiple services experiencing degraded performance',
+            'title': 'Database Connection Issue',
+            'message': f'Database connectivity problem detected: {str(e)[:100]}',
             'severity': 'high',
             'timestamp': datetime.now(),
-            'status': 'active'
-        },
-        {
-            'id': 2,
-            'title': 'Database Connection Issues',
-            'message': 'Intermittent database connection timeouts reported',
-            'severity': 'medium',
-            'timestamp': datetime.now(),
-            'status': 'investigating'
+            'status': 'active',
+            'type': 'system'
+        })
+    
+    # Get recent activity stats for system health
+    try:
+        today = datetime.now().date()
+        
+        # Count recent handovers (last 24 hours)
+        recent_handovers = Shift.query.filter(
+            Shift.submitted_at >= datetime.now() - timedelta(hours=24)
+        ).count()
+        
+        # Count open incidents
+        open_incidents = Incident.query.filter(
+            Incident.status.in_(['Open', 'In Progress', 'Investigating'])
+        ).count()
+        
+        # Count active key points
+        active_keypoints = ShiftKeyPoint.query.filter(
+            ShiftKeyPoint.status.in_(['Open', 'In Progress', 'Monitoring'])
+        ).count()
+        
+        # Count pending changes
+        pending_changes = ShiftChangeInfo.query.filter(
+            ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
+        ).count()
+        
+        system_metrics = {
+            'recent_handovers': recent_handovers,
+            'open_incidents': open_incidents,
+            'active_keypoints': active_keypoints,
+            'pending_changes': pending_changes
         }
-    ]
-    return render_template('alerts.html', alerts=alerts_data)
+        
+        # Create alerts for high counts
+        if open_incidents > 10:
+            alerts_data.append({
+                'id': 2,
+                'title': 'High Open Incident Count',
+                'message': f'{open_incidents} incidents are currently open and need attention',
+                'severity': 'medium',
+                'timestamp': datetime.now(),
+                'status': 'active',
+                'type': 'operational'
+            })
+        
+        if pending_changes > 20:
+            alerts_data.append({
+                'id': 3,
+                'title': 'Multiple Pending Changes',
+                'message': f'{pending_changes} change requests are pending implementation',
+                'severity': 'low',
+                'timestamp': datetime.now(),
+                'status': 'active',
+                'type': 'operational'
+            })
+            
+    except Exception as e:
+        logger.error(f"Error getting system metrics: {e}")
+        system_metrics = {
+            'recent_handovers': 0,
+            'open_incidents': 0,
+            'active_keypoints': 0,
+            'pending_changes': 0
+        }
+    
+    return render_template('alerts.html', 
+                         alerts=alerts_data,
+                         system_status=system_status,
+                         system_metrics=system_metrics)
 
 @user_profile_bp.route('/help')
 @login_required
@@ -518,17 +591,17 @@ def assignment_action():
 @login_required
 def admin_incident_response_logs():
     """Admin-only view for comprehensive handover incident response logs"""
-    print(f"\n🚨🚨🚨 INCIDENT RESPONSE LOGS ROUTE CALLED by {current_user.username} (Role: {current_user.role}) 🚨🚨🚨\n", flush=True)
+    logger.debug(f"\n🚨🚨🚨 INCIDENT RESPONSE LOGS ROUTE CALLED by {current_user.username} (Role: {current_user.role}) 🚨🚨🚨\n")
     import sys
     sys.stdout.flush()
     
     # Check if user has admin privileges
     if current_user.role not in ['super_admin', 'account_admin', 'team_admin']:
-        print(f"[ADMIN_LOGS DEBUG] Access denied for user {current_user.username} with role {current_user.role}", flush=True)
+        logger.debug(f"[ADMIN_LOGS DEBUG] Access denied for user {current_user.username} with role {current_user.role}")
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('main.dashboard'))
     
-    print(f"[ADMIN_LOGS DEBUG] User {current_user.username} has access (Role: {current_user.role})", flush=True)
+    logger.debug(f"[ADMIN_LOGS DEBUG] User {current_user.username} has access (Role: {current_user.role})")
     
     try:
         from models.handover_enhanced import HandoverIncidentResponseLog
@@ -545,20 +618,45 @@ def admin_incident_response_logs():
         date_to = request.args.get('date_to', '').strip()
         
         # Debug logging for filters
-        print("🔍 STARTING FILTER DEBUG SECTION 🔍", flush=True)
+        logger.debug("🔍 STARTING FILTER DEBUG SECTION 🔍")
         current_app.logger.info(f"[FILTER DEBUG] incident_search: '{incident_search}'")
         current_app.logger.info(f"[FILTER DEBUG] status_filter: '{status_filter}'")
         current_app.logger.info(f"[FILTER DEBUG] date_from: '{date_from}'")
         current_app.logger.info(f"[FILTER DEBUG] date_to: '{date_to}'")
-        print(f"[FILTER DEBUG] incident_search: '{incident_search}'", flush=True)
-        print(f"[FILTER DEBUG] status_filter: '{status_filter}'", flush=True)
-        print(f"[FILTER DEBUG] date_from: '{date_from}'", flush=True)
-        print(f"[FILTER DEBUG] date_to: '{date_to}'", flush=True)
+        logger.debug(f"[FILTER DEBUG] incident_search: '{incident_search}'")
+        logger.debug(f"[FILTER DEBUG] status_filter: '{status_filter}'")
+        logger.debug(f"[FILTER DEBUG] date_from: '{date_from}'")
+        logger.debug(f"[FILTER DEBUG] date_to: '{date_to}'")
         
-        # Build query
+        # Build query with access control
         query = HandoverIncidentResponseLog.query
         
-        # Apply filters independently
+        # Apply access control based on user role
+        if current_user.role == 'super_admin':
+            # Super admin can see all logs
+            logger.debug(f"[FILTER DEBUG] Super admin - no account/team filter applied")
+        elif current_user.role == 'account_admin':
+            # Account admin can only see logs from their account
+            if current_user.account_id:
+                query = query.filter(HandoverIncidentResponseLog.account_id == current_user.account_id)
+                logger.debug(f"[FILTER DEBUG] Account admin - filtering by account_id: {current_user.account_id}")
+            else:
+                # No account assigned, show nothing
+                query = query.filter(db.literal(False))
+                logger.warning(f"[FILTER DEBUG] Account admin {current_user.username} has no account_id assigned")
+        elif current_user.role == 'team_admin':
+            # Team admin can only see logs from their team(s)
+            from services.team_access_service import TeamAccessService
+            user_team_ids = TeamAccessService.get_user_team_ids()
+            if user_team_ids:
+                query = query.filter(HandoverIncidentResponseLog.team_id.in_(user_team_ids))
+                logger.debug(f"[FILTER DEBUG] Team admin - filtering by team_ids: {user_team_ids}")
+            else:
+                # No teams assigned, show nothing
+                query = query.filter(db.literal(False))
+                logger.warning(f"[FILTER DEBUG] Team admin {current_user.username} has no teams assigned")
+        
+        # Apply additional filters independently
         if incident_search:
             query = query.filter(
                 db.or_(
@@ -566,13 +664,13 @@ def admin_incident_response_logs():
                     HandoverIncidentResponseLog.incident_title.ilike(f'%{incident_search}%')
                 )
             )
-            print(f"[FILTER DEBUG] Applied incident search filter", flush=True)
+            logger.debug(f"[FILTER DEBUG] Applied incident search filter")
             
         if status_filter:
             # Make sure we're comparing with exact status values
-            print(f"[FILTER DEBUG] Applying status filter: '{status_filter}'", flush=True)
+            logger.debug(f"[FILTER DEBUG] Applying status filter: '{status_filter}'")
             query = query.filter(HandoverIncidentResponseLog.assignment_status == status_filter)
-            print(f"[FILTER DEBUG] Status filter applied successfully", flush=True)
+            logger.debug(f"[FILTER DEBUG] Status filter applied successfully")
             
         if date_from:
             try:
@@ -589,11 +687,11 @@ def admin_incident_response_logs():
                 if date_from_obj:
                     # Use date comparison on the datetime field
                     query = query.filter(func.date(HandoverIncidentResponseLog.response_datetime) >= date_from_obj)
-                    print(f"[FILTER DEBUG] Applied date_from filter: {date_from_obj}")
+                    logger.debug(f"[FILTER DEBUG] Applied date_from filter: {date_from_obj}")
                 else:
-                    print(f"[FILTER DEBUG] Could not parse date_from: {date_from}")
+                    logger.debug(f"[FILTER DEBUG] Could not parse date_from: {date_from}")
             except Exception as e:
-                print(f"[FILTER DEBUG] Error with date_from: {e}")
+                logger.debug(f"[FILTER DEBUG] Error with date_from: {e}")
                 
         if date_to:
             try:
@@ -610,35 +708,35 @@ def admin_incident_response_logs():
                 if date_to_obj:
                     # Use date comparison on the datetime field
                     query = query.filter(func.date(HandoverIncidentResponseLog.response_datetime) <= date_to_obj)
-                    print(f"[FILTER DEBUG] Applied date_to filter: {date_to_obj}")
+                    logger.debug(f"[FILTER DEBUG] Applied date_to filter: {date_to_obj}")
                 else:
-                    print(f"[FILTER DEBUG] Could not parse date_to: {date_to}")
+                    logger.debug(f"[FILTER DEBUG] Could not parse date_to: {date_to}")
             except Exception as e:
-                print(f"[FILTER DEBUG] Error with date_to: {e}")
+                logger.debug(f"[FILTER DEBUG] Error with date_to: {e}")
         
         # Order by most recent first
         query = query.order_by(desc(HandoverIncidentResponseLog.response_datetime))
         
         # Debug: Check what records exist and their status values
         all_logs = HandoverIncidentResponseLog.query.all()
-        print(f"[FILTER DEBUG] Total logs in database: {len(all_logs)}")
+        logger.debug(f"[FILTER DEBUG] Total logs in database: {len(all_logs)}")
         unique_statuses = set()
         for log in all_logs[:10]:  # Show first 10 records
             unique_statuses.add(log.assignment_status)
-            print(f"[FILTER DEBUG] Log ID {log.id}: status='{log.assignment_status}', incident='{log.incident_number}', date='{log.response_datetime}'")
+            logger.debug(f"[FILTER DEBUG] Log ID {log.id}: status='{log.assignment_status}', incident='{log.incident_number}', date='{log.response_datetime}'")
         
-        print(f"[FILTER DEBUG] Unique status values in database: {list(unique_statuses)}")
+        logger.debug(f"[FILTER DEBUG] Unique status values in database: {list(unique_statuses)}")
         
         # Apply the final query and debug results
         final_logs = query.all()
-        print(f"[FILTER DEBUG] Final query returned {len(final_logs)} records before pagination")
+        logger.debug(f"[FILTER DEBUG] Final query returned {len(final_logs)} records before pagination")
         for log in final_logs[:3]:  # Show first 3 filtered results
-            print(f"[FILTER DEBUG] Filtered result: ID {log.id}, status='{log.assignment_status}', incident='{log.incident_number}'")
+            logger.debug(f"[FILTER DEBUG] Filtered result: ID {log.id}, status='{log.assignment_status}', incident='{log.incident_number}'")
         
         # Paginate results
         logs = query.paginate(page=page, per_page=per_page, error_out=False)
         
-        print(f"[FILTER DEBUG] Paginated results: {logs.total} total, showing {len(logs.items)} on page {page}")
+        logger.debug(f"[FILTER DEBUG] Paginated results: {logs.total} total, showing {len(logs.items)} on page {page}")
         
         log_action('Admin View', f'Viewed incident response logs (Page {page})')
         

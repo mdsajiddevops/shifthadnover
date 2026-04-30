@@ -1,0 +1,7 @@
+# Test dependencies for Shift Handover Application
+pytest>=7.0.0
+pytest-html>=3.2.0
+requests>=2.28.0
+beautifulsoup4>=4.11.0
+lxml>=4.9.0
+

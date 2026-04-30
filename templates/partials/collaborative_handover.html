@@ -1,0 +1,613 @@
+<!-- 
+Collaborative Handover Partial (Enhanced v2)
+=============================================
+Provides real-time collaborative editing with live sync as users type.
+No save required - changes propagate instantly to all connected users.
+
+To use: include 'partials/collaborative_handover.html' in your template
+-->
+
+<!-- Collaborative Handover CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/collaborative_handover.css') }}">
+
+<!-- Collaboration Active Users Panel -->
+<div id="collab-panel" class="collab-users-panel" style="display: none;">
+    <span class="collab-users-label">
+        <i class="fas fa-users me-1"></i> Live Editing:
+    </span>
+    <div id="collab-users-container" class="collab-users-container">
+        <!-- User badges inserted dynamically -->
+    </div>
+    <span id="collab-user-count" class="badge bg-light text-dark ms-2" style="font-size: 11px;"></span>
+    <div class="collab-connection-status ms-auto">
+        <span class="collab-status-dot" id="collab-status-dot"></span>
+        <span id="collab-status-text">Connected</span>
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-light ms-2" onclick="openCollabSettings()" title="Collaboration Settings">
+        <i class="fas fa-cog"></i>
+    </button>
+</div>
+
+<!-- Collaboration Toast Container -->
+<div id="collab-toast-container" class="collab-toast-container"></div>
+
+<!-- Collaboration Settings Modal -->
+<div class="modal fade" id="collabSettingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <h5 class="modal-title">
+                    <i class="fas fa-cogs me-2"></i>Collaboration Settings
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="collabNotifyChanges" checked>
+                        <label class="form-check-label" for="collabNotifyChanges">
+                            <i class="fas fa-bell me-2 text-primary"></i>Notify me when others make changes
+                        </label>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="collabLiveSync" checked>
+                        <label class="form-check-label" for="collabLiveSync">
+                            <i class="fas fa-sync me-2 text-success"></i>Enable live sync (see changes as others type)
+                        </label>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="collabShowAttribution" checked>
+                        <label class="form-check-label" for="collabShowAttribution">
+                            <i class="fas fa-user-tag me-2 text-info"></i>Show who made each change
+                        </label>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="collabShowTyping" checked>
+                        <label class="form-check-label" for="collabShowTyping">
+                            <i class="fas fa-keyboard me-2 text-warning"></i>Show typing indicators
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced Collaboration JavaScript (v2) -->
+<script src="{{ url_for('static', filename='js/collaborative_handover_v2.js') }}?v=2.7"></script>
+
+<script>
+// Global collaboration instance
+window.collabInstance = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const shiftId = {% if shift %}{{ shift.id }}{% else %}null{% endif %};
+    const enableCollab = {% if enable_collaboration %}true{% else %}false{% endif %};
+    
+    // Auto-enable collaboration if shift exists
+    if (shiftId && enableCollab) {
+        initializeCollaborationV2(shiftId);
+    }
+    
+    // Add collaboration toggle button
+    addCollaborationToggle();
+});
+
+/**
+ * Initialize enhanced collaborative editing
+ */
+async function initializeCollaborationV2(shiftId) {
+    try {
+        // Create collaboration instance
+        window.collabInstance = new CollaborativeHandoverV2(shiftId, {
+            onUserJoin: (data) => {
+                console.log('User joined:', data);
+            },
+            onUserLeave: (data) => {
+                console.log('User left:', data);
+            },
+            onFieldChange: (data) => {
+                console.log('Field changed:', data);
+            },
+            onItemAdded: (data) => {
+                console.log('Item added:', data);
+            },
+            onItemUpdated: (data) => {
+                console.log('Item updated:', data);
+            },
+            onItemDeleted: (data) => {
+                console.log('Item deleted:', data);
+            },
+            onLockAcquired: (data) => {
+                console.log('Lock acquired:', data);
+            },
+            onLockReleased: (data) => {
+                console.log('Lock released:', data);
+            },
+            onTypingStart: (data) => {
+                console.log('Typing started:', data);
+            },
+            onTypingStop: (data) => {
+                console.log('Typing stopped:', data);
+            },
+            onConflict: (data) => {
+                handleConflict(data);
+            },
+            onError: (error) => {
+                console.error('Collaboration error:', error);
+                showCollabToast('Collaboration error: ' + error.message, 'error');
+            },
+            onConnectionChange: (connected) => {
+                updateConnectionUI(connected);
+            }
+        });
+        
+        // Join session
+        const sessionData = await window.collabInstance.join();
+        
+        // Show collaboration panel
+        document.getElementById('collab-panel').style.display = 'flex';
+        
+        // Apply initial field states
+        if (sessionData.fieldStates) {
+            applyFieldStates(sessionData.fieldStates);
+        }
+        
+        // Setup live input tracking
+        setupLiveInputTracking();
+        
+        // Setup beforeunload handler
+        window.addEventListener('beforeunload', handlePageUnload);
+        
+        showCollabToast('Collaboration mode enabled - changes sync live!', 'success');
+        
+    } catch (error) {
+        console.error('Failed to initialize collaboration:', error);
+        showCollabToast('Failed to enable collaboration: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Setup live input tracking - broadcast changes as users type
+ */
+function setupLiveInputTracking() {
+    const form = document.getElementById('handover-form');
+    if (!form || !window.collabInstance) return;
+    
+    // Track all input fields
+    const inputs = form.querySelectorAll('input[type="text"], textarea, select');
+    
+    inputs.forEach((input, index) => {
+        // Assign a unique ID if not present
+        if (!input.dataset.collabId) {
+            input.dataset.collabId = generateCollabId(input, index);
+        }
+        
+        // Input event - broadcast as user types
+        input.addEventListener('input', function(e) {
+            if (!window.collabInstance || !document.getElementById('collabLiveSync')?.checked) return;
+            
+            // CRITICAL: Skip re-broadcasting if this is a remote update
+            if (this.dataset.collabRemoteUpdate === 'true') {
+                console.log('[COLLAB] Skipping re-broadcast for remote update');
+                return;
+            }
+            
+            const fieldInfo = getFieldInfo(this);
+            if (fieldInfo) {
+                window.collabInstance.broadcastFieldChange(
+                    fieldInfo.sectionType,
+                    fieldInfo.itemId,
+                    fieldInfo.fieldName,
+                    this.value
+                );
+            }
+        });
+        
+        // Focus event - acquire lock
+        input.addEventListener('focus', function() {
+            if (!window.collabInstance) return;
+            
+            const fieldInfo = getFieldInfo(this);
+            if (fieldInfo) {
+                window.collabInstance.acquireLock(fieldInfo.sectionType, fieldInfo.itemId);
+                window.collabInstance.setEditingContext(fieldInfo.sectionType, fieldInfo.itemId);
+            }
+        });
+        
+        // Blur event - flush updates and release lock
+        input.addEventListener('blur', function() {
+            if (!window.collabInstance) return;
+            
+            const fieldInfo = getFieldInfo(this);
+            const fieldValue = this.value;
+            
+            if (fieldInfo) {
+                // IMMEDIATELY flush the final value (no debounce) when leaving field
+                window.collabInstance.flushFieldUpdate(
+                    fieldInfo.sectionType,
+                    fieldInfo.itemId,
+                    fieldInfo.fieldName,
+                    fieldValue
+                );
+                
+                // Delay release to allow quick field switching within same entry
+                setTimeout(() => {
+                    // Only release if we're not focused on another field in the same item
+                    const activeFieldInfo = getFieldInfo(document.activeElement);
+                    if (!activeFieldInfo || activeFieldInfo.itemId !== fieldInfo.itemId) {
+                        window.collabInstance.releaseLock(fieldInfo.sectionType, fieldInfo.itemId);
+                        window.collabInstance.clearEditingContext();
+                    }
+                }, 500); // Reduced from 1000ms
+            }
+        });
+    });
+    
+    // Also track dynamically added entries
+    observeDynamicEntries();
+}
+
+/**
+ * Observe for dynamically added form entries
+ */
+function observeDynamicEntries() {
+    const containers = [
+        '#open-incidents-container',
+        '#closed-incidents-container', 
+        '#priority-incidents-container',
+        '#handover-incidents-container',
+        '#keypoints-container',
+        '#changes-container',
+        '#kbupdates-container'
+    ];
+    
+    containers.forEach(selector => {
+        const container = document.querySelector(selector);
+        if (!container) return;
+        
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach(mutation => {
+                mutation.addedNodes.forEach(node => {
+                    if (node.nodeType === 1 && (node.classList.contains('incident-entry') || 
+                        node.classList.contains('keypoint-entry') || 
+                        node.classList.contains('changeinfo-entry') || 
+                        node.classList.contains('kbupdate-entry'))) {
+                        // Setup tracking for new entry
+                        setupEntryTracking(node);
+                    }
+                });
+            });
+        });
+        
+        observer.observe(container, { childList: true });
+    });
+}
+
+/**
+ * Setup tracking for a single entry element
+ */
+function setupEntryTracking(entry) {
+    const inputs = entry.querySelectorAll('input[type="text"], textarea, select');
+    
+    inputs.forEach((input, index) => {
+        if (!input.dataset.collabId) {
+            input.dataset.collabId = generateCollabId(input, index);
+        }
+        
+        input.addEventListener('input', function() {
+            if (!window.collabInstance || !document.getElementById('collabLiveSync')?.checked) return;
+            
+            // CRITICAL: Skip re-broadcasting if this is a remote update
+            if (this.dataset.collabRemoteUpdate === 'true') {
+                console.log('[COLLAB] Skipping re-broadcast for remote update (dynamic entry)');
+                return;
+            }
+            
+            const fieldInfo = getFieldInfo(this);
+            if (fieldInfo) {
+                window.collabInstance.broadcastFieldChange(
+                    fieldInfo.sectionType,
+                    fieldInfo.itemId,
+                    fieldInfo.fieldName,
+                    this.value
+                );
+            }
+        });
+    });
+}
+
+/**
+ * Generate a unique collaboration ID for a field
+ */
+function generateCollabId(input, index) {
+    const entry = input.closest('.incident-entry, .keypoint-entry, .changeinfo-entry, .kbupdate-entry, .kb-update-entry');
+    const container = entry?.parentElement;
+    
+    if (!container) return `field_${index}_${Date.now()}`;
+    
+    const entryIndex = Array.from(container.children).indexOf(entry);
+    const fieldName = input.name || input.id || `field_${index}`;
+    
+    return `${container.id}_${entryIndex}_${fieldName}`;
+}
+
+/**
+ * Get field information for collaboration tracking
+ */
+function getFieldInfo(input) {
+    if (!input) return null;
+    
+    const entry = input.closest('.incident-entry, .keypoint-entry, .changeinfo-entry, .kbupdate-entry, .kb-update-entry');
+    if (!entry) return null;
+    
+    const container = entry.parentElement;
+    if (!container) return null;
+    
+    const containerMap = {
+        'open-incidents-container': 'incident_open',
+        'closed-incidents-container': 'incident_closed',
+        'priority-incidents-container': 'incident_priority',
+        'handover-incidents-container': 'incident_handover',
+        'keypoints-container': 'keypoint',
+        'changes-container': 'changeinfo',
+        'kbupdates-container': 'kbupdate'
+    };
+    
+    const sectionType = containerMap[container.id];
+    if (!sectionType) {
+        console.log('[COLLAB GetFieldInfo] Unknown container:', container.id);
+        return null;
+    }
+    
+    const entryIndex = Array.from(container.querySelectorAll('.incident-entry, .keypoint-entry, .changeinfo-entry, .kbupdate-entry, .kb-update-entry')).indexOf(entry);
+    const itemId = entry.dataset.tempId || `${sectionType}_${entryIndex}`;
+    
+    // Extract field name from input name attribute
+    let fieldName = input.name || input.dataset.field || '';
+    const originalName = fieldName;
+    fieldName = fieldName.replace(/\[\]$/, '').split('_').pop() || fieldName;
+    
+    console.log('[COLLAB GetFieldInfo] Extracted:', { originalName, fieldName, sectionType, itemId, containerId: container.id });
+    
+    return { sectionType, itemId, fieldName };
+}
+
+/**
+ * Apply field states from server
+ */
+function applyFieldStates(fieldStates) {
+    Object.entries(fieldStates).forEach(([fieldKey, state]) => {
+        const [sectionType, itemId, fieldName] = fieldKey.split(':');
+        
+        if (window.collabInstance) {
+            const field = window.collabInstance.findFieldElement(sectionType, itemId, fieldName);
+            if (field && state.value !== undefined) {
+                field.value = state.value;
+            }
+        }
+    });
+}
+
+/**
+ * Handle conflict
+ */
+function handleConflict(data) {
+    console.warn('Conflict detected:', data);
+    
+    if (data.type === 'lock_conflict') {
+        showCollabToast(`${data.locked_by} is currently editing this section`, 'warning');
+    } else if (data.type === 'field_conflict') {
+        showConflictModal(data);
+    }
+}
+
+/**
+ * Show conflict resolution modal
+ */
+function showConflictModal(data) {
+    const modal = document.createElement('div');
+    modal.className = 'collab-conflict-modal';
+    modal.innerHTML = `
+        <div class="collab-conflict-content">
+            <div class="collab-conflict-header">
+                <h4><i class="fas fa-exclamation-triangle me-2"></i>Edit Conflict</h4>
+            </div>
+            <div class="collab-conflict-body">
+                <p>${data.their_user} also edited this field. Choose which version to keep:</p>
+                <div class="collab-conflict-comparison">
+                    <div class="collab-conflict-version yours">
+                        <h5>Your Version</h5>
+                        <div class="version-content">${escapeHtml(data.our_value || '')}</div>
+                    </div>
+                    <div class="collab-conflict-version theirs">
+                        <h5>${data.their_user}'s Version</h5>
+                        <div class="version-content">${escapeHtml(data.their_value || '')}</div>
+                    </div>
+                </div>
+                <div class="collab-conflict-actions">
+                    <button class="btn btn-outline-primary" onclick="resolveConflict(this, 'yours', '${escapeAttr(data.our_value)}')">
+                        Keep Yours
+                    </button>
+                    <button class="btn btn-primary" onclick="resolveConflict(this, 'theirs', '${escapeAttr(data.their_value)}')">
+                        Accept Theirs
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    modal.dataset.sectionType = data.section_type;
+    modal.dataset.itemId = data.item_id;
+    modal.dataset.fieldName = data.field_name;
+    
+    document.body.appendChild(modal);
+}
+
+function resolveConflict(button, choice, value) {
+    const modal = button.closest('.collab-conflict-modal');
+    const { sectionType, itemId, fieldName } = modal.dataset;
+    
+    if (window.collabInstance) {
+        const field = window.collabInstance.findFieldElement(sectionType, itemId, fieldName);
+        if (field) {
+            field.value = value;
+            // Re-broadcast the chosen value
+            window.collabInstance.broadcastFieldChange(sectionType, itemId, fieldName, value);
+        }
+    }
+    
+    modal.remove();
+}
+
+/**
+ * Handle page unload
+ */
+function handlePageUnload(e) {
+    if (window.collabInstance) {
+        window.collabInstance.leave();
+    }
+}
+
+/**
+ * Add collaboration toggle button
+ */
+function addCollaborationToggle() {
+    const headerActions = document.querySelector('.card-header .d-flex.align-items-center.gap-3');
+    if (!headerActions || document.getElementById('collab-toggle-btn')) return;
+    
+    const toggleDiv = document.createElement('div');
+    toggleDiv.innerHTML = `
+        <button type="button" class="btn btn-light btn-sm" id="collab-toggle-btn" 
+                onclick="toggleCollaboration()" title="Enable Real-time Collaboration">
+            <i class="fas fa-users me-1"></i>
+            <span id="collab-toggle-label">Collaborate</span>
+        </button>
+    `;
+    headerActions.insertBefore(toggleDiv, headerActions.firstChild);
+}
+
+/**
+ * Toggle collaboration on/off
+ */
+async function toggleCollaboration() {
+    const shiftId = {% if shift %}{{ shift.id }}{% else %}null{% endif %};
+    
+    if (!shiftId) {
+        showCollabToast('Please save as draft first to enable collaboration', 'warning');
+        return;
+    }
+    
+    const label = document.getElementById('collab-toggle-label');
+    const panel = document.getElementById('collab-panel');
+    const btn = document.getElementById('collab-toggle-btn');
+    
+    if (window.collabInstance && window.collabInstance.isConnected) {
+        // Disconnect
+        try {
+            btn.disabled = true;
+            label.textContent = 'Leaving...';
+            await window.collabInstance.leave();
+            window.collabInstance = null;
+            panel.style.display = 'none';
+            label.textContent = 'Collaborate';
+            showCollabToast('Collaboration disabled', 'info');
+        } catch (error) {
+            console.error('Error leaving session:', error);
+            showCollabToast('Error leaving session: ' + error.message, 'error');
+            label.textContent = 'Leave Session';
+        } finally {
+            btn.disabled = false;
+        }
+    } else {
+        // Connect
+        try {
+            btn.disabled = true;
+            label.textContent = 'Connecting...';
+            await initializeCollaborationV2(shiftId);
+            label.textContent = 'Leave Session';
+        } catch (error) {
+            console.error('Error starting collaboration:', error);
+            showCollabToast('Could not start collaboration: ' + error.message, 'error');
+            label.textContent = 'Collaborate';
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+/**
+ * Update connection UI
+ */
+function updateConnectionUI(connected) {
+    const dot = document.getElementById('collab-status-dot');
+    const text = document.getElementById('collab-status-text');
+    
+    if (dot) dot.className = `collab-status-dot ${connected ? '' : 'disconnected'}`;
+    if (text) text.textContent = connected ? 'Connected' : 'Reconnecting...';
+}
+
+/**
+ * Open settings modal
+ */
+function openCollabSettings() {
+    const modal = new bootstrap.Modal(document.getElementById('collabSettingsModal'));
+    modal.show();
+}
+
+/**
+ * Show toast notification
+ */
+function showCollabToast(message, type = 'info') {
+    const container = document.getElementById('collab-toast-container');
+    if (!container) return;
+    
+    const icons = {
+        info: 'fa-info-circle',
+        success: 'fa-check-circle',
+        warning: 'fa-exclamation-triangle',
+        error: 'fa-times-circle'
+    };
+    
+    const toast = document.createElement('div');
+    toast.className = `collab-toast ${type}`;
+    toast.innerHTML = `
+        <i class="fas ${icons[type]} collab-toast-icon"></i>
+        <span class="collab-toast-message">${message}</span>
+        <button class="collab-toast-close" onclick="this.parentElement.remove()">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.style.animation = 'slideOut 0.3s ease forwards';
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, 4000);
+}
+
+/**
+ * Utility functions
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function escapeAttr(text) {
+    return (text || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+</script>

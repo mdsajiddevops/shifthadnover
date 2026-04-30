@@ -1,52 +1,64 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container-fluid px-0">
-    {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
-    <div class="card shadow-sm p-4 mb-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2 class="mb-0">Escalation Matrix Upload</h2>
-            <a href="{{ url_for('escalation_matrix.download_sample_escalation_matrix') }}" class="btn btn-outline-primary">
-                <i class="fas fa-download me-2"></i>Download Sample Template
-            </a>
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="page-header-content">
+            <div class="page-header-left">
+                <h1><i class="bi bi-diagram-3"></i>Escalation Matrix</h1>
+                <p>Manage escalation contacts and procedures for your teams</p>
+            </div>
+            <div class="page-header-right">
+                <a href="{{ url_for('escalation_matrix.download_sample_escalation_matrix') }}" class="btn-header">
+                    <i class="fas fa-download me-1"></i>Download Template
+                </a>
+                {% if is_admin %}
+                <button type="button" class="btn-header" onclick="showAddModal()">
+                    <i class="fas fa-plus me-1"></i>Add Entry
+                </button>
+                {% endif %}
+            </div>
         </div>
+    </div>
+
+    {% if is_admin %}
+    <!-- Import Section -->
+    <div class="card shadow-sm p-4 mb-4">
+        <h5 class="mb-4"><i class="bi bi-upload me-2"></i>Import from Excel</h5>
         
-        <form method="POST" enctype="multipart/form-data" class="mb-4">
+        <form id="importForm" enctype="multipart/form-data" class="mb-4">
             <div class="row g-3">
                 {% if current_user.role == 'super_admin' %}
-                <!-- Super Admin: Can select any account and team -->
-                <div class="col-md-4">
-                    <label for="upload_account_id" class="form-label fw-semibold">
+                <div class="col-md-3">
+                    <label for="import_account_id" class="form-label fw-semibold">
                         <i class="fas fa-building me-1"></i>Account <span class="text-danger">*</span>
                     </label>
-                    <select name="upload_account_id" id="upload_account_id" class="form-select" required onchange="updateUploadTeamsDropdown(this.value)">
+                    <select name="account_id" id="import_account_id" class="form-select" required onchange="updateImportTeams(this.value)">
                         <option value="">-- Select Account --</option>
                         {% for account in accounts %}
                         <option value="{{ account.id }}">{{ account.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-4">
-                    <label for="upload_team_id" class="form-label fw-semibold">
+                <div class="col-md-3">
+                    <label for="import_team_id" class="form-label fw-semibold">
                         <i class="fas fa-users me-1"></i>Team <span class="text-danger">*</span>
                     </label>
-                    <select name="upload_team_id" id="upload_team_id" class="form-select" required>
+                    <select name="team_id" id="import_team_id" class="form-select" required>
                         <option value="">-- Select Team --</option>
                     </select>
                 </div>
                 {% elif current_user.role == 'account_admin' %}
-                <!-- Account Admin: Fixed account, can select team -->
-                <div class="col-md-4">
-                    <label class="form-label fw-semibold">
-                        <i class="fas fa-building me-1"></i>Account
-                    </label>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold"><i class="fas fa-building me-1"></i>Account</label>
                     <input type="text" class="form-control" value="{{ accounts[0].name if accounts else 'N/A' }}" readonly>
-                    <input type="hidden" name="upload_account_id" value="{{ accounts[0].id if accounts else '' }}">
+                    <input type="hidden" name="account_id" value="{{ accounts[0].id if accounts else '' }}">
                 </div>
-                <div class="col-md-4">
-                    <label for="upload_team_id" class="form-label fw-semibold">
+                <div class="col-md-3">
+                    <label for="import_team_id" class="form-label fw-semibold">
                         <i class="fas fa-users me-1"></i>Team <span class="text-danger">*</span>
                     </label>
-                    <select name="upload_team_id" id="upload_team_id" class="form-select" required>
+                    <select name="team_id" id="import_team_id" class="form-select" required>
                         <option value="">-- Select Team --</option>
                         {% for team in teams %}
                         <option value="{{ team.id }}">{{ team.name }}</option>
@@ -54,229 +66,715 @@
                     </select>
                 </div>
                 {% else %}
-                <!-- Team Admin: Fixed account and team -->
-                <div class="col-md-3">
-                    <label class="form-label fw-semibold">
-                        <i class="fas fa-building me-1"></i>Account
-                    </label>
-                    <input type="text" class="form-control" value="{{ accounts[0].name if accounts else 'N/A' }}" readonly>
-                    <input type="hidden" name="upload_account_id" value="{{ accounts[0].id if accounts else '' }}">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label fw-semibold">
-                        <i class="fas fa-users me-1"></i>Team
-                    </label>
-                    <input type="text" class="form-control" value="{{ teams[0].name if teams else 'N/A' }}" readonly>
-                    <input type="hidden" name="upload_team_id" value="{{ teams[0].id if teams else '' }}">
-                </div>
+                <input type="hidden" name="account_id" value="{{ accounts[0].id if accounts else '' }}">
+                <input type="hidden" name="team_id" value="{{ teams[0].id if teams else '' }}">
                 {% endif %}
                 
-                <div class="col-md-4">
-                    <label for="file" class="form-label fw-semibold">
+                <div class="col-md-3">
+                    <label for="importFile" class="form-label fw-semibold">
                         <i class="fas fa-file-excel me-1"></i>Excel File <span class="text-danger">*</span>
                     </label>
-                    <input type="file" name="file" id="file" accept=".xlsx" class="form-control" required>
+                    <input type="file" name="file" id="importFile" accept=".xlsx" class="form-control" required>
+                </div>
+                
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">&nbsp;</label>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" name="replace_existing" id="replaceExisting" value="true">
+                        <label class="form-check-label" for="replaceExisting">
+                            Replace existing entries
+                        </label>
+                    </div>
                 </div>
             </div>
             
             <div class="row mt-3">
                 <div class="col-12">
                     <button type="submit" class="btn btn-success">
-                        <i class="fas fa-upload me-2"></i>Upload Escalation Matrix
+                        <i class="fas fa-upload me-2"></i>Import Escalation Matrix
                     </button>
                 </div>
             </div>
         </form>
         
-        <div class="alert alert-info">
+        <div class="alert alert-info mb-0">
             <i class="fas fa-info-circle me-2"></i>
-            <strong>Upload Instructions:</strong>
-            <ul class="mb-0 mt-2">
-                <li>Only .xlsx files are supported</li>
-                <li>Use the sample template as a reference for the required format</li>
-                <li>Each sheet in the Excel file represents an application</li>
-                <li>Uploading a new file will replace the existing one for the selected account/team</li>
-            </ul>
+            <strong>Import Instructions:</strong> Each sheet in the Excel file represents an application. Data will be saved to the database for persistent storage.
         </div>
     </div>
     {% endif %}
+
+    <!-- Filter Section -->
     <div class="card shadow-sm p-4 mb-4">
-        <h2 class="mb-4">Escalation Matrix Filter</h2>
-        {% if current_user.role == 'super_admin' %}
-            <form method="get" class="mb-4">
-                <div class="row g-2 align-items-end">
-                    <div class="col-md-3">
-                        <label for="account_id" class="form-label">Account</label>
-                        <select name="account_id" id="account_id" class="form-select" onchange="updateTeamsDropdown(this.value)">
-                            <option value="">-- Select Account --</option>
-                            {% for account in accounts %}
-                            <option value="{{ account.id }}" {% if selected_account_id == account.id %}selected{% endif %}>{{ account.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label for="team_id" class="form-label">Team</label>
-                        <select name="team_id" id="team_id" class="form-select">
-                            <option value="">-- Select Team --</option>
-                            {% for team in teams %}
-                            <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label for="application" class="form-label">Select Application</label>
-                        <select name="application" id="application" class="form-select">
-                            <option value="">-- Select Application --</option>
-                            {% for app in app_names %}
-                            <option value="{{ app }}" {% if selected_app == app %}selected{% endif %}>{{ app }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary w-100">Apply Filter</button>
-                    </div>
-                </div>
-            </form>
-            <script>
-            function updateTeamsDropdown(accountId) {
-                fetch('/get_teams?account_id=' + accountId)
-                    .then(response => response.json())
-                    .then(data => {
-                        const teamSelect = document.getElementById('team_id');
-                        teamSelect.innerHTML = '<option value="">-- Select Team --</option>';
-                        data.teams.forEach(team => {
-                            teamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
-                        });
-                    });
-            }
-            
-            // Function for upload form team dropdown
-            function updateUploadTeamsDropdown(accountId) {
-                if (!accountId) {
-                    const uploadTeamSelect = document.getElementById('upload_team_id');
-                    uploadTeamSelect.innerHTML = '<option value="">-- Select Team --</option>';
-                    return;
-                }
-                
-                // Use the existing /get_teams endpoint instead of the new one
-                fetch('/get_teams?account_id=' + accountId)
-                    .then(response => response.json())
-                    .then(data => {
-                        const uploadTeamSelect = document.getElementById('upload_team_id');
-                        uploadTeamSelect.innerHTML = '<option value="">-- Select Team --</option>';
-                        if (data.teams && data.teams.length > 0) {
-                            data.teams.forEach(team => {
-                                uploadTeamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
-                            });
-                        } else {
-                            uploadTeamSelect.innerHTML += '<option value="">-- No teams available --</option>';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error fetching teams:', error);
-                        const uploadTeamSelect = document.getElementById('upload_team_id');
-                        uploadTeamSelect.innerHTML = '<option value="">-- Error loading teams --</option>';
-                    });
-            }
-            </script>
-        {% elif current_user.role == 'account_admin' %}
-            <form method="get" class="mb-4">
-                <div class="row g-2 align-items-end">
-                    <div class="col-md-4">
-                        <label for="team_id" class="form-label">Team</label>
-                        <select name="team_id" id="team_id" class="form-select">
-                            <option value="">-- Select Team --</option>
-                            {% for team in teams %}
-                            <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label for="application" class="form-label">Select Application</label>
-                        <select name="application" id="application" class="form-select">
-                            <option value="">-- Select Application --</option>
-                            {% for app in app_names %}
-                            <option value="{{ app }}" {% if selected_app == app %}selected{% endif %}>{{ app }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary w-100">Apply Filter</button>
-                    </div>
-                </div>
-            </form>
-        {% elif current_user.role == 'team_admin' %}
-            <form method="get" class="mb-4">
-                <div class="row g-2 align-items-end">
-                    <div class="col-md-6">
-                        <label for="application" class="form-label">Select Application</label>
-                        <select name="application" id="application" class="form-select">
-                            <option value="">-- Select Application --</option>
-                            {% for app in app_names %}
-                            <option value="{{ app }}" {% if selected_app == app %}selected{% endif %}>{{ app }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary w-100">Apply Filter</button>
-                    </div>
-                </div>
-            </form>
-        {% else %}
-            <!-- Regular Users: View only with limited access -->
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle me-2"></i>
-                <strong>View Access:</strong> You can view escalation matrices for your account and team. Contact your administrator to upload or modify matrices.
+        <h5 class="mb-3"><i class="bi bi-funnel me-2"></i>Filter Escalation Matrix</h5>
+        
+        <div class="row g-3 align-items-end">
+            {% if current_user.role == 'super_admin' %}
+            <div class="col-md-3">
+                <label for="filterAccount" class="form-label">Account</label>
+                <select id="filterAccount" class="form-select" onchange="updateFilterTeams(this.value)">
+                    <option value="">All Accounts</option>
+                    {% for account in accounts %}
+                    <option value="{{ account.id }}" {% if selected_account_id == account.id %}selected{% endif %}>{{ account.name }}</option>
+                    {% endfor %}
+                </select>
             </div>
-            {% if app_names %}
-            <form method="get" class="mb-4">
-                <div class="row g-2 align-items-end">
-                    <div class="col-md-6">
-                        <label for="application" class="form-label">Select Application</label>
-                        <select name="application" id="application" class="form-select">
-                            <option value="">-- Select Application --</option>
-                            {% for app in app_names %}
-                            <option value="{{ app }}" {% if selected_app == app %}selected{% endif %}>{{ app }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary w-100">Apply Filter</button>
-                    </div>
-                </div>
-            </form>
-            {% else %}
-            <div class="alert alert-warning">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                No escalation matrices available for your account and team. Contact your administrator to upload matrices.
+            <div class="col-md-3">
+                <label for="filterTeam" class="form-label">Team</label>
+                <select id="filterTeam" class="form-select" onchange="loadApplications()">
+                    <option value="">All Teams</option>
+                    {% for team in teams %}
+                    <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% elif current_user.role == 'account_admin' %}
+            <div class="col-md-4">
+                <label for="filterTeam" class="form-label">Team</label>
+                <select id="filterTeam" class="form-select" onchange="loadApplications()">
+                    <option value="">All Teams</option>
+                    {% for team in teams %}
+                    <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% elif teams|length > 1 %}
+            <!-- Team filter for multi-team users -->
+            <div class="col-md-4">
+                <label for="filterTeam" class="form-label">Team</label>
+                <select id="filterTeam" class="form-select" onchange="loadApplications()">
+                    <option value="">All My Teams ({{ teams|length }})</option>
+                    {% for team in teams %}
+                    <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+                    {% endfor %}
+                </select>
             </div>
             {% endif %}
-        {% endif %}
-    {% if matrix_data %}
-        <div class="table-responsive">
-            <table class="table table-bordered align-middle">
-                <thead class="table-light">
-                    <tr>
-                        {% for col in matrix_data[0].keys() %}
-                        <th>{{ col }}</th>
-                        {% endfor %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in matrix_data %}
-                    <tr>
-                        {% for val in row.values() %}
-                        <td>{{ val }}</td>
-                        {% endfor %}
-                    </tr>
+            
+            <div class="col-md-3">
+                <label for="filterApplication" class="form-label">Application</label>
+                <select id="filterApplication" class="form-select">
+                    <option value="">All Applications</option>
+                    {% for app in app_names %}
+                    <option value="{{ app }}" {% if selected_app == app %}selected{% endif %}>{{ app }}</option>
                     {% endfor %}
-                </tbody>
-            </table>
+                </select>
+            </div>
+            
+            <div class="col-md-2">
+                <label for="searchBox" class="form-label">Search</label>
+                <input type="text" id="searchBox" class="form-control" placeholder="Search...">
+            </div>
+            
+            <div class="col-md-1">
+                <button type="button" class="btn btn-primary w-100" onclick="applyFilters()">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
         </div>
-        {% elif selected_app %}
-        <div class="alert alert-warning">No data found for the selected application.</div>
-        {% endif %}
+        
+        <div class="mt-3 d-flex justify-content-between align-items-center">
+            <span class="text-muted">Total entries: <strong id="entryCount">{{ total_count }}</strong> | Applications: <strong id="appCount">0</strong></span>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-secondary me-2" onclick="expandAll()">
+                    <i class="fas fa-expand-alt me-1"></i>Expand All
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="collapseAll()">
+                    <i class="fas fa-compress-alt me-1"></i>Collapse All
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grouped Data View -->
+    <div class="card shadow-sm p-4">
+        <div id="groupedDataContainer" class="accordion">
+            <!-- Grouped entries will be rendered here by JavaScript -->
+            <div id="noDataMessage" class="text-center text-muted py-5" style="display: none;">
+                <i class="fas fa-folder-open fa-3x mb-3"></i>
+                <p>No escalation matrix entries found. {% if is_admin %}Click "Add Entry" or import from Excel to get started.{% else %}Contact your administrator to add entries.{% endif %}</p>
+            </div>
+        </div>
     </div>
 </div>
-{% endblock %}
 
+<!-- Add/Edit Modal -->
+<div class="modal fade" id="entryModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: #2563eb; color: white;">
+                <h5 class="modal-title" id="modalTitle">Add Escalation Entry</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="entryForm">
+                    <input type="hidden" id="entryId">
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="applicationName" class="form-label">Application Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="applicationName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="servicenowGroup" class="form-label">ServiceNow Assignment Group</label>
+                            <input type="text" class="form-control" id="servicenowGroup">
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-4">
+                            <label for="teamEmail" class="form-label">Team Email</label>
+                            <input type="text" class="form-control" id="teamEmail">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="contactDetails" class="form-label">Contact Details</label>
+                            <input type="text" class="form-control" id="contactDetails">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="supportCoverage" class="form-label">Support Coverage</label>
+                            <input type="text" class="form-control" id="supportCoverage">
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-12">
+                            <label for="sla" class="form-label">SLA</label>
+                            <input type="text" class="form-control" id="sla">
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    <h6 class="mb-3"><i class="fas fa-level-up-alt me-2"></i>Escalation Contacts</h6>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="level1" class="form-label">Level 1</label>
+                            <textarea class="form-control" id="level1" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="level2" class="form-label">Level 2</label>
+                            <textarea class="form-control" id="level2" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="level3" class="form-label">Level 3</label>
+                            <textarea class="form-control" id="level3" rows="2"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-6">
+                            <label for="level4" class="form-label">Level 4</label>
+                            <textarea class="form-control" id="level4" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="level5" class="form-label">Level 5</label>
+                            <textarea class="form-control" id="level5" rows="2"></textarea>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="notes" class="form-label">Notes</label>
+                            <textarea class="form-control" id="notes" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="additionalInfo" class="form-label">Additional Info</label>
+                            <textarea class="form-control" id="additionalInfo" rows="2"></textarea>
+                        </div>
+                    </div>
+                    
+                    {% if current_user.role == 'super_admin' %}
+                    <hr class="my-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="modalAccountId" class="form-label">Account</label>
+                            <select id="modalAccountId" class="form-select" onchange="updateModalTeams(this.value)">
+                                <option value="">-- Select Account --</option>
+                                {% for account in accounts %}
+                                <option value="{{ account.id }}">{{ account.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="modalTeamId" class="form-label">Team</label>
+                            <select id="modalTeamId" class="form-select">
+                                <option value="">-- Select Team --</option>
+                            </select>
+                        </div>
+                    </div>
+                    {% endif %}
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveEntry()">
+                    <i class="fas fa-save me-1"></i>Save Entry
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const isAdmin = {{ 'true' if is_admin else 'false' }};
+let entryModal;
+
+document.addEventListener('DOMContentLoaded', function() {
+    entryModal = new bootstrap.Modal(document.getElementById('entryModal'));
+    loadApplications(); // Load applications based on current filter selection
+    loadEntries();
+});
+
+// Load entries from API
+function loadEntries() {
+    const accountId = document.getElementById('filterAccount')?.value || '';
+    const teamId = document.getElementById('filterTeam')?.value || '';
+    const application = document.getElementById('filterApplication')?.value || '';
+    
+    let url = '/api/escalation-matrix/entries?';
+    if (accountId) url += `account_id=${accountId}&`;
+    if (teamId) url += `team_id=${teamId}&`;
+    if (application) url += `application=${encodeURIComponent(application)}&`;
+    
+    console.log('Fetching from URL:', url);
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            console.log('API response:', data.count, 'entries');
+            renderTable(data.entries);
+            document.getElementById('entryCount').textContent = data.count;
+        })
+        .catch(error => {
+            console.error('Error loading entries:', error);
+        });
+}
+
+// Render grouped accordion view
+function renderTable(entries) {
+    console.log('renderTable called with', entries ? entries.length : 0, 'entries');
+    const container = document.getElementById('groupedDataContainer');
+    const noDataMsg = document.getElementById('noDataMessage');
+    
+    if (!container) {
+        console.error('Container groupedDataContainer not found!');
+        return;
+    }
+    
+    if (!entries || entries.length === 0) {
+        container.innerHTML = '';
+        if (noDataMsg) noDataMsg.style.display = 'block';
+        document.getElementById('appCount').textContent = '0';
+        console.log('No entries to render');
+        return;
+    }
+    
+    if (noDataMsg) noDataMsg.style.display = 'none';
+    
+    // Group entries by application_name
+    const grouped = {};
+    entries.forEach(entry => {
+        const appName = entry.application_name || 'Unknown';
+        if (!grouped[appName]) {
+            grouped[appName] = [];
+        }
+        grouped[appName].push(entry);
+    });
+    
+    const appNames = Object.keys(grouped).sort();
+    document.getElementById('appCount').textContent = appNames.length;
+    
+    let html = '';
+    appNames.forEach((appName, index) => {
+        const appEntries = grouped[appName];
+        const safeId = 'app_' + index;
+        
+        html += `
+        <div class="accordion-item mb-2 border rounded">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#${safeId}" aria-expanded="false" style="background-color: #f8f9fa;">
+                    <div class="d-flex justify-content-between align-items-center w-100 me-3">
+                        <span class="fw-bold text-primary">
+                            <i class="fas fa-layer-group me-2"></i>${appName}
+                        </span>
+                        <span class="badge bg-primary rounded-pill">${appEntries.length} ${appEntries.length === 1 ? 'entry' : 'entries'}</span>
+                    </div>
+                </button>
+            </h2>
+            <div id="${safeId}" class="accordion-collapse collapse" data-app="${appName}">
+                <div class="accordion-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead style="background-color: #e3f2fd;">
+                                <tr>
+                                    <th>Team Email</th>
+                                    <th>Contact Details</th>
+                                    <th>Support Coverage</th>
+                                    <th>SLA</th>
+                                    <th>ServiceNow Group</th>
+                                    <th>Escalation L1</th>
+                                    <th>Escalation L2</th>
+                                    <th>Escalation L3</th>
+                                    <th>Notes</th>
+                                    ${isAdmin ? '<th style="width: 80px;">Actions</th>' : ''}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${appEntries.map(entry => `
+                                <tr data-id="${entry.id}">
+                                    <td>${formatCell(entry.team_email_id)}</td>
+                                    <td>${formatCell(entry.contact_details)}</td>
+                                    <td>${formatCell(entry.support_coverage)}</td>
+                                    <td>${formatCell(entry.sla)}</td>
+                                    <td>${formatCell(entry.servicenow_assignment_group)}</td>
+                                    <td>${formatCell(entry.escalation_level_1)}</td>
+                                    <td>${formatCell(entry.escalation_level_2)}</td>
+                                    <td>${formatCell(entry.escalation_level_3)}</td>
+                                    <td>${formatCell(entry.notes)}</td>
+                                    ${isAdmin ? `
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="editEntry(${entry.id})" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteEntry(${entry.id})" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                    ` : ''}
+                                </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        `;
+    });
+    
+    console.log('Setting innerHTML with', appNames.length, 'application groups');
+    container.innerHTML = html;
+    console.log('Container innerHTML length:', container.innerHTML.length);
+}
+
+// Format cell value - handle 'nan' and empty values
+function formatCell(value) {
+    if (!value || value === 'nan' || value === 'NaN' || value === 'None') {
+        return '<span class="text-muted">-</span>';
+    }
+    return value;
+}
+
+// Expand all accordion items
+function expandAll() {
+    document.querySelectorAll('.accordion-collapse').forEach(el => {
+        el.classList.add('show');
+        el.previousElementSibling.querySelector('.accordion-button').classList.remove('collapsed');
+    });
+}
+
+// Collapse all accordion items
+function collapseAll() {
+    document.querySelectorAll('.accordion-collapse').forEach(el => {
+        el.classList.remove('show');
+        el.previousElementSibling.querySelector('.accordion-button').classList.add('collapsed');
+    });
+}
+
+// Apply filters
+function applyFilters() {
+    loadEntries();
+    
+    // Also update URL without page reload
+    const params = new URLSearchParams();
+    const accountId = document.getElementById('filterAccount')?.value;
+    const teamId = document.getElementById('filterTeam')?.value;
+    const application = document.getElementById('filterApplication')?.value;
+    
+    if (accountId) params.set('account_id', accountId);
+    if (teamId) params.set('team_id', teamId);
+    if (application) params.set('application', application);
+    
+    const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+    history.replaceState(null, '', newUrl);
+}
+
+// Client-side search filtering for grouped view
+document.getElementById('searchBox')?.addEventListener('input', function() {
+    const searchTerm = this.value.toLowerCase();
+    
+    // Search in accordion items
+    document.querySelectorAll('.accordion-item').forEach(item => {
+        const appName = item.querySelector('.accordion-button').textContent.toLowerCase();
+        const rows = item.querySelectorAll('tbody tr');
+        let hasVisibleRow = false;
+        
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            const isMatch = text.includes(searchTerm) || appName.includes(searchTerm);
+            row.style.display = isMatch ? '' : 'none';
+            if (isMatch) hasVisibleRow = true;
+        });
+        
+        // Hide entire accordion item if no matching rows
+        item.style.display = hasVisibleRow || appName.includes(searchTerm) ? '' : 'none';
+        
+        // Auto-expand items with matching search
+        if (hasVisibleRow && searchTerm) {
+            const collapse = item.querySelector('.accordion-collapse');
+            const button = item.querySelector('.accordion-button');
+            collapse.classList.add('show');
+            button.classList.remove('collapsed');
+        }
+    });
+});
+
+// Load applications based on account/team filter
+function loadApplications() {
+    const appSelect = document.getElementById('filterApplication');
+    if (!appSelect) return;
+    
+    const accountId = document.getElementById('filterAccount')?.value || '';
+    const teamId = document.getElementById('filterTeam')?.value || '';
+    
+    let url = '/api/escalation-matrix/applications?';
+    if (accountId) url += `account_id=${accountId}&`;
+    if (teamId) url += `team_id=${teamId}&`;
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            appSelect.innerHTML = '<option value="">All Applications</option>';
+            if (data.applications && data.applications.length > 0) {
+                data.applications.forEach(app => {
+                    appSelect.innerHTML += `<option value="${app}">${app}</option>`;
+                });
+            }
+            // Also reload entries when team filter changes
+            loadEntries();
+        })
+        .catch(error => {
+            console.error('Error loading applications:', error);
+        });
+}
+
+// Update teams dropdown based on account selection
+function updateFilterTeams(accountId) {
+    const teamSelect = document.getElementById('filterTeam');
+    if (!teamSelect) return;
+    
+    if (!accountId) {
+        teamSelect.innerHTML = '<option value="">All Teams</option>';
+        loadApplications(); // Reload applications
+        return;
+    }
+    
+    fetch(`/get_teams?account_id=${accountId}`)
+        .then(response => response.json())
+        .then(data => {
+            teamSelect.innerHTML = '<option value="">All Teams</option>';
+            data.teams.forEach(team => {
+                teamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
+            });
+            // After loading teams, also reload applications for new account
+            loadApplications();
+        });
+}
+
+function updateImportTeams(accountId) {
+    const teamSelect = document.getElementById('import_team_id');
+    if (!teamSelect) return;
+    
+    if (!accountId) {
+        teamSelect.innerHTML = '<option value="">-- Select Team --</option>';
+        return;
+    }
+    
+    fetch(`/get_teams?account_id=${accountId}`)
+        .then(response => response.json())
+        .then(data => {
+            teamSelect.innerHTML = '<option value="">-- Select Team --</option>';
+            data.teams.forEach(team => {
+                teamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
+            });
+        });
+}
+
+function updateModalTeams(accountId) {
+    const teamSelect = document.getElementById('modalTeamId');
+    if (!teamSelect) return;
+    
+    if (!accountId) {
+        teamSelect.innerHTML = '<option value="">-- Select Team --</option>';
+        return;
+    }
+    
+    fetch(`/get_teams?account_id=${accountId}`)
+        .then(response => response.json())
+        .then(data => {
+            teamSelect.innerHTML = '<option value="">-- Select Team --</option>';
+            data.teams.forEach(team => {
+                teamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
+            });
+        });
+}
+
+// Show add modal
+function showAddModal() {
+    document.getElementById('modalTitle').textContent = 'Add Escalation Entry';
+    document.getElementById('entryForm').reset();
+    document.getElementById('entryId').value = '';
+    entryModal.show();
+}
+
+// Edit entry
+function editEntry(id) {
+    fetch(`/api/escalation-matrix/entry/${id}`)
+        .then(response => response.json())
+        .then(entry => {
+            document.getElementById('modalTitle').textContent = 'Edit Escalation Entry';
+            document.getElementById('entryId').value = entry.id;
+            document.getElementById('applicationName').value = entry.application_name || '';
+            document.getElementById('teamEmail').value = entry.team_email_id || '';
+            document.getElementById('contactDetails').value = entry.contact_details || '';
+            document.getElementById('supportCoverage').value = entry.support_coverage || '';
+            document.getElementById('sla').value = entry.sla || '';
+            document.getElementById('servicenowGroup').value = entry.servicenow_assignment_group || '';
+            document.getElementById('level1').value = entry.escalation_level_1 || '';
+            document.getElementById('level2').value = entry.escalation_level_2 || '';
+            document.getElementById('level3').value = entry.escalation_level_3 || '';
+            document.getElementById('level4').value = entry.escalation_level_4 || '';
+            document.getElementById('level5').value = entry.escalation_level_5 || '';
+            document.getElementById('notes').value = entry.notes || '';
+            document.getElementById('additionalInfo').value = entry.additional_info || '';
+            
+            const modalAccountId = document.getElementById('modalAccountId');
+            if (modalAccountId && entry.account_id) {
+                modalAccountId.value = entry.account_id;
+                updateModalTeams(entry.account_id);
+                setTimeout(() => {
+                    const modalTeamId = document.getElementById('modalTeamId');
+                    if (modalTeamId && entry.team_id) {
+                        modalTeamId.value = entry.team_id;
+                    }
+                }, 300);
+            }
+            
+            entryModal.show();
+        })
+        .catch(error => {
+            console.error('Error loading entry:', error);
+            alert('Error loading entry details');
+        });
+}
+
+// Save entry
+function saveEntry() {
+    const entryId = document.getElementById('entryId').value;
+    const data = {
+        application_name: document.getElementById('applicationName').value,
+        team_email_id: document.getElementById('teamEmail').value,
+        contact_details: document.getElementById('contactDetails').value,
+        support_coverage: document.getElementById('supportCoverage').value,
+        sla: document.getElementById('sla').value,
+        servicenow_assignment_group: document.getElementById('servicenowGroup').value,
+        escalation_level_1: document.getElementById('level1').value,
+        escalation_level_2: document.getElementById('level2').value,
+        escalation_level_3: document.getElementById('level3').value,
+        escalation_level_4: document.getElementById('level4').value,
+        escalation_level_5: document.getElementById('level5').value,
+        notes: document.getElementById('notes').value,
+        additional_info: document.getElementById('additionalInfo').value
+    };
+    
+    const modalAccountId = document.getElementById('modalAccountId');
+    const modalTeamId = document.getElementById('modalTeamId');
+    if (modalAccountId) data.account_id = modalAccountId.value;
+    if (modalTeamId) data.team_id = modalTeamId.value;
+    
+    const url = entryId ? `/api/escalation-matrix/entry/${entryId}` : '/api/escalation-matrix/entry';
+    const method = entryId ? 'PUT' : 'POST';
+    
+    fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            entryModal.hide();
+            loadEntries();
+            showToast('Entry saved successfully', 'success');
+        } else {
+            alert('Error: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error saving entry:', error);
+        alert('Error saving entry');
+    });
+}
+
+// Delete entry
+function deleteEntry(id) {
+    if (!confirm('Are you sure you want to delete this entry?')) return;
+    
+    fetch(`/api/escalation-matrix/entry/${id}`, { method: 'DELETE' })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                loadEntries();
+                showToast('Entry deleted successfully', 'success');
+            } else {
+                alert('Error: ' + result.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting entry:', error);
+            alert('Error deleting entry');
+        });
+}
+
+// Import form handler
+document.getElementById('importForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    
+    fetch('/api/escalation-matrix/import', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            loadEntries();
+            showToast(result.message, 'success');
+            this.reset();
+        } else {
+            alert('Error: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error importing:', error);
+        alert('Error importing file');
+    });
+});
+
+// Toast notification
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type === 'success' ? 'success' : 'info'} position-fixed`;
+    toast.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 300px;';
+    toast.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'} me-2"></i>
+        ${message}
+    `;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => toast.remove(), 3000);
+}
+</script>
+{% endblock %}

@@ -5,22 +5,58 @@
 <link rel="stylesheet" href="/static/dashboard_modern.css">
 
 <div class="dashboard-container">
-    <div class="dashboard-header">
-        <div class="d-flex justify-content-between align-items-center">
-            <h2 class="mb-0">Operations Dashboard</h2>
-            <div class="d-flex align-items-center gap-3">
-                <div class="dashboard-shortcuts d-flex align-items-center gap-2">
-                    <a href="/notifications" class="shortcut-icon" title="View Notifications">
-                        <i class="fas fa-bell"></i>
-                    </a>
-                    <a href="/handover" class="shortcut-icon" title="Create New Handover">
-                        <i class="fas fa-plus"></i>
-                    </a>
+    <!-- Team Selector for Multi-Team Users -->
+    {% if team_filter_context and team_filter_context.show_team_filter %}
+    {% include 'components/team_selector.html' %}
+    {% endif %}
+    
+    <div class="page-header">
+        <div class="page-header-content">
+            <div class="page-header-left">
+                <h1><i class="bi bi-speedometer2"></i>Operations Dashboard</h1>
+                <p>Monitor operations, track incidents, and manage shift activities</p>
+            </div>
+            <div class="page-header-right">
+                <!-- Check-in Status Widget -->
+                <div class="checkin-widget d-flex align-items-center gap-2">
+                    <div id="current-status" class="status-indicator">
+                        <span id="status-badge" class="badge bg-secondary">Offline</span>
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-header dropdown-toggle" type="button" 
+                                id="checkinDropdown" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-placement="bottom-end" aria-expanded="false">
+                            <i class="fas fa-clock me-1"></i>Check In
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="checkinDropdown">
+                            <li><h6 class="dropdown-header">Set Your Shift Status</h6></li>
+                            <li><a class="dropdown-item" href="#" onclick="updateCheckinStatus('oncall')">
+                                <i class="fas fa-circle text-success me-2"></i>On Call (Active Duty)
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" onclick="updateCheckinStatus('online')">
+                                <i class="fas fa-circle text-primary me-2"></i>Online (Standby)
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="updateCheckinStatus('offline')">
+                                <i class="fas fa-circle text-secondary me-2"></i>Go Offline
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="showCheckinHistory()">
+                                <i class="fas fa-history me-2"></i>View History
+                            </a></li>
+                        </ul>
+                    </div>
                 </div>
-                <span id="current-time"></span>
+                
+                <a href="/notifications" class="btn-header-outline" title="View Notifications">
+                    <i class="fas fa-bell"></i>
+                </a>
+                <a href="/handover" class="btn-header" title="Create New Handover">
+                    <i class="fas fa-plus me-1"></i>New Handover
+                </a>
             </div>
         </div>
     </div>
+    <div class="text-end text-muted mb-3"><small id="current-time"></small></div>
 
     <!-- 🆕 Dashboard Filter Section -->
     {% if current_user.role in ['super_admin', 'account_admin'] %}
@@ -96,6 +132,34 @@
                                 {% endfor %}
                             </select>
                         </div>
+                        {% else %}
+                        <!-- Regular Users: Multi-Team Selection if applicable -->
+                        {% if teams and teams|length > 1 %}
+                        <div class="col-md-4">
+                            <label for="account-display" class="form-label mb-1">
+                                <i class="fas fa-building me-1"></i>Account
+                            </label>
+                            <input type="text" class="form-control" id="account-display" 
+                                   value="{{ accounts[0].name if accounts else 'No Account' }}" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="team-select" class="form-label mb-1">
+                                <i class="fas fa-users me-1"></i>Team Filter
+                                <small class="text-muted">({{ teams|length }} teams)</small>
+                            </label>
+                            <select id="team-select" name="team_id" class="form-select">
+                                <option value="">All My Teams</option>
+                                {% for team in teams %}
+                                    <option value="{{ team.id }}" {{ 'selected' if selected_team_id and selected_team_id|string == team.id|string else '' }}>
+                                        {{ team.name }}
+                                        {% if team.id == (current_user.get_primary_team_membership().team_id if current_user.get_primary_team_membership() else None) %}
+                                        <span class="badge badge-sm bg-primary ms-1">Primary</span>
+                                        {% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
                         {% endif %}
                         <div class="col-md-4">
                             <button type="submit" class="btn btn-primary w-100">
@@ -336,7 +400,10 @@
                             {% for engineer in current_engineers %}
                             <div class="engineer-item">
                                 <span class="shift-status-indicator shift-active"></span>
-                                <span class="engineer-name">{{ engineer|safe_engineer_name }}</span>
+                                <span class="engineer-name">
+                                    {{ engineer|safe_engineer_name }}
+                                    {% if not engineer.is_primary_shift %}<span class="text-muted"> ({{ engineer.display_shift_code }})</span>{% endif %}
+                                </span>
                             </div>
                             {% endfor %}
                         {% else %}
@@ -352,7 +419,10 @@
                             {% for engineer in next_shift_engineers %}
                             <div class="engineer-item">
                                 <span class="shift-status-indicator shift-upcoming"></span>
-                                <span class="engineer-name">{{ engineer|safe_engineer_name }}</span>
+                                <span class="engineer-name">
+                                    {{ engineer|safe_engineer_name }}
+                                    {% if not engineer.is_primary_shift %}<span class="text-muted"> ({{ engineer.display_shift_code }})</span>{% endif %}
+                                </span>
                             </div>
                             {% endfor %}
                         {% else %}
@@ -1042,8 +1112,17 @@
 
         // Function to cancel response
         function cancelResponse(notificationId) {
-            document.getElementById(`comments-section-${notificationId}`).style.display = 'none';
-            document.getElementById(`response-comments-${notificationId}`).value = '';
+            // Add null checks to prevent errors when elements don't exist
+            const commentsSection = document.getElementById(`comments-section-${notificationId}`);
+            const commentsInput = document.getElementById(`response-comments-${notificationId}`);
+            
+            if (commentsSection) {
+                commentsSection.style.display = 'none';
+            }
+            if (commentsInput) {
+                commentsInput.value = '';
+            }
+            
             currentResponseAction = null;
             currentNotificationId = null;
         }
@@ -1058,6 +1137,14 @@
                 return;
             }
             
+            // Show loading state
+            const submitBtn = document.querySelector(`#notification-${notificationId} .btn-primary`);
+            const originalText = submitBtn ? submitBtn.innerHTML : '';
+            if (submitBtn) {
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                submitBtn.disabled = true;
+            }
+            
             // Prepare the data
             const responseData = {
                 notification_id: notificationId,
@@ -1065,19 +1152,41 @@
                 comments: comments
             };
             
+            console.log('Sending notification response:', responseData);
+            console.log('Current user authenticated:', {{ 'true' if current_user.is_authenticated else 'false' }});
+            console.log('Request URL:', '/assignment/assignment-response');
+            
             // Send AJAX request to handle the response
             fetch('/assignment/assignment-response', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: JSON.stringify(responseData)
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('Response data:', data);
+                
+                // Restore button state
+                if (submitBtn) {
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                }
+                
                 if (data.success) {
                     // Show success message
                     alert(`Assignment ${currentResponseAction}ed successfully!`);
+                    
+                    // Hide comments section first (before removing element)
+                    cancelResponse(notificationId);
                     
                     // Remove the notification from the dashboard
                     const notificationElement = document.getElementById(`notification-${notificationId}`);
@@ -1088,21 +1197,52 @@
                     // Update the notification count
                     updateNotificationCount();
                     
-                    // Send follow-up email notification
-                    sendFollowUpEmail(notificationId, currentResponseAction, comments);
+                    // Send follow-up email notification (optional - don't block on failure)
+                    try {
+                        sendFollowUpEmail(notificationId, currentResponseAction, comments);
+                    } catch (emailError) {
+                        console.warn('Follow-up email failed (non-critical):', emailError);
+                    }
                     
                 } else {
-                    alert('Error: ' + (data.error || 'Failed to process response'));
+                    const errorMsg = data.error || data.message || 'Failed to process response';
+                    console.error('Server error:', errorMsg);
+                    alert('Error: ' + errorMsg);
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while processing your response.');
+                console.error('Network/Parse error:', error);
+                console.error('Error stack:', error.stack);
+                
+                // Restore button state
+                if (submitBtn) {
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                }
+                
+                // Show detailed error information for debugging
+                const errorDetails = `
+                Network Error Details:
+                - Error: ${error.message}
+                - Type: ${error.name}
+                - URL: /assignment/assignment-response
+                - Method: POST
+                - Data: ${JSON.stringify(responseData)}
+                
+                Please check:
+                1. Your internet connection
+                2. Server availability
+                3. Browser console for more details
+                `;
+                
+                console.error('Full error details:', errorDetails);
+                alert('Network error occurred. Check browser console for details.');
             });
         }
 
         // Function to send follow-up email
         function sendFollowUpEmail(notificationId, action, comments) {
+            // Make follow-up email optional - don't fail if email service isn't working
             fetch('/send-followup-email', {
                 method: 'POST',
                 headers: {
@@ -1114,16 +1254,22 @@
                     comments: comments
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    console.warn(`Follow-up email service returned ${response.status} (non-critical)`);
+                    return { success: false, error: `HTTP ${response.status}` };
+                }
+                return response.json();
+            })
             .then(data => {
-                if (data.success) {
-                    console.log('Follow-up email sent successfully');
+                if (data && data.success) {
+                    console.log('✅ Follow-up email sent successfully');
                 } else {
-                    console.error('Failed to send follow-up email:', data.error);
+                    console.warn('⚠️ Follow-up email failed (non-critical):', data?.error || 'Unknown error');
                 }
             })
             .catch(error => {
-                console.error('Error sending follow-up email:', error);
+                console.warn('⚠️ Follow-up email service unavailable (non-critical):', error.message);
             });
         }
 
@@ -1225,6 +1371,199 @@
         }
         
         // Auto-submit form on select change for better UX
+        
+        // 🆕 Check-in System Functionality
+        
+        let currentCheckinStatus = 'offline';
+        
+        // Initialize check-in system
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCurrentCheckinStatus();
+        });
+        
+        // Load current check-in status
+        function loadCurrentCheckinStatus() {
+            fetch('/api/checkin/status')
+                .then(response => {
+                    if (!response.ok) {
+                        console.warn('Check-in status API not available (404) - feature disabled');
+                        return null;
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data && data.success) {
+                        currentCheckinStatus = data.status;
+                        updateStatusDisplay(data.status, data.display_status);
+                    }
+                })
+                .catch(error => {
+                    console.warn('Check-in status feature unavailable:', error.message);
+                });
+        }
+        
+        // Update check-in status
+        function updateCheckinStatus(status) {
+            const statusData = {
+                status: status,
+                location: '', // Could be enhanced to ask for location
+                notes: ''
+            };
+            
+            fetch('/api/checkin', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(statusData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    currentCheckinStatus = data.status;
+                    updateStatusDisplay(data.status, data.display_status);
+                    showToast(`Successfully set status to ${data.display_status}`, 'success');
+                } else {
+                    showToast('Failed to update status: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error updating check-in status:', error);
+                showToast('Error updating status', 'error');
+            });
+        }
+        
+        // Update status display
+        function updateStatusDisplay(status, displayStatus) {
+            const statusBadge = document.getElementById('status-badge');
+            const checkinButton = document.getElementById('checkinDropdown');
+            
+            if (statusBadge) {
+                // Update badge text and class
+                statusBadge.textContent = displayStatus;
+                statusBadge.className = 'badge ' + getStatusBadgeClass(status);
+            }
+            
+            if (checkinButton) {
+                // Update button text
+                if (status === 'offline') {
+                    checkinButton.innerHTML = '<i class="fas fa-clock me-1"></i>Check In';
+                } else {
+                    checkinButton.innerHTML = '<i class="fas fa-user-check me-1"></i>Status: ' + displayStatus;
+                }
+            }
+        }
+        
+        // Get CSS class for status badge
+        function getStatusBadgeClass(status) {
+            const statusClasses = {
+                'oncall': 'bg-success',        // Green for on call (active duty)
+                'online': 'bg-primary',        // Blue for online (standby)
+                'offline': 'bg-secondary'      // Gray for offline
+            };
+            return statusClasses[status] || 'bg-secondary';
+        }
+        
+        // Show check-in history modal
+        function showCheckinHistory() {
+            fetch('/api/checkin/history')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayCheckinHistory(data.history);
+                    } else {
+                        showToast('Failed to load history: ' + data.error, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading check-in history:', error);
+                    showToast('Error loading history', 'error');
+                });
+        }
+        
+        // Display check-in history in modal
+        function displayCheckinHistory(history) {
+            let historyHtml = '';
+            
+            if (history.length === 0) {
+                historyHtml = '<p class="text-muted">No check-in history available.</p>';
+            } else {
+                historyHtml = '<div class="list-group">';
+                history.forEach(entry => {
+                    const statusIcon = entry.status === 'online' ? 'text-success' : 
+                                     entry.status === 'oncall' ? 'text-warning' : 'text-secondary';
+                    
+                    historyHtml += `
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">
+                                    <i class="fas fa-circle ${statusIcon} me-2"></i>
+                                    ${entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
+                                </h6>
+                                <small>${entry.duration || 'Active'}</small>
+                            </div>
+                            <p class="mb-1">
+                                <strong>Start:</strong> ${entry.checkin_time}<br>
+                                <strong>End:</strong> ${entry.checkout_time}
+                            </p>
+                            ${entry.location ? `<small><strong>Location:</strong> ${entry.location}</small>` : ''}
+                        </div>
+                    `;
+                });
+                historyHtml += '</div>';
+            }
+            
+            // Show in a simple alert for now (can be enhanced with a proper modal)
+            const modal = document.createElement('div');
+            modal.innerHTML = `
+                <div class="modal fade" id="checkinHistoryModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Check-in History</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                ${historyHtml}
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            const modalInstance = new bootstrap.Modal(document.getElementById('checkinHistoryModal'));
+            modalInstance.show();
+            
+            // Remove modal from DOM when hidden
+            document.getElementById('checkinHistoryModal').addEventListener('hidden.bs.modal', function () {
+                document.body.removeChild(modal);
+            });
+        }
+        
+        // Simple toast notification function
+        function showToast(message, type = 'info') {
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type === 'error' ? 'danger' : 'success'} alert-dismissible fade show position-fixed`;
+            toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            toast.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 3000);
+        }
         document.addEventListener('DOMContentLoaded', function() {
             const filterForm = document.getElementById('dashboard-filter-form');
             const accountSelect = document.getElementById('account-select');
@@ -1248,6 +1587,42 @@
                             filterForm.submit();
                         }
                     }, 500);
+                });
+            }
+        });
+        
+        // Fix dropdown z-index issues by repositioning
+        document.addEventListener('DOMContentLoaded', function() {
+            const checkinDropdown = document.getElementById('checkinDropdown');
+            if (checkinDropdown) {
+                checkinDropdown.addEventListener('show.bs.dropdown', function () {
+                    const dropdownMenu = this.nextElementSibling;
+                    if (dropdownMenu && dropdownMenu.classList.contains('dropdown-menu')) {
+                        // Get button position
+                        const buttonRect = this.getBoundingClientRect();
+                        
+                        // Move dropdown to body to avoid container overflow issues
+                        document.body.appendChild(dropdownMenu);
+                        
+                        // Position it absolutely relative to the button
+                        dropdownMenu.style.position = 'fixed';
+                        dropdownMenu.style.top = (buttonRect.bottom + 5) + 'px';
+                        dropdownMenu.style.left = (buttonRect.right - dropdownMenu.offsetWidth) + 'px';
+                        dropdownMenu.style.zIndex = '10000';
+                        dropdownMenu.style.display = 'block';
+                    }
+                });
+                
+                checkinDropdown.addEventListener('hide.bs.dropdown', function () {
+                    const dropdownMenu = document.querySelector('.dropdown-menu[aria-labelledby="checkinDropdown"]');
+                    if (dropdownMenu && dropdownMenu.parentElement === document.body) {
+                        // Move it back to original position
+                        this.parentElement.appendChild(dropdownMenu);
+                        dropdownMenu.style.position = '';
+                        dropdownMenu.style.top = '';
+                        dropdownMenu.style.left = '';
+                        dropdownMenu.style.display = '';
+                    }
                 });
             }
         });

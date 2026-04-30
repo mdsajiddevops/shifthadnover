@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-gear-fill me-2"></i>
+                        Admin Dashboard
+                    </h4>
+                </div>
+                <div class="card-body">
+
+                    
+                    <!-- Team Email Configuration -->
+                    <div class="row g-4 mt-4">
+                        <div class="col-12">
+                            <h5 class="text-muted mb-3">
+                                <i class="bi bi-envelope-at me-2"></i>
+                                Team Email Configuration
+                            </h5>
+                        </div>
+                        
+                        <!-- Team Email Management -->
+                        <div class="col-12">
+                            <div class="card border-success">
+                                <div class="card-body">
+                                    <div class="row align-items-center">
+                                        <div class="col-lg-8">
+                                            <div class="d-flex align-items-center">
+                                                <i class="bi bi-people-fill text-success fs-1 me-3"></i>
+                                                <div>
+                                                    <h5 class="card-title mb-1">Configure Team Email Distribution Lists</h5>
+                                                    <p class="card-text text-muted mb-0">
+                                                        Set up team-specific email recipients for handover notifications and priority alerts. 
+                                                        Each team can have their own distribution list instead of using global configuration.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-4 text-end">
+                                            <a href="{{ url_for('admin.configure_team_email') }}" class="btn btn-success btn-lg">
+                                                <i class="bi bi-envelope-plus me-2"></i>Configure Team Emails
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Instructions -->
+                        <div class="col-12">
+                            <div class="alert alert-info border-0">
+                                <div class="row">
+                                    <div class="col-lg-8">
+                                        <h6 class="alert-heading">
+                                            <i class="bi bi-info-circle me-2"></i>
+                                            How Team Email Configuration Works
+                                        </h6>
+                                        <ul class="mb-0 ps-3">
+                                            <li><strong>Team-Specific Routing:</strong> Each team gets their own email notifications</li>
+                                            <li><strong>Handover Recipients:</strong> Regular team members receive standard handover notifications</li>
+                                            <li><strong>Priority Recipients:</strong> Additional recipients for high-priority/escalated incidents</li>
+                                            <li><strong>Global Fallback:</strong> Teams without email config use global settings</li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-lg-4">
+                                        <div class="text-center">
+                                            <i class="bi bi-diagram-3 text-info" style="font-size: 3rem;"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Example Configuration -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card bg-light">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="bi bi-lightbulb me-2"></i>
+                                        Example Team Email Configuration
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h6 class="text-success">📧 App Team Example:</h6>
+                                            <ul class="list-unstyled ps-3">
+                                                <li><strong>Handover Recipients:</strong></li>
+                                                <li><code>app-team@company.com, app-manager@company.com</code></li>
+                                                <li><strong>Priority Recipients:</strong></li>
+                                                <li><code>app-oncall@company.com, app-senior-manager@company.com</code></li>
+                                            </ul>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6 class="text-info">📧 Dev Team Example:</h6>
+                                            <ul class="list-unstyled ps-3">
+                                                <li><strong>Handover Recipients:</strong></li>
+                                                <li><code>dev-team@company.com, dev-lead@company.com</code></li>
+                                                <li><strong>Priority Recipients:</strong></li>
+                                                <li><code>dev-oncall@company.com, dev-manager@company.com</code></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

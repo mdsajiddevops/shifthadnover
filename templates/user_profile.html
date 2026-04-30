@@ -4,16 +4,72 @@
 
 {% block extra_css %}
 <style>
+    .profile-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 30px;
+        margin-bottom: 25px;
+        box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+        display: flex;
+        align-items: center;
+        gap: 25px;
+    }
+    
+    .profile-header-avatar {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        border: 4px solid rgba(255,255,255,0.3);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    
+    .profile-header-info h2 {
+        margin: 0 0 5px 0;
+        font-weight: 700;
+    }
+    
+    .profile-header-info p {
+        margin: 0;
+        opacity: 0.9;
+    }
+    
+    .profile-header-badge {
+        background: rgba(255,255,255,0.2);
+        padding: 6px 15px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 10px;
+    }
+    
     .profile-card {
         border-radius: 12px;
         border: none;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
         transition: all 0.3s ease;
     }
     
     .profile-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    }
+    
+    .profile-card .card-header {
+        background: transparent;
+        border-bottom: 2px solid #f0f2f5;
+        padding: 20px 25px;
+    }
+    
+    .profile-card .card-header h5 {
+        margin: 0;
+        font-weight: 600;
+    }
+    
+    .profile-card .card-body {
+        padding: 25px;
     }
     
     .profile-avatar {
@@ -22,22 +78,59 @@
         border-radius: 50%;
         object-fit: cover;
         border: 4px solid #fff;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    }
+    
+    .form-control {
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
+        padding: 10px 15px;
+        transition: all 0.3s ease;
     }
     
     .form-control:focus {
-        border-color: #4285f4;
-        box-shadow: 0 0 0 0.2rem rgba(66, 133, 244, 0.25);
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+    
+    .form-control:disabled {
+        background-color: #f8f9fa;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 8px;
     }
     
     .btn-primary {
-        background-color: #4285f4;
-        border-color: #4285f4;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        padding: 12px 25px;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s ease;
     }
     
     .btn-primary:hover {
-        background-color: #3367d6;
-        border-color: #3367d6;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn-warning {
+        background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+        border: none;
+        color: #333;
+        padding: 12px 25px;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-warning:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(253, 160, 133, 0.4);
+        color: #333;
     }
     
     .stats-card {
@@ -62,11 +155,27 @@
         font-size: 0.9rem;
         opacity: 0.9;
     }
+    
+    .org-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+    }
+    
+    .org-icon.primary { background: rgba(102, 126, 234, 0.1); color: #667eea; }
+    .org-icon.info { background: rgba(23, 162, 184, 0.1); color: #17a2b8; }
+    .org-icon.success { background: rgba(40, 167, 69, 0.1); color: #28a745; }
+    .org-icon.warning { background: rgba(255, 193, 7, 0.1); color: #ffc107; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
+    <!-- Page Header -->
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
@@ -83,58 +192,71 @@
         </div>
     </div>
 
+    <!-- Profile Header Banner -->
+    <div class="row">
+        <div class="col-12">
+            <div class="profile-header">
+                <img src="https://ui-avatars.com/api/?name={{ user.username|urlencode }}&background=ffffff&color=667eea&size=100&bold=true" 
+                     alt="Profile Avatar" class="profile-header-avatar">
+                <div class="profile-header-info">
+                    <h2>{{ user.first_name or user.username }} {{ user.last_name or '' }}</h2>
+                    <p>
+                        {% if account %}{{ account.name }}{% endif %}
+                        {% if account and team %} · {% endif %}
+                        {% if team %}{{ team.name }}{% endif %}
+                    </p>
+                    <div class="profile-header-badge">
+                        <i class="bi bi-shield-check"></i>
+                        {{ user.role|title|replace('_', ' ') }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="row">
         <!-- Profile Information Card -->
         <div class="col-lg-4 col-md-6 mb-4">
             <div class="card profile-card h-100">
+                <div class="card-header">
+                    <h5>
+                        <i class="bi bi-person-badge me-2 text-primary"></i>Profile Card
+                    </h5>
+                </div>
                 <div class="card-body text-center">
                     <div class="mb-3">
-                        <img src="https://ui-avatars.com/api/?name={{ user.username|urlencode }}&background=4285f4&color=fff&size=120" 
+                        <img src="https://ui-avatars.com/api/?name={{ user.username|urlencode }}&background=667eea&color=fff&size=120&bold=true" 
                              alt="Profile Avatar" class="profile-avatar">
                     </div>
-                    <h4 class="card-title">{{ user.username }}</h4>
-                    <p class="card-text text-muted">{{ user.role|title|replace('_', ' ') }}</p>
+                    <h4 class="card-title mb-1">{{ user.username }}</h4>
+                    <p class="text-muted mb-3">{{ user.email or 'No email set' }}</p>
+                    
+                    <!-- Role Badge -->
+                    <span class="badge bg-primary mb-3" style="padding: 8px 15px; font-size: 0.85rem;">
+                        <i class="bi bi-shield-check me-1"></i>{{ user.role|title|replace('_', ' ') }}
+                    </span>
                     
                     <!-- Account and Team Display -->
-                    {% if account or team %}
-                    <div class="mt-3 mb-3">
-                        {% if account %}
-                        <div class="d-flex align-items-center justify-content-center mb-2">
-                            <i class="bi bi-building text-primary me-2"></i>
-                            <span class="fw-bold">{{ account.name }}</span>
-                        </div>
-                        {% endif %}
-                        {% if team %}
-                        <div class="d-flex align-items-center justify-content-center">
-                            <i class="bi bi-people text-info me-2"></i>
-                            <span>{{ team.name }}</span>
-                        </div>
-                        {% endif %}
-                    </div>
-                    {% endif %}
-                    
-                    <div class="row text-center mt-4">
-                        <div class="col-4">
-                            <div class="border-end">
-                                <h6 class="text-primary mb-1">
-                                    <i class="bi bi-building"></i>
-                                </h6>
-                                <small class="text-muted">{% if account %}{{ account.name[:10] }}...{% if account.name|length > 10 %}{% else %}{% endif %}{% else %}No Account{% endif %}</small>
+                    <div class="border-top pt-3 mt-3">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="d-flex flex-column align-items-center">
+                                    <div class="org-icon primary mb-2">
+                                        <i class="bi bi-building"></i>
+                                    </div>
+                                    <small class="text-muted">Organization</small>
+                                    <strong class="small">{% if account %}{{ account.name }}{% else %}Not Assigned{% endif %}</strong>
+                                </div>
                             </div>
-                        </div>
-                        <div class="col-4">
-                            <div class="border-end">
-                                <h6 class="text-info mb-1">
-                                    <i class="bi bi-people"></i>
-                                </h6>
-                                <small class="text-muted">{% if team %}{{ team.name[:10] }}...{% if team.name|length > 10 %}{% else %}{% endif %}{% else %}No Team{% endif %}</small>
+                            <div class="col-6">
+                                <div class="d-flex flex-column align-items-center">
+                                    <div class="org-icon info mb-2">
+                                        <i class="bi bi-people"></i>
+                                    </div>
+                                    <small class="text-muted">Team</small>
+                                    <strong class="small">{% if team %}{{ team.name }}{% else %}Not Assigned{% endif %}</strong>
+                                </div>
                             </div>
-                        </div>
-                        <div class="col-4">
-                            <h6 class="text-success mb-1">
-                                <i class="bi bi-shield-check"></i>
-                            </h6>
-                            <small class="text-muted">{% if user.onboarding_completed %}Onboarded{% else %}Pending{% endif %}</small>
                         </div>
                     </div>
                 </div>

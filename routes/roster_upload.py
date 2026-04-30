@@ -50,15 +50,15 @@ def roster_upload():
             
             if current_user.role == 'super_admin':
                 # Super admin needs to select account and team
-                account_id = request.form.get('account_id')
-                team_id = request.form.get('team_id')
+                account_id = request.form.get('account_id', type=int)
+                team_id = request.form.get('team_id', type=int)
                 if not account_id or not team_id:
                     flash('Please select both Account and Team before uploading.')
                     return redirect(url_for('roster_upload.roster_upload'))
             elif current_user.role == 'account_admin':
                 # Account admin can only upload for their account
                 account_id = current_user.account_id
-                team_id = request.form.get('team_id')
+                team_id = request.form.get('team_id', type=int)
                 if not team_id:
                     flash('Please select a Team before uploading.')
                     return redirect(url_for('roster_upload.roster_upload'))
@@ -93,8 +93,8 @@ def roster_upload():
             if member_name_col:
                 long_df = df.melt(id_vars=[member_name_col], var_name='Date', value_name='Shift')
                 long_df = long_df.rename(columns={member_name_col: 'Team Member'})
-                # Drop rows with missing Team Member, Date, or Shift
-                long_df = long_df.dropna(subset=['Team Member', 'Date', 'Shift'])
+                # Drop rows with missing Team Member or Date only (NOT Shift - null shift means clear)
+                long_df = long_df.dropna(subset=['Team Member', 'Date'])
                 # Fix datetime parsing with robust error handling
                 try:
                     long_df['Date'] = pd.to_datetime(long_df['Date'], errors='coerce')
@@ -171,14 +171,23 @@ def roster_upload():
             # Enhancement: For same month, override roster for existing members, add new members, avoid duplicates
             inserted = 0
             skipped = 0
+            updated = 0  # Track updated entries
             auto_linked_count = 0  # Track automatic user-teammember links
+            
+            logger.info(f"[ROSTER UPLOAD] Starting import for account_id={account_id} (type={type(account_id)}), team_id={team_id} (type={type(team_id)})")
+            
+            deleted = 0  # Track deleted entries (cleared shifts)
+            
             for _, row in df.iterrows():
                 member_name = row['Team Member']
                 date = row['Date']
                 shift_code = row['Shift']
-                if pd.isna(member_name) or pd.isna(date) or pd.isna(shift_code):
+                
+                # Skip rows without member name or date
+                if pd.isna(member_name) or pd.isna(date):
                     skipped += 1
                     continue
+                
                 # Robust date conversion
                 try:
                     if hasattr(date, 'date'):
@@ -189,11 +198,23 @@ def roster_upload():
                     logger.warning(f"Failed to parse date {date}: {e}")
                     skipped += 1
                     continue
+                
                 member_name = str(member_name).strip()
-                shift_code = str(shift_code).strip()
-                if not member_name or not shift_code:
+                if not member_name:
                     skipped += 1
                     continue
+                
+                # Handle shift code - empty/nan/O means clear the shift
+                if pd.isna(shift_code) or shift_code is None:
+                    shift_code = ''
+                else:
+                    shift_code = str(shift_code).strip().upper()
+                
+                # Treat various values as "clear shift" - remove existing roster entry
+                clear_shift_codes = ['O', 'OFF', '-', 'X', 'NA', 'N/A', '', 'NULL', 'NONE', 'CLEAR', 'NAN']
+                is_clear_shift = shift_code in clear_shift_codes or len(shift_code) == 0
+                
+                logger.debug(f"[ROSTER] Processing: member={member_name}, date={date}, shift_code='{shift_code}', is_clear={is_clear_shift}")
                 norm_name = member_name.strip().lower()
                 member = TeamMember.query.filter(
                     db.func.lower(db.func.trim(TeamMember.name)) == norm_name,
@@ -295,28 +316,45 @@ def roster_upload():
                         # Continue without breaking roster upload
                 # For existing members, override roster for same month
                 # Delete any existing roster for this member/date/account/team
-                db.session.query(ShiftRoster).filter(
+                deleted_count = db.session.query(ShiftRoster).filter(
                     ShiftRoster.account_id == account_id,
                     ShiftRoster.team_id == team_id,
                     ShiftRoster.team_member_id == member.id,
                     ShiftRoster.date == date
                 ).delete()
-                entry = ShiftRoster(
-                    date=date,
-                    shift_code=shift_code,
-                    team_member_id=member.id,
-                    account_id=account_id,
-                    team_id=team_id
-                )
-                db.session.add(entry)
-                inserted += 1
+                
+                if deleted_count > 0:
+                    if is_clear_shift:
+                        # Entry was deleted and no new shift to add (cleared)
+                        logger.info(f"[ROSTER UPLOAD] Cleared shift for member={member.name}, date={date}")
+                        deleted += 1
+                    else:
+                        logger.info(f"[ROSTER UPLOAD] Deleted {deleted_count} existing entries for member={member.name}, date={date}")
+                        updated += 1
+                
+                # Only add new entry if there's a valid shift code (not a clear shift)
+                if not is_clear_shift:
+                    entry = ShiftRoster(
+                        date=date,
+                        shift_code=shift_code,
+                        team_member_id=member.id,
+                        account_id=account_id,
+                        team_id=team_id
+                    )
+                    db.session.add(entry)
+                    inserted += 1
+                elif not deleted_count:
+                    # Clear shift but no existing entry to delete
+                    skipped += 1
+                    
             db.session.commit()
             
+            logger.info(f"[ROSTER UPLOAD] Completed: inserted={inserted}, updated={updated}, deleted={deleted}, skipped={skipped}")
+            
             # Enhanced success message with auto-linking info
-            success_message = f'Roster uploaded: {inserted} entries added, {skipped} skipped.'
+            success_message = f'Roster uploaded: {inserted} entries added, {updated} updated, {deleted} cleared, {skipped} skipped.'
             if auto_linked_count > 0:
                 success_message += f' {auto_linked_count} team members automatically linked to existing users.'
-            success_message += ' Existing members updated, new members created.'
             flash(success_message)
             # Optionally show table preview
             table_data = df.head(20).to_dict(orient='records')
@@ -366,9 +404,9 @@ def download_wide_format_roster():
         sample_dir = os.path.join('static', 'samples')
         file_path = os.path.join(sample_dir, 'wide_format_roster_sample.xlsx')
         
-        print(f"DEBUG: Looking for file at: {file_path}")
-        print(f"DEBUG: File exists: {os.path.exists(file_path)}")
-        print(f"DEBUG: Current working directory: {os.getcwd()}")
+        logger.debug(f"DEBUG: Looking for file at: {file_path}")
+        logger.debug(f"DEBUG: File exists: {os.path.exists(file_path)}")
+        logger.debug(f"DEBUG: Current working directory: {os.getcwd()}")
         
         if not os.path.exists(file_path):
             flash(f'Sample file not found at: {file_path}', 'error')
@@ -382,6 +420,6 @@ def download_wide_format_roster():
         )
     except Exception as e:
         flash(f'Error downloading wide format sample file: {e}', 'error')
-        print(f"DEBUG: Exception details: {str(e)}")
+        logger.debug(f"DEBUG: Exception details: {str(e)}")
         return redirect(url_for('roster_upload.roster_upload'))
 

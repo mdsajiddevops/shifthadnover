@@ -154,21 +154,29 @@ table.incident-response-table tbody td .status-rejected i {
 {% endblock %}
 
 {% block content %}
+<!-- Page Header -->
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-clipboard-data me-2"></i>{{ title }}
+            </h1>
+            <p class="page-subtitle mb-0">Comprehensive tracking of handover incident assignments and responses</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-primary px-3 py-2">
+                <i class="bi bi-shield-check me-1"></i>Admin Only
+            </span>
+            <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-light">
+                <i class="bi bi-arrow-left me-1"></i>Back
+            </a>
+        </div>
+    </div>
+</div>
+
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
-            <!-- Header Section -->
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <div>
-                    <h2 class="text-primary mb-1">
-                        <i class="bi bi-clipboard-data me-2"></i>{{ title }}
-                    </h2>
-                    <p class="text-muted mb-0">Comprehensive tracking of handover incident assignments and responses</p>
-                </div>
-                <div class="d-flex gap-2">
-                    <span class="badge bg-primary fs-6">Admin Only</span>
-                </div>
-            </div>
 
             <!-- Filter Options -->
             <div class="card border-0 shadow-sm mb-4 filter-section">

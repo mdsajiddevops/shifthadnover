@@ -5,9 +5,79 @@ Admin interface for User-TeamMember linking management
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required, current_user
 from models.models import db, User, TeamMember
-from routes.sso_auth import _find_matching_team_member
+from difflib import SequenceMatcher
+import re
 
 admin_linking = Blueprint('admin_linking', __name__, url_prefix='/admin')
+
+
+def _find_matching_user_for_team_member(team_member):
+    """
+    Find the best matching User for a TeamMember based on email/name.
+    Returns: (user, confidence_score, match_reason)
+    """
+    best_match = None
+    best_score = 0
+    best_reasons = []
+    
+    # Get all users that are not already linked to a team member
+    linked_user_ids = [tm.user_id for tm in TeamMember.query.filter(TeamMember.user_id.isnot(None)).all()]
+    available_users = User.query.filter(~User.id.in_(linked_user_ids) if linked_user_ids else True).all()
+    
+    tm_email = (team_member.email or '').lower().strip()
+    tm_name = (team_member.name or '').lower().strip()
+    
+    for user in available_users:
+        score = 0
+        reasons = []
+        
+        user_email = (user.email or '').lower().strip()
+        user_username = (user.username or '').lower().strip()
+        user_fullname = f"{user.first_name or ''} {user.last_name or ''}".lower().strip()
+        
+        # 1. Exact email match (highest priority)
+        if tm_email and user_email and tm_email == user_email:
+            score = 100
+            reasons.append("exact email match")
+        
+        # 2. Email username part match
+        elif tm_email and user_email:
+            tm_email_user = tm_email.split('@')[0] if '@' in tm_email else tm_email
+            user_email_user = user_email.split('@')[0] if '@' in user_email else user_email
+            
+            if tm_email_user == user_email_user:
+                score = max(score, 95)
+                reasons.append("email username match")
+        
+        # 3. Name similarity
+        if tm_name and user_fullname:
+            name_ratio = SequenceMatcher(None, tm_name, user_fullname).ratio() * 100
+            if name_ratio >= 90:
+                score = max(score, 90)
+                reasons.append(f"name similarity: {int(name_ratio)}%")
+            elif name_ratio >= 70:
+                score = max(score, 75)
+                reasons.append(f"name similarity: {int(name_ratio)}%")
+        
+        # 4. Username pattern match
+        if tm_name and user_username:
+            # Clean both for comparison
+            clean_tm = re.sub(r'[^a-zA-Z0-9]', '', tm_name)
+            clean_user = re.sub(r'[^a-zA-Z0-9]', '', user_username)
+            
+            username_ratio = SequenceMatcher(None, clean_tm, clean_user).ratio() * 100
+            if username_ratio >= 80:
+                score = max(score, 85)
+                reasons.append(f"username pattern match: {int(username_ratio)}%")
+        
+        # Update best match if this is better
+        if score > best_score:
+            best_score = score
+            best_match = user
+            best_reasons = reasons
+    
+    return best_match, best_score, "; ".join(best_reasons) if best_reasons else "No match found"
+
 
 @admin_linking.route('/user-team-linking')
 @login_required
@@ -23,16 +93,15 @@ def user_team_linking():
     
     # Get unlinked users (users without team member association)
     linked_user_ids = [tm.user_id for tm in TeamMember.query.filter(TeamMember.user_id.isnot(None)).all()]
-    unlinked_users = User.query.filter(~User.id.in_(linked_user_ids)).all()
+    if linked_user_ids:
+        unlinked_users = User.query.filter(~User.id.in_(linked_user_ids)).all()
+    else:
+        unlinked_users = User.query.all()
     
     # Get potential matches for unlinked team members
     potential_matches = []
     for tm in unlinked_members:
-        best_match, confidence, reason = _find_matching_team_member(
-            tm.email or f"{tm.name.lower().replace(' ', '.')}@company.com",
-            tm.name,
-            tm.name.lower().replace(' ', '_')
-        )
+        best_match, confidence, reason = _find_matching_user_for_team_member(tm)
         
         potential_matches.append({
             'team_member': tm,
@@ -145,7 +214,8 @@ def bulk_auto_link():
         return jsonify({'success': False, 'error': 'Access denied'}), 403
     
     try:
-        min_confidence = request.get_json().get('min_confidence', 80)
+        data = request.get_json() or {}
+        min_confidence = data.get('min_confidence', 80)
         
         unlinked_members = TeamMember.query.filter_by(user_id=None).all()
         linked_count = 0
@@ -154,25 +224,30 @@ def bulk_auto_link():
         
         for tm in unlinked_members:
             try:
-                # Find best match for this team member
-                best_user, confidence, reason = _find_matching_team_member(
-                    tm.email or f"{tm.name.lower().replace(' ', '.')}@company.com",
-                    tm.name,
-                    tm.name.lower().replace(' ', '_')
-                )
+                # Find best matching User for this TeamMember
+                best_user, confidence, reason = _find_matching_user_for_team_member(tm)
                 
                 if best_user and confidence >= min_confidence:
-                    # Check if user is already linked
-                    existing_link = TeamMember.query.filter_by(user_id=best_user.id).first()
+                    # Verify user exists and is not already linked
+                    user = User.query.get(best_user.id)
+                    if not user:
+                        errors.append(f"Skipped {tm.name}: user not found in database")
+                        skipped_count += 1
+                        continue
+                    
+                    # Check if user is already linked to another team member
+                    existing_link = TeamMember.query.filter_by(user_id=user.id).first()
                     if not existing_link:
-                        tm.user_id = best_user.id
+                        tm.user_id = user.id
                         db.session.add(tm)
                         linked_count += 1
                     else:
                         skipped_count += 1
-                        errors.append(f"Skipped {tm.name}: user {best_user.username} already linked")
+                        errors.append(f"Skipped {tm.name}: user {user.username} already linked to {existing_link.name}")
                 else:
                     skipped_count += 1
+                    if confidence > 0:
+                        errors.append(f"Skipped {tm.name}: confidence {confidence}% below threshold {min_confidence}%")
             
             except Exception as e:
                 errors.append(f"Error processing {tm.name}: {str(e)}")
@@ -184,7 +259,7 @@ def bulk_auto_link():
             'success': True,
             'linked_count': linked_count,
             'skipped_count': skipped_count,
-            'errors': errors,
+            'errors': errors[:20],  # Limit errors to prevent huge response
             'message': f'Bulk auto-link completed: {linked_count} linked, {skipped_count} skipped'
         })
         

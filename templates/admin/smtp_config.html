@@ -1,6 +1,161 @@
 {% extends "base.html" %}
+{% set page_title = "SMTP Configuration" %}
 
-{% block title %}SMTP Configuration - Admin{% endblock %}
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+    body {
+        background: #f8f9fa;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    .config-header {
+        background: #ffffff;
+        color: #2c3e50;
+        padding: 2rem;
+        border-bottom: 1px solid #e9ecef;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .config-section {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 1px solid #e9ecef;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        margin-bottom: 1.5rem;
+        align-items: start;
+    }
+    
+    .form-group {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .form-control, .form-select {
+        padding: 0.75rem 1rem;
+        border: 1px solid #ced4da;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #495057;
+        font-size: 0.95rem;
+        transition: all 0.15s ease;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        outline: none;
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    .form-control[readonly] {
+        background: #e9ecef;
+        opacity: 1;
+        color: #6c757d;
+    }
+    
+    .form-help {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+        line-height: 1.4;
+    }
+    
+    .btn-group {
+        display: flex;
+        gap: 1rem;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e9ecef;
+    }
+    
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 0.95rem;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.15s ease;
+        text-decoration: none;
+    }
+    
+    .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        text-decoration: none;
+    }
+    
+    .btn-primary { background: #0d6efd; color: white; }
+    .btn-success { background: #198754; color: white; }
+    .btn-outline-secondary { 
+        background: transparent; 
+        color: #6c757d; 
+        border: 1px solid #6c757d; 
+    }
+    
+    .status-indicator {
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-weight: 500;
+    }
+    
+    .status-success {
+        background: #d1e7dd;
+        border: 1px solid #badbcc;
+        color: #0f5132;
+    }
+    
+    .status-warning {
+        background: #fff3cd;
+        border: 1px solid #ffecb5;
+        color: #664d03;
+    }
+    
+    .status-error {
+        background: #f8d7da;
+        border: 1px solid #f5c2c7;
+        color: #842029;
+    }
+    
+    @media (max-width: 768px) {
+        .form-row {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        
+        .btn-group {
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -331,6 +486,105 @@ function getConfigDescription(key) {
     };
     return descriptions[key] || `Configuration for ${key}`;
 }
+
+// Delete configuration
+function deleteConfig(configKey) {
+    if (confirm(`Are you sure you want to delete the configuration for "${configKey}"?`)) {
+        fetch(`/admin/secrets/api/smtp/config/${configKey}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Configuration deleted successfully!', 'success');
+                loadConfigs();
+            } else {
+                showAlert('Error deleting configuration: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showAlert('Error deleting configuration: ' + error.message, 'error');
+        });
+    }
+}
+
+// Test SMTP connection
+function testSMTPConnection() {
+    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    modal.show();
+    
+    fetch('/admin/secrets/api/smtp/test')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('SMTP connection test successful!', 'success');
+            } else {
+                showAlert('SMTP connection test failed: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showAlert('Error testing SMTP connection: ' + error.message, 'error');
+        })
+        .finally(() => {
+            modal.hide();
+        });
+}
+
+// Initialize default configurations
+function initializeDefaults() {
+    if (confirm('This will initialize default SMTP configurations. Continue?')) {
+        const defaultConfigs = [
+            { config_key: 'smtp_server', config_value: 'smtp.gmail.com', encrypted: false, description: 'SMTP server hostname' },
+            { config_key: 'smtp_port', config_value: '587', encrypted: false, description: 'SMTP server port' },
+            { config_key: 'smtp_use_tls', config_value: 'true', encrypted: false, description: 'Enable TLS encryption' },
+            { config_key: 'smtp_use_ssl', config_value: 'false', encrypted: false, description: 'Enable SSL encryption' },
+            { config_key: 'smtp_enabled', config_value: 'true', encrypted: false, description: 'Enable SMTP functionality' }
+        ];
+        
+        saveConfigurations(defaultConfigs);
+    }
+}
+
+// Reset form to current saved values
+function resetForm() {
+    populateForm();
+    showAlert('Form reset to saved values', 'info');
+}
+
+// Toggle password visibility
+function togglePassword(fieldId) {
+    const field = document.getElementById(fieldId);
+    const button = field.nextElementSibling.querySelector('i');
+    
+    if (field.type === 'password') {
+        field.type = 'text';
+        button.className = 'fas fa-eye-slash';
+    } else {
+        field.type = 'password';
+        button.className = 'fas fa-eye';
+    }
+}
+
+// Show alert messages
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Insert at the top of the container
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}
 
 // Delete configuration
 function deleteConfig(configKey) {

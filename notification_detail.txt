@@ -1,6 +1,0 @@
-<div class=" card mb-2\>
-<div class=\card-body p-3\>
-<h6 class=\card-title\>TEST INCIDENT: DAVID-NOTIFICATION-TEST</h6>
-<p class=\card-text\>This is a test notification for debugging purposes</p>
-<small class=\text-muted\>Assigned by: test_user - 2025-10-31 12:00:00</small><br>
-<button class=\btn btn-success btn-sm me-2\ style=\background-color:

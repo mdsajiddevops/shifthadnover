@@ -43,6 +43,8 @@ def inject_accounts_teams():
     return dict(accounts=accounts, teams=teams)
 
 from flask import jsonify
+import logging
+logger = logging.getLogger(__name__)
 
 # AJAX endpoint to get teams for a selected account
 @auth_bp.route('/get_teams')
@@ -72,15 +74,15 @@ def login():
         username = request.form['username']
         password = request.form['password']
         user = User.query.filter_by(username=username).first()
-        print(f"DEBUG: Login attempt - username: '{username}', password: '{password}'")
-        print(f"DEBUG: Form data: {dict(request.form)}")
-        print(f"DEBUG: User query result: {user}")
+        logger.debug(f"DEBUG: Login attempt - username: '{username}', password: '{password}'")
+        logger.debug(f"DEBUG: Form data: {dict(request.form)}")
+        logger.debug(f"DEBUG: User query result: {user}")
         if user:
-            print(f"DEBUG: User role: '{user.role}', is_active: {user.is_active}, status: '{user.status}'")
-            print(f"DEBUG: Role check (super_admin): {user.role == 'super_admin'}")
+            logger.debug(f"DEBUG: User role: '{user.role}', is_active: {user.is_active}, status: '{user.status}'")
+            logger.debug(f"DEBUG: Role check (super_admin): {user.role == 'super_admin'}")
             if user.role == 'super_admin':
                 password_valid = check_password_hash(user.password, password)
-                print(f"DEBUG: Password check result: {password_valid}")
+                logger.debug(f"DEBUG: Password check result: {password_valid}")
 
         if user and user.role == 'super_admin':
             # Super Admin: no account/team required

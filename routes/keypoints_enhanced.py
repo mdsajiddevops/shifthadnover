@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from flask_login import login_required, current_user
 from models.models import ShiftKeyPoint, ShiftKeyPointUpdate, db
+from services.team_access_service import TeamAccessService
 from datetime import date
 
 keypoints_bp = Blueprint('keypoints', __name__)
@@ -109,10 +110,32 @@ def keypoints():
         teams = Team.query.filter_by(account_id=account_id, is_active=True).all()
         team_id = request.args.get('team_id') or (session.get('selected_team_id') if hasattr(session, 'get') else None)
     else:
+        # Regular users: use enhanced team access service
         account_id = current_user.account_id
-        team_id = current_user.team_id
         accounts = [Account.query.get(account_id)] if account_id else []
-        teams = [Team.query.get(team_id)] if team_id else []
+        
+        # Get team filter context using TeamAccessService
+        team_filter_context = TeamAccessService.get_team_filter_context()
+        teams = team_filter_context.get('user_teams', [])
+        
+        # Get selected team or default to primary team
+        team_id = request.args.get('team_id')
+        if not team_id:
+            team_id = team_filter_context.get('selected_team_id')
+        selected_team_id = team_id
+        
+        # Handle team selection with primary team default
+        team_param = request.args.get('team_id')
+        if team_param:
+            try:
+                team_id = int(team_param)
+                # Validate user has access to this team
+                if team_id in [t.id for t in teams]:
+                    session['selected_team_id'] = team_id
+            except (TypeError, ValueError):
+                pass
+        else:
+            team_id = team_filter_context.get('selected_team_id')
     
     query = ShiftKeyPoint.query
     if account_id:
@@ -131,6 +154,12 @@ def keypoints():
             updates_query = updates_query.filter_by(update_date=date.fromisoformat(date_filter))
         updates_by_kp[kp.id] = updates_query.order_by(ShiftKeyPointUpdate.update_date.desc()).all()
     
+    # Set team filter context for template
+    if current_user.role not in ['super_admin', 'account_admin']:
+        team_filter_context = TeamAccessService.get_team_filter_context()
+    else:
+        team_filter_context = None
+    
     return render_template('keypoints_updates.html', 
                          key_points=key_points, 
                          updates_by_kp=updates_by_kp, 
@@ -139,7 +168,9 @@ def keypoints():
                          accounts=accounts, 
                          teams=teams, 
                          selected_account_id=account_id, 
-                         selected_team_id=(selected_team_id if current_user.role == 'super_admin' else team_id))
+                         selected_team_id=(selected_team_id if current_user.role == 'super_admin' else team_id),
+                         date=date,
+                         team_filter_context=team_filter_context)
 
 @keypoints_bp.route('/keypoints/update/<int:key_point_id>', methods=['POST'])
 @login_required

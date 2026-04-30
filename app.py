@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 # from services.audit_service import log_action
@@ -10,25 +10,98 @@ from flask_migrate import Migrate
 from config import Config
 import os
 import time
+import logging
+from logging.handlers import RotatingFileHandler
 
 # Import secrets management system
 from models.secrets_manager import init_secrets_manager, secrets_manager
 
-# Temporary audit function
+# =============================================================
+# Configure Logging - Phase 1 Performance Improvement
+# =============================================================
+def setup_logging(app):
+    """Configure application logging with proper levels and handlers"""
+    
+    # Create logs directory if it doesn't exist
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+    
+    # Set log level based on environment
+    log_level = logging.DEBUG if app.debug else logging.INFO
+    
+    # Create formatter
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # File handler for all logs (rotating, max 10MB, keep 5 backups)
+    file_handler = RotatingFileHandler(
+        'logs/app.log', 
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=5
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(log_level)
+    
+    # Error file handler (only errors)
+    error_handler = RotatingFileHandler(
+        'logs/error.log',
+        maxBytes=10*1024*1024,
+        backupCount=5
+    )
+    error_handler.setFormatter(formatter)
+    error_handler.setLevel(logging.ERROR)
+    
+    # Console handler (only in development)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(log_level)
+    
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(error_handler)
+    
+    # Only add console handler in development
+    if os.environ.get('LOCAL_DEVELOPMENT', 'false').lower() == 'true':
+        root_logger.addHandler(console_handler)
+    
+    # Configure Flask app logger
+    app.logger.setLevel(log_level)
+    app.logger.addHandler(file_handler)
+    app.logger.addHandler(error_handler)
+    
+    # Reduce SQLAlchemy logging noise in production
+    if not app.debug:
+        logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+        logging.getLogger('werkzeug').setLevel(logging.WARNING)
+    
+    return logging.getLogger(__name__)
+
+# Create logger for this module
+logger = logging.getLogger(__name__)
+
+# Audit function using proper logging
 def log_action(action, details=None):
-    print(f"AUDIT: {action} - {details}")
+    """Log audit actions - uses proper logging instead of print"""
+    logger.info(f"AUDIT: {action} - {details}")
 
 # Initialize Flask app
 app = Flask(__name__)
 app.config.from_object(Config)
 
+# Setup logging FIRST before any other operations
+app_logger = setup_logging(app)
+
 # Configure ProxyFix for nginx reverse proxy only in production
 # This fixes URL generation behind nginx proxy
 if not os.environ.get('LOCAL_DEVELOPMENT', 'false').lower() == 'true':
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
-    print("✅ ProxyFix middleware configured for nginx reverse proxy")
+    app_logger.info("ProxyFix middleware configured for nginx reverse proxy")
 else:
-    print("✅ Local development mode - ProxyFix middleware disabled")
+    app_logger.info("Local development mode - ProxyFix middleware disabled")
 
 # Configure HTTPS and security headers for production
 if app.config.get('FORCE_HTTPS'):
@@ -46,25 +119,93 @@ if app.config.get('FORCE_HTTPS'):
                 response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
             return response
 
-# Add cache-busting headers
+# Smart cache headers - allow caching for static files, disable for dynamic content
 @app.after_request
 def after_request(response):
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
+    # Check if this is a static file request
+    if request.path.startswith('/static/'):
+        # Allow caching for static files (1 day for CSS/JS, 1 year for fonts/images)
+        if any(request.path.endswith(ext) for ext in ['.woff', '.woff2', '.ttf', '.eot', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg']):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            # CSS/JS - cache for 1 day, but revalidate
+            response.headers["Cache-Control"] = "public, max-age=86400"
+    else:
+        # Dynamic content - no caching
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
     return response
+
+# Session validation middleware - check if session was terminated by admin
+@app.before_request
+def validate_session():
+    from flask_login import current_user, logout_user
+    from flask import session
+    from datetime import datetime
+    
+    # Skip for static files and auth routes
+    if request.path.startswith('/static/') or request.path in ['/login', '/logout', '/sso/login', '/sso/callback']:
+        return None
+    
+    # Check if user is authenticated
+    if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+        stored_token = session.get('session_token')
+        
+        # Case 1: User has session token in Flask session but DB token doesn't match (terminated)
+        if stored_token and current_user.session_token is None:
+            app_logger.info(f"Session terminated for user {current_user.username} - token cleared by admin")
+            session.clear()
+            logout_user()
+            flash('Your session has been terminated by an administrator. Please log in again.', 'warning')
+            return redirect(url_for('auth.login'))
+        
+        # Case 2: Token mismatch (different token in DB than Flask session)
+        if stored_token and current_user.session_token and current_user.session_token != stored_token:
+            app_logger.info(f"Session invalidated for user {current_user.username} - token mismatch")
+            session.clear()
+            logout_user()
+            flash('Your session has been terminated by an administrator. Please log in again.', 'warning')
+            return redirect(url_for('auth.login'))
+        
+        # Case 3: User logged in before feature was added (no token in Flask session)
+        # Check if admin has terminated their session after their last login
+        if not stored_token and current_user.sessions_terminated_at:
+            # If sessions were terminated after last login, force logout
+            if current_user.last_login and current_user.sessions_terminated_at > current_user.last_login:
+                app_logger.info(f"Session terminated for user {current_user.username} - terminated after login (legacy session)")
+                session.clear()
+                logout_user()
+                flash('Your session has been terminated by an administrator. Please log in again.', 'warning')
+                return redirect(url_for('auth.login'))
+    
+    return None
 
 # Log every page/tab visit
 @app.before_request
 def log_page_visit():
     from flask_login import current_user
+    from datetime import datetime
     if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
         log_action('Page Visit', f'Visited {request.path}')
+        
+        # 🔧 Track user activity for active session monitoring
+        # Only update if last activity was more than 1 minute ago (to reduce DB writes)
+        if not current_user.last_activity or (datetime.now() - current_user.last_activity).total_seconds() > 60:
+            try:
+                from models.models import db
+                current_user.last_activity = datetime.now()
+                db.session.commit()
+            except Exception as e:
+                app_logger.debug(f"Failed to update last_activity: {e}")
 
 
 # Initialize extensions
 from models.models import db
 from models.servicenow_config import ServiceNowConfig  # Import ServiceNow config model
+from models.team_shift_timing_config import TeamShiftTimingConfig  # Import team shift timing config model
+from models.escalation_matrix import EscalationMatrixEntry  # Import escalation matrix model
+from models.collaboration import HandoverSession, SectionLock, HandoverChange, DraftIncident, DraftKeyPoint  # Collaborative editing models
 db.init_app(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'auth.login'  # Redirect to login page for unauthenticated users
@@ -115,12 +256,20 @@ with app.app_context():
         from services.flask_uns_email import init_uns_email
         init_uns_email(app)
         
-        print("✅ Configuration loaded from database successfully")
-        print("✅ UNS Email Service initialized")
+        # Create email configuration tables if they don't exist
+        try:
+            from models.email_config import TeamEmailConfig, EmailConfigAuditLog
+            db.create_all()
+            app_logger.info("Email configuration tables verified/created")
+        except Exception as e:
+            app_logger.warning(f"Could not create email configuration tables: {e}")
+        
+        app_logger.info("Configuration loaded from database successfully")
+        app_logger.info("UNS Email Service initialized")
         
     except Exception as e:
-        print(f"⚠️ Could not load configuration from database: {e}")
-        print("⚠️ Using default configuration values")
+        app_logger.warning(f"Could not load configuration from database: {e}")
+        app_logger.warning("Using default configuration values")
 
 # Import blueprints
 
@@ -143,10 +292,12 @@ routes.auth.logout_user = patched_logout_user
 from routes.handover import handover_bp
 from routes.dashboard import dashboard_bp
 from routes.roster import roster_bp
-
-from routes.team import team_bp
+from routes.team_simple import team_bp
 from routes.roster_upload import roster_upload_bp
+from routes.shift_allowance import shift_allowance_bp
 from routes.reports import reports_bp
+from routes.team_roster import team_roster_bp
+from routes.team_utils import team_utils_bp
 
 
 
@@ -158,7 +309,10 @@ app.register_blueprint(dashboard_bp)
 app.register_blueprint(roster_bp)
 app.register_blueprint(team_bp)
 app.register_blueprint(roster_upload_bp)
+app.register_blueprint(shift_allowance_bp)
 app.register_blueprint(reports_bp)
+app.register_blueprint(team_roster_bp)
+app.register_blueprint(team_utils_bp)
 # Register admin blueprints
 from routes.admin import admin_bp
 app.register_blueprint(admin_bp, url_prefix='/admin')
@@ -193,6 +347,14 @@ app.register_blueprint(handover_enhanced_bp)
 from routes.debug_form import debug_bp
 app.register_blueprint(debug_bp)
 
+# Register email configuration blueprint
+from routes.email_config_routes import email_config_bp
+app.register_blueprint(email_config_bp)
+
+# Register shift configuration blueprint
+from routes.shift_config import shift_config_bp
+app.register_blueprint(shift_config_bp)
+
 # Register incident assignment blueprint
 from routes.incident_assignment import incident_assignment_bp
 app.register_blueprint(incident_assignment_bp)
@@ -208,6 +370,10 @@ app.register_blueprint(shift_swap_leave_bp)
 # Register audit logs blueprint
 from routes.logs import logs_bp
 app.register_blueprint(logs_bp)
+
+# Register check-in blueprint for team member status tracking
+from routes.checkin import checkin_bp
+app.register_blueprint(checkin_bp)
 
 # Register test blueprint
 from routes.test_routes import test_bp
@@ -239,6 +405,32 @@ app.register_blueprint(onboarding_bp)
 # Register secrets management admin blueprint
 from routes.admin_secrets import admin_secrets_bp
 app.register_blueprint(admin_secrets_bp)
+
+# Register vendor details blueprint
+from routes.vendor_details import bp as vendor_details_bp
+app.register_blueprint(vendor_details_bp)
+
+# New feature blueprints
+from routes.incident_metrics import incident_metrics_bp
+app.register_blueprint(incident_metrics_bp)
+
+from routes.manual_roster import manual_roster_bp
+app.register_blueprint(manual_roster_bp)
+
+from routes.system_health import system_health_bp
+app.register_blueprint(system_health_bp)
+
+# Register handover upload blueprint
+from routes.handover_upload import handover_upload_bp
+app.register_blueprint(handover_upload_bp)
+
+# Register problem tickets blueprint
+from routes.problem_tickets import problem_tickets_bp
+app.register_blueprint(problem_tickets_bp)
+
+# Register collaborative handover blueprint for real-time multi-user editing
+from routes.collaboration import collaboration_bp
+app.register_blueprint(collaboration_bp)
 
 # Add template global functions
 @app.template_global()
@@ -369,8 +561,15 @@ def strptime_filter(date_string, format='%Y-%m-%d'):
 
 @login_manager.user_loader
 def load_user(user_id):
-    from models.models import User
-    return User.query.get(int(user_id))
+    from models.models import User, db
+    # Force fresh query from database to ensure updated team/account info
+    user = User.query.get(int(user_id))
+    if user:
+        # Expire the instance to force reload on next access
+        db.session.expire(user)
+        # Re-query to get fresh data
+        user = User.query.get(int(user_id))
+    return user
 
 # Auto-start CTask assignment service when Flask app starts
 _services_initialized = False  # Flag to prevent duplicate initialization
@@ -392,7 +591,7 @@ def initialize_services():
                 master_key = os.environ.get('SECRETS_MASTER_KEY')
                 if master_key:
                     init_secrets_manager(db.session, master_key)
-                    print("✅ Secrets management system initialized successfully")
+                    app_logger.info("Secrets management system initialized successfully")
                     
                     # Store in app context for admin routes access
                     app.secrets_manager = secrets_manager
@@ -403,30 +602,30 @@ def initialize_services():
                         smtp_username = secrets_manager.get_secret('SMTP_USERNAME')
                         if smtp_username and smtp_username != '[TO_BE_SET_VIA_UI]':
                             app.config['MAIL_USERNAME'] = smtp_username
-                            print(f"✅ Updated MAIL_USERNAME from secrets")
+                            app_logger.info("Updated MAIL_USERNAME from secrets")
                         
                         smtp_password = secrets_manager.get_secret('SMTP_PASSWORD')
                         if smtp_password and smtp_password != '[TO_BE_SET_VIA_UI]':
                             app.config['MAIL_PASSWORD'] = smtp_password
-                            print(f"✅ Updated MAIL_PASSWORD from secrets")
+                            app_logger.info("Updated MAIL_PASSWORD from secrets")
                         
                         # ServiceNow configuration from secrets
                         servicenow_instance = secrets_manager.get_secret('SERVICENOW_INSTANCE')
                         if servicenow_instance and servicenow_instance != '[TO_BE_SET_VIA_UI]':
                             app.config['SERVICENOW_INSTANCE'] = servicenow_instance
-                            print(f"✅ Updated SERVICENOW_INSTANCE from secrets")
+                            app_logger.info("Updated SERVICENOW_INSTANCE from secrets")
                         
                         servicenow_username = secrets_manager.get_secret('SERVICENOW_USERNAME')
                         if servicenow_username and servicenow_username != '[TO_BE_SET_VIA_UI]':
                             app.config['SERVICENOW_USERNAME'] = servicenow_username
-                            print(f"✅ Updated SERVICENOW_USERNAME from secrets")
+                            app_logger.info("Updated SERVICENOW_USERNAME from secrets")
                         
                         servicenow_password = secrets_manager.get_secret('SERVICENOW_PASSWORD')
                         if servicenow_password and servicenow_password != '[TO_BE_SET_VIA_UI]':
                             app.config['SERVICENOW_PASSWORD'] = servicenow_password
-                            print(f"✅ Updated SERVICENOW_PASSWORD from secrets")
+                            app_logger.info("Updated SERVICENOW_PASSWORD from secrets")
                 else:
-                    print("⚠️ SECRETS_MASTER_KEY not set - secrets management not initialized")
+                    app_logger.warning("SECRETS_MASTER_KEY not set - secrets management not initialized")
                 
                 from models.app_config import AppConfig
                 from models.servicenow_config import ServiceNowConfig
@@ -435,44 +634,35 @@ def initialize_services():
                 AppConfig.initialize_defaults()
                 ServiceNowConfig.initialize_defaults()
                 
-                print("✅ Configuration defaults initialized")
+                app_logger.info("Configuration defaults initialized")
             except Exception as e:
-                print(f"⚠️ Warning: Could not initialize configurations: {e}")
+                app_logger.warning(f"Could not initialize configurations: {e}")
         
         # Check if CTask assignment feature is enabled
-        from models.app_config import AppConfig
-        if AppConfig.is_enabled('feature_ctask_assignment'):
-            # Start the CTask assignment scheduler automatically
-            from services.ctask_scheduler import start_ctask_scheduler, get_scheduler_status
-            
-            # Check if scheduler is already running
-            status = get_scheduler_status()
-            if not status['running']:
-                print("🚀 Auto-starting CTask assignment scheduler...")
-                start_ctask_scheduler()
-                
-                # Configure ServiceNow connection using new configuration system
-                try:
-                    from services.servicenow_service import ServiceNowService
-                    service = ServiceNowService()
+        # Only initialize CTask scheduler in production and not during worker preload
+        # Note: os is already imported at module level
+        if os.environ.get('FLASK_ENV') == 'production' and not os.environ.get('GUNICORN_PRELOAD'):
+            try:
+                from models.app_config import AppConfig
+                if AppConfig.is_enabled('feature_ctask_assignment'):
+                    # Start the CTask assignment scheduler automatically (non-blocking)
+                    from services.ctask_scheduler import start_ctask_scheduler, get_scheduler_status
                     
-                    # Initialize the service with app context so it can use secrets manager fallback
-                    service.initialize(app)
-                    
-                    if service.instance_url and service.username and service.password:
-                        print("✅ CTask assignment service started with ServiceNow connection")
+                    # Quick check if scheduler is already running
+                    status = get_scheduler_status()
+                    if not status['running']:
+                        app_logger.info("Auto-starting CTask assignment scheduler...")
+                        start_ctask_scheduler()
+                        app_logger.warning("CTask assignment service started but ServiceNow not configured")
                     else:
-                        print("⚠️ CTask assignment service started but ServiceNow not configured")
-                        
-                except Exception as e:
-                    print(f"⚠️ CTask assignment service started but ServiceNow configuration failed: {e}")
-            else:
-                print("✅ CTask assignment scheduler already running")
+                        app_logger.info("CTask assignment scheduler already running")
+            except Exception as e:
+                app_logger.warning(f"CTask scheduler initialization skipped: {e}")
                 
         _services_initialized = True  # Mark as initialized
                 
     except Exception as e:
-        print(f"❌ Failed to auto-start CTask assignment service: {e}")
+        app_logger.error(f"Failed to auto-start CTask assignment service: {e}")
         _services_initialized = True  # Mark as attempted even if failed
 
 # Support for both old and new Flask versions
@@ -539,8 +729,7 @@ def notifications_direct():
     from flask_login import current_user
     from flask import render_template
     
-    print(f"[DEBUG] Direct /notifications route called for user {current_user.username}")
-    print(f"[DEBUG] Rendering notifications_enhanced.html template")
+    app_logger.debug(f"Direct /notifications route called for user {current_user.username}")
     
     # Get all notifications for current user
     all_notifications = HandoverNotification.query.filter_by(

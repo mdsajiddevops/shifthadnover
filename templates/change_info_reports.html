@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+{% set page_title = "Change Info Reports" %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="page-header-content">
+            <div class="page-header-left">
+                <h1><i class="bi bi-clipboard-check"></i>Change Info Reports</h1>
+                <p>View and manage application changes from shift handovers</p>
+            </div>
+            <div class="page-header-right">
+                <a href="/reports" class="btn-header-outline">
+                    <i class="bi bi-arrow-left me-1"></i>Back to Reports
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+
+            <!-- Filters -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Filters</h6>
+                </div>
+                <div class="card-body">
+                    <form method="GET" class="row g-3">
+                        {% if current_user.role == 'super_admin' %}
+                        <div class="col-md-3">
+                            <label for="account_id" class="form-label">Account</label>
+                            <select class="form-select" id="account_id" name="account_id">
+                                <option value="">All Accounts</option>
+                                {% for account in accounts %}
+                                <option value="{{ account.id }}" {% if account_id_filter == account.id|string %}selected{% endif %}>
+                                    {{ account.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+                        
+                        {% if teams %}
+                        <div class="col-md-3">
+                            <label for="team_id" class="form-label">Team</label>
+                            <select class="form-select" id="team_id" name="team_id">
+                                <option value="" {% if all_teams_selected %}selected{% endif %}>All Teams</option>
+                                {% for team in teams %}
+                                <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>
+                                    {{ team.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="col-md-3">
+                            <label for="app_name" class="form-label">Application</label>
+                            <input type="text" class="form-control" id="app_name" name="app_name" 
+                                   value="{{ app_filter or '' }}" placeholder="Filter by app name">
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <label for="status" class="form-label">Status</label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="">All Statuses</option>
+                                <option value="New" {% if status_filter == 'New' %}selected{% endif %}>New</option>
+                                <option value="In Progress" {% if status_filter == 'In Progress' %}selected{% endif %}>In Progress</option>
+                                <option value="Scheduled" {% if status_filter == 'Scheduled' %}selected{% endif %}>Scheduled</option>
+                                <option value="Postponed" {% if status_filter == 'Postponed' %}selected{% endif %}>Postponed</option>
+                                <option value="Completed" {% if status_filter == 'Completed' %}selected{% endif %}>Completed</option>
+                                <option value="Cancelled" {% if status_filter == 'Cancelled' %}selected{% endif %}>Cancelled</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-funnel"></i> Apply Filters
+                            </button>
+                            <a href="/change-info-reports" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-circle"></i> Clear Filters
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        Change Information ({{ change_infos|length }} records)
+                    </h6>
+                    <button class="btn btn-success btn-sm" id="addNewChangeBtn">
+                        <i class="bi bi-plus-circle"></i> Add New Change
+                    </button>
+                </div>
+                <div class="card-body">
+                    {% if change_infos %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover" id="changeInfoTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Shift Date</th>
+                                    <th>Application</th>
+                                    <th>Change #</th>
+                                    <th>Description</th>
+                                    <th>Change DateTime</th>
+                                    <th>Status</th>
+                                    <th>Responsible Engineer</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for change_info_tuple in change_infos %}
+                                {% set change_info = change_info_tuple[0] %}
+                                {% set shift_date = change_info_tuple[1] %}
+                                <tr data-change-id="{{ change_info.id }}">
+                                    <td>{{ shift_date.strftime('%Y-%m-%d') if shift_date else 'N/A' }}</td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm change-field" data-field="app_name" value="{{ change_info.app_name }}" style="display: none;">
+                                        <span class="change-display badge bg-info">{{ change_info.app_name }}</span>
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm change-field" data-field="change_number" value="{{ change_info.change_number }}" style="display: none;">
+                                        <code class="change-display">{{ change_info.change_number }}</code>
+                                    </td>
+                                    <td>
+                                        <textarea class="form-control form-control-sm change-field" data-field="description" rows="2" style="display: none;">{{ change_info.description }}</textarea>
+                                        <div class="change-display text-truncate" style="max-width: 300px;" title="{{ change_info.description }}">
+                                            {{ change_info.description }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="datetime-local" class="form-control form-control-sm change-field" data-field="change_datetime" value="{{ change_info.change_datetime.strftime('%Y-%m-%dT%H:%M') if change_info.change_datetime else '' }}" style="display: none;">
+                                        <span class="change-display">
+                                            {% if change_info.change_datetime %}
+                                                {{ change_info.change_datetime.strftime('%Y-%m-%d %H:%M') }}
+                                            {% else %}
+                                                <span class="text-muted">Not specified</span>
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm change-field" data-field="status" style="display: none;">
+                                            <option value="New" {% if change_info.status == 'New' %}selected{% endif %}>New</option>
+                                            <option value="In Progress" {% if change_info.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                                            <option value="Scheduled" {% if change_info.status == 'Scheduled' %}selected{% endif %}>Scheduled</option>
+                                            <option value="Postponed" {% if change_info.status == 'Postponed' %}selected{% endif %}>Postponed</option>
+                                            <option value="Completed" {% if change_info.status == 'Completed' %}selected{% endif %}>Completed</option>
+                                            <option value="Cancelled" {% if change_info.status == 'Cancelled' %}selected{% endif %}>Cancelled</option>
+                                        </select>
+                                        {% set status_class = {
+                                            'New': 'bg-info',
+                                            'In Progress': 'bg-warning text-dark',
+                                            'Scheduled': 'bg-primary',
+                                            'Postponed': 'bg-secondary',
+                                            'Completed': 'bg-success',
+                                            'Cancelled': 'bg-danger'
+                                        } %}
+                                        <span class="change-display badge {{ status_class.get(change_info.status, 'bg-secondary') }}">
+                                            {{ change_info.status or 'New' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm change-field" data-field="responsible_engineer_id" style="display: none;">
+                                            <option value="">Not assigned</option>
+                                            <!-- Will be populated by JavaScript -->
+                                        </select>
+                                        <span class="change-display">
+                                            {% if change_info.responsible_engineer %}
+                                                <span class="badge bg-secondary">{{ change_info.responsible_engineer.name }}</span>
+                                            {% else %}
+                                                <span class="text-muted">Not assigned</span>
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-outline-primary edit-change-btn" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger delete-change-btn" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-success save-change-btn" style="display: none;" title="Save">
+                                                <i class="bi bi-check"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-secondary cancel-change-btn" style="display: none;" title="Cancel">
+                                                <i class="bi bi-x"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                        <p class="text-muted mt-3">No change information found with the selected filters.</p>
+                        <a href="/change-info-reports" class="btn btn-primary">Clear Filters</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    console.log('Change info reports page loaded, jQuery available:', typeof $ !== 'undefined');
+    
+    // Edit button click handler
+    $('.edit-change-btn').click(function() {
+        const row = $(this).closest('tr');
+        loadTeamMembersForRow(row);
+        toggleEditMode(row, true);
+    });
+    
+    // Save button click handler
+    $('.save-change-btn').click(function() {
+        const row = $(this).closest('tr');
+        const changeId = row.data('change-id');
+        saveChangeInfo(row, changeId);
+    });
+    
+    // Cancel button click handler
+    $('.cancel-change-btn').click(function() {
+        const row = $(this).closest('tr');
+        toggleEditMode(row, false);
+    });
+    
+    // Delete button click handler
+    $('.delete-change-btn').click(function() {
+        const row = $(this).closest('tr');
+        const changeId = row.data('change-id');
+        const changeNumber = row.find('.change-display').eq(1).text().trim() || 'N/A';
+        const appName = row.find('.change-display').eq(0).text().trim() || 'N/A';
+        
+        if (confirm(`Are you sure you want to delete this Change Info record?\n\nApp: ${appName}\nChange #: ${changeNumber}\n\nThis action cannot be undone.`)) {
+            deleteChangeInfo(row, changeId);
+        }
+    });
+    
+    function deleteChangeInfo(row, changeId) {
+        $.ajax({
+            url: `/api/change-info/${changeId}`,
+            method: 'DELETE',
+            success: function(response) {
+                // Remove the row from table with animation
+                row.fadeOut(300, function() {
+                    $(this).remove();
+                    // Update record count
+                    const currentCount = parseInt($('.card-header h6').text().match(/\d+/)[0]) - 1;
+                    $('.card-header h6').html(`Change Information (${currentCount} records)`);
+                });
+                showNotification('Change Info record deleted successfully!', 'success');
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON?.error || 'Failed to delete change info record';
+                showNotification(error, 'error');
+            }
+        });
+    }
+    
+    function toggleEditMode(row, editMode) {
+        if (editMode) {
+            row.find('.change-display').hide();
+            row.find('.change-field').show();
+            row.find('.edit-change-btn').hide();
+            row.find('.save-change-btn, .cancel-change-btn').show();
+        } else {
+            row.find('.change-field').hide();
+            row.find('.change-display').show();
+            row.find('.save-change-btn, .cancel-change-btn').hide();
+            row.find('.edit-change-btn').show();
+        }
+    }
+    
+    function saveChangeInfo(row, changeId) {
+        const changeDatetimeValue = row.find('[data-field="change_datetime"]').val();
+        const changeDatetime = changeDatetimeValue ? new Date(changeDatetimeValue).toISOString() : null;
+        
+        const formData = {
+            app_name: row.find('[data-field="app_name"]').val(),
+            change_number: row.find('[data-field="change_number"]').val(),
+            description: row.find('[data-field="description"]').val(),
+            change_datetime: changeDatetime,
+            status: row.find('[data-field="status"]').val(),
+            responsible_engineer_id: row.find('[data-field="responsible_engineer_id"]').val() || null
+        };
+        
+        $.ajax({
+            url: `/api/change-info/${changeId}`,
+            method: 'PUT',
+            contentType: 'application/json',
+            data: JSON.stringify(formData),
+            success: function(response) {
+                // Update display values
+                updateDisplayValues(row, formData, response.responsible_engineer_name);
+                toggleEditMode(row, false);
+                
+                // Show success message
+                showNotification('Change Info saved successfully!', 'success');
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON?.error || 'Failed to save change info';
+                showNotification(error, 'error');
+            }
+        });
+    }
+    
+    function updateDisplayValues(row, formData, responsibleEngineerName) {
+        // Update app name
+        row.find('.change-display').eq(0).html(`<span class="badge bg-info">${formData.app_name}</span>`);
+        
+        // Update change number
+        row.find('.change-display').eq(1).html(`<code>${formData.change_number}</code>`);
+        
+        // Update description
+        row.find('.change-display').eq(2).html(`<div class="text-truncate" style="max-width: 300px;" title="${formData.description}">${formData.description}</div>`);
+        
+        // Update change datetime
+        let datetimeHtml;
+        if (formData.change_datetime) {
+            const date = new Date(formData.change_datetime);
+            const formattedDate = date.getFullYear() + '-' + 
+                                String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+                                String(date.getDate()).padStart(2, '0') + ' ' +
+                                String(date.getHours()).padStart(2, '0') + ':' + 
+                                String(date.getMinutes()).padStart(2, '0');
+            datetimeHtml = formattedDate;
+        } else {
+            datetimeHtml = '<span class="text-muted">Not specified</span>';
+        }
+        row.find('.change-display').eq(3).html(datetimeHtml);
+        
+        // Update status badge
+        const statusClasses = {
+            'New': 'bg-info',
+            'In Progress': 'bg-warning text-dark',
+            'Scheduled': 'bg-primary',
+            'Postponed': 'bg-secondary',
+            'Completed': 'bg-success',
+            'Cancelled': 'bg-danger'
+        };
+        const statusClass = statusClasses[formData.status] || 'bg-secondary';
+        row.find('.change-display').eq(4).html(`<span class="badge ${statusClass}">${formData.status}</span>`);
+        
+        // Update responsible person
+        const responsibleHtml = responsibleEngineerName 
+            ? `<span class="badge bg-secondary">${responsibleEngineerName}</span>`
+            : '<span class="text-muted">Not assigned</span>';
+        row.find('.change-display').eq(5).html(responsibleHtml);
+    }
+    
+    function loadTeamMembersForRow(row) {
+        console.log('Loading team members for row...');
+        const select = row.find('.change-field[data-field="responsible_engineer_id"]');
+        const currentValue = row.find('.change-display').eq(5).find('.badge').text().trim();
+        
+        $.ajax({
+            url: '/api/team-members',
+            method: 'GET',
+            dataType: 'json',
+            success: function(members) {
+                console.log('Team members loaded:', members);
+                
+                // Clear existing options except the first one
+                select.find('option:not(:first)').remove();
+                
+                // Add team members
+                if (members && Array.isArray(members)) {
+                    members.forEach(member => {
+                        const selected = member.name === currentValue ? 'selected' : '';
+                        select.append(`<option value="${member.id}" ${selected}>${member.name}</option>`);
+                    });
+                    console.log(`Populated ${members.length} team members in dropdown`);
+                } else {
+                    console.warn('No team members data received');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Failed to load team members:', xhr.status, xhr.responseText);
+                showNotification('Failed to load team members: ' + (xhr.responseJSON?.error || error), 'error');
+            }
+        });
+    }
+    
+    function showNotification(message, type) {
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        const notification = `
+            <div class="alert ${alertClass} alert-dismissible fade show" role="alert" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('body').append(notification);
+        
+        // Auto dismiss after 3 seconds
+        setTimeout(() => {
+            $('.alert').alert('close');
+        }, 3000);
+    }
+    
+    // Add New Change button click handler
+    $('#addNewChangeBtn').click(function() {
+        $('#addChangeModal').modal('show');
+        loadTeamMembersForModal();
+    });
+    
+    // Save new change button click handler
+    $('#saveNewChangeBtn').click(function() {
+        saveNewChange();
+    });
+    
+    function loadTeamMembersForModal() {
+        const select = $('#newChangeResponsibleEngineer');
+        
+        $.ajax({
+            url: '/api/team-members',
+            method: 'GET',
+            dataType: 'json',
+            success: function(members) {
+                select.find('option:not(:first)').remove();
+                
+                if (members && Array.isArray(members)) {
+                    members.forEach(member => {
+                        select.append(`<option value="${member.id}">${member.name}</option>`);
+                    });
+                }
+            },
+            error: function(xhr) {
+                showNotification('Failed to load team members', 'error');
+            }
+        });
+    }
+    
+    function saveNewChange() {
+        const formData = {
+            app_name: $('#newChangeAppName').val(),
+            change_number: $('#newChangeNumber').val(),
+            description: $('#newChangeDescription').val(),
+            change_datetime: $('#newChangeDateTime').val() ? new Date($('#newChangeDateTime').val()).toISOString() : null,
+            status: $('#newChangeStatus').val(),
+            responsible_engineer_id: $('#newChangeResponsibleEngineer').val() || null
+        };
+        
+        // Submit form data
+        
+        $.ajax({
+            url: '/api/change-info',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(formData),
+            success: function(response) {
+                $('#addChangeModal').modal('hide');
+                showNotification('Change Info created successfully!', 'success');
+                // Reload the page to show the new record
+                setTimeout(() => window.location.reload(), 1500);
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON?.error || 'Failed to create change info';
+                showNotification(error, 'error');
+            }
+        });
+    }
+});
+</script>
+
+<!-- Add New Change Modal -->
+<div class="modal fade" id="addChangeModal" tabindex="-1" aria-labelledby="addChangeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addChangeModalLabel">Add New Change Info</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addChangeForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="newChangeAppName" class="form-label">Application</label>
+                                <input type="text" class="form-control" id="newChangeAppName">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="newChangeNumber" class="form-label">Change Number</label>
+                                <input type="text" class="form-control" id="newChangeNumber">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newChangeDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="newChangeDescription" rows="3"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="newChangeDateTime" class="form-label">Change Date/Time</label>
+                                <input type="datetime-local" class="form-control" id="newChangeDateTime">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="newChangeStatus" class="form-label">Status</label>
+                                <select class="form-select" id="newChangeStatus">
+                                    <option value="New" selected>New</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Scheduled">Scheduled</option>
+                                    <option value="Postponed">Postponed</option>
+                                    <option value="Completed">Completed</option>
+                                    <option value="Cancelled">Cancelled</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newChangeResponsibleEngineer" class="form-label">Responsible Engineer</label>
+                        <select class="form-select" id="newChangeResponsibleEngineer">
+                            <option value="">Not assigned</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="saveNewChangeBtn">Save Change Info</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

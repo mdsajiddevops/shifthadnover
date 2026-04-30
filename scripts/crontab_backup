@@ -1,0 +1,13 @@
+# Shift Handover Backup Cron Jobs
+# Server timezone UTC - IST is UTC plus 5h30m
+
+# Database Backup - 3 times daily at 8AM, 2PM, 10PM IST
+30 2 * * * /home/shifthandoversajid/scripts/db_backup.sh >> /home/shifthandoversajid/backups/cron.log 2>&1
+30 8 * * * /home/shifthandoversajid/scripts/db_backup.sh >> /home/shifthandoversajid/backups/cron.log 2>&1
+30 16 * * * /home/shifthandoversajid/scripts/db_backup.sh >> /home/shifthandoversajid/backups/cron.log 2>&1
+
+# Application Backup - Once daily at midnight IST
+30 18 * * * /home/shifthandoversajid/scripts/app_backup.sh >> /home/shifthandoversajid/backups/cron.log 2>&1
+
+# Weekly status report - Sunday 1AM IST
+30 19 * * 6 /home/shifthandoversajid/scripts/backup_status.sh >> /home/shifthandoversajid/backups/weekly_status.log 2>&1

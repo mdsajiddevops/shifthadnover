@@ -10,7 +10,7 @@ services:
     image: mysql:8.0
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: shift_handover
+      MYSQL_DATABASE: shifthandover
       MYSQL_USER: user
       # Passwords loaded from Docker secrets
       MYSQL_PASSWORD_FILE: /run/secrets/mysql_password
@@ -53,6 +53,7 @@ services:
     volumes:
       - .:/app
       - app_logs:/app/logs
+      - uploads_data:/app/uploads
     
     ports:
       - "5000:5000"
@@ -67,7 +68,7 @@ services:
       DATABASE_URL_FILE: /run/secrets/database_url
       DATABASE_HOST: db
       DATABASE_PORT: 3306
-      DATABASE_NAME: shift_handover
+      DATABASE_NAME: shifthandover
       DATABASE_USER: user
       
       # Core application secrets loaded from Docker secrets:
@@ -145,4 +146,6 @@ volumes:
   mysql_data:
     driver: local
   app_logs:
+    driver: local
+  uploads_data:
     driver: local

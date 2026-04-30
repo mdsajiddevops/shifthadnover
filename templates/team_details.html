@@ -1,73 +1,149 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container-fluid px-0">
-    <!-- Header Section -->
-    <div class="mb-4">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h1 class="h3 mb-1 text-primary">Team Management</h1>
-                <p class="text-muted mb-0">Manage team members and their contact information</p>
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="page-header-content">
+            <div class="page-header-left">
+                <h1><i class="bi bi-people-fill"></i>Team Details</h1>
+                <p>View team information and member details</p>
             </div>
-            <div class="d-flex align-items-center gap-3">
+            <div class="page-header-right">
+                <a href="{{ url_for('team.teams_list') }}" class="btn-header-outline" title="Back to Teams">
+                    <i class="bi bi-arrow-left me-1"></i>Back
+                </a>
                 {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
-                <!-- Show/Hide Inactive Toggle -->
-                <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" id="showInactiveToggle" 
-                           {% if show_inactive %}checked{% endif %}
-                           onchange="toggleInactiveMembers(this.checked)">
-                    <label class="form-check-label" for="showInactiveToggle">
-                        Show Inactive Members
-                    </label>
+                <div class="page-header-badge" style="background: rgba(255,255,255,0.95); color: #5a8fd8;">
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" id="showInactiveToggle" 
+                               {% if show_inactive %}checked{% endif %}
+                               onchange="toggleInactiveMembers(this.checked)">
+                        <label class="form-check-label small" for="showInactiveToggle">Show Inactive</label>
+                    </div>
                 </div>
                 {% endif %}
-                <span class="badge bg-primary fs-6 px-3 py-2">
-                    <i class="bi bi-people-fill me-2"></i>{{ members|length }} Members
-                </span>
+                <div class="page-header-badge">
+                    <span class="badge-value">{{ members|length }}</span>
+                    <span class="badge-label">Members</span>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Filter Section -->
-    {% if current_user.role in ['super_admin', 'account_admin'] %}
-    <div class="card mb-4 border-0 shadow-sm">
-        <div class="card-body py-3">
-            <form method="get" class="row g-3 align-items-end">
-                <input type="hidden" name="show_inactive" value="{{ 'true' if show_inactive else 'false' }}">
-                <div class="col-md-4">
-                    <label for="account_id" class="form-label fw-semibold">
-                        <i class="bi bi-building me-1"></i>Account
-                    </label>
-                    <select name="account_id" id="account_id" class="form-select" onchange="loadTeams(this.value)">
-                        <option value="">All Accounts</option>
-                        {% for account in accounts %}
-                        <option value="{{ account.id }}" {% if account.id == selected_account_id %}selected{% endif %}>
-                            {{ account.name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label for="team_id" class="form-label fw-semibold">
-                        <i class="bi bi-people me-1"></i>Team
-                    </label>
-                    <select name="team_id" id="team_id" class="form-select">
-                        <option value="">All Teams</option>
-                        {% for team in teams %}
-                        <option value="{{ team.id }}" {% if team.id == selected_team_id %}selected{% endif %}>
-                            {{ team.name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <button type="submit" class="btn btn-outline-primary">
-                        <i class="bi bi-funnel me-1"></i>Filter
-                    </button>
-                </div>
-            </form>
+    <!-- Unified Filter Bar -->
+    <div class="filter-bar mb-4 p-3 rounded-3" style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border: 1px solid #e2e8f0;">
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <div class="filter-label d-flex align-items-center">
+                <i class="bi bi-funnel-fill text-primary me-2"></i>
+                <span class="fw-semibold text-secondary">Filter:</span>
+            </div>
+            
+            {% if current_user.role in ['super_admin', 'account_admin'] %}
+            <div class="filter-item">
+                <select id="account_filter" class="form-select form-select-sm filter-select" 
+                        style="min-width: 180px;" onchange="loadTeamsForAccount(this.value)">
+                    <option value="">📁 All Accounts</option>
+                    {% for account in accounts %}
+                    <option value="{{ account.id }}" {% if account.id == selected_account_id %}selected{% endif %}>
+                        {{ account.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            
+            <div class="filter-item">
+                <select id="team_filter" class="form-select form-select-sm filter-select" 
+                        style="min-width: 200px;">
+                    <option value="">👥 Select a Team</option>
+                    {% for team in teams %}
+                    <option value="{{ team.id }}" {% if team.id|int == selected_team_id|int %}selected{% endif %}>
+                        {{ team.name }}
+                        {% if team_filter_context and team_filter_context.primary_team_id and team_filter_context.primary_team_id|int == team.id|int %}
+                            ⭐
+                        {% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-buttons d-flex gap-2">
+                <button type="button" class="btn btn-primary btn-sm" onclick="applyFilter()">
+                    <i class="bi bi-search me-1"></i>Apply Filter
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetFilter()">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
+                </button>
+            </div>
+            
+            {% if selected_team_id %}
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <span class="badge bg-success bg-opacity-10 text-success px-3 py-2">
+                    <i class="bi bi-check-circle me-1"></i>
+                    Viewing: <strong>{{ team.name if team else 'Selected Team' }}</strong>
+                </span>
+            </div>
+            {% else %}
+            <div class="ms-auto">
+                <small class="text-muted">
+                    <i class="bi bi-info-circle me-1"></i>Select account and team, then click Apply Filter
+                </small>
+            </div>
+            {% endif %}
         </div>
     </div>
-    {% endif %}
+    
+    <script>
+    // Load teams for selected account via AJAX
+    function loadTeamsForAccount(accountId) {
+        var teamSelect = document.getElementById('team_filter');
+        teamSelect.innerHTML = '<option value="">Loading...</option>';
+        
+        if (!accountId) {
+            // Show all teams if no account selected
+            teamSelect.innerHTML = '<option value="">👥 Select a Team</option>';
+            {% for team in teams %}
+            teamSelect.innerHTML += '<option value="{{ team.id }}">{{ team.name }}</option>';
+            {% endfor %}
+            return;
+        }
+        
+        fetch('/api/get_teams_for_account?account_id=' + accountId)
+            .then(response => response.json())
+            .then(teams => {
+                teamSelect.innerHTML = '<option value="">👥 Select a Team</option>';
+                teams.forEach(team => {
+                    var option = document.createElement('option');
+                    option.value = team.id;
+                    option.textContent = team.name;
+                    teamSelect.appendChild(option);
+                });
+            })
+            .catch(error => {
+                console.error('Error loading teams:', error);
+                teamSelect.innerHTML = '<option value="">👥 Select a Team</option>';
+            });
+    }
+    
+    // Apply filter - navigate to selected team
+    function applyFilter() {
+        var teamSelect = document.getElementById('team_filter');
+        var teamId = teamSelect.value;
+        
+        if (teamId) {
+            var showInactive = document.getElementById('showInactiveToggle');
+            var inactiveParam = showInactive && showInactive.checked ? '?show_inactive=true' : '';
+            window.location.href = '/team-details/' + teamId + inactiveParam;
+        } else {
+            alert('Please select a team first');
+        }
+    }
+    
+    // Reset filter
+    function resetFilter() {
+        window.location.href = '/team-details';
+    }
+    </script>
     <!-- Permission Notice for Regular Users -->
     {% if current_user.role not in ['super_admin', 'account_admin', 'team_admin'] %}
     <div class="alert alert-info d-flex align-items-center mb-4" role="alert">
@@ -166,7 +242,7 @@
                                 <td class="px-4 py-3">
                                     <input type="hidden" name="member_id" value="{{ member.id }}">
                                     <div class="d-flex align-items-center">
-                                        <input type="text" name="name" class="form-control border-0 bg-transparent fw-semibold" 
+                                        <input type="text" name="edit_name" class="form-control border-0 bg-transparent fw-semibold" 
                                                value="{{ member.name }}" required>
                                         {% if not member.is_active %}
                                             <i class="bi bi-pause-circle text-warning ms-2" title="Inactive"></i>
@@ -174,15 +250,15 @@
                                     </div>
                                 </td>
                                 <td class="py-3">
-                                    <input type="email" name="email" class="form-control border-0 bg-transparent" 
+                                    <input type="email" name="edit_email" class="form-control border-0 bg-transparent" 
                                            value="{{ member.email }}" required>
                                 </td>
                                 <td class="py-3">
-                                    <input type="text" name="contact_number" class="form-control border-0 bg-transparent" 
+                                    <input type="text" name="edit_contact" class="form-control border-0 bg-transparent" 
                                            value="{{ member.contact_number }}" required>
                                 </td>
                                 <td class="py-3">
-                                    <input type="text" name="role" class="form-control border-0 bg-transparent" 
+                                    <input type="text" name="edit_role" class="form-control border-0 bg-transparent" 
                                            value="{{ member.role or '' }}">
                                 </td>
                                 <td class="py-3">
@@ -301,9 +377,69 @@ function toggleInactiveMembers(showInactive) {
     url.searchParams.set('show_inactive', showInactive ? 'true' : 'false');
     window.location.href = url.toString();
 }
+
+function loadTeams(accountId) {
+    const teamSelect = document.getElementById('team_id');
+    
+    if (!accountId) {
+        // Reset to all teams if no account selected
+        teamSelect.innerHTML = '<option value="">All Teams</option>';
+        {% for team in teams %}
+        teamSelect.innerHTML += '<option value="{{ team.id }}">{{ team.name }}</option>';
+        {% endfor %}
+        return;
+    }
+    
+    // Clear current options
+    teamSelect.innerHTML = '<option value="">Loading teams...</option>';
+    
+    // Fetch teams for the selected account
+    fetch(`/api/get_teams_for_account?account_id=${accountId}`)
+        .then(response => response.json())
+        .then(data => {
+            teamSelect.innerHTML = '<option value="">All Teams</option>';
+            if (data && data.length > 0) {
+                data.forEach(team => {
+                    teamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error loading teams:', error);
+            teamSelect.innerHTML = '<option value="">Error loading teams</option>';
+        });
+}
 </script>
 
 <style>
+/* Filter Bar Styles */
+.filter-bar {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.filter-select, .filter-input {
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background-color: white;
+    transition: all 0.2s ease;
+}
+
+.filter-select:hover, .filter-input:hover {
+    border-color: #9ca3af;
+}
+
+.filter-select:focus, .filter-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .filter-bar .filter-item {
+        flex: 1 1 100%;
+    }
+}
+
 .table-secondary {
     background-color: rgba(108, 117, 125, 0.1) !important;
 }

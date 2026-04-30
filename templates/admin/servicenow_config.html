@@ -1,0 +1,797 @@
+{% extends "base.html" %}
+
+{% block title %}ServiceNow Configuration - Admin Panel{% endblock %}
+
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<style>
+    .config-card {
+        background: #ffffff;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+    }
+    
+    .config-card:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        transform: translateY(-2px);
+    }
+    
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .form-group {
+        position: relative;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .form-control, .form-select {
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+        transform: translateY(-1px);
+    }
+    
+    .btn {
+        border-radius: 8px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.15s ease;
+        text-decoration: none;
+    }
+    
+    .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        text-decoration: none;
+    }
+    
+    .btn-primary { background: #0d6efd; color: white; }
+    .btn-success { background: #198754; color: white; }
+    .btn-outline-secondary { 
+        background: transparent; 
+        color: #6c757d; 
+        border: 1px solid #6c757d; 
+    }
+    
+    .connection-status {
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-weight: 500;
+    }
+    
+    .status-connected {
+        background: #d1e7dd;
+        border: 1px solid #badbcc;
+        color: #0f5132;
+    }
+    
+    .status-disconnected {
+        background: #f8d7da;
+        border: 1px solid #f5c2c7;
+        color: #842029;
+    }
+    
+    .status-testing {
+        background: #fff3cd;
+        border: 1px solid #ffecb5;
+        color: #664d03;
+    }
+    
+    .endpoint-card {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: #f8f9fa;
+    }
+    
+    .endpoint-card h6 {
+        margin-bottom: 0.5rem;
+        color: #495057;
+    }
+    
+    .endpoint-url {
+        font-family: monospace;
+        background: #e9ecef;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.875rem;
+    }
+    
+    .test-result {
+        margin-top: 1rem;
+        padding: 1rem;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 0.875rem;
+        white-space: pre-wrap;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .test-success {
+        background: #d1e7dd;
+        border: 1px solid #badbcc;
+        color: #0f5132;
+    }
+    
+    .test-error {
+        background: #f8d7da;
+        border: 1px solid #f5c2c7;
+        color: #842029;
+    }
+    
+    @media (max-width: 768px) {
+        .form-row {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        
+        .btn-group {
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">🔗 ServiceNow Configuration</h2>
+                    <p class="text-muted mb-0">Configure ServiceNow integration for incident management and automation</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('admin_secrets.config_menu') }}" class="btn btn-outline-secondary me-2">
+                        <i class="fas fa-arrow-left"></i> Back to Menu
+                    </a>
+                    <button class="btn btn-success" onclick="testConnection()">
+                        <i class="fas fa-plug"></i> Test Connection
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connection Status -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="connection-status status-disconnected" id="connectionStatus">
+                <i class="fas fa-times-circle"></i>
+                <span>Not Connected</span>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">Quick Stats</h6>
+                    <p class="mb-1">Last Test: <span id="lastTest">Never</span></p>
+                    <p class="mb-0">Status: <span id="statusText">Disconnected</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Basic Configuration -->
+    <div class="config-card">
+        <h4 class="mb-3">
+            <i class="fas fa-server"></i> Basic Configuration
+        </h4>
+        <form id="basicConfigForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">ServiceNow Instance URL</label>
+                    <input type="url" class="form-control" id="instanceUrl" 
+                           placeholder="https://your-instance.service-now.com" required>
+                    <div class="form-text">Full URL to your ServiceNow instance</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">API Version</label>
+                    <select class="form-select" id="apiVersion">
+                        <option value="v1">Version 1 (v1)</option>
+                        <option value="v2">Version 2 (v2)</option>
+                        <option value="latest">Latest</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" 
+                           placeholder="ServiceNow username" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="password" 
+                               placeholder="ServiceNow password" required>
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('password')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-outline-secondary me-2" onclick="resetBasicForm()">
+                            <i class="fas fa-undo"></i> Reset
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Configuration
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Advanced Configuration -->
+    <div class="config-card">
+        <h4 class="mb-3">
+            <i class="fas fa-cogs"></i> Advanced Configuration
+        </h4>
+        <form id="advancedConfigForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Table Name</label>
+                    <input type="text" class="form-control" id="tableName" 
+                           placeholder="incident" value="incident">
+                    <div class="form-text">ServiceNow table to interact with</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Default Assignment Group</label>
+                    <input type="text" class="form-control" id="assignmentGroup" 
+                           placeholder="IT Operations">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Default Priority</label>
+                    <select class="form-select" id="defaultPriority">
+                        <option value="1">1 - Critical</option>
+                        <option value="2">2 - High</option>
+                        <option value="3" selected>3 - Moderate</option>
+                        <option value="4">4 - Low</option>
+                        <option value="5">5 - Planning</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Default Category</label>
+                    <input type="text" class="form-control" id="defaultCategory" 
+                           placeholder="Software">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Timeout (seconds)</label>
+                    <input type="number" class="form-control" id="timeout" 
+                           value="30" min="5" max="300">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Retry Attempts</label>
+                    <input type="number" class="form-control" id="retryAttempts" 
+                           value="3" min="1" max="10">
+                </div>
+            </div>
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Advanced Configuration
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- API Endpoints Testing -->
+    <div class="config-card">
+        <h4 class="mb-3">
+            <i class="fas fa-plug"></i> API Endpoints Testing
+        </h4>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="endpoint-card">
+                    <h6>Table API</h6>
+                    <div class="endpoint-url" id="tableEndpoint">Not configured</div>
+                    <button class="btn btn-outline-primary btn-sm mt-2" onclick="testEndpoint('table')">
+                        <i class="fas fa-test-tube"></i> Test
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="endpoint-card">
+                    <h6>Import Set API</h6>
+                    <div class="endpoint-url" id="importEndpoint">Not configured</div>
+                    <button class="btn btn-outline-primary btn-sm mt-2" onclick="testEndpoint('import')">
+                        <i class="fas fa-test-tube"></i> Test
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="endpoint-card">
+                    <h6>Attachment API</h6>
+                    <div class="endpoint-url" id="attachmentEndpoint">Not configured</div>
+                    <button class="btn btn-outline-primary btn-sm mt-2" onclick="testEndpoint('attachment')">
+                        <i class="fas fa-test-tube"></i> Test
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="endpoint-card">
+                    <h6>Query API</h6>
+                    <div class="endpoint-url" id="queryEndpoint">Not configured</div>
+                    <button class="btn btn-outline-primary btn-sm mt-2" onclick="testEndpoint('query')">
+                        <i class="fas fa-test-tube"></i> Test
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Results -->
+    <div class="config-card" id="testResultsCard" style="display: none;">
+        <h4 class="mb-3">
+            <i class="fas fa-clipboard-check"></i> Test Results
+        </h4>
+        <div class="test-result" id="testResults"></div>
+    </div>
+
+    <!-- Configuration Summary -->
+    <div class="config-card">
+        <h4 class="mb-3">
+            <i class="fas fa-list"></i> Current Configuration
+        </h4>
+        <div class="table-responsive">
+            <table class="table table-hover" id="configTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Setting</th>
+                        <th>Value</th>
+                        <th>Encrypted</th>
+                        <th>Last Updated</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="configTableBody">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="mt-2" id="loadingText">Processing...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+let currentConfig = {};
+let connectionStatus = false;
+
+// Load configuration on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadConfiguration();
+    updateEndpointUrls();
+});
+
+// Load ServiceNow configuration
+function loadConfiguration() {
+    fetch('/admin/secrets/api/servicenow/config')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentConfig = {};
+                data.configs.forEach(config => {
+                    currentConfig[config.config_key] = config;
+                });
+                populateForms();
+                populateConfigTable(data.configs);
+                updateConnectionStatus(data.connection_status);
+            } else {
+                showAlert('Error loading configuration: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showAlert('Error loading configuration: ' + error.message, 'error');
+        });
+}
+
+// Populate forms with current configuration
+function populateForms() {
+    // Basic configuration
+    setFieldValue('instanceUrl', 'servicenow_instance_url');
+    setFieldValue('apiVersion', 'servicenow_api_version');
+    setFieldValue('username', 'servicenow_username');
+    
+    // Advanced configuration
+    setFieldValue('tableName', 'servicenow_table_name');
+    setFieldValue('assignmentGroup', 'servicenow_assignment_group');
+    setFieldValue('defaultPriority', 'servicenow_default_priority');
+    setFieldValue('defaultCategory', 'servicenow_default_category');
+    setFieldValue('timeout', 'servicenow_timeout');
+    setFieldValue('retryAttempts', 'servicenow_retry_attempts');
+    
+    updateEndpointUrls();
+}
+
+// Helper function to set field values
+function setFieldValue(fieldId, configKey) {
+    const field = document.getElementById(fieldId);
+    const config = currentConfig[configKey];
+    
+    if (field && config) {
+        if (config.encrypted && config.config_value === '***ENCRYPTED***') {
+            field.placeholder = 'Current value is encrypted';
+        } else {
+            field.value = config.config_value || '';
+        }
+    }
+}
+
+// Update endpoint URLs display
+function updateEndpointUrls() {
+    const instanceUrl = document.getElementById('instanceUrl').value;
+    const apiVersion = document.getElementById('apiVersion').value;
+    const tableName = document.getElementById('tableName').value || 'incident';
+    
+    if (instanceUrl) {
+        document.getElementById('tableEndpoint').textContent = 
+            `${instanceUrl}/api/now/${apiVersion}/table/${tableName}`;
+        document.getElementById('importEndpoint').textContent = 
+            `${instanceUrl}/api/now/import/${tableName}`;
+        document.getElementById('attachmentEndpoint').textContent = 
+            `${instanceUrl}/api/now/attachment`;
+        document.getElementById('queryEndpoint').textContent = 
+            `${instanceUrl}/api/now/${apiVersion}/table/${tableName}?sysparm_query=`;
+    }
+}
+
+// Handle basic configuration form submission
+document.getElementById('basicConfigForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const configs = [
+        {
+            config_key: 'servicenow_instance_url',
+            config_value: document.getElementById('instanceUrl').value,
+            encrypted: false,
+            description: 'ServiceNow instance URL'
+        },
+        {
+            config_key: 'servicenow_api_version',
+            config_value: document.getElementById('apiVersion').value,
+            encrypted: false,
+            description: 'ServiceNow API version'
+        },
+        {
+            config_key: 'servicenow_username',
+            config_value: document.getElementById('username').value,
+            encrypted: false,
+            description: 'ServiceNow username'
+        },
+        {
+            config_key: 'servicenow_password',
+            config_value: document.getElementById('password').value,
+            encrypted: true,
+            description: 'ServiceNow password (encrypted)'
+        }
+    ];
+    
+    saveConfigurations(configs, 'Basic configuration saved successfully!');
+});
+
+// Handle advanced configuration form submission
+document.getElementById('advancedConfigForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const configs = [
+        {
+            config_key: 'servicenow_table_name',
+            config_value: document.getElementById('tableName').value,
+            encrypted: false,
+            description: 'ServiceNow table name'
+        },
+        {
+            config_key: 'servicenow_assignment_group',
+            config_value: document.getElementById('assignmentGroup').value,
+            encrypted: false,
+            description: 'Default assignment group'
+        },
+        {
+            config_key: 'servicenow_default_priority',
+            config_value: document.getElementById('defaultPriority').value,
+            encrypted: false,
+            description: 'Default incident priority'
+        },
+        {
+            config_key: 'servicenow_default_category',
+            config_value: document.getElementById('defaultCategory').value,
+            encrypted: false,
+            description: 'Default incident category'
+        },
+        {
+            config_key: 'servicenow_timeout',
+            config_value: document.getElementById('timeout').value,
+            encrypted: false,
+            description: 'API timeout in seconds'
+        },
+        {
+            config_key: 'servicenow_retry_attempts',
+            config_value: document.getElementById('retryAttempts').value,
+            encrypted: false,
+            description: 'Number of retry attempts'
+        }
+    ];
+    
+    saveConfigurations(configs, 'Advanced configuration saved successfully!');
+});
+
+// Save multiple configurations
+async function saveConfigurations(configs, successMessage) {
+    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    modal.show();
+    
+    try {
+        for (const config of configs.filter(c => c.config_value.trim())) {
+            const response = await fetch('/admin/secrets/api/servicenow/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(config)
+            });
+            
+            const result = await response.json();
+            if (!result.success) {
+                throw new Error(`Failed to save ${config.config_key}: ${result.error}`);
+            }
+        }
+        
+        showAlert(successMessage, 'success');
+        loadConfiguration(); // Reload to refresh the display
+        
+    } catch (error) {
+        showAlert('Error saving configuration: ' + error.message, 'error');
+    } finally {
+        modal.hide();
+    }
+}
+
+// Test ServiceNow connection
+function testConnection() {
+    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    document.getElementById('loadingText').textContent = 'Testing connection...';
+    modal.show();
+    
+    updateConnectionStatus('testing');
+    
+    fetch('/admin/secrets/api/servicenow/test-connection')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('testResultsCard').style.display = 'block';
+            const resultsDiv = document.getElementById('testResults');
+            
+            if (data.success) {
+                resultsDiv.className = 'test-result test-success';
+                resultsDiv.textContent = `Connection successful!\n\nResponse:\n${JSON.stringify(data.response, null, 2)}`;
+                updateConnectionStatus(true);
+                showAlert('ServiceNow connection test successful!', 'success');
+            } else {
+                resultsDiv.className = 'test-result test-error';
+                resultsDiv.textContent = `Connection failed!\n\nError: ${data.error}\n\nDetails:\n${JSON.stringify(data.details, null, 2)}`;
+                updateConnectionStatus(false);
+                showAlert('ServiceNow connection test failed: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            document.getElementById('testResultsCard').style.display = 'block';
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.className = 'test-result test-error';
+            resultsDiv.textContent = `Connection error!\n\nError: ${error.message}`;
+            updateConnectionStatus(false);
+            showAlert('Error testing connection: ' + error.message, 'error');
+        })
+        .finally(() => {
+            document.getElementById('lastTest').textContent = new Date().toLocaleString();
+            modal.hide();
+        });
+}
+
+// Test specific endpoint
+function testEndpoint(endpointType) {
+    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    document.getElementById('loadingText').textContent = `Testing ${endpointType} endpoint...`;
+    modal.show();
+    
+    fetch(`/admin/secrets/api/servicenow/test-endpoint/${endpointType}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('testResultsCard').style.display = 'block';
+            const resultsDiv = document.getElementById('testResults');
+            
+            if (data.success) {
+                resultsDiv.className = 'test-result test-success';
+                resultsDiv.textContent = `${endpointType.toUpperCase()} endpoint test successful!\n\nResponse:\n${JSON.stringify(data.response, null, 2)}`;
+                showAlert(`${endpointType.toUpperCase()} endpoint test successful!`, 'success');
+            } else {
+                resultsDiv.className = 'test-result test-error';
+                resultsDiv.textContent = `${endpointType.toUpperCase()} endpoint test failed!\n\nError: ${data.error}\n\nDetails:\n${JSON.stringify(data.details, null, 2)}`;
+                showAlert(`${endpointType.toUpperCase()} endpoint test failed: ` + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            document.getElementById('testResultsCard').style.display = 'block';
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.className = 'test-result test-error';
+            resultsDiv.textContent = `${endpointType.toUpperCase()} endpoint error!\n\nError: ${error.message}`;
+            showAlert(`Error testing ${endpointType} endpoint: ` + error.message, 'error');
+        })
+        .finally(() => {
+            modal.hide();
+        });
+}
+
+// Update connection status display
+function updateConnectionStatus(status) {
+    const statusElement = document.getElementById('connectionStatus');
+    const statusText = document.getElementById('statusText');
+    
+    connectionStatus = status;
+    
+    if (status === true) {
+        statusElement.className = 'connection-status status-connected';
+        statusElement.innerHTML = '<i class="fas fa-check-circle"></i><span>Connected</span>';
+        statusText.textContent = 'Connected';
+    } else if (status === 'testing') {
+        statusElement.className = 'connection-status status-testing';
+        statusElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Testing Connection...</span>';
+        statusText.textContent = 'Testing...';
+    } else {
+        statusElement.className = 'connection-status status-disconnected';
+        statusElement.innerHTML = '<i class="fas fa-times-circle"></i><span>Not Connected</span>';
+        statusText.textContent = 'Disconnected';
+    }
+}
+
+// Populate configuration table
+function populateConfigTable(configs) {
+    const tbody = document.getElementById('configTableBody');
+    tbody.innerHTML = '';
+    
+    configs.forEach(config => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><code>${config.config_key}</code></td>
+            <td>
+                <span class="config-value" data-encrypted="${config.encrypted}">
+                    ${config.encrypted ? '***ENCRYPTED***' : (config.config_value || '<em>Not set</em>')}
+                </span>
+            </td>
+            <td>
+                ${config.encrypted ? '<span class="badge bg-warning">Yes</span>' : '<span class="badge bg-secondary">No</span>'}
+            </td>
+            <td>${config.updated_at ? new Date(config.updated_at).toLocaleDateString() : 'N/A'}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteConfig('${config.config_key}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Delete configuration
+function deleteConfig(configKey) {
+    if (confirm(`Are you sure you want to delete the configuration for "${configKey}"?`)) {
+        fetch(`/admin/secrets/api/servicenow/config/${configKey}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Configuration deleted successfully!', 'success');
+                loadConfiguration();
+            } else {
+                showAlert('Error deleting configuration: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showAlert('Error deleting configuration: ' + error.message, 'error');
+        });
+    }
+}
+
+// Reset basic form
+function resetBasicForm() {
+    populateForms();
+    showAlert('Basic form reset to saved values', 'info');
+}
+
+// Toggle password visibility
+function togglePassword(fieldId) {
+    const field = document.getElementById(fieldId);
+    const button = field.nextElementSibling.querySelector('i');
+    
+    if (field.type === 'password') {
+        field.type = 'text';
+        button.className = 'fas fa-eye-slash';
+    } else {
+        field.type = 'password';
+        button.className = 'fas fa-eye';
+    }
+}
+
+// Update endpoint URLs when form fields change
+document.getElementById('instanceUrl').addEventListener('input', updateEndpointUrls);
+document.getElementById('apiVersion').addEventListener('change', updateEndpointUrls);
+document.getElementById('tableName').addEventListener('input', updateEndpointUrls);
+
+// Show alert messages
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}

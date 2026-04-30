@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: shift-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx-ssl.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    networks:
+      - shift-network
+    depends_on:
+      - shift-web
+    restart: unless-stopped
+    environment:
+      - NGINX_ENVSUBST_TEMPLATE_SUFFIX=.template
+    labels:
+      - "com.docker.compose.service=nginx"
+
+  # Existing shift-web service (your Flask app)
+  shift-web:
+    # Your existing configuration here
+    # Just make sure it's not exposing port 5000 externally anymore
+    ports: [] # Remove external port mapping since nginx will proxy
+    expose:
+      - "5000" # Still expose internally for nginx
+    networks:
+      - shift-network
+    # ... rest of your existing configuration
+
+  # Existing database service  
+  db:
+    # Your existing database configuration
+    networks:
+      - shift-network
+    # ... rest of your existing configuration
+
+networks:
+  shift-network:
+    driver: bridge
+
+volumes:
+  # Your existing volumes

@@ -1,1 +1,0 @@
-SELECT username, password, role, is_active, status FROM user WHERE username = 'superadmin';

@@ -52,21 +52,54 @@ def pending_handovers():
         team_member = TeamMember.query.filter_by(user_id=current_user.id).first()
         engineer_name = team_member.name if team_member else current_user.username
         
-        # Get pending handovers for this engineer
-        pending_handovers = workflow_service.get_pending_handovers(
-            engineer_name=engineer_name,
-            account_id=current_user.account_id,
-            team_id=current_user.team_id
-        )
+        # For multi-team users, get handovers from all their teams
+        user_teams = current_user.get_teams()
+        all_pending_handovers = []
+        all_summaries = []
         
-        # Get summary statistics
-        summary = workflow_service.get_handover_summary(
-            account_id=current_user.account_id,
-            team_id=current_user.team_id
-        )
+        if user_teams:
+            for team in user_teams:
+                # Get pending handovers for this team
+                team_handovers = workflow_service.get_pending_handovers(
+                    engineer_name=engineer_name,
+                    account_id=current_user.account_id,
+                    team_id=team.id
+                )
+                all_pending_handovers.extend(team_handovers)
+                
+                # Get summary for this team
+                team_summary = workflow_service.get_handover_summary(
+                    account_id=current_user.account_id,
+                    team_id=team.id
+                )
+                all_summaries.append(team_summary)
+        
+        # Fallback for users without explicit team memberships
+        elif current_user.team_id:
+            pending_handovers = workflow_service.get_pending_handovers(
+                engineer_name=engineer_name,
+                account_id=current_user.account_id,
+                team_id=current_user.team_id
+            )
+            all_pending_handovers.extend(pending_handovers)
+            
+            summary = workflow_service.get_handover_summary(
+                account_id=current_user.account_id,
+                team_id=current_user.team_id
+            )
+            all_summaries.append(summary)
+        
+        # Combine summaries
+        combined_summary = {}
+        for summary in all_summaries:
+            for key, value in summary.items():
+                if key in combined_summary:
+                    combined_summary[key] += value
+                else:
+                    combined_summary[key] = value
         
         # Calculate urgency levels
-        for handover in pending_handovers:
+        for handover in all_pending_handovers:
             minutes_pending = handover.get('time_pending_minutes', 0)
             if minutes_pending > 120:  # 2 hours
                 handover['urgency'] = 'critical'
@@ -77,8 +110,8 @@ def pending_handovers():
         
         return render_template(
             'handover/pending_handovers.html',
-            pending_handovers=pending_handovers,
-            summary=summary,
+            pending_handovers=all_pending_handovers,
+            summary=combined_summary,
             engineer_name=engineer_name,
             current_time=datetime.now()
         )
@@ -99,6 +132,15 @@ def accept_handover(incident_id):
         team_member = TeamMember.query.filter_by(user_id=current_user.id).first()
         engineer_name = team_member.name if team_member else current_user.username
         
+        # Get the incident to check which team it belongs to
+        incident = Incident.query.get_or_404(incident_id)
+        
+        # Verify user has access to this incident's team
+        user_team_ids = [team.id for team in current_user.get_teams()]
+        if incident.team_id not in user_team_ids and incident.team_id != current_user.team_id:
+            flash('❌ You do not have permission to accept this handover.', 'error')
+            return redirect(url_for('handover_management.pending_handovers'))
+        
         # Get optional acceptance notes
         notes = request.form.get('acceptance_notes', '').strip()
         
@@ -108,7 +150,7 @@ def accept_handover(incident_id):
             accepted_by=engineer_name,
             notes=notes,
             account_id=current_user.account_id,
-            team_id=current_user.team_id
+            team_id=incident.team_id  # Use the incident's team_id
         )
         
         if result['success']:
@@ -143,6 +185,15 @@ def reject_handover(incident_id):
         team_member = TeamMember.query.filter_by(user_id=current_user.id).first()
         engineer_name = team_member.name if team_member else current_user.username
         
+        # Get the incident to check which team it belongs to
+        incident = Incident.query.get_or_404(incident_id)
+        
+        # Verify user has access to this incident's team
+        user_team_ids = [team.id for team in current_user.get_teams()]
+        if incident.team_id not in user_team_ids and incident.team_id != current_user.team_id:
+            flash('❌ You do not have permission to reject this handover.', 'error')
+            return redirect(url_for('handover_management.pending_handovers'))
+        
         # Get mandatory rejection note
         rejection_note = request.form.get('rejection_note', '').strip()
         
@@ -156,7 +207,7 @@ def reject_handover(incident_id):
             rejected_by=engineer_name,
             rejection_note=rejection_note,
             account_id=current_user.account_id,
-            team_id=current_user.team_id
+            team_id=incident.team_id  # Use the incident's team_id
         )
         
         if result['success']:
@@ -219,13 +270,23 @@ def quick_action():
         team_member = TeamMember.query.filter_by(user_id=current_user.id).first()
         engineer_name = team_member.name if team_member else current_user.username
         
+        # Get the incident to determine its team
+        incident = Incident.query.get(incident_id)
+        if not incident:
+            return jsonify({'success': False, 'message': 'Incident not found'})
+        
+        # Verify user has access to this incident's team
+        user_team_ids = [team.id for team in current_user.get_teams()]
+        if incident.team_id not in user_team_ids and incident.team_id != current_user.team_id:
+            return jsonify({'success': False, 'message': 'You do not have permission to perform this action'})
+        
         if action == 'accept':
             result = workflow_service.accept_incident(
                 incident_id=incident_id,
                 accepted_by=engineer_name,
                 notes=notes,
                 account_id=current_user.account_id,
-                team_id=current_user.team_id
+                team_id=incident.team_id
             )
         elif action == 'reject':
             if not notes:
@@ -236,7 +297,7 @@ def quick_action():
                 rejected_by=engineer_name,
                 rejection_note=notes,
                 account_id=current_user.account_id,
-                team_id=current_user.team_id
+                team_id=incident.team_id
             )
         else:
             return jsonify({'success': False, 'message': 'Invalid action'})
@@ -262,11 +323,27 @@ def handover_stats():
         # Get personal pending count
         pending_count = notification_service.get_pending_notifications_count(engineer_name)
         
-        # Get team summary
-        team_summary = workflow_service.get_handover_summary(
-            account_id=current_user.account_id,
-            team_id=current_user.team_id
-        )
+        # Get team summaries for all user's teams
+        user_teams = current_user.get_teams()
+        combined_team_summary = {}
+        
+        if user_teams:
+            for team in user_teams:
+                team_summary = workflow_service.get_handover_summary(
+                    account_id=current_user.account_id,
+                    team_id=team.id
+                )
+                for key, value in team_summary.items():
+                    if key in combined_team_summary:
+                        combined_team_summary[key] += value
+                    else:
+                        combined_team_summary[key] = value
+        elif current_user.team_id:
+            # Fallback for users without explicit team memberships
+            combined_team_summary = workflow_service.get_handover_summary(
+                account_id=current_user.account_id,
+                team_id=current_user.team_id
+            )
         
         # Calculate urgent count (pending > 30 minutes)
         urgent_threshold = datetime.now() - timedelta(minutes=30)
@@ -280,7 +357,7 @@ def handover_stats():
             'success': True,
             'personal_pending': pending_count,
             'personal_urgent': urgent_count,
-            'team_summary': team_summary
+            'team_summary': combined_team_summary
         })
         
     except Exception as e:

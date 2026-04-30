@@ -1,0 +1,446 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .roster-container {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+    
+    .roster-hero {
+        background: linear-gradient(135deg, #e8f0fe 0%, #d4e4fc 50%, #c5d9f8 100%);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 2rem;
+        border: 1px solid #b8d4f8;
+    }
+    
+    .roster-hero h2 {
+        color: #1e3c72;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+    
+    .roster-hero p {
+        color: #4a6fa5;
+        margin-bottom: 0;
+    }
+    
+    .control-panel {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        border: 1px solid #e8eef3;
+    }
+    
+    .calendar-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        border: 1px solid #e8eef3;
+    }
+    
+    .shift-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .shift-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+    }
+    
+    .shift-badge {
+        width: 24px;
+        height: 24px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 0.7rem;
+    }
+    
+    .fc {
+        font-family: inherit;
+    }
+    
+    .fc .fc-toolbar-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1e3c72;
+    }
+    
+    .fc .fc-button-primary {
+        background-color: #1e3c72;
+        border-color: #1e3c72;
+    }
+    
+    .fc .fc-button-primary:hover {
+        background-color: #2a5298;
+        border-color: #2a5298;
+    }
+    
+    .fc .fc-button-primary:disabled {
+        background-color: #6c757d;
+        border-color: #6c757d;
+    }
+    
+    .fc-event {
+        cursor: pointer;
+        font-size: 0.75rem;
+        padding: 2px 4px;
+    }
+    
+    .quick-add-panel {
+        background: #f8fafc;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .quick-add-panel h6 {
+        color: #1e3c72;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+</style>
+
+<div class="roster-container">
+    <!-- Hero Header -->
+    <div class="roster-hero">
+        <h2><i class="bi bi-calendar-plus me-2"></i>Manual Roster Entry</h2>
+        <p>Add and manage individual shift assignments using the calendar interface</p>
+    </div>
+    
+    <!-- Control Panel -->
+    <div class="control-panel">
+        <div class="row g-3 align-items-end">
+            {% if current_user.role == 'super_admin' %}
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Account</label>
+                <select id="accountSelect" class="form-select" onchange="loadTeams()">
+                    <option value="">Select Account...</option>
+                    {% for account in accounts %}
+                    <option value="{{ account.id }}">{{ account.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Team</label>
+                <select id="teamSelect" class="form-select" onchange="loadMembers(); loadCalendarEvents();">
+                    <option value="">Select Team...</option>
+                    {% for team in teams %}
+                    <option value="{{ team.id }}">{{ team.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Team Member</label>
+                <select id="memberSelect" class="form-select">
+                    <option value="">Select Member...</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Shift Code</label>
+                <select id="shiftCode" class="form-select">
+                    <option value="D">D - Day Shift (Morning)</option>
+                    <option value="E">E - Evening Shift</option>
+                    <option value="LE">LE - Late Evening</option>
+                    <option value="N">N - Night Shift</option>
+                    <option value="G">G - General Shift</option>
+                    <option value="OS">OS - OnShore</option>
+                    <option value="OF">OF - OffShore</option>
+                    <option value="LV">LV - Leave</option>
+                    <option value="VL">VL - Vacation</option>
+                    <option value="HL">HL - Holiday</option>
+                    <option value="CO">CO - Comp Off</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Shift Legend -->
+        <div class="shift-legend mt-3">
+            <div class="shift-item"><span class="shift-badge" style="background:#28a745">D</span>Morning</div>
+            <div class="shift-item"><span class="shift-badge" style="background:#fd7e14">E</span>Evening</div>
+            <div class="shift-item"><span class="shift-badge" style="background:#9c27b0">LE</span>Late Evening</div>
+            <div class="shift-item"><span class="shift-badge" style="background:#6f42c1">N</span>Night</div>
+            <div class="shift-item"><span class="shift-badge" style="background:#6c757d">G</span>General</div>
+            <div class="shift-item"><span class="shift-badge" style="background:#17a2b8">OS</span>OnShore</div>
+            <div class="shift-item"><span class="shift-badge" style="background:#20c997">OF</span>OffShore</div>
+            <div class="shift-item"><span class="shift-badge" style="background:#dc3545">LV</span>Leave</div>
+            <div class="shift-item"><span class="shift-badge" style="background:#e83e8c">VL</span>Vacation</div>
+            <div class="shift-item"><span class="shift-badge" style="background:#ffc107">CO</span>CompOff</div>
+        </div>
+        
+        <!-- Quick Add Panel -->
+        <div class="quick-add-panel">
+            <h6><i class="bi bi-lightning-charge me-1"></i>Quick Add (Date Range)</h6>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small">Start Date</label>
+                    <input type="date" id="startDate" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">End Date</label>
+                    <input type="date" id="endDate" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-primary btn-sm w-100" onclick="bulkAddShifts()">
+                        <i class="bi bi-plus-circle me-1"></i>Add Range
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Calendar -->
+    <div class="calendar-card">
+        <div id="calendar"></div>
+    </div>
+</div>
+
+<!-- FullCalendar -->
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+
+<script>
+    let calendar;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize calendar
+        const calendarEl = document.getElementById('calendar');
+        calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek'
+            },
+            selectable: true,
+            selectMirror: true,
+            editable: false,
+            eventClick: handleEventClick,
+            dateClick: handleDateClick,
+            datesSet: function(info) {
+                loadCalendarEvents();
+            }
+        });
+        calendar.render();
+        
+        // Set default dates
+        const today = new Date();
+        document.getElementById('startDate').value = today.toISOString().split('T')[0];
+        document.getElementById('endDate').value = today.toISOString().split('T')[0];
+    });
+    
+    function loadTeams() {
+        const accountId = document.getElementById('accountSelect')?.value;
+        if (!accountId) return;
+        
+        fetch(`/get_teams?account_id=${accountId}`)
+            .then(res => res.json())
+            .then(data => {
+                const teamSelect = document.getElementById('teamSelect');
+                teamSelect.innerHTML = '<option value="">Select Team...</option>';
+                data.teams.forEach(team => {
+                    teamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
+                });
+            });
+    }
+    
+    function loadMembers() {
+        const teamId = document.getElementById('teamSelect').value;
+        const memberSelect = document.getElementById('memberSelect');
+        memberSelect.innerHTML = '<option value="">Select Member...</option>';
+        
+        if (!teamId) return;
+        
+        fetch(`/api/manual-roster/members/${teamId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    data.members.forEach(m => {
+                        memberSelect.innerHTML += `<option value="${m.id}">${m.name}</option>`;
+                    });
+                }
+            });
+    }
+    
+    function loadCalendarEvents() {
+        const teamId = document.getElementById('teamSelect').value;
+        if (!teamId) {
+            calendar.removeAllEvents();
+            return;
+        }
+        
+        const view = calendar.view;
+        const start = view.activeStart.toISOString().split('T')[0];
+        const end = view.activeEnd.toISOString().split('T')[0];
+        
+        fetch(`/api/manual-roster/entries?team_id=${teamId}&start=${start}&end=${end}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    calendar.removeAllEvents();
+                    data.entries.forEach(event => {
+                        calendar.addEvent(event);
+                    });
+                }
+            });
+    }
+    
+    function handleDateClick(info) {
+        const teamId = document.getElementById('teamSelect').value;
+        const memberId = document.getElementById('memberSelect').value;
+        const shiftCode = document.getElementById('shiftCode').value;
+        
+        if (!teamId || !memberId) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Selection Required',
+                text: 'Please select a team and member first',
+                confirmButtonColor: '#1e3c72'
+            });
+            return;
+        }
+        
+        // Add shift for clicked date
+        fetch('/api/manual-roster/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                team_id: parseInt(teamId),
+                member_id: parseInt(memberId),
+                date: info.dateStr,
+                shift_code: shiftCode
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                loadCalendarEvents();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Shift Added',
+                    text: data.message,
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: data.error
+                });
+            }
+        });
+    }
+    
+    function handleEventClick(info) {
+        const event = info.event;
+        const props = event.extendedProps;
+        
+        Swal.fire({
+            title: 'Shift Details',
+            html: `
+                <p><strong>Member:</strong> ${props.member_name}</p>
+                <p><strong>Shift:</strong> ${props.shift_code}</p>
+                <p><strong>Date:</strong> ${event.startStr}</p>
+            `,
+            icon: 'info',
+            showCancelButton: true,
+            showDenyButton: true,
+            confirmButtonText: 'Close',
+            denyButtonText: '<i class="bi bi-trash"></i> Delete',
+            confirmButtonColor: '#1e3c72',
+            denyButtonColor: '#dc3545'
+        }).then((result) => {
+            if (result.isDenied) {
+                deleteEntry(event.id);
+            }
+        });
+    }
+    
+    function deleteEntry(entryId) {
+        fetch(`/api/manual-roster/delete/${entryId}`, { method: 'DELETE' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    loadCalendarEvents();
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Deleted',
+                        text: 'Shift entry removed',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                }
+            });
+    }
+    
+    function bulkAddShifts() {
+        const teamId = document.getElementById('teamSelect').value;
+        const memberId = document.getElementById('memberSelect').value;
+        const shiftCode = document.getElementById('shiftCode').value;
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        
+        if (!teamId || !memberId || !startDate || !endDate) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Missing Information',
+                text: 'Please select team, member, and date range',
+                confirmButtonColor: '#1e3c72'
+            });
+            return;
+        }
+        
+        Swal.fire({
+            title: 'Adding Shifts...',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+        
+        fetch('/api/manual-roster/bulk-add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                team_id: parseInt(teamId),
+                member_id: parseInt(memberId),
+                start_date: startDate,
+                end_date: endDate,
+                shift_code: shiftCode
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                loadCalendarEvents();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Shifts Added',
+                    text: data.message,
+                    confirmButtonColor: '#1e3c72'
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: data.error
+                });
+            }
+        });
+    }
+</script>
+{% endblock %}
+
+

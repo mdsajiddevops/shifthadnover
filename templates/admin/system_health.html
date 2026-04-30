@@ -1,0 +1,1331 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    /* ============================================================
+       SYSTEM HEALTH DASHBOARD - ENTERPRISE GRADE STYLES
+       ============================================================ */
+    
+    .health-container {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 0 1rem;
+    }
+    
+    /* Hero Header */
+    .health-hero {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 20px;
+        padding: 2rem 2.5rem;
+        margin-bottom: 2rem;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .health-hero::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -20%;
+        width: 400px;
+        height: 400px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 50%;
+    }
+    
+    .health-hero h2 {
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        position: relative;
+    }
+    
+    .health-hero p {
+        opacity: 0.9;
+        margin-bottom: 0;
+        position: relative;
+    }
+    
+    /* Health Score Card */
+    .health-score-card {
+        background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+        border-radius: 20px;
+        padding: 1.5rem;
+        text-align: center;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        border: 1px solid rgba(255,255,255,0.8);
+        position: relative;
+        height: 100%;
+    }
+    
+    .health-score-wrapper {
+        position: relative;
+        width: 140px;
+        height: 140px;
+        margin: 0 auto 1rem;
+    }
+    
+    .health-score-ring {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: conic-gradient(from 0deg, #28a745 0%, #20c997 100%);
+        padding: 10px;
+    }
+    
+    .health-score-ring.healthy { background: conic-gradient(from 0deg, #28a745 0%, #20c997 100%); }
+    .health-score-ring.warning { background: conic-gradient(from 0deg, #ffc107 0%, #fd7e14 100%); }
+    .health-score-ring.critical { background: conic-gradient(from 0deg, #dc3545 0%, #c82333 100%); }
+    
+    .health-score-inner {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .health-score-value {
+        font-size: 2.5rem;
+        font-weight: 800;
+        line-height: 1;
+        background: linear-gradient(135deg, #1e3c72, #2a5298);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .health-score-unit {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #6c757d;
+    }
+    
+    .health-status-text {
+        font-size: 1rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    
+    .health-status-text.healthy { color: #28a745; }
+    .health-status-text.warning { color: #fd7e14; }
+    .health-status-text.critical { color: #dc3545; }
+    
+    .uptime-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+        color: #2e7d32;
+        padding: 0.4rem 0.8rem;
+        border-radius: 50px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    
+    .refresh-btn {
+        position: absolute;
+        top: 0.75rem;
+        right: 0.75rem;
+        border-radius: 50px;
+        padding: 0.4rem 0.8rem;
+        font-size: 0.75rem;
+    }
+    
+    /* Status Cards */
+    .status-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.25rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        border: 1px solid #e8eef3;
+        height: 100%;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .status-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    
+    .status-card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #f0f4f8;
+    }
+    
+    .status-card-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    
+    .status-card-icon.database { background: linear-gradient(135deg, #e3f2fd, #bbdefb); color: #1976d2; }
+    .status-card-icon.system { background: linear-gradient(135deg, #e8f5e9, #c8e6c9); color: #388e3c; }
+    .status-card-icon.performance { background: linear-gradient(135deg, #fff3e0, #ffe0b2); color: #f57c00; }
+    .status-card-icon.container { background: linear-gradient(135deg, #e3f2fd, #bbdefb); color: #1565c0; }
+    .status-card-icon.services { background: linear-gradient(135deg, #fce4ec, #f8bbd9); color: #c2185b; }
+    .status-card-icon.network { background: linear-gradient(135deg, #e0f2f1, #b2dfdb); color: #00796b; }
+    
+    .status-card-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #1e3c72;
+        margin: 0;
+    }
+    
+    .status-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #f5f5f5;
+    }
+    
+    .status-item:last-child {
+        border-bottom: none;
+    }
+    
+    .status-label {
+        color: #6c757d;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    
+    .status-value {
+        font-weight: 600;
+        color: #1e3c72;
+        font-size: 0.9rem;
+    }
+    
+    .status-badge {
+        padding: 0.25rem 0.6rem;
+        border-radius: 50px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+    
+    .status-badge.healthy { background: linear-gradient(135deg, #d4edda, #c3e6cb); color: #155724; }
+    .status-badge.warning { background: linear-gradient(135deg, #fff3cd, #ffeeba); color: #856404; }
+    .status-badge.critical { background: linear-gradient(135deg, #f8d7da, #f5c6cb); color: #721c24; }
+    .status-badge.unknown { background: #e9ecef; color: #6c757d; }
+    
+    /* Database Stats Grid */
+    .db-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+    }
+    
+    .db-stat-item {
+        background: linear-gradient(145deg, #f8fafc, #eef2f7);
+        border-radius: 10px;
+        padding: 0.75rem;
+        text-align: center;
+    }
+    
+    .db-stat-value {
+        font-size: 1.5rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #1e3c72, #2a5298);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .db-stat-label {
+        font-size: 0.65rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+    
+    /* Resource Cards */
+    .resource-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.25rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        border: 1px solid #e8eef3;
+        height: 100%;
+    }
+    
+    .resource-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+    
+    .resource-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .resource-title i {
+        font-size: 1.2rem;
+    }
+    
+    .resource-title h5 {
+        margin: 0;
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #1e3c72;
+    }
+    
+    .resource-value {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #1e3c72;
+    }
+    
+    .progress-bar-custom {
+        height: 10px;
+        border-radius: 5px;
+        background: #e9ecef;
+        overflow: hidden;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        border-radius: 5px;
+        transition: width 0.8s ease;
+    }
+    
+    .progress-fill.healthy { background: linear-gradient(90deg, #28a745, #20c997); }
+    .progress-fill.warning { background: linear-gradient(90deg, #ffc107, #fd7e14); }
+    .progress-fill.critical { background: linear-gradient(90deg, #dc3545, #e74c3c); }
+    
+    .progress-info {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.5rem;
+        font-size: 0.8rem;
+    }
+    
+    .progress-label {
+        color: #6c757d;
+    }
+    
+    .progress-percent {
+        font-weight: 700;
+    }
+    
+    .progress-percent.healthy { color: #28a745; }
+    .progress-percent.warning { color: #fd7e14; }
+    .progress-percent.critical { color: #dc3545; }
+    
+    /* Sparkline Container */
+    .sparkline-container {
+        height: 30px;
+        margin-top: 0.5rem;
+    }
+    
+    .sparkline {
+        width: 100%;
+        height: 100%;
+    }
+    
+    /* Performance Metrics */
+    .perf-metric {
+        text-align: center;
+        padding: 0.75rem;
+        background: linear-gradient(145deg, #f8fafc, #eef2f7);
+        border-radius: 10px;
+    }
+    
+    .perf-value {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: #1e3c72;
+    }
+    
+    .perf-value.small {
+        font-size: 1.1rem;
+    }
+    
+    .perf-label {
+        font-size: 0.7rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+    
+    /* Container Status */
+    .container-item {
+        padding: 0.6rem 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .container-item:last-child {
+        border-bottom: none;
+    }
+    
+    /* Section Headers */
+    .section-header {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+    
+    /* Animations */
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    
+    .loading { animation: pulse 1.5s infinite; }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .health-hero { padding: 1.5rem; }
+        .db-stat-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+</style>
+
+<div class="health-container">
+    <!-- Hero Header -->
+    <div class="health-hero">
+        <h2><i class="bi bi-heart-pulse me-2"></i>System Health Dashboard</h2>
+        <p>Real-time monitoring of system status, database health, and resource usage</p>
+    </div>
+    
+    <!-- Row 1: Health Score, Database, System Info -->
+    <div class="row g-3 mb-3">
+        <!-- Health Score -->
+        <div class="col-lg-3 col-md-6">
+            <div class="health-score-card">
+                <button class="btn btn-outline-primary btn-sm refresh-btn" onclick="loadHealthData()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+                <div class="health-score-wrapper">
+                    <div class="health-score-ring healthy" id="healthScoreRing">
+                        <div class="health-score-inner">
+                            <span class="health-score-value" id="healthScore">--</span>
+                            <span class="health-score-unit">percent</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="health-status-text healthy" id="healthStatus">Loading...</div>
+                <div class="uptime-badge" id="uptimeBadge">
+                    <i class="bi bi-clock"></i>
+                    <span id="uptimeText">Uptime: --</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Database Status -->
+        <div class="col-lg-3 col-md-6">
+            <div class="status-card">
+                <div class="status-card-header">
+                    <div class="status-card-icon database"><i class="bi bi-database"></i></div>
+                    <div>
+                        <h5 class="status-card-title">Database</h5>
+                        <span class="status-badge healthy" id="dbStatus">Checking...</span>
+                    </div>
+                </div>
+                <div class="status-item">
+                    <span class="status-label"><i class="bi bi-lightning"></i>Latency</span>
+                    <span class="status-value" id="dbLatency">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label"><i class="bi bi-plug"></i>Connections</span>
+                    <span class="status-value" id="dbConnections">-</span>
+                </div>
+                <div class="db-stat-grid">
+                    <div class="db-stat-item">
+                        <div class="db-stat-value" id="dbUsers">-</div>
+                        <div class="db-stat-label">Users</div>
+                    </div>
+                    <div class="db-stat-item">
+                        <div class="db-stat-value" id="dbTeams">-</div>
+                        <div class="db-stat-label">Teams</div>
+                    </div>
+                    <div class="db-stat-item">
+                        <div class="db-stat-value" id="dbShifts">-</div>
+                        <div class="db-stat-label">Shifts</div>
+                    </div>
+                    <div class="db-stat-item">
+                        <div class="db-stat-value" id="dbIncidents">-</div>
+                        <div class="db-stat-label">Incidents</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Application Performance -->
+        <div class="col-lg-3 col-md-6">
+            <div class="status-card">
+                <div class="status-card-header">
+                    <div class="status-card-icon performance"><i class="bi bi-speedometer2"></i></div>
+                    <h5 class="status-card-title">Performance</h5>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <div class="perf-metric">
+                            <div class="perf-value" id="rpsValue">-</div>
+                            <div class="perf-label">Req/sec</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="perf-metric">
+                            <div class="perf-value" id="errorRate">-</div>
+                            <div class="perf-label">Error Rate</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="perf-metric">
+                            <div class="perf-value small" id="avgResponseTime">-</div>
+                            <div class="perf-label">Avg Response</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="perf-metric">
+                            <div class="perf-value small" id="p95ResponseTime">-</div>
+                            <div class="perf-label">P95 Response</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="sparkline-container mt-2">
+                    <canvas id="rpsSparkline" class="sparkline"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- System Info -->
+        <div class="col-lg-3 col-md-6">
+            <div class="status-card">
+                <div class="status-card-header">
+                    <div class="status-card-icon system"><i class="bi bi-cpu"></i></div>
+                    <h5 class="status-card-title">System Info</h5>
+                </div>
+                <div class="status-item">
+                    <span class="status-label"><i class="bi bi-code-slash"></i>Python</span>
+                    <span class="status-value" id="pythonVersion">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label"><i class="bi bi-pc-display"></i>OS</span>
+                    <span class="status-value" id="osInfo">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label"><i class="bi bi-calendar-check"></i>Started</span>
+                    <span class="status-value" id="appStarted">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label"><i class="bi bi-activity"></i>Threads</span>
+                    <span class="status-value" id="threadCount">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Row 2: Resource Usage (CPU, Memory, Disk) -->
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <div class="resource-card">
+                <div class="resource-header">
+                    <div class="resource-title">
+                        <i class="bi bi-cpu text-success"></i>
+                        <h5>CPU Usage</h5>
+                    </div>
+                    <span class="resource-value" id="cpuUsage">-</span>
+                </div>
+                <div class="progress-bar-custom">
+                    <div class="progress-fill healthy" id="cpuBar" style="width: 0%"></div>
+                </div>
+                <div class="progress-info">
+                    <span class="progress-label" id="cpuCores">Cores: -</span>
+                    <span class="progress-percent healthy" id="cpuPercent">0%</span>
+                </div>
+                <div class="sparkline-container">
+                    <canvas id="cpuSparkline" class="sparkline"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="resource-card">
+                <div class="resource-header">
+                    <div class="resource-title">
+                        <i class="bi bi-memory text-info"></i>
+                        <h5>Memory Usage</h5>
+                    </div>
+                    <span class="resource-value" id="memoryUsage">-</span>
+                </div>
+                <div class="progress-bar-custom">
+                    <div class="progress-fill healthy" id="memoryBar" style="width: 0%"></div>
+                </div>
+                <div class="progress-info">
+                    <span class="progress-label">Used / Total</span>
+                    <span class="progress-percent healthy" id="memoryPercent">0%</span>
+                </div>
+                <div class="sparkline-container">
+                    <canvas id="memorySparkline" class="sparkline"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="resource-card">
+                <div class="resource-header">
+                    <div class="resource-title">
+                        <i class="bi bi-hdd text-warning"></i>
+                        <h5>Disk Usage</h5>
+                    </div>
+                    <span class="resource-value" id="diskUsage">-</span>
+                </div>
+                <div class="progress-bar-custom">
+                    <div class="progress-fill healthy" id="diskBar" style="width: 0%"></div>
+                </div>
+                <div class="progress-info">
+                    <span class="progress-label">Used / Total</span>
+                    <span class="progress-percent healthy" id="diskPercent">0%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Row 3: Containers, Services, Network -->
+    <div class="row g-3 mb-3">
+        <!-- Container Status -->
+        <div class="col-lg-4">
+            <div class="status-card">
+                <div class="status-card-header">
+                    <div class="status-card-icon container"><i class="bi bi-box-seam"></i></div>
+                    <h5 class="status-card-title">Containers</h5>
+                </div>
+                <div id="containersContainer">
+                    <div class="container-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold"><i class="bi bi-globe2 me-2"></i>shift-web</span>
+                            <span class="status-badge healthy" id="webContainerStatus">Running</span>
+                        </div>
+                        <div class="small text-muted mt-1">
+                            <span class="me-3"><i class="bi bi-hash"></i> <span id="webContainerId">-</span></span>
+                            <span><i class="bi bi-hdd-stack"></i> <span id="webContainerProcesses">-</span> proc</span>
+                        </div>
+                    </div>
+                    <div class="container-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold"><i class="bi bi-database me-2"></i>shift-db</span>
+                            <span class="status-badge" id="dbContainerStatus">Checking...</span>
+                        </div>
+                        <div class="small text-muted mt-1">
+                            <span class="me-3"><i class="bi bi-ethernet"></i> Port <span id="dbContainerPort">3306</span></span>
+                            <span><i class="bi bi-lightning"></i> <span id="dbResponseTime">-</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Services Status -->
+        <div class="col-lg-4">
+            <div class="status-card">
+                <div class="status-card-header">
+                    <div class="status-card-icon services"><i class="bi bi-gear-wide-connected"></i></div>
+                    <h5 class="status-card-title">Services</h5>
+                </div>
+                <div class="status-item">
+                    <span class="status-label"><i class="bi bi-server"></i>Flask App</span>
+                    <span class="status-badge healthy">Running</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label"><i class="bi bi-shield-check"></i>Nginx</span>
+                    <span class="status-badge" id="nginxStatus">Active</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label"><i class="bi bi-database-check"></i>MySQL</span>
+                    <span class="status-badge" id="dbNetworkStatus">Checking...</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label"><i class="bi bi-hdd-network"></i>Docker</span>
+                    <span class="status-badge healthy">Active</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Network & Runtime -->
+        <div class="col-lg-4">
+            <div class="status-card">
+                <div class="status-card-header">
+                    <div class="status-card-icon network"><i class="bi bi-wifi"></i></div>
+                    <h5 class="status-card-title">Network & Runtime</h5>
+                </div>
+                <div class="status-item">
+                    <span class="status-label"><i class="bi bi-signpost"></i>DNS</span>
+                    <span class="status-badge" id="dnsStatus">Checking...</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label"><i class="bi bi-cloud"></i>Internet</span>
+                    <span class="status-badge" id="internetStatus">Checking...</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label"><i class="bi bi-memory"></i>App Memory</span>
+                    <span class="status-value" id="processMem">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label"><i class="bi bi-tag"></i>Process ID</span>
+                    <span class="status-value" id="processId">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Row 4: Detailed Performance Metrics & Thresholds -->
+    <div class="row g-3 mb-3">
+        <!-- Detailed Performance Metrics -->
+        <div class="col-lg-8">
+            <div class="status-card">
+                <div class="status-card-header">
+                    <div class="status-card-icon" style="background: linear-gradient(135deg, #e8f5e9, #c8e6c9); color: #2e7d32;">
+                        <i class="bi bi-graph-up-arrow"></i>
+                    </div>
+                    <h5 class="status-card-title">Detailed Performance Metrics</h5>
+                </div>
+                <div class="row g-2">
+                    <div class="col-md-3 col-6">
+                        <div class="perf-metric">
+                            <div class="perf-value" id="totalRequests">0</div>
+                            <div class="perf-label">Total Requests (1m)</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="perf-metric">
+                            <div class="perf-value" id="errors4xx">0</div>
+                            <div class="perf-label">4xx Errors</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="perf-metric">
+                            <div class="perf-value" id="errors5xx">0</div>
+                            <div class="perf-label">5xx Errors</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="perf-metric">
+                            <div class="perf-value" id="failedRequests1h">0</div>
+                            <div class="perf-label">Failed (1h)</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="perf-metric">
+                            <div class="perf-value small" id="minResponseTime">-</div>
+                            <div class="perf-label">Min Response</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="perf-metric">
+                            <div class="perf-value small" id="maxResponseTime">-</div>
+                            <div class="perf-label">Max Response</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="perf-metric">
+                            <div class="perf-value small" id="p99ResponseTime">-</div>
+                            <div class="perf-label">P99 Response</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="perf-metric">
+                            <div class="perf-value" id="perfStatus">-</div>
+                            <div class="perf-label">Status</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle"></i> 
+                        Error Rate Sparkline (last 15 data points)
+                    </small>
+                    <div class="sparkline-container">
+                        <canvas id="errorRateSparkline" class="sparkline"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Health Thresholds -->
+        <div class="col-lg-4">
+            <div class="status-card">
+                <div class="status-card-header">
+                    <div class="status-card-icon" style="background: linear-gradient(135deg, #fff3e0, #ffe0b2); color: #e65100;">
+                        <i class="bi bi-sliders"></i>
+                    </div>
+                    <h5 class="status-card-title">Health Thresholds</h5>
+                </div>
+                <div id="thresholdsContainer">
+                    <div class="status-item">
+                        <span class="status-label"><i class="bi bi-cpu"></i>CPU</span>
+                        <span class="status-value" id="thresholdCpu">70% / 90%</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label"><i class="bi bi-memory"></i>Memory</span>
+                        <span class="status-value" id="thresholdMemory">80% / 95%</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label"><i class="bi bi-hdd"></i>Disk</span>
+                        <span class="status-value" id="thresholdDisk">80% / 95%</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label"><i class="bi bi-exclamation-triangle"></i>Error Rate</span>
+                        <span class="status-value" id="thresholdError">1% / 5%</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label"><i class="bi bi-lightning"></i>Response Time</span>
+                        <span class="status-value" id="thresholdResponse">500ms / 2s</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label"><i class="bi bi-plug"></i>DB Connections</span>
+                        <span class="status-value" id="thresholdDbConn">80% / 95%</span>
+                    </div>
+                </div>
+                <div class="mt-2 small text-muted">
+                    <i class="bi bi-info-circle"></i> Format: Warning / Critical
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Row 5: API Endpoints Info -->
+    <div class="row g-3">
+        <div class="col-12">
+            <div class="status-card">
+                <div class="status-card-header">
+                    <div class="status-card-icon" style="background: linear-gradient(135deg, #e1f5fe, #b3e5fc); color: #0277bd;">
+                        <i class="bi bi-braces"></i>
+                    </div>
+                    <h5 class="status-card-title">Health API Endpoints</h5>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 col-6 mb-2">
+                        <div class="p-2 bg-light rounded">
+                            <code class="small">/api/system-health/status</code>
+                            <div class="small text-muted mt-1">Full health data</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-6 mb-2">
+                        <div class="p-2 bg-light rounded">
+                            <code class="small">/api/system-health/performance</code>
+                            <div class="small text-muted mt-1">Performance metrics</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-6 mb-2">
+                        <div class="p-2 bg-light rounded">
+                            <code class="small">/api/system-health/sparklines</code>
+                            <div class="small text-muted mt-1">Historical trends</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-6 mb-2">
+                        <div class="p-2 bg-light rounded">
+                            <code class="small">/api/system-health/thresholds</code>
+                            <div class="small text-muted mt-1">GET/POST thresholds</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-6 mb-2">
+                        <div class="p-2 bg-light rounded">
+                            <code class="small">/health</code>
+                            <div class="small text-muted mt-1">Simple health check</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-6 mb-2">
+                        <div class="p-2 bg-light rounded">
+                            <span class="small text-muted">Last Updated:</span>
+                            <div class="small fw-bold" id="lastUpdated">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js for Sparklines (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<script>
+    // ============================================================
+    // SYSTEM HEALTH DASHBOARD - JAVASCRIPT
+    // ============================================================
+    
+    // Configuration
+    const REFRESH_INTERVAL = 30000; // 30 seconds
+    const SPARKLINE_POINTS = 15;
+    
+    // Sparkline chart instances
+    let cpuChart = null;
+    let memoryChart = null;
+    let rpsChart = null;
+    let errorRateChart = null;
+    
+    // Sparkline data storage
+    const sparklineData = {
+        cpu: [],
+        memory: [],
+        rps: [],
+        errorRate: []
+    };
+    
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        initSparklines();
+        loadHealthData();
+        setInterval(loadHealthData, REFRESH_INTERVAL);
+    });
+    
+    // Initialize sparkline charts
+    function initSparklines() {
+        const sparklineConfig = {
+            type: 'line',
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { display: false },
+                    y: { display: false, min: 0 }
+                },
+                elements: {
+                    point: { radius: 0 },
+                    line: { tension: 0.4, borderWidth: 2 }
+                },
+                animation: { duration: 300 }
+            }
+        };
+        
+        // CPU Sparkline
+        const cpuCtx = document.getElementById('cpuSparkline');
+        if (cpuCtx) {
+            cpuChart = new Chart(cpuCtx, {
+                ...sparklineConfig,
+                data: {
+                    labels: Array(SPARKLINE_POINTS).fill(''),
+                    datasets: [{
+                        data: Array(SPARKLINE_POINTS).fill(0),
+                        borderColor: '#28a745',
+                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                        fill: true
+                    }]
+                }
+            });
+        }
+        
+        // Memory Sparkline
+        const memCtx = document.getElementById('memorySparkline');
+        if (memCtx) {
+            memoryChart = new Chart(memCtx, {
+                ...sparklineConfig,
+                data: {
+                    labels: Array(SPARKLINE_POINTS).fill(''),
+                    datasets: [{
+                        data: Array(SPARKLINE_POINTS).fill(0),
+                        borderColor: '#17a2b8',
+                        backgroundColor: 'rgba(23, 162, 184, 0.1)',
+                        fill: true
+                    }]
+                }
+            });
+        }
+        
+        // RPS Sparkline
+        const rpsCtx = document.getElementById('rpsSparkline');
+        if (rpsCtx) {
+            rpsChart = new Chart(rpsCtx, {
+                ...sparklineConfig,
+                data: {
+                    labels: Array(SPARKLINE_POINTS).fill(''),
+                    datasets: [{
+                        data: Array(SPARKLINE_POINTS).fill(0),
+                        borderColor: '#fd7e14',
+                        backgroundColor: 'rgba(253, 126, 20, 0.1)',
+                        fill: true
+                    }]
+                }
+            });
+        }
+        
+        // Error Rate Sparkline
+        const errorCtx = document.getElementById('errorRateSparkline');
+        if (errorCtx) {
+            errorRateChart = new Chart(errorCtx, {
+                ...sparklineConfig,
+                data: {
+                    labels: Array(SPARKLINE_POINTS).fill(''),
+                    datasets: [{
+                        data: Array(SPARKLINE_POINTS).fill(0),
+                        borderColor: '#dc3545',
+                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                        fill: true
+                    }]
+                }
+            });
+        }
+    }
+    
+    // Update sparkline with new data point
+    function updateSparkline(chart, value) {
+        if (!chart) return;
+        const data = chart.data.datasets[0].data;
+        data.push(value);
+        if (data.length > SPARKLINE_POINTS) data.shift();
+        chart.update('none');
+    }
+    
+    // Update sparkline from historical data array
+    function updateSparklineFromHistory(chart, historyArray) {
+        if (!chart || !historyArray || historyArray.length === 0) return;
+        
+        // Pad with zeros if not enough data
+        const paddedData = Array(SPARKLINE_POINTS).fill(0);
+        const startIdx = Math.max(0, SPARKLINE_POINTS - historyArray.length);
+        
+        historyArray.slice(-SPARKLINE_POINTS).forEach((val, idx) => {
+            paddedData[startIdx + idx] = val;
+        });
+        
+        chart.data.datasets[0].data = paddedData;
+        chart.update('none');
+    }
+    
+    // Main data loading function - fetches all endpoints
+    async function loadHealthData() {
+        try {
+            // Fetch all health data in parallel
+            const [statusRes, perfRes, sparklinesRes, thresholdsRes] = await Promise.all([
+                fetch('/api/system-health/status'),
+                fetch('/api/system-health/performance').catch(() => null),
+                fetch('/api/system-health/sparklines').catch(() => null),
+                fetch('/api/system-health/thresholds').catch(() => null)
+            ]);
+            
+            if (!statusRes.ok) {
+                showError('API Error: ' + statusRes.status);
+                return;
+            }
+            
+            const statusData = await statusRes.json();
+            if (!statusData.success) {
+                showError(statusData.error || 'Unknown error');
+                return;
+            }
+            
+            // Parse additional data if available
+            let perfData = null, sparklinesData = null, thresholdsData = null;
+            
+            if (perfRes && perfRes.ok) {
+                const perf = await perfRes.json();
+                if (perf.success) perfData = perf.metrics;
+            }
+            
+            if (sparklinesRes && sparklinesRes.ok) {
+                const sparklines = await sparklinesRes.json();
+                if (sparklines.success) sparklinesData = sparklines.sparklines;
+            }
+            
+            if (thresholdsRes && thresholdsRes.ok) {
+                const thresholds = await thresholdsRes.json();
+                if (thresholds.success) thresholdsData = thresholds.thresholds;
+            }
+            
+            // Update dashboard with all data
+            updateDashboard(statusData.status, perfData, sparklinesData, thresholdsData);
+        } catch (error) {
+            console.error('Error loading health data:', error);
+            showError('Network error: ' + error.message);
+        }
+    }
+    
+    // Update all dashboard elements
+    function updateDashboard(status, perfData, sparklinesData, thresholdsData) {
+        // Store thresholds for later use
+        if (thresholdsData) {
+            window.healthThresholds = thresholdsData;
+        }
+        
+        // Update sparklines if we have historical data
+        if (sparklinesData) {
+            updateSparklineFromHistory(cpuChart, sparklinesData.cpu || []);
+            updateSparklineFromHistory(memoryChart, sparklinesData.memory || []);
+            updateSparklineFromHistory(rpsChart, sparklinesData.rps || []);
+            updateSparklineFromHistory(errorRateChart, sparklinesData.error_rate || []);
+        }
+        
+        // Use dedicated performance data if available
+        if (perfData) {
+            updatePerformanceSection(perfData);
+            updateDetailedPerformance(perfData);
+        }
+        
+        // Update thresholds display
+        if (thresholdsData) {
+            updateThresholdsDisplay(thresholdsData);
+        }
+        
+        // Update last updated timestamp
+        document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+        // Health Score
+        const score = status.overall_score || status.overall_health?.score || 100;
+        const healthStatus = status.health_status || 'healthy';
+        
+        document.getElementById('healthScore').textContent = score;
+        document.getElementById('healthScoreRing').className = `health-score-ring ${healthStatus}`;
+        
+        const statusEl = document.getElementById('healthStatus');
+        statusEl.className = `health-status-text ${healthStatus}`;
+        statusEl.textContent = healthStatus === 'healthy' ? '✓ All Systems Operational' :
+                              healthStatus === 'warning' ? '⚠ Some Issues Detected' : '✕ Critical Issues';
+        
+        // Uptime
+        const uptime = status.uptime || status.application?.uptime || {};
+        document.getElementById('uptimeText').textContent = uptime.formatted || '0d 0h 0m';
+        
+        // System Info
+        document.getElementById('pythonVersion').textContent = status.python_version || '-';
+        document.getElementById('osInfo').textContent = status.os_info || '-';
+        if (uptime.started_at) {
+            const startDate = new Date(uptime.started_at);
+            document.getElementById('appStarted').textContent = startDate.toLocaleDateString() + ', ' + 
+                startDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+        
+        // Threads
+        const threads = status.threads || status.application?.threads || {};
+        document.getElementById('threadCount').textContent = threads.active_count || '-';
+        
+        // Database
+        updateDatabaseSection(status.database || {});
+        
+        // CPU
+        updateResourceSection('cpu', status.cpu || status.system?.cpu || {});
+        
+        // Memory
+        updateResourceSection('memory', status.memory || status.system?.memory || {});
+        
+        // Disk
+        updateResourceSection('disk', status.disk || status.system?.disk || {});
+        
+        // Performance
+        updatePerformanceSection(status.application?.performance || {});
+        
+        // Services
+        updateServicesSection(status.services || {});
+        
+        // Network
+        updateNetworkSection(status.network || {});
+        
+        // Process
+        const process = status.application?.process || {};
+        document.getElementById('processMem').textContent = process.memory_mb ? `${process.memory_mb} MB` : '-';
+        document.getElementById('processId').textContent = process.pid || '-';
+        
+        // Update sparklines
+        const cpu = status.cpu || status.system?.cpu || {};
+        const mem = status.memory || status.system?.memory || {};
+        updateSparkline(cpuChart, cpu.percent || 0);
+        updateSparkline(memoryChart, mem.percent_used || 0);
+    }
+    
+    // Update database section
+    function updateDatabaseSection(db) {
+        const dbStatusEl = document.getElementById('dbStatus');
+        dbStatusEl.textContent = db.connected ? 'Connected' : 'Disconnected';
+        dbStatusEl.className = `status-badge ${db.connected ? (db.status || 'healthy') : 'critical'}`;
+        
+        document.getElementById('dbLatency').textContent = db.latency_ms ? `${db.latency_ms}ms` : '-';
+        
+        const conn = db.connections || {};
+        document.getElementById('dbConnections').textContent = conn.active !== undefined ? 
+            `${conn.active}/${conn.max || '?'}` : '-';
+        
+        const stats = db.stats || {};
+        animateValue('dbUsers', stats.users || 0);
+        animateValue('dbTeams', stats.teams || 0);
+        animateValue('dbShifts', stats.shifts || 0);
+        animateValue('dbIncidents', stats.incidents || 0);
+    }
+    
+    // Update resource section (CPU, Memory, Disk)
+    function updateResourceSection(type, data) {
+        const percent = type === 'cpu' ? data.percent : data.percent_used;
+        const status = data.status || 'healthy';
+        
+        if (type === 'cpu') {
+            document.getElementById('cpuUsage').textContent = `${percent || 0}%`;
+            document.getElementById('cpuCores').textContent = `Cores: ${data.cores || '-'}`;
+            document.getElementById('cpuPercent').textContent = `${percent || 0}%`;
+            document.getElementById('cpuPercent').className = `progress-percent ${status}`;
+            document.getElementById('cpuBar').style.width = `${Math.min(percent || 0, 100)}%`;
+            document.getElementById('cpuBar').className = `progress-fill ${status}`;
+        } else if (type === 'memory') {
+            const used = data.used_gb || 0;
+            const total = data.total_gb || 0;
+            document.getElementById('memoryUsage').textContent = `${used} GB / ${total} GB`;
+            document.getElementById('memoryPercent').textContent = `${percent || 0}%`;
+            document.getElementById('memoryPercent').className = `progress-percent ${status}`;
+            document.getElementById('memoryBar').style.width = `${percent || 0}%`;
+            document.getElementById('memoryBar').className = `progress-fill ${status}`;
+        } else if (type === 'disk') {
+            const used = data.used_gb || 0;
+            const total = data.total_gb || 0;
+            document.getElementById('diskUsage').textContent = `${used} GB / ${total} GB`;
+            document.getElementById('diskPercent').textContent = `${percent || 0}%`;
+            document.getElementById('diskPercent').className = `progress-percent ${status}`;
+            document.getElementById('diskBar').style.width = `${percent || 0}%`;
+            document.getElementById('diskBar').className = `progress-fill ${status}`;
+        }
+    }
+    
+    // Update performance section
+    function updatePerformanceSection(perf) {
+        document.getElementById('rpsValue').textContent = perf.requests_per_second || '0';
+        document.getElementById('errorRate').textContent = perf.error_rate ? `${perf.error_rate}%` : '0%';
+        document.getElementById('avgResponseTime').textContent = perf.avg_response_time_ms ? 
+            `${Math.round(perf.avg_response_time_ms)}ms` : '-';
+        document.getElementById('p95ResponseTime').textContent = perf.p95_response_time_ms ? 
+            `${Math.round(perf.p95_response_time_ms)}ms` : '-';
+        
+        updateSparkline(rpsChart, perf.requests_per_second || 0);
+        updateSparkline(errorRateChart, perf.error_rate || 0);
+    }
+    
+    // Update detailed performance metrics
+    function updateDetailedPerformance(perf) {
+        document.getElementById('totalRequests').textContent = perf.total_requests || '0';
+        document.getElementById('errors4xx').textContent = perf.error_count_4xx || '0';
+        document.getElementById('errors5xx').textContent = perf.error_count_5xx || '0';
+        document.getElementById('failedRequests1h').textContent = perf.failed_requests_1h || '0';
+        document.getElementById('minResponseTime').textContent = perf.min_response_time_ms ? 
+            `${Math.round(perf.min_response_time_ms)}ms` : '-';
+        document.getElementById('maxResponseTime').textContent = perf.max_response_time_ms ? 
+            `${Math.round(perf.max_response_time_ms)}ms` : '-';
+        document.getElementById('p99ResponseTime').textContent = perf.p99_response_time_ms ? 
+            `${Math.round(perf.p99_response_time_ms)}ms` : '-';
+        
+        // Update status badge
+        const statusEl = document.getElementById('perfStatus');
+        const status = perf.status || 'healthy';
+        statusEl.innerHTML = `<span class="status-badge ${status}">${status.toUpperCase()}</span>`;
+    }
+    
+    // Update thresholds display
+    function updateThresholdsDisplay(thresholds) {
+        if (thresholds.cpu) {
+            document.getElementById('thresholdCpu').textContent = 
+                `${thresholds.cpu.warning}% / ${thresholds.cpu.critical}%`;
+        }
+        if (thresholds.memory) {
+            document.getElementById('thresholdMemory').textContent = 
+                `${thresholds.memory.warning}% / ${thresholds.memory.critical}%`;
+        }
+        if (thresholds.disk) {
+            document.getElementById('thresholdDisk').textContent = 
+                `${thresholds.disk.warning}% / ${thresholds.disk.critical}%`;
+        }
+        if (thresholds.error_rate) {
+            document.getElementById('thresholdError').textContent = 
+                `${thresholds.error_rate.warning}% / ${thresholds.error_rate.critical}%`;
+        }
+        if (thresholds.response_time) {
+            document.getElementById('thresholdResponse').textContent = 
+                `${thresholds.response_time.warning}ms / ${thresholds.response_time.critical}ms`;
+        }
+        if (thresholds.db_connections) {
+            document.getElementById('thresholdDbConn').textContent = 
+                `${thresholds.db_connections.warning}% / ${thresholds.db_connections.critical}%`;
+        }
+    }
+    
+    // Update services section
+    function updateServicesSection(services) {
+        // Nginx
+        const nginx = services.nginx || {};
+        const nginxEl = document.getElementById('nginxStatus');
+        nginxEl.textContent = nginx.healthy ? 'Active' : (nginx.status || 'Unknown');
+        nginxEl.className = `status-badge ${nginx.healthy ? 'healthy' : 'warning'}`;
+        
+        // Database Network
+        const dbNet = services.database_network || {};
+        const dbNetEl = document.getElementById('dbNetworkStatus');
+        dbNetEl.textContent = dbNet.healthy ? 'Connected' : (dbNet.status || 'Unknown');
+        dbNetEl.className = `status-badge ${dbNet.healthy ? 'healthy' : 'critical'}`;
+        
+        // Containers
+        const containers = services.containers || [];
+        const webContainer = containers.find(c => c.name === 'shift-web') || services.container || {};
+        const dbContainer = containers.find(c => c.name === 'shift-db') || {};
+        
+        document.getElementById('webContainerStatus').textContent = webContainer.status === 'running' ? 'Running' : (webContainer.status || '-');
+        document.getElementById('webContainerStatus').className = `status-badge ${webContainer.healthy ? 'healthy' : 'warning'}`;
+        document.getElementById('webContainerId').textContent = webContainer.container_id || '-';
+        document.getElementById('webContainerProcesses').textContent = webContainer.process_count || '-';
+        
+        const dbContainerStatusEl = document.getElementById('dbContainerStatus');
+        dbContainerStatusEl.textContent = dbContainer.status === 'running' ? 'Running' : (dbContainer.status || 'Unknown');
+        dbContainerStatusEl.className = `status-badge ${dbContainer.healthy ? 'healthy' : 'critical'}`;
+        document.getElementById('dbContainerPort').textContent = dbContainer.port || '3306';
+        document.getElementById('dbResponseTime').textContent = dbContainer.response_time_ms ? `${dbContainer.response_time_ms}ms` : '-';
+    }
+    
+    // Update network section
+    function updateNetworkSection(network) {
+        const dnsEl = document.getElementById('dnsStatus');
+        dnsEl.textContent = network.dns_resolution ? 'Working' : 'Failed';
+        dnsEl.className = `status-badge ${network.dns_resolution ? 'healthy' : 'warning'}`;
+        
+        const internetEl = document.getElementById('internetStatus');
+        internetEl.textContent = network.internet_access ? 'Available' : 'Restricted';
+        internetEl.className = `status-badge ${network.internet_access ? 'healthy' : 'warning'}`;
+    }
+    
+    // Show error state
+    function showError(message) {
+        document.getElementById('healthScore').textContent = '!';
+        document.getElementById('healthStatus').textContent = 'Error: ' + message;
+        document.getElementById('healthStatus').className = 'health-status-text critical';
+    }
+    
+    // Animate number counting
+    function animateValue(elementId, value, duration = 400) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        
+        const start = parseInt(el.textContent) || 0;
+        const increment = (value - start) / (duration / 16);
+        let current = start;
+        
+        const timer = setInterval(() => {
+            current += increment;
+            if ((increment > 0 && current >= value) || (increment < 0 && current <= value) || increment === 0) {
+                el.textContent = value;
+                clearInterval(timer);
+            } else {
+                el.textContent = Math.round(current);
+            }
+        }, 16);
+    }
+</script>
+{% endblock %}

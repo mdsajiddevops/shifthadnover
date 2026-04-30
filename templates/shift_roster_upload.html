@@ -1,200 +1,608 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="dashboard-upload-card card shadow p-4 mb-4 bg-white rounded">
-    <h2 class="mb-3">
-        <i class="bi bi-calendar-week me-2 text-primary"></i>
-        Shift Roster Upload
-    </h2>
+<style>
+    .roster-upload-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
     
-    <!-- Sample File Download Section -->
-    <div class="alert alert-info border-0 mb-4" style="background: linear-gradient(135deg, #e3f2fd, #f0f8ff);">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <h5 class="alert-heading mb-2">
-                    <i class="bi bi-download me-2 text-primary"></i>
-                    Download Sample File - Wide Format
-                </h5>
-                <p class="mb-2">
-                    <i class="bi bi-info-circle me-1"></i>
-                    Download our sample Excel file to see the exact wide format required for shift roster uploads.
-                </p>
-                <small class="text-muted">
-                    <i class="bi bi-file-earmark-excel me-1"></i>
-                    <strong>Format:</strong> Member name in Column A, Dates as column headers, Shift codes in data cells
-                </small>
+    .roster-hero {
+        background: linear-gradient(135deg, #e8f0fe 0%, #d4e4fc 50%, #c5d9f8 100%);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 2rem;
+        color: #1e3c72;
+        position: relative;
+        overflow: hidden;
+        border: 1px solid #b8d4f8;
+    }
+    
+    .roster-hero::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -20%;
+        width: 60%;
+        height: 200%;
+        background: rgba(255, 255, 255, 0.3);
+        transform: rotate(15deg);
+    }
+    
+    .roster-hero h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+        position: relative;
+        color: #1e3c72;
+    }
+    
+    .roster-hero h2 i {
+        color: #3b6eb5;
+    }
+    
+    .roster-hero p {
+        opacity: 0.8;
+        font-size: 0.95rem;
+        margin-bottom: 0;
+        color: #4a6fa5;
+    }
+    
+    .upload-section {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        margin-bottom: 2rem;
+        border: 1px solid #e8eef3;
+    }
+    
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1e3c72;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .section-title i {
+        font-size: 1.5rem;
+        background: linear-gradient(135deg, #1e3c72, #2a5298);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .download-sample-card {
+        background: linear-gradient(135deg, #f0f7ff 0%, #e8f4fd 100%);
+        border: 2px dashed #2a5298;
+        border-radius: 12px;
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    
+    .download-sample-card .info {
+        flex: 1;
+        min-width: 250px;
+    }
+    
+    .download-sample-card h5 {
+        color: #1e3c72;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+    
+    .download-sample-card p {
+        color: #5a6c7d;
+        margin-bottom: 0;
+        font-size: 0.95rem;
+    }
+    
+    .btn-download {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        border: none;
+        color: white;
+        padding: 0.875rem 1.5rem;
+        border-radius: 10px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+    }
+    
+    .btn-download:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+        color: white;
+    }
+    
+    .upload-form-card {
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #374151;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .form-select, .form-control {
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        transition: all 0.2s ease;
+    }
+    
+    .form-select:focus, .form-control:focus {
+        border-color: #2a5298;
+        box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.15);
+    }
+    
+    .btn-upload {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        border: none;
+        color: white;
+        padding: 0.875rem 2rem;
+        border-radius: 10px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(30, 60, 114, 0.3);
+    }
+    
+    .btn-upload:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(30, 60, 114, 0.4);
+        color: white;
+    }
+    
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+    }
+    
+    .info-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid #e8eef3;
+        transition: all 0.3s ease;
+    }
+    
+    .info-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
+    
+    .info-card.structure {
+        border-top: 4px solid #10b981;
+    }
+    
+    .info-card.benefits {
+        border-top: 4px solid #3b82f6;
+    }
+    
+    .info-card.notes {
+        border-top: 4px solid #f59e0b;
+    }
+    
+    .info-card h6 {
+        font-weight: 700;
+        font-size: 1rem;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .info-card.structure h6 { color: #10b981; }
+    .info-card.benefits h6 { color: #3b82f6; }
+    .info-card.notes h6 { color: #f59e0b; }
+    
+    .info-card ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .info-card li {
+        padding: 0.4rem 0;
+        color: #5a6c7d;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .info-card li i {
+        margin-top: 3px;
+        flex-shrink: 0;
+    }
+    
+    .shift-codes-section {
+        background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+        border-radius: 16px;
+        padding: 2rem;
+        border: 1px solid #fde047;
+    }
+    
+    .shift-codes-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+    }
+    
+    .shift-code-item {
+        background: white;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        border: 1px solid #fde68a;
+    }
+    
+    .shift-code-badge {
+        background: linear-gradient(135deg, #1e3c72, #2a5298);
+        color: white;
+        font-weight: 700;
+        padding: 0.35rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        min-width: 40px;
+        text-align: center;
+    }
+    
+    .shift-code-badge.leave {
+        background: linear-gradient(135deg, #dc2626, #ef4444);
+    }
+    
+    .shift-code-name {
+        color: #374151;
+        font-size: 0.9rem;
+    }
+    
+    .tips-box {
+        background: #fef3c7;
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin-top: 1.5rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+    
+    .tips-box i {
+        color: #d97706;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+        margin-top: 2px;
+    }
+    
+    .tips-box .tips-content {
+        font-size: 0.9rem;
+        color: #78350f;
+    }
+    
+    .tips-box .tips-content strong {
+        display: block;
+        margin-bottom: 0.25rem;
+        color: #92400e;
+    }
+    
+    .preview-section {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        margin-top: 2rem;
+        border: 1px solid #e8eef3;
+    }
+    
+    .preview-section h4 {
+        color: #1e3c72;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .table-preview {
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid #e5e7eb;
+    }
+    
+    .table-preview thead {
+        background: linear-gradient(135deg, #1e3c72, #2a5298);
+    }
+    
+    .table-preview thead th {
+        color: white;
+        font-weight: 600;
+        padding: 1rem;
+        border: none;
+    }
+    
+    .table-preview tbody td {
+        padding: 0.875rem 1rem;
+        border-color: #e5e7eb;
+    }
+    
+    .table-preview tbody tr:hover {
+        background-color: #f0f7ff;
+    }
+    
+    .flash-message {
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .flash-message.success {
+        background: #d1fae5;
+        border: 1px solid #34d399;
+        color: #065f46;
+    }
+    
+    .flash-message.error {
+        background: #fee2e2;
+        border: 1px solid #f87171;
+        color: #991b1b;
+    }
+    
+    .flash-message.info {
+        background: #dbeafe;
+        border: 1px solid #60a5fa;
+        color: #1e40af;
+    }
+</style>
+
+<div class="roster-upload-container">
+    <!-- Hero Header -->
+    <div class="roster-hero">
+        <h2>
+            <i class="bi bi-calendar-week me-2"></i>
+            Shift Roster Upload
+        </h2>
+        <p>Import your team's shift schedule with our easy-to-use Excel template</p>
+    </div>
+    
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for message in messages %}
+            <div class="flash-message info">
+                <i class="bi bi-info-circle-fill"></i>
+                <span>{{ message | safe }}</span>
             </div>
-            <div class="col-md-4 text-md-end">
-                <a href="{{ url_for('roster_upload.download_wide_format_roster') }}" 
-                   class="btn btn-primary btn-lg">
-                    <i class="bi bi-download me-2"></i>
-                    Wide Format Sample
-                </a>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    
+    <!-- Download Sample Section -->
+    <div class="upload-section">
+        <h4 class="section-title">
+            <i class="bi bi-file-earmark-arrow-down"></i>
+            Step 1: Download Template
+        </h4>
+        <div class="download-sample-card">
+            <div class="info">
+                <h5><i class="bi bi-file-earmark-excel me-2 text-success"></i>Wide Format Excel Template</h5>
+                <p>Get our pre-formatted template with sample data. Fill it with your team's roster and upload below.</p>
             </div>
+            <a href="{{ url_for('roster_upload.download_wide_format_roster') }}" class="btn btn-download">
+                <i class="bi bi-download"></i>
+                Download Template
+            </a>
         </div>
     </div>
     
-    <!-- Upload Form -->
-    <form method="POST" action="{{ url_for('roster_upload.roster_upload') }}" enctype="multipart/form-data" class="mb-4">
-        <div class="row g-3 align-items-center">
-            {% if current_user.role == 'super_admin' %}
-            <div class="col-md-3">
-                <label for="account_id" class="form-label">Account</label>
-                <select name="account_id" id="account_id" class="form-select" required onchange="updateTeamsDropdown(this.value)">
-                    <option value="">-- Select Account --</option>
-                    {% for account in accounts %}
-                    <option value="{{ account.id }}" {% if account.id|string == request.args.get('account_id') %}selected{% endif %}>{{ account.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label for="team_id" class="form-label">Team</label>
-                <select name="team_id" id="team_id" class="form-select" required>
-                    <option value="">-- Select Team --</option>
-                    {% for team in teams %}
-                    <option value="{{ team.id }}" {% if team.id|string == request.args.get('team_id') %}selected{% endif %}>{{ team.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <script>
-            function updateTeamsDropdown(accountId) {
-                fetch('/get_teams?account_id=' + accountId)
-                    .then(response => response.json())
-                    .then(data => {
-                        const teamSelect = document.getElementById('team_id');
-                        teamSelect.innerHTML = '<option value="">-- Select Team --</option>';
-                        data.teams.forEach(team => {
-                            teamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
-                        });
-                    });
-            }
-            </script>
-            {% elif current_user.role == 'account_admin' %}
-            <div class="col-md-3">
-                <label for="team_id" class="form-label">Team</label>
-                <select name="team_id" id="team_id" class="form-select" required>
-                    <option value="">-- Select Team --</option>
-                    {% for team in teams %}
-                    <option value="{{ team.id }}" {% if team.id|string == request.args.get('team_id') %}selected{% endif %}>{{ team.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            {% endif %}
-            <div class="col-auto">
-                <label for="file" class="form-label">Upload Excel (.xlsx)</label>
-                <input type="file" name="file" id="file" accept=".xlsx" required class="form-control">
-            </div>
-            <div class="col-auto">
-                <button type="submit" class="btn btn-success">Upload Shift Roster</button>
-            </div>
-        </div>
-    </form>
-    
-    <!-- Format Information Section -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-0 h-100" style="background: linear-gradient(135deg, #e3f2fd, #ffffff);">
-                <div class="card-body">
-                    <h5 class="card-title text-primary">
-                        <i class="bi bi-table me-2"></i>
-                        Wide Format Layout
-                    </h5>
-                    <div class="row">
-                        <div class="col-md-4">
-                            <h6 class="text-success">
-                                <i class="bi bi-check-circle me-1"></i>
-                                Column Structure
-                            </h6>
-                            <small class="text-muted">
-                                <strong>Column A:</strong> Member name<br>
-                                <strong>Columns B+:</strong> Dates (01-10-2025, 02-10-2025...)<br>
-                                <strong>Data Cells:</strong> Shift codes (D, E, N, G, etc.)
-                            </small>
-                        </div>
-                        <div class="col-md-4">
-                            <h6 class="text-info">
-                                <i class="bi bi-star me-1"></i>
-                                Perfect For
-                            </h6>
-                            <small class="text-muted">
-                                Monthly schedules<br>
-                                Calendar-style view<br>
-                                Easy to read across dates<br>
-                                Quick visual overview
-                            </small>
-                        </div>
-                        <div class="col-md-4">
-                            <h6 class="text-warning">
-                                <i class="bi bi-exclamation-triangle me-1"></i>
-                                Important Notes
-                            </h6>
-                            <small class="text-muted">
-                                First column MUST be "Member name"<br>
-                                Use DD-MM-YYYY date format<br>
-                                Team member names must exist in system<br>
-                                Only use valid shift codes
-                            </small>
-                        </div>
+    <!-- Upload Form Section -->
+    <div class="upload-section">
+        <h4 class="section-title">
+            <i class="bi bi-cloud-arrow-up"></i>
+            Step 2: Upload Your Roster
+        </h4>
+        <div class="upload-form-card">
+            <form method="POST" action="{{ url_for('roster_upload.roster_upload') }}" enctype="multipart/form-data">
+                <div class="row g-3 align-items-end">
+                    {% if current_user.role == 'super_admin' %}
+                    <div class="col-md-3">
+                        <label for="account_id" class="form-label">
+                            <i class="bi bi-building me-1"></i>Account
+                        </label>
+                        <select name="account_id" id="account_id" class="form-select" required onchange="updateTeamsDropdown(this.value)">
+                            <option value="">Select Account...</option>
+                            {% for account in accounts %}
+                            <option value="{{ account.id }}" {% if account.id|string == request.args.get('account_id') %}selected{% endif %}>{{ account.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="team_id" class="form-label">
+                            <i class="bi bi-people me-1"></i>Team
+                        </label>
+                        <select name="team_id" id="team_id" class="form-select" required>
+                            <option value="">Select Team...</option>
+                            {% for team in teams %}
+                            <option value="{{ team.id }}" {% if team.id|string == request.args.get('team_id') %}selected{% endif %}>{{ team.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <script>
+                    function updateTeamsDropdown(accountId) {
+                        fetch('/get_teams?account_id=' + accountId)
+                            .then(response => response.json())
+                            .then(data => {
+                                const teamSelect = document.getElementById('team_id');
+                                teamSelect.innerHTML = '<option value="">Select Team...</option>';
+                                data.teams.forEach(team => {
+                                    teamSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
+                                });
+                            });
+                    }
+                    </script>
+                    {% elif current_user.role == 'account_admin' %}
+                    <div class="col-md-4">
+                        <label for="team_id" class="form-label">
+                            <i class="bi bi-people me-1"></i>Team
+                        </label>
+                        <select name="team_id" id="team_id" class="form-select" required>
+                            <option value="">Select Team...</option>
+                            {% for team in teams %}
+                            <option value="{{ team.id }}" {% if team.id|string == request.args.get('team_id') %}selected{% endif %}>{{ team.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    <div class="col-md-4">
+                        <label for="file" class="form-label">
+                            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel File (.xlsx)
+                        </label>
+                        <input type="file" name="file" id="file" accept=".xlsx" required class="form-control">
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-upload w-100">
+                            <i class="bi bi-upload"></i>
+                            Upload
+                        </button>
                     </div>
                 </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Format Information -->
+    <div class="upload-section">
+        <h4 class="section-title">
+            <i class="bi bi-info-circle"></i>
+            File Format Guide
+        </h4>
+        <div class="info-grid">
+            <div class="info-card structure">
+                <h6>
+                    <i class="bi bi-table"></i>
+                    Column Structure
+                </h6>
+                <ul>
+                    <li><i class="bi bi-arrow-right text-success"></i><span><strong>Column A:</strong> Member name (must match system)</span></li>
+                    <li><i class="bi bi-arrow-right text-success"></i><span><strong>Column B+:</strong> Dates (DD-MM-YYYY format)</span></li>
+                    <li><i class="bi bi-arrow-right text-success"></i><span><strong>Data Cells:</strong> Shift codes (D, E, N, etc.)</span></li>
+                </ul>
+            </div>
+            <div class="info-card benefits">
+                <h6>
+                    <i class="bi bi-star"></i>
+                    Perfect For
+                </h6>
+                <ul>
+                    <li><i class="bi bi-check2 text-primary"></i>Monthly shift schedules</li>
+                    <li><i class="bi bi-check2 text-primary"></i>Calendar-style planning view</li>
+                    <li><i class="bi bi-check2 text-primary"></i>Quick visual overview</li>
+                    <li><i class="bi bi-check2 text-primary"></i>Easy bulk updates</li>
+                </ul>
+            </div>
+            <div class="info-card notes">
+                <h6>
+                    <i class="bi bi-exclamation-triangle"></i>
+                    Important Notes
+                </h6>
+                <ul>
+                    <li><i class="bi bi-dot text-warning"></i>First column header must be "Member name"</li>
+                    <li><i class="bi bi-dot text-warning"></i>Use DD-MM-YYYY date format</li>
+                    <li><i class="bi bi-dot text-warning"></i>Names must exist in system</li>
+                    <li><i class="bi bi-dot text-warning"></i>Use uppercase shift codes only</li>
+                </ul>
             </div>
         </div>
     </div>
     
     <!-- Shift Codes Reference -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-0" style="background: linear-gradient(135deg, #fff3cd, #ffffff);">
-                <div class="card-body">
-                    <h5 class="card-title text-warning">
-                        <i class="bi bi-code-square me-2"></i>
-                        Shift Codes Reference
-                    </h5>
-                    <div class="row">
-                        <div class="col-md-3">
-                            <small class="text-muted">
-                                <strong>D</strong> = Day Shift<br>
-                                <strong>E</strong> = Evening Shift<br>
-                                <strong>N</strong> = Night Shift<br>
-                                <strong>OS</strong> = OnShore Shift<br>
-                                <strong>OF</strong> = OffShore Shift<br>
-                                <strong>G</strong> = General/Flexible
-                            </small>
-                        </div>
-                        <div class="col-md-3">
-                            <small class="text-muted">
-                                <strong>LE</strong> = Leave<br>
-                                <strong>VL</strong> = Vacation Leave<br>
-                                <strong>HL</strong> = Holiday Leave<br>
-                                <strong>CO</strong> = Comp Off
-                            </small>
-                        </div>
-                        <div class="col-md-6">
-                            <small class="text-muted">
-                                <strong>Important:</strong> Use these exact codes in your roster file.<br>
-                                <strong>Blank cells</strong> = Off Day (no assignment)<br>
-                                <strong>Case sensitive:</strong> Use uppercase letters only
-                            </small>
-                        </div>
-                    </div>
-                </div>
+    <div class="shift-codes-section">
+        <h4 class="section-title" style="color: #92400e;">
+            <i class="bi bi-bookmark-star" style="background: linear-gradient(135deg, #d97706, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"></i>
+            Shift Codes Reference
+        </h4>
+        <div class="shift-codes-grid">
+            <div class="shift-code-item">
+                <span class="shift-code-badge">D</span>
+                <span class="shift-code-name">Day Shift</span>
+            </div>
+            <div class="shift-code-item">
+                <span class="shift-code-badge">E</span>
+                <span class="shift-code-name">Evening Shift</span>
+            </div>
+            <div class="shift-code-item">
+                <span class="shift-code-badge">N</span>
+                <span class="shift-code-name">Night Shift</span>
+            </div>
+            <div class="shift-code-item">
+                <span class="shift-code-badge">OS</span>
+                <span class="shift-code-name">OnShore Shift</span>
+            </div>
+            <div class="shift-code-item">
+                <span class="shift-code-badge">OF</span>
+                <span class="shift-code-name">OffShore Shift</span>
+            </div>
+            <div class="shift-code-item">
+                <span class="shift-code-badge">G</span>
+                <span class="shift-code-name">General/Flexible</span>
+            </div>
+            <div class="shift-code-item">
+                <span class="shift-code-badge leave">LE</span>
+                <span class="shift-code-name">Leave</span>
+            </div>
+            <div class="shift-code-item">
+                <span class="shift-code-badge leave">VL</span>
+                <span class="shift-code-name">Vacation Leave</span>
+            </div>
+            <div class="shift-code-item">
+                <span class="shift-code-badge leave">HL</span>
+                <span class="shift-code-name">Holiday Leave</span>
+            </div>
+            <div class="shift-code-item">
+                <span class="shift-code-badge leave">CO</span>
+                <span class="shift-code-name">Comp Off</span>
+            </div>
+        </div>
+        
+        <div class="tips-box">
+            <i class="bi bi-lightbulb"></i>
+            <div class="tips-content">
+                <strong>Pro Tips</strong>
+                Leave cells blank for Off Days (no assignment). Shift codes are case-sensitive - always use UPPERCASE letters.
             </div>
         </div>
     </div>
     
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <div class="alert alert-info mt-2">
-          {% for message in messages %}
-            <div>{{ message }}</div>
-          {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
+    <!-- Preview Table (shown after upload) -->
     {% if table_data %}
-        <h4 class="mt-4">Uploaded Roster Preview</h4>
+    <div class="preview-section">
+        <h4>
+            <i class="bi bi-eye text-primary"></i>
+            Uploaded Roster Preview
+        </h4>
         <div class="table-responsive">
-            <table class="table table-bordered table-hover">
-                <thead class="table-light">
+            <table class="table table-preview table-bordered table-hover mb-0">
+                <thead>
                     <tr>
                         {% for col in columns %}<th>{{ col }}</th>{% endfor %}
                     </tr>
@@ -208,7 +616,7 @@
                 </tbody>
             </table>
         </div>
+    </div>
     {% endif %}
 </div>
 {% endblock %}
-

@@ -8,6 +8,8 @@ import json
 from datetime import datetime, timedelta, time as dt_time
 import pytz
 from sqlalchemy import func, or_, and_
+import logging
+logger = logging.getLogger(__name__)
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -116,7 +118,7 @@ def dashboard():
     next_date = today + timedelta(days=1)
 
     from flask import session
-    print(f"[DEBUG] Dashboard: current_user.is_authenticated={getattr(current_user, 'is_authenticated', None)}, id={getattr(current_user, 'id', None)}, username={getattr(current_user, 'username', None)}")
+    logger.debug(f"[DEBUG] Dashboard: current_user.is_authenticated={getattr(current_user, 'is_authenticated', None)}, id={getattr(current_user, 'id', None)}, username={getattr(current_user, 'username', None)}")
     accounts = []
     teams = []
     selected_account_id = None
@@ -169,7 +171,7 @@ def dashboard():
         ).first()
         
         if previous_shift:
-            print(f"DEBUG Dashboard: Found previous shift ID = {previous_shift.id}")
+            logger.debug(f"DEBUG Dashboard: Found previous shift ID = {previous_shift.id}")
             
             # Get only Open incidents and Handover incidents from the previous shift
             # Filter for: (type='Active' AND status='Open') OR (type='Handover')

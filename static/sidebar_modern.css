@@ -174,10 +174,11 @@
 }
 
 .modern-nav-link.active {
-    background: var(--nav-item-active);
-    color: #fff;
-    border-color: rgba(116, 185, 255, 0.3);
-    box-shadow: 0 4px 15px rgba(116, 185, 255, 0.2);
+    background: linear-gradient(135deg, #3498db, #2980b9) !important;
+    color: #fff !important;
+    border-color: rgba(116, 185, 255, 0.5);
+    box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+    transform: translateX(5px);
 }
 
 .nav-icon {

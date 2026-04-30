@@ -1,127 +1,820 @@
 {% extends "base.html" %}
+
+{% block title %}SC Vendor Details{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <h2 class="mb-4">Vendor Details</h2>
-    <button class="btn btn-success mb-2" onclick="showAddModal()">Add Vendor</button>
-    <div class="table-responsive">
-        <table class="table table-bordered table-hover align-middle" id="vendorTable">
-            <thead class="table-primary">
-                <tr>
-                    <th>Application Name</th>
-                    <th>Vendor Name</th>
-                    <th>Contact Name</th>
-                    <th>Phone</th>
-                    <th>Email</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for v in vendors %}
-                <tr data-id="{{ v.id }}">
-                    <td class="editable" data-field="application_name">{{ v.application_name }}</td>
-                    <td class="editable" data-field="vendor_name">{{ v.vendor_name }}</td>
-                    <td class="editable" data-field="contact_name">{{ v.contact_name }}</td>
-                    <td class="editable" data-field="phone"><span>{{ v.phone }}</span></td>
-                    <td class="editable" data-field="email"><a href="mailto:{{ v.email }}">{{ v.email }}</a></td>
-                    <td>
-                        <button class="btn btn-sm btn-primary" onclick="editRow(this)">Edit</button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteRow(this)">Delete</button>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<link rel="stylesheet" href="{{ url_for('static', filename='page_header.css') }}">
+
+<div class="container-fluid px-4 py-4">
+    <!-- Page Header -->
+    {% set page_icon = 'bi bi-building' %}
+    {% set page_title = 'SC Vendor Details' %}
+    {% set page_subtitle = 'Manage and view all vendor contact information' %}
+    {% set show_badge = true %}
+    {% set badge_value = total_vendors %}
+    {% set badge_label = 'Vendors' %}
+    {% include 'components/page_header.html' %}
+    
+    <!-- Action Buttons for Admins Only -->
+    {% if is_admin %}
+    <div class="mb-3 d-flex justify-content-end gap-2">
+        <button class="btn btn-success" onclick="openAddModal()" title="Add New Vendor">
+            <i class="bi bi-plus-circle me-1"></i> Add Vendor
+        </button>
+        <button class="btn btn-primary" onclick="importVendors()" title="Import from Excel">
+            <i class="bi bi-cloud-upload me-1"></i> Import from Excel
+        </button>
+    </div>
+    {% endif %}
+
+
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4" style="border: none; border-radius: 12px;">
+        <div class="card-body py-3">
+            <div class="row g-3">
+                {% if accounts|length > 1 %}
+                <!-- Account Filter (for super_admin) -->
+                <div class="col-md-2">
+                    <select 
+                        id="accountFilter"
+                        class="form-select"
+                        onchange="onAccountChange()"
+                    >
+                        <option value="">All Accounts</option>
+                        {% for acc in accounts %}
+                        <option value="{{ acc.id }}">{{ acc.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <!-- Team Filter -->
+                {% if teams|length > 0 %}
+                <div class="col-md-{% if accounts|length > 1 %}2{% else %}3{% endif %}">
+                    <select 
+                        id="teamFilter"
+                        class="form-select"
+                        onchange="filterVendors()"
+                    >
+                        {% if teams|length > 1 %}
+                        <option value="">All Teams ({{ teams|length }})</option>
+                        {% endif %}
+                        {% for team in teams %}
+                        <option value="{{ team.id }}" data-account="{{ team.account_id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <!-- Application Filter -->
+                <div class="col-md-{% if accounts|length > 1 %}3{% else %}3{% endif %}">
+                    <select 
+                        id="applicationFilter"
+                        class="form-select"
+                        onchange="filterVendors()"
+                    >
+                        <option value="">All Applications</option>
+                        {% for app in applications %}
+                        <option value="{{ app }}">{{ app }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <!-- Search -->
+                <div class="col-md-{% if accounts|length > 1 %}3{% else %}4{% endif %}">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0">
+                            <i class="bi bi-search text-muted"></i>
+                        </span>
+                        <input 
+                            type="text" 
+                            id="vendorSearch"
+                            class="form-control border-start-0"
+                            placeholder="Search vendors..." 
+                            onkeyup="filterVendors()"
+                        >
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                        <i class="bi bi-x-circle me-1"></i> Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor Table -->
+    <div class="card shadow-sm" style="border: none; border-radius: 12px; overflow: hidden;">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="vendorTable">
+                <thead class="vendor-table-header">
+                    <tr>
+                        <th>Application</th>
+                        <th>Vendor Name</th>
+                        <th>EPAM SME</th>
+                        <th>IT Owner</th>
+                        <th>Support Email</th>
+                        <th>Hotline</th>
+                        <th>Availability</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in vendors %}
+                    <tr class="vendor-row" 
+                        data-id="{{ v.id if v.id else '' }}"
+                        data-application="{{ v.application|lower if v.application else '' }}"
+                        data-search="{{ v.values()|join(' ')|lower }}">
+                        <td class="px-3 py-3">
+                            <span class="fw-medium">{{ v.application or '-' }}</span>
+                        </td>
+                        <td class="px-3 py-3">
+                            <span class="text-primary fw-medium">{{ v.vendor_name or '-' }}</span>
+                        </td>
+                        <td class="px-3 py-3 text-muted">{{ v.epam_sme or '-' }}</td>
+                        <td class="px-3 py-3 text-muted">{{ v.it_application_owner or '-' }}</td>
+                        <td class="px-3 py-3">
+                            {% if v.vendor_email %}
+                            <a href="mailto:{{ v.vendor_email.split(',')[0].strip() }}" class="text-primary text-decoration-none">
+                                <i class="bi bi-envelope me-1"></i>{{ v.vendor_email[:30] }}{% if v.vendor_email|length > 30 %}...{% endif %}
+                            </a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-3">
+                            {% if v.hotline_contact %}
+                            <span class="font-monospace small">{{ v.hotline_contact[:20] }}{% if v.hotline_contact|length > 20 %}...{% endif %}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-3">
+                            {% if v.vendor_availability and '24/7' in (v.vendor_availability|string) %}
+                            <span class="badge bg-success">24/7</span>
+                            {% elif v.vendor_availability %}
+                            <span class="small text-muted">{{ v.vendor_availability[:25] }}{% if v.vendor_availability|length > 25 %}...{% endif %}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-3 text-center">
+                            <div class="btn-group btn-group-sm">
+                                <button 
+                                    class="btn btn-outline-primary"
+                                    onclick="showVendorDetails({{ loop.index0 }})"
+                                    title="View Details"
+                                >
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                {% if is_admin %}
+                                <button 
+                                    class="btn btn-outline-warning"
+                                    onclick="openEditModal({{ loop.index0 }})"
+                                    title="Edit Vendor"
+                                >
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button 
+                                    class="btn btn-outline-danger"
+                                    onclick="deleteVendor({{ v.id if v.id else 0 }}, '{{ v.application|e }}')"
+                                    title="Delete Vendor"
+                                >
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-5 d-none">
+            <i class="bi bi-search text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-3">No vendors found matching your search criteria.</p>
+        </div>
     </div>
 </div>
 
-<!-- Modal for Add/Edit -->
-<div class="modal fade" id="vendorModal" tabindex="-1" aria-labelledby="vendorModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <form id="vendorForm">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="vendorModalLabel">Add/Edit Vendor</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<!-- View Vendor Detail Modal -->
+<div class="modal fade" id="vendorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" style="border: none; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); border-radius: 16px 16px 0 0;">
+                <h5 class="modal-title text-white" id="modalTitle">
+                    <i class="bi bi-building me-2"></i>Vendor Details
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4" id="modalContent">
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
         </div>
-        <div class="modal-body">
-          <input type="hidden" id="vendorId">
-          <div class="mb-3">
-            <label for="applicationName" class="form-label">Application Name</label>
-            <input type="text" class="form-control" id="applicationName" required>
-          </div>
-          <div class="mb-3">
-            <label for="vendorName" class="form-label">Vendor Name</label>
-            <input type="text" class="form-control" id="vendorName" required>
-          </div>
-          <div class="mb-3">
-            <label for="contactName" class="form-label">Contact Name</label>
-            <input type="text" class="form-control" id="contactName" required>
-          </div>
-          <div class="mb-3">
-            <label for="phone" class="form-label">Phone</label>
-            <input type="text" class="form-control" id="phone" required pattern="^[0-9+\-() ]+$">
-          </div>
-          <div class="mb-3">
-            <label for="email" class="form-label">Email</label>
-            <input type="email" class="form-control" id="email" required>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="submit" class="btn btn-success">Save</button>
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        </div>
-      </div>
-    </form>
-  </div>
+    </div>
 </div>
 
+<!-- Edit/Add Vendor Modal -->
+<div class="modal fade" id="editVendorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" style="border: none; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); border-radius: 16px 16px 0 0;">
+                <h5 class="modal-title text-white" id="editModalTitle">
+                    <i class="bi bi-pencil-square me-2"></i>Edit Vendor
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="editVendorForm">
+                    <input type="hidden" id="edit_vendor_id" name="id">
+                    
+                    <div class="row g-3">
+                        <!-- Basic Information -->
+                        <div class="col-12">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="bi bi-info-circle me-1"></i> Basic Information
+                            </h6>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Application</label>
+                            <input type="text" class="form-control" id="edit_application" name="application">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Vendor Name</label>
+                            <input type="text" class="form-control" id="edit_vendor_name" name="vendor_name">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">EPAM SME</label>
+                            <input type="text" class="form-control" id="edit_epam_sme" name="epam_sme">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">IT Application Owner</label>
+                            <input type="text" class="form-control" id="edit_it_application_owner" name="it_application_owner">
+                        </div>
+                        
+                        <!-- Contact Information -->
+                        <div class="col-12 mt-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="bi bi-telephone me-1"></i> Contact Information
+                            </h6>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Vendor Email</label>
+                            <input type="text" class="form-control" id="edit_vendor_email" name="vendor_email" placeholder="email@example.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Hotline Contact</label>
+                            <input type="text" class="form-control" id="edit_hotline_contact" name="hotline_contact">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Vendor Department</label>
+                            <input type="text" class="form-control" id="edit_vendor_department" name="vendor_department">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Vendor Availability</label>
+                            <input type="text" class="form-control" id="edit_vendor_availability" name="vendor_availability" placeholder="e.g., 24/7 or 9AM-5PM EST">
+                        </div>
+                        
+                        <!-- Additional Details -->
+                        <div class="col-12 mt-4">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="bi bi-card-list me-1"></i> Additional Details
+                            </h6>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">CTC POC</label>
+                            <input type="text" class="form-control" id="edit_ctc_poc" name="ctc_poc">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Vendor Website</label>
+                            <input type="text" class="form-control" id="edit_vendor_website" name="vendor_website" placeholder="Website URL or instructions">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Vendor Escalation POC</label>
+                            <input type="text" class="form-control" id="edit_vendor_escalation_poc" name="vendor_escalation_poc">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Company/Site/Account ID</label>
+                            <input type="text" class="form-control" id="edit_company_site_account_id" name="company_site_account_id">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Vendor Support (3rd Party)</label>
+                            <select class="form-select" id="edit_vendor_support_3rd_party" name="vendor_support_3rd_party">
+                                <option value="">Select...</option>
+                                <option value="Yes">Yes</option>
+                                <option value="No">No</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Product Under Vendor Support</label>
+                            <select class="form-select" id="edit_product_under_vendor_support" name="product_under_vendor_support">
+                                <option value="">Select...</option>
+                                <option value="Yes">Yes</option>
+                                <option value="No">No</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Vendor Site Access</label>
+                            <textarea class="form-control" id="edit_vendor_site_access" name="vendor_site_access" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Meeting Invite Method</label>
+                            <textarea class="form-control" id="edit_meeting_invite_method" name="meeting_invite_method" rows="2"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveVendor()">
+                    <i class="bi bi-check-circle me-1"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Table Header Styling - Force Blue Background */
+.vendor-table-header,
+.vendor-table-header tr,
+#vendorTable thead,
+#vendorTable thead tr {
+    background: #2563eb !important;
+    background-color: #2563eb !important;
+}
+.vendor-table-header th,
+#vendorTable thead th {
+    color: #ffffff !important;
+    font-weight: 600;
+    padding: 1rem 0.75rem !important;
+    border: none !important;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    background: #2563eb !important;
+    background-color: #2563eb !important;
+}
+.vendor-row:hover {
+    background-color: #f8f9fa;
+}
+.vendor-row td {
+    padding: 0.75rem !important;
+    vertical-align: middle;
+    border-bottom: 1px solid #e9ecef;
+}
+.modal-body .detail-row {
+    border-bottom: 1px solid #e9ecef;
+    padding: 0.75rem 0;
+}
+.modal-body .detail-row:last-child {
+    border-bottom: none;
+}
+.modal-body .detail-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+}
+.modal-body .detail-value {
+    color: #212529;
+}
+.modal-body .detail-value a {
+    color: #2563eb;
+    text-decoration: none;
+}
+.modal-body .detail-value a:hover {
+    text-decoration: underline;
+}
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+}
+</style>
+
 <script>
-function showAddModal() {
-    document.getElementById('vendorForm').reset();
-    document.getElementById('vendorId').value = '';
-    new bootstrap.Modal(document.getElementById('vendorModal')).show();
-}
-
-function editRow(btn) {
-    var row = btn.closest('tr');
-    document.getElementById('vendorId').value = row.dataset.id;
-    document.getElementById('applicationName').value = row.querySelector('[data-field="application_name"]').innerText;
-    document.getElementById('vendorName').value = row.querySelector('[data-field="vendor_name"]').innerText;
-    document.getElementById('contactName').value = row.querySelector('[data-field="contact_name"]').innerText;
-    document.getElementById('phone').value = row.querySelector('[data-field="phone"] span').innerText;
-    document.getElementById('email').value = row.querySelector('[data-field="email"] a').innerText;
-    new bootstrap.Modal(document.getElementById('vendorModal')).show();
-}
-
-document.getElementById('vendorForm').onsubmit = function(e) {
-    e.preventDefault();
-    var id = document.getElementById('vendorId').value;
-    var data = {
-        application_name: document.getElementById('applicationName').value,
-        vendor_name: document.getElementById('vendorName').value,
-        contact_name: document.getElementById('contactName').value,
-        phone: document.getElementById('phone').value,
-        email: document.getElementById('email').value
-    };
-    var method = id ? 'PUT' : 'POST';
-    var url = id ? `/api/vendor-details/${id}` : '/api/vendor-details';
-    fetch(url, {
-        method: method,
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(data)
-    }).then(res => res.json()).then(res => {
-        location.reload();
+    // Store vendors data for modal
+    const vendorsData = {{ vendors|tojson|safe }};
+    const canEdit = {{ 'true' if is_admin else 'false' }};
+    const accountsList = {{ accounts|map(attribute='id')|list|tojson|safe if accounts else '[]' }};
+    const allTeams = [
+        {% for team in teams %}
+        { id: {{ team.id }}, name: "{{ team.name }}", account_id: {{ team.account_id }} },
+        {% endfor %}
+    ];
+    let editModal = null;
+    let currentEditIndex = -1;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        editModal = new bootstrap.Modal(document.getElementById('editVendorModal'));
     });
-};
-
-function deleteRow(btn) {
-    var row = btn.closest('tr');
-    var id = row.dataset.id;
-    if (confirm('Delete this vendor?')) {
-        fetch(`/api/vendor-details/${id}`, {method: 'DELETE'}).then(res => res.json()).then(res => {
-            location.reload();
+    
+    function onAccountChange() {
+        const accountFilterEl = document.getElementById('accountFilter');
+        const teamFilterEl = document.getElementById('teamFilter');
+        const selectedAccount = accountFilterEl ? accountFilterEl.value : '';
+        
+        // Update team dropdown based on selected account
+        if (teamFilterEl) {
+            const currentTeamValue = teamFilterEl.value;
+            teamFilterEl.innerHTML = '<option value="">All Teams</option>';
+            
+            allTeams.forEach(team => {
+                if (!selectedAccount || team.account_id.toString() === selectedAccount) {
+                    const option = document.createElement('option');
+                    option.value = team.id;
+                    option.textContent = team.name;
+                    option.dataset.account = team.account_id;
+                    teamFilterEl.appendChild(option);
+                }
+            });
+        }
+        
+        filterVendors();
+    }
+    
+    function filterVendors() {
+        const searchTerm = document.getElementById('vendorSearch').value.toLowerCase();
+        const applicationFilter = document.getElementById('applicationFilter').value.toLowerCase();
+        const accountFilterEl = document.getElementById('accountFilter');
+        const teamFilterEl = document.getElementById('teamFilter');
+        const accountFilter = accountFilterEl ? accountFilterEl.value : '';
+        const teamFilter = teamFilterEl ? teamFilterEl.value : '';
+        const rows = document.querySelectorAll('.vendor-row');
+        let visibleCount = 0;
+        
+        rows.forEach((row, index) => {
+            const application = row.dataset.application || '';
+            const searchData = row.dataset.search || '';
+            const vendorAccountId = vendorsData[index] ? vendorsData[index].account_id : null;
+            const vendorTeamId = vendorsData[index] ? vendorsData[index].team_id : null;
+            
+            const matchesApplication = !applicationFilter || application === applicationFilter;
+            const matchesSearch = !searchTerm || searchData.includes(searchTerm);
+            const matchesAccount = !accountFilter || (vendorAccountId && vendorAccountId.toString() === accountFilter);
+            const matchesTeam = !teamFilter || (vendorTeamId && vendorTeamId.toString() === teamFilter);
+            
+            if (matchesApplication && matchesSearch && matchesAccount && matchesTeam) {
+                row.classList.remove('d-none');
+                visibleCount++;
+            } else {
+                row.classList.add('d-none');
+            }
+        });
+        
+        const emptyState = document.getElementById('emptyState');
+        const table = document.getElementById('vendorTable');
+        
+        if (visibleCount === 0) {
+            emptyState.classList.remove('d-none');
+            table.classList.add('d-none');
+        } else {
+            emptyState.classList.add('d-none');
+            table.classList.remove('d-none');
+        }
+    }
+    
+    function clearFilters() {
+        document.getElementById('vendorSearch').value = '';
+        document.getElementById('applicationFilter').value = '';
+        const accountFilterEl = document.getElementById('accountFilter');
+        const teamFilterEl = document.getElementById('teamFilter');
+        if (accountFilterEl) accountFilterEl.value = '';
+        if (teamFilterEl) teamFilterEl.value = '';
+        // Reset team dropdown to show all teams
+        onAccountChange();
+    }
+    
+    function showVendorDetails(index) {
+        const vendor = vendorsData[index];
+        const modalTitle = document.getElementById('modalTitle');
+        const modalContent = document.getElementById('modalContent');
+        
+        modalTitle.innerHTML = `<i class="bi bi-building me-2"></i>${vendor.application || 'Vendor Details'}`;
+        
+        const fields = [
+            { label: 'Application', key: 'application' },
+            { label: 'Vendor Name', key: 'vendor_name' },
+            { label: 'EPAM SME', key: 'epam_sme' },
+            { label: 'IT Application Owner', key: 'it_application_owner' },
+            { label: 'Vendor Support Through 3rd Party', key: 'vendor_support_3rd_party' },
+            { label: 'Product Under Vendor Support', key: 'product_under_vendor_support' },
+            { label: 'Vendor Email', key: 'vendor_email', type: 'email' },
+            { label: 'Hotline Contact Number', key: 'hotline_contact', type: 'phone' },
+            { label: 'Vendor Department', key: 'vendor_department' },
+            { label: 'Vendor Availability', key: 'vendor_availability' },
+            { label: 'Company/Site/Account ID', key: 'company_site_account_id' },
+            { label: 'CTC POC to Contact Vendor', key: 'ctc_poc' },
+            { label: 'Vendor Website', key: 'vendor_website', type: 'url' },
+            { label: 'Vendor Escalation POC', key: 'vendor_escalation_poc' },
+            { label: 'Vendor Site Access to EPAM', key: 'vendor_site_access' },
+            { label: 'Meeting Invite Method', key: 'meeting_invite_method' },
+        ];
+        
+        let content = '<div class="row">';
+        let colCount = 0;
+        
+        fields.forEach(field => {
+            const value = vendor[field.key];
+            if (value && value.toString().trim() && value !== 'nan') {
+                if (colCount % 2 === 0 && colCount > 0) {
+                    content += '</div><div class="row">';
+                }
+                
+                content += `
+                    <div class="col-md-6">
+                        <div class="detail-row">
+                            <div class="detail-label">${field.label}</div>
+                            <div class="detail-value">${formatValue(field, value)}</div>
+                        </div>
+                    </div>
+                `;
+                colCount++;
+            }
+        });
+        
+        content += '</div>';
+        modalContent.innerHTML = content;
+        
+        new bootstrap.Modal(document.getElementById('vendorModal')).show();
+    }
+    
+    function formatValue(field, value) {
+        if (!value || value === '-' || value === 'nan') return '-';
+        
+        const strValue = value.toString();
+        
+        if (field.type === 'email') {
+            const emails = strValue.split(/[,;]/).map(e => e.trim()).filter(e => e.includes('@'));
+            if (emails.length > 0) {
+                return emails.map(e => `<a href="mailto:${e}"><i class="bi bi-envelope me-1"></i>${e}</a>`).join('<br>');
+            }
+        }
+        
+        if (field.type === 'url') {
+            const url = strValue.trim();
+            if (url.startsWith('http')) {
+                return `<a href="${url}" target="_blank"><i class="bi bi-box-arrow-up-right me-1"></i>${url}</a>`;
+            }
+            return url;
+        }
+        
+        if (field.type === 'phone') {
+            return `<span class="font-monospace">${strValue}</span>`;
+        }
+        
+        return strValue.replace(/\n/g, '<br>');
+    }
+    
+    function openAddModal() {
+        currentEditIndex = -1;
+        document.getElementById('editModalTitle').innerHTML = '<i class="bi bi-plus-circle me-2"></i>Add New Vendor';
+        document.getElementById('editVendorForm').reset();
+        document.getElementById('edit_vendor_id').value = '';
+        editModal.show();
+    }
+    
+    function openEditModal(index) {
+        currentEditIndex = index;
+        const vendor = vendorsData[index];
+        
+        document.getElementById('editModalTitle').innerHTML = `<i class="bi bi-pencil-square me-2"></i>Edit: ${vendor.application || 'Vendor'}`;
+        
+        // Populate form fields
+        document.getElementById('edit_vendor_id').value = vendor.id || '';
+        document.getElementById('edit_application').value = vendor.application || '';
+        document.getElementById('edit_vendor_name').value = vendor.vendor_name || '';
+        document.getElementById('edit_epam_sme').value = vendor.epam_sme || '';
+        document.getElementById('edit_it_application_owner').value = vendor.it_application_owner || '';
+        document.getElementById('edit_vendor_email').value = vendor.vendor_email || '';
+        document.getElementById('edit_hotline_contact').value = vendor.hotline_contact || '';
+        document.getElementById('edit_vendor_department').value = vendor.vendor_department || '';
+        document.getElementById('edit_vendor_availability').value = vendor.vendor_availability || '';
+        document.getElementById('edit_ctc_poc').value = vendor.ctc_poc || '';
+        document.getElementById('edit_vendor_website').value = vendor.vendor_website || '';
+        document.getElementById('edit_vendor_escalation_poc').value = vendor.vendor_escalation_poc || '';
+        document.getElementById('edit_company_site_account_id').value = vendor.company_site_account_id || '';
+        document.getElementById('edit_vendor_support_3rd_party').value = vendor.vendor_support_3rd_party || '';
+        document.getElementById('edit_product_under_vendor_support').value = vendor.product_under_vendor_support || '';
+        document.getElementById('edit_vendor_site_access').value = vendor.vendor_site_access || '';
+        document.getElementById('edit_meeting_invite_method').value = vendor.meeting_invite_method || '';
+        
+        editModal.show();
+    }
+    
+    function saveVendor() {
+        const vendorId = document.getElementById('edit_vendor_id').value;
+        const isNew = !vendorId;
+        
+        const data = {
+            application: document.getElementById('edit_application').value,
+            vendor_name: document.getElementById('edit_vendor_name').value,
+            epam_sme: document.getElementById('edit_epam_sme').value,
+            it_application_owner: document.getElementById('edit_it_application_owner').value,
+            vendor_email: document.getElementById('edit_vendor_email').value,
+            hotline_contact: document.getElementById('edit_hotline_contact').value,
+            vendor_department: document.getElementById('edit_vendor_department').value,
+            vendor_availability: document.getElementById('edit_vendor_availability').value,
+            ctc_poc: document.getElementById('edit_ctc_poc').value,
+            vendor_website: document.getElementById('edit_vendor_website').value,
+            vendor_escalation_poc: document.getElementById('edit_vendor_escalation_poc').value,
+            company_site_account_id: document.getElementById('edit_company_site_account_id').value,
+            vendor_support_3rd_party: document.getElementById('edit_vendor_support_3rd_party').value,
+            product_under_vendor_support: document.getElementById('edit_product_under_vendor_support').value,
+            vendor_site_access: document.getElementById('edit_vendor_site_access').value,
+            meeting_invite_method: document.getElementById('edit_meeting_invite_method').value,
+        };
+        
+        const url = isNew ? '/api/vendor-details' : `/api/vendor-details/${vendorId}`;
+        const method = isNew ? 'POST' : 'PUT';
+        
+        fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        })
+        .then(res => res.json())
+        .then(result => {
+            if (result.success || result.id) {
+                editModal.hide();
+                Swal.fire({
+                    icon: 'success',
+                    title: isNew ? 'Vendor Added!' : 'Vendor Updated!',
+                    text: isNew ? 'New vendor has been added successfully.' : 'Vendor details have been updated.',
+                    timer: 2000,
+                    showConfirmButton: false
+                }).then(() => {
+                    location.reload();
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: result.error || 'Failed to save vendor'
+                });
+            }
+        })
+        .catch(err => {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to save: ' + err.message
+            });
         });
     }
-}
+    
+    function deleteVendor(vendorId, appName) {
+        if (!vendorId) {
+            alert('Cannot delete - vendor ID not found. Please import data to database first.');
+            return;
+        }
+        
+        Swal.fire({
+            title: 'Delete Vendor?',
+            html: `Are you sure you want to delete <strong>${appName}</strong>?<br><small class="text-muted">This action cannot be undone.</small>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '<i class="bi bi-trash me-1"></i> Yes, Delete',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch(`/api/vendor-details/${vendorId}`, {
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'}
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Deleted!',
+                            text: 'Vendor has been deleted.',
+                            timer: 1500,
+                            showConfirmButton: false
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: data.error || 'Failed to delete vendor'
+                        });
+                    }
+                })
+                .catch(err => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Failed to delete: ' + err.message
+                    });
+                });
+            }
+        });
+    }
+    
+    function importVendors() {
+        Swal.fire({
+            title: '<i class="bi bi-cloud-upload text-primary"></i> Import Vendors',
+            html: `
+                <div class="text-start">
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Upload an Excel file (.xlsx) with vendor details. New vendors will be added to the database.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-file-earmark-excel text-success me-1"></i>
+                            Select Excel File
+                        </label>
+                        <input type="file" class="form-control" id="vendorFile" accept=".xlsx,.xls" required>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                        <small class="text-muted">Need the correct format?</small>
+                        <a href="/api/vendor-details/sample" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-download me-1"></i> Download Template
+                        </a>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonColor: '#2563eb',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '<i class="bi bi-cloud-upload me-1"></i> Upload & Import',
+            cancelButtonText: 'Cancel',
+            preConfirm: () => {
+                const fileInput = document.getElementById('vendorFile');
+                if (!fileInput.files || fileInput.files.length === 0) {
+                    Swal.showValidationMessage('Please select an Excel file');
+                    return false;
+                }
+                return fileInput.files[0];
+            }
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                const file = result.value;
+                
+                Swal.fire({
+                    title: 'Importing...',
+                    html: `<p>Uploading and processing <strong>${file.name}</strong></p><p class="text-muted">Please wait...</p>`,
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                fetch('/api/vendor-details/import', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Import Complete!',
+                            html: `<p>Successfully imported <strong>${data.count}</strong> vendors.</p>`,
+                            timer: 2500,
+                            showConfirmButton: true,
+                            confirmButtonText: 'OK'
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Import Failed',
+                            html: `<p>${data.error || 'Unknown error occurred'}</p>`,
+                            confirmButtonText: 'OK'
+                        });
+                    }
+                })
+                .catch(err => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Import Failed',
+                        html: `<p>Failed to import: ${err.message}</p>`,
+                        confirmButtonText: 'OK'
+                    });
+                });
+            }
+        });
+    }
 </script>
 {% endblock %}

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SMTP Config Test</title>
+</head>
+<body>
+    <h1>SMTP Configuration Test</h1>
+    
+    <form id="smtpForm">
+        <label>SMTP Server:</label>
+        <input type="text" id="smtpServer" name="smtpServer" value="[DEFAULT]"><br><br>
+        
+        <label>SMTP Port:</label>
+        <input type="text" id="smtpPort" name="smtpPort" value="[DEFAULT]"><br><br>
+        
+        <label>SMTP Username:</label>
+        <input type="text" id="smtpUsername" name="smtpUsername" value="[DEFAULT]"><br><br>
+        
+        <label>SMTP Password:</label>
+        <input type="password" id="smtpPassword" name="smtpPassword" value="[DEFAULT]"><br><br>
+        
+        <label>SMTP Security:</label>
+        <input type="text" id="smtpSecurity" name="smtpSecurity" value="[DEFAULT]"><br><br>
+        
+        <label>From Address:</label>
+        <input type="text" id="smtpFromAddress" name="smtpFromAddress" value="[DEFAULT]"><br><br>
+        
+        <button type="button" onclick="loadSmtpConfig()">Load Config</button>
+    </form>
+
+    <div id="debug" style="margin-top: 20px; padding: 10px; background-color: #f0f0f0;">
+        <h3>Debug Output:</h3>
+        <pre id="debugOutput"></pre>
+    </div>
+
+    <script>
+        // Load SMTP configuration
+        async function loadSmtpConfig() {
+            try {
+                console.log('🔄 Starting SMTP config load...');
+                console.log('🌍 Current page URL:', window.location.href);
+                console.log('🌍 Base URL:', window.location.origin);
+                console.log('🌍 API endpoint:', '/admin/secrets/api/smtp/config/debug');
+                console.log('🌍 Full API URL:', window.location.origin + '/admin/secrets/api/smtp/config/debug');
+                
+                const response = await fetch('/admin/secrets/api/smtp/config/debug');
+                console.log('📡 API Response status:', response.status);
+                console.log('📡 API Response URL:', response.url);
+                console.log('📡 API Response headers:', Object.fromEntries(response.headers.entries()));
+                
+                if (response.ok) {
+                    const config = await response.json();
+                    console.log('📥 Received SMTP config from API:', config);
+                    console.log('📋 Config keys:', Object.keys(config));
+                    
+                    // Debug each expected field
+                    const expectedFields = ['smtp_server', 'smtp_port', 'smtp_username', 'smtp_password', 'smtp_security', 'smtp_from_address'];
+                    expectedFields.forEach(field => {
+                        console.log(`🔍 Field '${field}': ${config[field]} (type: ${typeof config[field]})`);
+                    });
+                    
+                    // Populate form fields safely with detailed logging
+                    if (document.getElementById('smtpServer')) {
+                        document.getElementById('smtpServer').value = config.smtp_server || '';
+                        console.log('✅ SMTP Server set to:', config.smtp_server);
+                    } else {
+                        console.error('❌ smtpServer field not found');
+                    }
+                    if (document.getElementById('smtpPort')) {
+                        document.getElementById('smtpPort').value = config.smtp_port || '';
+                        console.log('✅ SMTP Port set to:', config.smtp_port);
+                    } else {
+                        console.error('❌ smtpPort field not found');
+                    }
+                    if (document.getElementById('smtpUsername')) {
+                        document.getElementById('smtpUsername').value = config.smtp_username || '';
+                        console.log('✅ SMTP Username set to:', config.smtp_username);
+                    } else {
+                        console.error('❌ smtpUsername field not found');
+                    }
+                    if (document.getElementById('smtpPassword')) {
+                        document.getElementById('smtpPassword').value = config.smtp_password || '';
+                        console.log('✅ SMTP Password set (length):', (config.smtp_password || '').length);
+                    } else {
+                        console.error('❌ smtpPassword field not found');
+                    }
+                    if (document.getElementById('smtpSecurity')) {
+                        document.getElementById('smtpSecurity').value = config.smtp_security || '';
+                        console.log('✅ SMTP Security set to:', config.smtp_security);
+                    } else {
+                        console.error('❌ smtpSecurity field not found');
+                    }
+                    if (document.getElementById('smtpFromAddress')) {
+                        document.getElementById('smtpFromAddress').value = config.smtp_from_address || '';
+                        console.log('✅ SMTP From Address set to:', config.smtp_from_address);
+                    } else {
+                        console.error('❌ smtpFromAddress field not found');
+                    }
+                    
+                    // Update debug display
+                    document.getElementById('debugOutput').textContent = JSON.stringify(config, null, 2);
+                    
+                } else {
+                    console.error('❌ API call failed:', response.status, response.statusText);
+                }
+            } catch (error) {
+                console.error('Error loading SMTP config:', error);
+                document.getElementById('debugOutput').textContent = 'Error: ' + error.message;
+            }
+        }
+
+        // Auto-load on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Page loaded, auto-loading SMTP config...');
+            loadSmtpConfig();
+        });
+    </script>
+</body>
+</html>

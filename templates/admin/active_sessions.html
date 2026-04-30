@@ -1,0 +1,500 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="mb-1"><i class="bi bi-people-fill text-primary me-2"></i>Active Sessions</h1>
+                <p class="text-muted mb-0">Monitor currently logged in users and their session activity</p>
+            </div>
+            <div class="d-flex gap-2">
+                {% if current_user.role == 'super_admin' %}
+                <button class="btn btn-outline-danger" onclick="showBulkTerminateModal()" title="Terminate multiple sessions">
+                    <i class="bi bi-x-octagon me-1"></i>Bulk Terminate
+                </button>
+                {% endif %}
+                <button class="btn btn-outline-primary" onclick="refreshSessions()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #28a745 !important;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                                <i class="bi bi-circle-fill text-success fs-4"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h2 class="mb-0 fw-bold" id="online-count">{{ stats.online_count }}</h2>
+                            <small class="text-muted">Online Now</small>
+                            <br><small class="text-success">(Last 5 min)</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #ffc107 !important;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="rounded-circle bg-warning bg-opacity-10 p-3">
+                                <i class="bi bi-clock-history text-warning fs-4"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h2 class="mb-0 fw-bold">{{ stats.recently_active_count }}</h2>
+                            <small class="text-muted">Recently Active</small>
+                            <br><small class="text-warning">(5-30 min ago)</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #17a2b8 !important;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="rounded-circle bg-info bg-opacity-10 p-3">
+                                <i class="bi bi-calendar-check text-info fs-4"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h2 class="mb-0 fw-bold">{{ stats.active_today_count }}</h2>
+                            <small class="text-muted">Active Today</small>
+                            <br><small class="text-info">(30 min - 24 hr)</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #6c757d !important;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="rounded-circle bg-secondary bg-opacity-10 p-3">
+                                <i class="bi bi-people text-secondary fs-4"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h2 class="mb-0 fw-bold">{{ stats.total_users }}</h2>
+                            <small class="text-muted">Total Users</small>
+                            <br><small class="text-secondary">(Active accounts)</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Online Users Section -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-circle-fill me-2"></i>Online Now ({{ online_users|length }})</h5>
+        </div>
+        <div class="card-body p-0">
+            {% if online_users %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            {% if current_user.role == 'super_admin' %}
+                            <th style="width: 40px;">
+                                <input type="checkbox" class="form-check-input" id="selectAllOnline" onclick="toggleSelectAll('online')">
+                            </th>
+                            {% endif %}
+                            <th>User</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Team</th>
+                            <th>Account</th>
+                            <th>Last Activity</th>
+                            <th>Status</th>
+                            {% if current_user.role == 'super_admin' %}
+                            <th>Actions</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in online_users %}
+                        <tr>
+                            {% if current_user.role == 'super_admin' %}
+                            <td>
+                                {% if user.id != current_user.id %}
+                                <input type="checkbox" class="form-check-input session-checkbox online-checkbox" value="{{ user.id }}">
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-success rounded-circle p-1 me-2" style="width: 10px; height: 10px;"></span>
+                                    <strong>{{ user.display_name }}</strong>
+                                    {% if user.id == current_user.id %}
+                                    <span class="badge bg-info ms-2">You</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>{{ user.email }}</td>
+                            <td><span class="badge bg-primary">{{ user.role }}</span></td>
+                            <td>{{ user.team.name if user.team else 'N/A' }}</td>
+                            <td>{{ user.account.name if user.account else 'N/A' }}</td>
+                            <td>
+                                {% if user.last_activity %}
+                                    {{ user.last_activity.strftime('%H:%M:%S') }}
+                                    <small class="text-muted">({{ ((now - user.last_activity).total_seconds() / 60)|int }} min ago)</small>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td><span class="badge bg-success">Online</span></td>
+                            {% if current_user.role == 'super_admin' %}
+                            <td>
+                                {% if user.id != current_user.id %}
+                                <button class="btn btn-sm btn-outline-danger" onclick="confirmTerminate({{ user.id }}, '{{ user.display_name }}')" title="Terminate Session">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-person-x fs-1"></i>
+                <p class="mt-2">No users currently online</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Recently Active Users Section -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recently Active ({{ recently_active_users|length }})</h5>
+        </div>
+        <div class="card-body p-0">
+            {% if recently_active_users %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            {% if current_user.role == 'super_admin' %}
+                            <th style="width: 40px;">
+                                <input type="checkbox" class="form-check-input" id="selectAllRecent" onclick="toggleSelectAll('recent')">
+                            </th>
+                            {% endif %}
+                            <th>User</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Team</th>
+                            <th>Last Activity</th>
+                            <th>Status</th>
+                            {% if current_user.role == 'super_admin' %}
+                            <th>Actions</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in recently_active_users %}
+                        <tr>
+                            {% if current_user.role == 'super_admin' %}
+                            <td>
+                                <input type="checkbox" class="form-check-input session-checkbox recent-checkbox" value="{{ user.id }}">
+                            </td>
+                            {% endif %}
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-warning rounded-circle p-1 me-2" style="width: 10px; height: 10px;"></span>
+                                    <strong>{{ user.display_name }}</strong>
+                                </div>
+                            </td>
+                            <td>{{ user.email }}</td>
+                            <td><span class="badge bg-primary">{{ user.role }}</span></td>
+                            <td>{{ user.team.name if user.team else 'N/A' }}</td>
+                            <td>
+                                {% if user.last_activity %}
+                                    {{ user.last_activity.strftime('%H:%M:%S') }}
+                                    <small class="text-muted">({{ ((now - user.last_activity).total_seconds() / 60)|int }} min ago)</small>
+                                {% endif %}
+                            </td>
+                            <td><span class="badge bg-warning text-dark">Away</span></td>
+                            {% if current_user.role == 'super_admin' %}
+                            <td>
+                                <button class="btn btn-sm btn-outline-danger" onclick="confirmTerminate({{ user.id }}, '{{ user.display_name }}')" title="Terminate Session">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-clock fs-1"></i>
+                <p class="mt-2">No recently active users</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Active Today Section -->
+    {% if active_today_users %}
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-calendar-check me-2"></i>Active Earlier Today ({{ active_today_users|length }})</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>User</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Team</th>
+                            <th>Last Activity</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in active_today_users %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-secondary rounded-circle p-1 me-2" style="width: 10px; height: 10px;"></span>
+                                    {{ user.display_name }}
+                                </div>
+                            </td>
+                            <td>{{ user.email }}</td>
+                            <td><span class="badge bg-primary">{{ user.role }}</span></td>
+                            <td>{{ user.team.name if user.team else 'N/A' }}</td>
+                            <td>
+                                {% if user.last_activity %}
+                                    {{ user.last_activity.strftime('%Y-%m-%d %H:%M') }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Inactive Users Section (Collapsed by default) -->
+    {% if inactive_users %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-secondary text-white" data-bs-toggle="collapse" data-bs-target="#inactiveUsers" style="cursor: pointer;">
+            <h5 class="mb-0">
+                <i class="bi bi-person-dash me-2"></i>Inactive Users ({{ inactive_users|length }})
+                <i class="bi bi-chevron-down float-end"></i>
+            </h5>
+        </div>
+        <div id="inactiveUsers" class="collapse">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>User</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Last Login</th>
+                                <th>Last Activity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in inactive_users %}
+                            <tr class="text-muted">
+                                <td>{{ user.display_name }}</td>
+                                <td>{{ user.email }}</td>
+                                <td><span class="badge bg-secondary">{{ user.role }}</span></td>
+                                <td>
+                                    {% if user.last_login %}
+                                        {{ user.last_login.strftime('%Y-%m-%d %H:%M') }}
+                                    {% else %}
+                                        <span class="text-muted">Never</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if user.last_activity %}
+                                        {{ user.last_activity.strftime('%Y-%m-%d %H:%M') }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Terminate Session Confirmation Modal -->
+<div class="modal fade" id="terminateModal" tabindex="-1" aria-labelledby="terminateModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="terminateModalLabel">
+                    <i class="bi bi-exclamation-triangle me-2"></i>Confirm Session Termination
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to terminate the session for:</p>
+                <p class="fw-bold fs-5" id="terminateUserName"></p>
+                <p class="text-muted">This will force the user to log in again.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="terminateForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-x-circle me-1"></i>Terminate Session
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Terminate Modal -->
+<div class="modal fade" id="bulkTerminateModal" tabindex="-1" aria-labelledby="bulkTerminateModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="bulkTerminateModalLabel">
+                    <i class="bi bi-exclamation-octagon me-2"></i>Bulk Session Termination
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>You are about to terminate sessions for <strong id="bulkCount">0</strong> users.</p>
+                <p class="text-muted">All selected users will be forced to log in again.</p>
+                <div class="alert alert-warning">
+                    <i class="bi bi-info-circle me-2"></i>
+                    This action cannot be undone. Users will need to log in again to access the system.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="executeBulkTerminate()">
+                    <i class="bi bi-x-octagon me-1"></i>Terminate All Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-refresh every 30 seconds
+let autoRefreshInterval;
+
+function refreshSessions() {
+    location.reload();
+}
+
+function startAutoRefresh() {
+    autoRefreshInterval = setInterval(function() {
+        fetch('/admin/api/active-sessions')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('online-count').textContent = data.online_count;
+            })
+            .catch(err => console.log('Auto-refresh failed:', err));
+    }, 30000);
+}
+
+// Terminate single session
+function confirmTerminate(userId, userName) {
+    document.getElementById('terminateUserName').textContent = userName;
+    document.getElementById('terminateForm').action = '/admin/terminate-session/' + userId;
+    new bootstrap.Modal(document.getElementById('terminateModal')).show();
+}
+
+// Toggle select all checkboxes
+function toggleSelectAll(type) {
+    const selectAll = document.getElementById('selectAll' + (type === 'online' ? 'Online' : 'Recent'));
+    const checkboxes = document.querySelectorAll('.' + type + '-checkbox');
+    checkboxes.forEach(cb => cb.checked = selectAll.checked);
+}
+
+// Show bulk terminate modal
+function showBulkTerminateModal() {
+    const checkboxes = document.querySelectorAll('.session-checkbox:checked');
+    if (checkboxes.length === 0) {
+        alert('Please select at least one user to terminate.');
+        return;
+    }
+    document.getElementById('bulkCount').textContent = checkboxes.length;
+    new bootstrap.Modal(document.getElementById('bulkTerminateModal')).show();
+}
+
+// Execute bulk terminate
+function executeBulkTerminate() {
+    const checkboxes = document.querySelectorAll('.session-checkbox:checked');
+    const userIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+    
+    fetch('/admin/terminate-bulk-sessions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ user_ids: userIds })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(err => {
+        alert('Error terminating sessions: ' + err);
+    });
+}
+
+// Start auto-refresh on page load
+document.addEventListener('DOMContentLoaded', startAutoRefresh);
+</script>
+
+<style>
+.card-header[data-bs-toggle="collapse"]:hover {
+    opacity: 0.9;
+}
+.table td, .table th {
+    vertical-align: middle;
+}
+.btn-outline-danger:hover {
+    color: white;
+}
+</style>
+{% endblock %}
+
+
+
+
+
+

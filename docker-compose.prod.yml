@@ -1,83 +1,31 @@
-# Updated Docker Compose with Nginx Reverse Proxy for Domain Access
-# This adds nginx service to enable domain name access with SSL
-
+# Production Docker Compose for GCP VM deployment
 version: '3.7'
 
 services:
-  # Nginx Reverse Proxy (NEW)
-  nginx:
-    image: nginx:alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - nginx_logs:/var/log/nginx
-      - certbot_www:/var/www/certbot
-      - certbot_conf:/etc/letsencrypt
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - web
-    environment:
-      - DOMAIN_NAME=${DOMAIN_NAME:-your-domain.com}
-    networks:
-      - app_network
-
-  # Certbot for Let's Encrypt SSL certificates (NEW)
-  certbot:
-    image: certbot/certbot
-    restart: "no"
-    volumes:
-      - certbot_www:/var/www/certbot
-      - certbot_conf:/etc/letsencrypt
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-    environment:
-      - DOMAIN_NAME=${DOMAIN_NAME:-your-domain.com}
-      - EMAIL=${EMAIL:-admin@your-domain.com}
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
-
-  # MySQL Database Service (EXISTING)
+  # MySQL Database Service
   db:
     image: mysql:8.0
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: shift_handover
       MYSQL_USER: user
-      MYSQL_PASSWORD_FILE: /run/secrets/mysql_password
-      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+      MYSQL_PASSWORD: securepassword123
+      MYSQL_ROOT_PASSWORD: rootsecurepassword123
     
-    secrets:
-      - mysql_password
-      - mysql_root_password
-    
-    expose:  # Changed from ports to expose (internal only)
-      - "3306"
+    ports:
+      - "3306:3306"
     
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./init_local.sql:/docker-entrypoint-initdb.d/init_local.sql:ro
+      - ./migrations/init_local.sql:/docker-entrypoint-initdb.d/init_local.sql:ro
     
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 20s
       retries: 10
-      start_period: 30s
-    
-    command: >
-      --default-authentication-plugin=mysql_native_password
-      --character-set-server=utf8mb4
-      --collation-server=utf8mb4_unicode_ci
-      --innodb-buffer-pool-size=256M
-      --max-connections=100
-    
-    security_opt:
-      - no-new-privileges:true
-    networks:
-      - app_network
+      interval: 30s
 
-  # Shift Handover Web Application (MODIFIED)
+  # Shift Handover Web Application
   web:
     build: .
     restart: unless-stopped
@@ -87,87 +35,32 @@ services:
       - .:/app
       - app_logs:/app/logs
     
-    expose:  # Changed from ports to expose (internal only)
-      - "5000"
+    ports:
+      - "5000:5000"  # Map to port 5000 for web access
     
     environment:
       FLASK_ENV: production
       FLASK_APP: app.py
       FLASK_DEBUG: 0
-      
-      DATABASE_URL_FILE: /run/secrets/database_url
       DATABASE_HOST: db
       DATABASE_PORT: 3306
       DATABASE_NAME: shift_handover
-      DATABASE_USER: user
-      
-      SMTP_SERVER: smtp.gmail.com
-      SMTP_PORT: 587
-      
-      USE_DATABASE_CONFIG: "true"
-      
-    secrets:
-      - flask_secret_key
-      - database_url
-      - sso_encryption_key
-      - secrets_master_key
-      - smtp_username
-      - smtp_password
-      - mysql_user_password
+      DATABASE_USER: root
+      DATABASE_PASSWORD: rootsecurepassword123
+      SECRET_KEY: your-secret-key-here
     
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
-    
-    security_opt:
-      - no-new-privileges:true
-    read_only: false
-    tmpfs:
-      - /tmp
-    networks:
-      - app_network
+      interval: 30s
 
-# Networks (NEW)
-networks:
-  app_network:
-    driver: bridge
-
-# Docker Secrets Configuration (EXISTING)
-secrets:
-  flask_secret_key:
-    file: ./secrets/flask_secret_key
-  database_url:
-    file: ./secrets/database_url
-  sso_encryption_key:
-    file: ./secrets/sso_encryption_key
-  secrets_master_key:
-    file: ./secrets/secrets_master_key
-  mysql_password:
-    file: ./secrets/mysql_password
-  mysql_root_password:
-    file: ./secrets/mysql_root_password
-  mysql_user_password:
-    file: ./secrets/mysql_user_password
-  smtp_username:
-    file: ./secrets/smtp_username
-  smtp_password:
-    file: ./secrets/smtp_password
-
-# Persistent Storage Volumes (EXPANDED)
 volumes:
   mysql_data:
     driver: local
   app_logs:
-    driver: local
-  nginx_logs:  # NEW
-    driver: local
-  certbot_www:  # NEW
-    driver: local
-  certbot_conf:  # NEW
     driver: local
