@@ -131,6 +131,9 @@
 
 {% block content %}
 <div class="container-fluid mt-4">
+    <!-- Include Collaborative Handover Features -->
+    {% include 'partials/collaborative_handover.html' ignore missing %}
+    
     <div class="row">
         <div class="col-12">
             <div class="card">
@@ -733,7 +736,7 @@
                                                     </select>
                                                 </div>
                                                 <div class="col-md-3">
-                                                    <label class="form-label">Assigned To</label>
+                                                    <label class="form-label">Handover To</label>
                                                     <select class="form-select next-engineers-select" name="open_incident_assigned[]">
                                                         <option value="">Select Next Shift Engineer</option>
                                                         <!-- Will be populated by JavaScript -->
@@ -873,7 +876,7 @@
                                                     </select>
                                                 </div>
                                                 <div class="col-md-3">
-                                                    <label class="form-label">Next Action By</label>
+                                                    <label class="form-label">Handover To</label>
                                                     <select class="form-select next-engineers-select" name="handover_incident_next_by[]">
                                                         <option value="">Select Next Shift Engineer</option>
                                                         <!-- Will be populated by JavaScript -->
@@ -2298,7 +2301,7 @@ function addIncident(type, incidentData = null) {
                             </select>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label">Assigned To</label>
+                            <label class="form-label">Handover To</label>
                             <select class="form-select next-engineers-select" name="open_incident_assigned[]">
                                 <option value="">Select Next Shift Engineer</option>
                                 <!-- Will be populated by JavaScript -->
@@ -2414,7 +2417,7 @@ function addIncident(type, incidentData = null) {
                             </select>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label">Next Action By</label>
+                            <label class="form-label">Handover To</label>
                             <select class="form-select next-engineers-select" name="handover_incident_next_by[]">
                                 <option value="">Select Next Shift Engineer</option>
                                 <!-- Will be populated by JavaScript -->
@@ -4237,9 +4240,10 @@ function showUploadModal() {
     // Load user teams
     loadUserTeams();
     
-    // Set today's date
+    // Set date from the form (respects Night→Morning adjusted date), fallback to today
+    const formDate = document.getElementById('handover_date').value;
     const today = new Date().toISOString().split('T')[0];
-    document.getElementById('uploadHandoverDate').value = today;
+    document.getElementById('uploadHandoverDate').value = formDate || today;
     
     // Show modal
     const modal = new bootstrap.Modal(document.getElementById('uploadModal'));
@@ -4332,12 +4336,13 @@ function autoSelectNextShift() {
 }
 
 function loadEngineersForUpload() {
-    const teamId = document.getElementById('uploadTeamId').value;
+    const teamSelect = document.getElementById('uploadTeamId');
+    const teamId = teamSelect.value || teamSelect.selectedOptions[0]?.value || '';
     const dateValue = document.getElementById('uploadHandoverDate').value;
     const currentShift = document.getElementById('uploadCurrentShift').value;
     const nextShift = document.getElementById('uploadNextShift').value;
-    
-    if (!teamId || !currentShift || !nextShift) {
+
+    if (!teamId || !dateValue || !currentShift || !nextShift) {
         document.getElementById('uploadEngineersPreview').style.display = 'none';
         return;
     }
@@ -4403,20 +4408,32 @@ function loadEngineersForUpload() {
 
 function uploadHandoverFile(file) {
     // Validate shift metadata first
-    const teamId = document.getElementById('uploadTeamId').value;
+    const teamSelect = document.getElementById('uploadTeamId');
+    // Fallback to selectedOptions[0].value covers an edge case where the
+    // <select> is disabled (auto-select branch) and .value briefly returns ''.
+    const teamId = teamSelect.value || teamSelect.selectedOptions[0]?.value || '';
     const dateValue = document.getElementById('uploadHandoverDate').value;
     const currentShift = document.getElementById('uploadCurrentShift').value;
     const nextShift = document.getElementById('uploadNextShift').value;
-    
-    if (!teamId || !dateValue || !currentShift || !nextShift) {
+
+    const missing = [];
+    if (!teamId) missing.push('Team');
+    if (!dateValue) missing.push('Date');
+    if (!currentShift) missing.push('Current Shift');
+    if (!nextShift) missing.push('Next Shift');
+
+    if (missing.length > 0) {
         document.getElementById('uploadError').classList.remove('d-none');
-        document.getElementById('uploadErrorMessage').textContent = 'Please fill in all shift details (Team, Date, Current Shift, Next Shift) before uploading.';
+        document.getElementById('uploadErrorMessage').textContent =
+            `Please fill in the following before uploading: ${missing.join(', ')}.`;
+        // Clear the file input so the user can re-pick the file after fixing the missing fields.
+        document.getElementById('handoverUploadFile').value = '';
         return;
     }
-    
+
     // Store metadata
     uploadShiftMetadata.teamId = teamId;
-    uploadShiftMetadata.teamName = document.getElementById('uploadTeamId').selectedOptions[0]?.text || '';
+    uploadShiftMetadata.teamName = teamSelect.selectedOptions[0]?.text || '';
     uploadShiftMetadata.date = dateValue;
     uploadShiftMetadata.currentShift = currentShift;
     uploadShiftMetadata.nextShift = nextShift;

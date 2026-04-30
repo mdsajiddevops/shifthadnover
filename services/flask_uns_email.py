@@ -81,7 +81,7 @@ class FlaskUNSEmailIntegration:
         logger.debug(f"[DEBUG] ⚠️ send_handover_email called from UNS service for shift_id={shift.id}")
         
         try:
-            from models.models import Incident, ShiftKeyPoint, TeamMember, Team, User
+            from models.models import Incident, ShiftKeyPoint, TeamMember, Team, User, Account
             from models.app_config import AppConfig
             
             # Get recipients (same logic as original function)
@@ -95,8 +95,29 @@ class FlaskUNSEmailIntegration:
                     'details': 'Configure recipients in Admin > Secrets Management > Email Recipients'
                 }
             
+            # Get Account and Team names for email subject prefix
+            account_name = ""
+            team_name = ""
+            if shift.account_id:
+                account = Account.query.get(shift.account_id)
+                if account:
+                    account_name = account.name
+            if shift.team_id:
+                team = Team.query.get(shift.team_id)
+                if team:
+                    team_name = team.name
+            
+            # Build subject with Account-Team prefix (e.g., "CTC-Supply Chain-L2 🔄 Night to Morning Shift Handover - 2026-02-03")
+            subject_prefix = ""
+            if account_name and team_name:
+                subject_prefix = f"{account_name}-{team_name} "
+            elif account_name:
+                subject_prefix = f"{account_name} "
+            elif team_name:
+                subject_prefix = f"{team_name} "
+            
             # Generate email content
-            subject = f"🔄 {shift.current_shift_type} to {shift.next_shift_type} Shift Handover - {shift.date}"
+            subject = f"{subject_prefix}🔄 {shift.current_shift_type} to {shift.next_shift_type} Shift Handover - {shift.date}"
             html_content = self._generate_handover_html(shift)
             
             # Create email request
@@ -247,8 +268,11 @@ class FlaskUNSEmailIntegration:
             Incident.status == 'Active'
         ).all()
         
-        # Get key points for this shift
-        key_points = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
+        # Get key points for this shift - only Open and In Progress, exclude Closed
+        key_points = ShiftKeyPoint.query.filter(
+            ShiftKeyPoint.shift_id == shift.id,
+            ShiftKeyPoint.status.in_(['Open', 'In Progress'])
+        ).all()
         
         # Generate HTML
         html = f"""

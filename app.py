@@ -205,6 +205,7 @@ from models.models import db
 from models.servicenow_config import ServiceNowConfig  # Import ServiceNow config model
 from models.team_shift_timing_config import TeamShiftTimingConfig  # Import team shift timing config model
 from models.escalation_matrix import EscalationMatrixEntry  # Import escalation matrix model
+from models.collaboration import HandoverSession, SectionLock, HandoverChange, DraftIncident, DraftKeyPoint  # Collaborative editing models
 db.init_app(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'auth.login'  # Redirect to login page for unauthenticated users
@@ -426,6 +427,10 @@ app.register_blueprint(handover_upload_bp)
 # Register problem tickets blueprint
 from routes.problem_tickets import problem_tickets_bp
 app.register_blueprint(problem_tickets_bp)
+
+# Register collaborative handover blueprint for real-time multi-user editing
+from routes.collaboration import collaboration_bp
+app.register_blueprint(collaboration_bp)
 
 # Add template global functions
 @app.template_global()

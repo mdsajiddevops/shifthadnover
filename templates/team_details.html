@@ -242,7 +242,7 @@
                                 <td class="px-4 py-3">
                                     <input type="hidden" name="member_id" value="{{ member.id }}">
                                     <div class="d-flex align-items-center">
-                                        <input type="text" name="name" class="form-control border-0 bg-transparent fw-semibold" 
+                                        <input type="text" name="edit_name" class="form-control border-0 bg-transparent fw-semibold" 
                                                value="{{ member.name }}" required>
                                         {% if not member.is_active %}
                                             <i class="bi bi-pause-circle text-warning ms-2" title="Inactive"></i>
@@ -250,15 +250,15 @@
                                     </div>
                                 </td>
                                 <td class="py-3">
-                                    <input type="email" name="email" class="form-control border-0 bg-transparent" 
+                                    <input type="email" name="edit_email" class="form-control border-0 bg-transparent" 
                                            value="{{ member.email }}" required>
                                 </td>
                                 <td class="py-3">
-                                    <input type="text" name="contact_number" class="form-control border-0 bg-transparent" 
+                                    <input type="text" name="edit_contact" class="form-control border-0 bg-transparent" 
                                            value="{{ member.contact_number }}" required>
                                 </td>
                                 <td class="py-3">
-                                    <input type="text" name="role" class="form-control border-0 bg-transparent" 
+                                    <input type="text" name="edit_role" class="form-control border-0 bg-transparent" 
                                            value="{{ member.role or '' }}">
                                 </td>
                                 <td class="py-3">

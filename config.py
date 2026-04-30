@@ -108,7 +108,7 @@ class SecureConfigManager:
                 logging.info("✅ Using SQLite database for local development")
                 return database_url
             # Force SQLite for local development if no proper URL is set
-            sqlite_url = 'sqlite:///local_shift_handover.db'
+            sqlite_url = 'sqlite:///local_shifthandover.db'
             logging.info("✅ Forcing SQLite database for local development")
             return sqlite_url
         
@@ -138,7 +138,7 @@ class SecureConfigManager:
         # Try to get individual components for Docker secrets
         host = os.environ.get('DATABASE_HOST', 'db')
         port = os.environ.get('DATABASE_PORT', '3306')
-        name = os.environ.get('DATABASE_NAME', 'shift_handover')
+        name = os.environ.get('DATABASE_NAME', 'shifthandover')
         user = os.environ.get('DATABASE_USER', 'user')
         
         # Get password from Docker secret (try multiple possible names)
@@ -153,7 +153,7 @@ class SecureConfigManager:
         
         # Development fallback - always use SQLite for development when no database configured
         logging.warning("⚠️ No database credentials found, using SQLite for development")
-        return 'sqlite:///shift_handover.db'
+        return 'sqlite:///shifthandover.db'
         
         # Return default or raise error
         if required and default is None:

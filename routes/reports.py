@@ -1070,11 +1070,16 @@ def detailed_shift_report(shift_id):
         logger.debug(f"  - Key Points found (after processing): {len(key_points)}")
         logger.debug(f"  - Change Infos found (excluding Completed/Cancelled): {len(change_infos)}")
         logger.debug(f"  - KB Updates found (excluding Published): {len(kb_updates)}")
-        
+
+        # 🔍 DEBUG: Log incident details including descriptions
+        for i, inc in enumerate(incidents):
+            desc_preview = inc.description[:50] if inc.description else 'NO DESCRIPTION'
+            logger.debug(f"    Incident {i+1}: type={inc.type}, title='{inc.title}', desc='{desc_preview}'")
+
         # Debug first few key points
         for i, kp in enumerate(key_points[:3]):
             logger.debug(f"    KP {i+1}: '{kp.description[:50]}...' (Status: {kp.status}, Shift: {kp.shift_id})")
-        
+
         for i, change in enumerate(change_infos):
             logger.debug(f"    Change {i+1}: {change.app_name} - {change.status}")
         
@@ -1476,6 +1481,8 @@ def handover_reports():
             # Get detailed incident information
             incidents_data = []
             for inc in incidents:
+                # Use inc.description which is properly populated by the handover form for all incident types
+                # (Open, Closed, Priority, Handover, Escalated) - each stores their specific description there
                 incident_details = {
                     'type': inc.type,
                     'title': inc.title,
@@ -1483,7 +1490,7 @@ def handover_reports():
                     'priority': inc.priority,
                     'handover': inc.handover,
                     'assigned_to': inc.assigned_to,
-                    'description': inc.description,
+                    'description': inc.description or inc.handover,  # Primary: description field, fallback: handover field
                     'escalated_to': inc.escalated_to
                 }
                 # Debug logging for incident assignment tracking

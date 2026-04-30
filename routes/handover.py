@@ -3,9 +3,41 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from flask import session
 from models.models import TeamMember, Shift, Incident, ShiftKeyPoint, ShiftRoster, ShiftChangeInfo, ShiftKBUpdate, Team, db
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, inspect
 from models.handover_enhanced import HandoverRequest
 from models.audit_log import AuditLog
+# Optional collaboration imports - may not exist on all deployments
+try:
+    from models.collaboration import DraftIncident, DraftKeyPoint, DraftChangeInfo, DraftKBUpdate
+    _COLLABORATION_IMPORTED = True
+except ImportError:
+    DraftIncident = DraftKeyPoint = DraftChangeInfo = DraftKBUpdate = None
+    _COLLABORATION_IMPORTED = False
+
+def _check_collaboration_tables_exist():
+    """Check if collaboration tables exist in the database"""
+    if not _COLLABORATION_IMPORTED:
+        return False
+    try:
+        inspector = inspect(db.engine)
+        tables = inspector.get_table_names()
+        required_tables = ['draft_incident', 'draft_key_point', 'draft_change_info', 'draft_kb_update']
+        return all(t in tables for t in required_tables)
+    except Exception:
+        return False
+
+# Will be set to True only if tables exist (checked lazily on first use)
+COLLABORATION_ENABLED = False
+_COLLABORATION_CHECKED = False
+
+def is_collaboration_enabled():
+    """Check if collaboration is enabled (module imported AND tables exist)"""
+    global COLLABORATION_ENABLED, _COLLABORATION_CHECKED
+    if not _COLLABORATION_CHECKED:
+        COLLABORATION_ENABLED = _check_collaboration_tables_exist()
+        _COLLABORATION_CHECKED = True
+    return COLLABORATION_ENABLED
+
 from services.audit_service import log_action
 from services.email_service import send_handover_email, send_incident_assignment_notification
 from services.servicenow_service import ServiceNowService
@@ -32,14 +64,15 @@ def detect_user_shift(user_id, account_id, team_id, date):
         'message': str  # User-friendly message
     }
     """
-    from models.models import TeamMember, ShiftRoster
-    
+    from models.models import TeamMember, ShiftRoster, User
+
+
     # Shift code to type mapping
     code_to_type = {
         'D': 'Morning', 'E': 'Evening', 'LE': 'Late Evening', 'N': 'Night',
         'G': 'General', 'OS': 'OnShore', 'OF': 'OffShore'
     }
-    
+
     result = {
         'is_scheduled': False,
         'shift_code': None,
@@ -48,14 +81,32 @@ def detect_user_shift(user_id, account_id, team_id, date):
         'team_member_name': None,
         'message': ''
     }
-    
-    # Find user's TeamMember record
+
+    # Find user's TeamMember record by user_id link first.
     team_member = TeamMember.query.filter_by(
         user_id=user_id,
         account_id=account_id,
         team_id=team_id
     ).first()
-    
+
+    # Fallback: legacy duplicate-row case where the row carrying the roster
+    # entry has user_id = NULL and was matched to the User only by email.
+    # Match case-insensitively to tolerate 'Foo@x.com' vs 'foo@x.com'.
+    if not team_member:
+        user = User.query.get(user_id)
+        if user and user.email:
+            team_member = TeamMember.query.filter(
+                TeamMember.user_id.is_(None),
+                TeamMember.account_id == account_id,
+                TeamMember.team_id == team_id,
+                func.lower(TeamMember.email) == user.email.lower(),
+            ).first()
+            if team_member:
+                logger.warning(
+                    f"[SHIFT_DETECT] Recovered TeamMember id={team_member.id} for user_id={user_id} "
+                    f"by email match (user_id link was NULL). Consider relinking the row."
+                )
+
     if not team_member:
         result['message'] = 'Your profile is not linked to a team member record. Please contact admin.'
         logger.debug(f"[SHIFT_DETECT] No TeamMember found for user_id={user_id}")
@@ -676,9 +727,9 @@ def get_all_team_members():
         logger.debug(f"🔧 API_TEAM_MEMBERS: Team user - account_id: {account_id}, team_id: {team_id}")
         tm_query = tm_query.filter_by(account_id=account_id, team_id=team_id)
     
-    # Get all team members (remove status filter since TeamMember model doesn't have status field)
-    team_members = tm_query.all()
-    logger.debug(f"🔧 API_TEAM_MEMBERS: Found {len(team_members)} team members")
+    # Get all active team members (filter out disabled users)
+    team_members = tm_query.filter_by(is_active=True).all()
+    logger.debug(f"🔧 API_TEAM_MEMBERS: Found {len(team_members)} active team members")
     for i, member in enumerate(team_members[:5]):  # Show first 5
         logger.debug(f"🔧 API_TEAM_MEMBERS:   Member {i+1}: {member.name} (ID: {member.id}, Team: {member.team_id})")
     
@@ -792,8 +843,9 @@ def edit_handover(shift_id):
             )
         else:
             tm_query = tm_query.filter(False)  # No teams = no members
-    team_members = tm_query.all()
-    logger.debug(f"🔧 EDIT_HANDOVER: Found {len(team_members)} team members")
+    # Filter out disabled/inactive team members
+    team_members = tm_query.filter_by(is_active=True).all()
+    logger.debug(f"🔧 EDIT_HANDOVER: Found {len(team_members)} active team members")
     for i, member in enumerate(team_members[:5]):  # Show first 5
         logger.debug(f"🔧 EDIT_HANDOVER:   Member {i+1}: {member.name} (ID: {member.id}, Team: {member.team_id})")
     
@@ -958,6 +1010,122 @@ def edit_handover(shift_id):
         logger.debug(f"   Form fields count: {len(request.form)}")
         logger.debug(f"   First 5 form keys: {list(request.form.keys())[:5]}")
         
+        # ============================================================================
+        # 🔄 COLLABORATIVE DRAFT MERGING - Merge data from ALL collaborators
+        # This ensures that when user A saves, they get data added by user B as well
+        # ============================================================================
+        collab_draft_incidents = []
+        collab_draft_keypoints = []
+        collab_draft_changeinfos = []
+        collab_draft_kbupdates = []
+
+        if is_collaboration_enabled():
+            logger.debug(f"🔄 COLLABORATIVE DRAFT MERGE: Starting for shift {shift_id}")
+
+            # Get all collaborative draft data for this shift
+            collab_draft_incidents = DraftIncident.query.filter_by(shift_id=shift_id).all()
+            collab_draft_keypoints = DraftKeyPoint.query.filter_by(shift_id=shift_id).all()
+            collab_draft_changeinfos = DraftChangeInfo.query.filter_by(shift_id=shift_id).all()
+            collab_draft_kbupdates = DraftKBUpdate.query.filter_by(shift_id=shift_id).all()
+
+            logger.debug(f"🔄 Found collaborative drafts:")
+            logger.debug(f"   - {len(collab_draft_incidents)} draft incidents")
+            logger.debug(f"   - {len(collab_draft_keypoints)} draft keypoints")
+            logger.debug(f"   - {len(collab_draft_changeinfos)} draft change infos")
+            logger.debug(f"   - {len(collab_draft_kbupdates)} draft KB updates")
+
+        # Convert to mutable form data (ImmutableMultiDict -> MultiDict)
+        from werkzeug.datastructures import MultiDict
+        mutable_form = MultiDict(request.form)
+
+        # Merge draft incidents into form data
+        # Group by incident type
+        incident_type_mapping = {
+            'Open': 'open',
+            'Closed': 'closed',
+            'Priority': 'priority',
+            'Handover': 'handover',
+            'Escalated': 'escalated'
+        }
+
+        for draft_inc in collab_draft_incidents:
+            inc_type = draft_inc.incident_type or 'Open'
+            prefix = incident_type_mapping.get(inc_type, 'open')
+
+            # Check if this incident is already in form (by incident_id)
+            existing_ids = mutable_form.getlist(f'{prefix}_incident_id[]')
+            inc_id = draft_inc.incident_id or draft_inc.title or ''
+
+            if inc_id not in existing_ids:
+                # Add this collaborative draft to form data
+                mutable_form.add(f'{prefix}_incident_id[]', inc_id)
+                mutable_form.add(f'{prefix}_incident_app[]', draft_inc.app_name or '')
+                mutable_form.add(f'{prefix}_incident_priority[]', draft_inc.priority or 'Medium')
+                mutable_form.add(f'{prefix}_incident_description[]', draft_inc.description or '')
+                mutable_form.add(f'{prefix}_incident_assigned[]', str(draft_inc.assigned_to_id) if draft_inc.assigned_to_id else '')
+
+                # Type-specific fields
+                if inc_type == 'Closed':
+                    mutable_form.add(f'{prefix}_incident_resolution[]', draft_inc.resolution or draft_inc.description or '')
+                elif inc_type == 'Escalated':
+                    mutable_form.add(f'{prefix}_incident_level[]', 'L2')
+                    mutable_form.add(f'{prefix}_incident_to[]', str(draft_inc.escalated_to_id) if draft_inc.escalated_to_id else '')
+                    mutable_form.add(f'{prefix}_incident_reason[]', draft_inc.description or '')
+                    mutable_form.add(f'{prefix}_incident_status[]', draft_inc.status or 'Escalated')
+                elif inc_type == 'Handover':
+                    mutable_form.add(f'{prefix}_incident_status[]', draft_inc.status or 'Monitoring')
+                    mutable_form.add(f'{prefix}_incident_notes[]', draft_inc.description or '')
+                    mutable_form.add(f'{prefix}_incident_next_by[]', str(draft_inc.assigned_to_id) if draft_inc.assigned_to_id else '')
+                elif inc_type == 'Priority':
+                    mutable_form.add(f'{prefix}_incident_level[]', draft_inc.priority or 'High')
+                    mutable_form.add(f'{prefix}_incident_impact[]', draft_inc.description or '')
+
+                logger.debug(f"🔄 MERGED draft incident: {inc_id} ({inc_type}) from user {draft_inc.created_by_id}")
+
+        # Merge draft keypoints into form data
+        existing_kp_descriptions = mutable_form.getlist('keypoint_description[]')
+        for draft_kp in collab_draft_keypoints:
+            kp_desc = draft_kp.description or ''
+            if kp_desc and kp_desc not in existing_kp_descriptions:
+                mutable_form.add('keypoint_description[]', kp_desc)
+                mutable_form.add('keypoint_assigned_to[]', str(draft_kp.responsible_engineer_id) if draft_kp.responsible_engineer_id else '')
+                mutable_form.add('keypoint_status[]', draft_kp.status or 'Open')
+                mutable_form.add('keypoint_jira_id[]', draft_kp.jira_id or '')
+                logger.debug(f"🔄 MERGED draft keypoint: '{kp_desc[:30]}...' from user {draft_kp.created_by_id}")
+
+        # Merge draft change infos into form data
+        existing_change_numbers = mutable_form.getlist('change_number[]')
+        for draft_ci in collab_draft_changeinfos:
+            change_num = draft_ci.change_number or ''
+            if change_num and change_num not in existing_change_numbers:
+                mutable_form.add('change_application_name[]', draft_ci.application_name or '')
+                mutable_form.add('change_number[]', change_num)
+                mutable_form.add('change_description[]', draft_ci.description or '')
+                mutable_form.add('change_datetime[]', '')  # Draft doesn't have datetime
+                mutable_form.add('change_responsible_engineer[]', str(draft_ci.responsible_engineer_id) if draft_ci.responsible_engineer_id else '')
+                mutable_form.add('change_status[]', draft_ci.status or 'New')
+                logger.debug(f"🔄 MERGED draft change info: {change_num} from user {draft_ci.created_by_id}")
+
+        # Merge draft KB updates into form data
+        existing_kb_numbers = mutable_form.getlist('kb_number[]')
+        for draft_kb in collab_draft_kbupdates:
+            kb_num = draft_kb.kb_number or ''
+            if kb_num and kb_num not in existing_kb_numbers:
+                mutable_form.add('kb_application_name[]', draft_kb.application_name or '')
+                mutable_form.add('kb_number[]', kb_num)
+                mutable_form.add('kb_description[]', draft_kb.description or '')
+                mutable_form.add('kb_responsible_person[]', str(draft_kb.responsible_engineer_id) if draft_kb.responsible_engineer_id else '')
+                mutable_form.add('kb_status[]', draft_kb.status or 'New')
+                logger.debug(f"🔄 MERGED draft KB update: {kb_num} from user {draft_kb.created_by_id}")
+
+        # Replace request.form with merged data for subsequent processing
+        # We need to use a context that allows modification
+        request.form = mutable_form
+
+        logger.debug(f"🔄 COLLABORATIVE DRAFT MERGE: Complete")
+        logger.debug(f"   Form now has {len(mutable_form)} fields")
+        # ============================================================================
+
         # Audit log: editing handover
         db.session.add(AuditLog(
             user_id=current_user.id,
@@ -1791,6 +1959,32 @@ def edit_handover(shift_id):
         
         db.session.commit()
         
+        # ============================================================================
+        # 🧹 CLEANUP COLLABORATIVE DRAFTS - Remove draft data after successful save
+        # This prevents duplicate data on next edit and marks collaboration as complete
+        # ============================================================================
+        if is_collaboration_enabled():
+            logger.debug(f"🧹 CLEANUP: Removing collaborative drafts for shift {shift_id}")
+            try:
+                # Delete all draft incidents for this shift
+                deleted_incidents = DraftIncident.query.filter_by(shift_id=shift_id).delete()
+                # Delete all draft keypoints for this shift
+                deleted_keypoints = DraftKeyPoint.query.filter_by(shift_id=shift_id).delete()
+                # Delete all draft change infos for this shift
+                deleted_changeinfos = DraftChangeInfo.query.filter_by(shift_id=shift_id).delete()
+                # Delete all draft KB updates for this shift
+                deleted_kbupdates = DraftKBUpdate.query.filter_by(shift_id=shift_id).delete()
+
+                db.session.commit()
+                logger.debug(f"🧹 CLEANUP COMPLETE: Removed {deleted_incidents} drafts incidents, "
+                            f"{deleted_keypoints} draft keypoints, {deleted_changeinfos} draft change infos, "
+                            f"{deleted_kbupdates} draft KB updates")
+            except Exception as cleanup_error:
+                logger.warning(f"⚠️ Failed to cleanup collaborative drafts: {cleanup_error}")
+                # Don't fail the save if cleanup fails - data is already saved
+                db.session.rollback()
+        # ============================================================================
+
         # 🔥🔥🔥 FINAL DATABASE STATE VERIFICATION 🔥🔥🔥
         logger.debug(f"🎯🎯🎯 FINAL VERIFICATION: DATA SAVED TO DATABASE 🎯🎯🎯")
         logger.debug(f"   Shift ID: {shift.id}")
@@ -2033,6 +2227,10 @@ def edit_handover(shift_id):
     logger.debug(f"[EDIT_DEBUG]   Change infos: {len(change_infos)} items")
     logger.debug(f"[EDIT_DEBUG]   KB updates: {len(kb_updates)} items")
     logger.debug(f"[EDIT_DEBUG]   is_edit_mode flag: True")
+
+    # Enable collaboration for draft handovers
+    enable_collaboration = (shift.status == 'draft')
+    logger.debug(f"[EDIT_DEBUG]   enable_collaboration: {enable_collaboration}")
     
     return render_template('handover_form.html',
         team_members=team_members,
@@ -2054,7 +2252,8 @@ def edit_handover(shift_id):
         kb_updates=kb_updates,
         today=shift.date.strftime('%Y-%m-%d'),
         show_team_error=False,
-        is_edit_mode=True  # Flag to indicate this is edit mode
+        is_edit_mode=True,  # Flag to indicate this is edit mode
+        enable_collaboration=enable_collaboration  # Enable collaborative editing for drafts
     )
 
 
@@ -2079,8 +2278,8 @@ def get_team_members_api(team_id):
                 logger.error(f"❌ Access denied: team_id {team_id} not in user's teams {user_team_ids}")
                 return jsonify({'error': 'Access denied'}), 403
         
-        # Fetch team members
-        team_members = TeamMember.query.filter_by(team_id=team_id).all()
+        # Fetch active team members only (exclude disabled users)
+        team_members = TeamMember.query.filter_by(team_id=team_id, is_active=True).all()
         
         # Format response
         members_data = [
@@ -2153,7 +2352,22 @@ def handover():
                 flash('Super admin must select a team before submitting handover.', 'error')
                 return redirect(url_for('handover.handover'))
         else:
-            team_id_raw = current_user.team_id
+            # Multi-team support: respect submitted team_id if user has access to it
+            submitted_team_id = request.form.get('team_id')
+            if submitted_team_id:
+                try:
+                    submitted_team_id_int = int(submitted_team_id)
+                    user_team_ids = TeamAccessService.get_user_team_ids()
+                    if submitted_team_id_int in user_team_ids:
+                        team_id_raw = submitted_team_id_int
+                        logger.debug(f"[POST] Using submitted team_id {submitted_team_id_int} (in user's accessible teams)")
+                    else:
+                        team_id_raw = current_user.team_id
+                        logger.warning(f"[POST] Submitted team_id {submitted_team_id_int} not in user's teams, falling back to primary {current_user.team_id}")
+                except (ValueError, TypeError):
+                    team_id_raw = current_user.team_id
+            else:
+                team_id_raw = current_user.team_id
             
         logging.debug(f"POST - account_id derived/selected: {account_id}, current_user.account_id: {current_user.account_id}")
         logging.debug(f"POST - team_id_raw from form: {request.form.get('team_id')}, current_user.team_id: {current_user.team_id}")
@@ -2295,7 +2509,8 @@ def handover():
         # For team admin/user, filter by their account and team
         tm_query = tm_query.filter_by(account_id=current_user.account_id, team_id=current_user.team_id)
     
-    team_members = tm_query.all()
+    # Filter out disabled/inactive team members
+    team_members = tm_query.filter_by(is_active=True).all()
     
     ist_now = datetime.now(pytz.timezone('Asia/Kolkata'))
     default_date = ist_now.date()
@@ -2410,14 +2625,30 @@ def handover():
                 # Check if current user is in the current shift roster
                 user_in_shift = False
                 user_team_member = None
-                
+
                 # Find the TeamMember record for current user
                 user_team_member = TeamMember.query.filter_by(
                     user_id=current_user.id,
                     account_id=account_id,
                     team_id=team_id
                 ).first()
-                
+
+                # Fallback: legacy duplicate-row case where the row carrying the
+                # roster entry has user_id = NULL. Match the current user by
+                # email (case-insensitive) so eligibility check matches detect_user_shift().
+                if not user_team_member and current_user.email:
+                    user_team_member = TeamMember.query.filter(
+                        TeamMember.user_id.is_(None),
+                        TeamMember.account_id == account_id,
+                        TeamMember.team_id == team_id,
+                        func.lower(TeamMember.email) == current_user.email.lower(),
+                    ).first()
+                    if user_team_member:
+                        logger.warning(
+                            f"[SHIFT_CHECK] Recovered TeamMember id={user_team_member.id} for user "
+                            f"{current_user.username} by email match (user_id link was NULL)."
+                        )
+
                 if user_team_member:
                     # Check if this team member is in the shift roster for the current shift
                     roster_entry = ShiftRoster.query.filter_by(
@@ -2483,8 +2714,9 @@ def handover():
                                 
                                 if any_roster:
                                     # Check if the user's name was passed in the current_engineers form field
-                                    # This means the form displayed them as a current shift engineer
-                                    form_current_engineers = request.form.getlist('current_engineer[]')
+                                    # Form sends 'current_engineers' as a comma-separated string (not array)
+                                    form_current_engineers_raw = request.form.get('current_engineers', '')
+                                    form_current_engineers = [n.strip() for n in form_current_engineers_raw.split(',') if n.strip()] if form_current_engineers_raw else []
                                     if user_team_member.name in form_current_engineers:
                                         user_in_shift = True
                                         logger.debug(f"[SHIFT_CHECK] ✅ User {current_user.username} ({user_team_member.name}) is in form's current shift engineers list")

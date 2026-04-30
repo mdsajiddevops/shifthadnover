@@ -16,10 +16,10 @@ attempt = 0
 while attempt < max_attempts:
     try:
         connection = pymysql.connect(
-            host='db',
+            host='shift-db',
             user='user',
-            password='password',
-            database='shift_handover',
+            password='userpassword',
+            database="shifthandover",
             charset='utf8mb4'
         )
         connection.close()
@@ -45,7 +45,7 @@ try:
     from alembic import command
     
     # Connect to database
-    database_url = os.environ.get('DATABASE_URL', 'mysql+pymysql://user:password@db/shift_handover')
+    database_url = os.environ.get('DATABASE_URL', 'mysql+pymysql://user:userpassword@shift-db/shifthandover')
     engine = create_engine(database_url)
     
     # Test connection

@@ -159,8 +159,29 @@ def send_handover_email(shift):
         logging.info("[EMAIL_SERVICE] Email notifications are disabled in app configuration")
         return
     
-    subject = f"🔄 {shift.current_shift_type} to {shift.next_shift_type} Shift Handover - {shift.date}"
+    # Get Account and Team names for email subject prefix
+    account_name = ""
+    team_name = ""
+    if shift.account_id:
+        account = Account.query.get(shift.account_id)
+        if account:
+            account_name = account.name
+    if shift.team_id:
+        team = Team.query.get(shift.team_id)
+        if team:
+            team_name = team.name
     
+    # Build subject with Account-Team prefix (e.g., "CTC-Supply Chain-L2 🔄 Night to Morning Shift Handover - 2026-02-03")
+    subject_prefix = ""
+    if account_name and team_name:
+        subject_prefix = f"{account_name}-{team_name} "
+    elif account_name:
+        subject_prefix = f"{account_name} "
+    elif team_name:
+        subject_prefix = f"{team_name} "
+
+    subject = f"{subject_prefix}🔄 {shift.current_shift_type} to {shift.next_shift_type} Shift Handover - {shift.date}"
+
     # Initialize variables for recipient tracking (to fix variable scoping issue)
     configured_recipients = None
     priority_alert_recipients = None
@@ -335,7 +356,13 @@ def send_handover_email(shift):
     handover_incidents = Incident.query.filter_by(shift_id=shift.id, type='Handover').all()
     escalated_incidents = Incident.query.filter_by(shift_id=shift.id, type='Escalated').all()
     # Query key points specific to this shift (entered in the submitted handover form)
-    key_points = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
+    # 🔧 FIX: Only include Open and In Progress keypoints, exclude Closed ones
+    key_points = ShiftKeyPoint.query.filter(
+        ShiftKeyPoint.shift_id == shift.id,
+        ShiftKeyPoint.status.in_(['Open', 'In Progress'])
+    ).all()
+
+    logger.debug(f"[EMAIL_SERVICE] 📋 Found {len(key_points)} active key_points for shift_id={shift.id}")
     
     # Query additional handover data for complete email content
     # 🔧 FIX: Filter out Published KBs and Completed/Cancelled Change Infos

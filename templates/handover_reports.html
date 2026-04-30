@@ -624,6 +624,10 @@
     font-size: 0.85rem;
     margin-bottom: 0.75rem;
     line-height: 1.5;
+    word-wrap: break-word;
+    word-break: break-word;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
 }
 
 .item-meta {
@@ -864,6 +868,7 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 0.875rem;
+    table-layout: auto;
 }
 
 .unified-table thead {
@@ -896,7 +901,16 @@
 
 .unified-table tbody td {
     padding: 0.875rem 1rem;
-    vertical-align: middle;
+    vertical-align: top;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+/* Type column - fixed width, no wrapping */
+.unified-table tbody td:first-child {
+    white-space: nowrap;
+    width: 90px;
+    min-width: 90px;
 }
 
 /* Table Type Badge */
@@ -906,10 +920,11 @@
     gap: 0.35rem;
     padding: 0.35rem 0.6rem;
     border-radius: 6px;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.3px;
+    white-space: nowrap;
 }
 
 .table-type-badge.open { background: #e3f2fd; color: #1565c0; }
@@ -935,7 +950,11 @@
 .table-description {
     color: #6c757d;
     font-size: 0.8rem;
-    line-height: 1.4;
+    line-height: 1.6;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
+    margin-top: 0.25rem;
 }
 
 /* Table Priority Badge */
@@ -1233,11 +1252,11 @@
                                     <table class="unified-table">
                                         <thead>
                                             <tr>
-                                                <th style="width: 100px;">Type</th>
+                                                <th style="width: 85px;">Type</th>
                                                 <th>Title / Description</th>
-                                                <th style="width: 90px;">Priority</th>
-                                                <th style="width: 120px;">Assigned To</th>
-                                                <th style="width: 100px;">Status</th>
+                                                <th style="width: 70px;">Priority</th>
+                                                <th style="width: 100px;">Assigned To</th>
+                                                <th style="width: 80px;">Status</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1253,7 +1272,7 @@
                                                 <td>
                                                     <div class="table-title {{ incident_type }}">{{ inc.title or 'Incident #' ~ inc.id }}</div>
                                                     {% if inc.description %}
-                                                    <div class="table-description">{{ inc.description[:100] }}{% if inc.description|length > 100 %}...{% endif %}</div>
+                                                    <div class="table-description">{{ inc.description }}</div>
                                                     {% endif %}
                                                 </td>
                                                 <td>

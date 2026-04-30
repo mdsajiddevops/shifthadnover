@@ -293,6 +293,7 @@ class User(db.Model, UserMixin):
     
     def is_member_of_team(self, team_id, account_id=None):
         """Check if user is a member of a specific team"""
+        # First check UserTeamMembership table
         query = UserTeamMembership.query.filter_by(
             user_id=self.id,
             team_id=team_id,
@@ -302,8 +303,18 @@ class User(db.Model, UserMixin):
         if account_id:
             query = query.filter_by(account_id=account_id)
         
-        return query.first() is not None
-    
+        if query.first() is not None:
+            return True
+
+        # Fallback: check legacy team_id field on User model
+        # This handles users who haven't been migrated to UserTeamMembership yet
+        if self.team_id == team_id:
+            # Also check account_id if provided
+            if account_id is None or self.account_id == account_id:
+                return True
+
+        return False
+
     def is_member_of_team_ids(self, team_ids, account_id=None):
         """Check if user is a member of any of the specified teams"""
         if not team_ids:
@@ -318,7 +329,15 @@ class User(db.Model, UserMixin):
         if account_id:
             query = query.filter_by(account_id=account_id)
         
-        return query.first() is not None
+        if query.first() is not None:
+            return True
+
+        # Fallback: check legacy team_id field on User model
+        if self.team_id and self.team_id in team_ids:
+            if account_id is None or self.account_id == account_id:
+                return True
+
+        return False
     
     def get_team_names(self, account_id=None, separator=', '):
         """Get comma-separated list of team names"""
@@ -469,7 +488,7 @@ class Shift(db.Model):
 
 class Incident(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(128), nullable=False)
+    title = db.Column(db.String(512), nullable=False)
     status = db.Column(db.String(16), nullable=False) # Active/Closed
     priority = db.Column(db.String(16), nullable=False)
     handover = db.Column(db.Text)

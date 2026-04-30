@@ -1,0 +1,745 @@
+/**
+ * Collaborative Handover Styles
+ * =============================
+ * Styles for real-time collaborative editing UI components.
+ */
+
+/* ============================================================================
+   Active Users Panel
+   ============================================================================ */
+
+.collab-users-panel {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.collab-users-label {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.collab-users-container {
+    display: flex;
+    align-items: center;
+}
+
+.collab-user-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    margin-left: -10px;
+    border: 3px solid white;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.2s, z-index 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.collab-user-badge:first-child {
+    margin-left: 0;
+}
+
+.collab-user-badge:hover {
+    transform: scale(1.15);
+    z-index: 20 !important;
+}
+
+.collab-user-badge.editing {
+    animation: collab-pulse 2s infinite;
+}
+
+.collab-user-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+    margin-bottom: 8px;
+    z-index: 100;
+}
+
+.collab-user-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: rgba(0, 0, 0, 0.85);
+}
+
+.collab-user-badge:hover .collab-user-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+.collab-connection-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    color: white;
+    font-size: 12px;
+}
+
+.collab-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #4CAF50;
+}
+
+.collab-status-dot.disconnected {
+    background: #f44336;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ============================================================================
+   Section Locks
+   ============================================================================ */
+
+.collab-section-wrapper {
+    position: relative;
+    transition: opacity 0.3s;
+}
+
+.collab-section-wrapper.locked {
+    opacity: 0.7;
+}
+
+.collab-section-wrapper.locked::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 152, 0, 0.05);
+    border: 2px dashed #ff9800;
+    border-radius: 8px;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.collab-lock-banner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 152, 0, 0.95);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+}
+
+.collab-lock-banner i {
+    font-size: 16px;
+}
+
+.collab-lock-indicator {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #ff9800;
+    color: white;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 12px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 2px 8px rgba(255, 152, 0, 0.4);
+}
+
+/* ============================================================================
+   Attribution Tags
+   ============================================================================ */
+
+.collab-attribution {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #6c757d;
+    margin-top: 4px;
+    padding: 2px 8px;
+    background: #f8f9fa;
+    border-radius: 12px;
+}
+
+.collab-attribution i {
+    font-size: 10px;
+}
+
+.collab-attribution-inline {
+    font-size: 11px;
+    color: #6c757d;
+    margin-left: 8px;
+}
+
+/* ============================================================================
+   Change Highlights
+   ============================================================================ */
+
+.collab-new-item {
+    animation: collab-slide-in 0.5s ease;
+    position: relative;
+}
+
+.collab-new-item::before {
+    content: 'NEW';
+    position: absolute;
+    top: -8px;
+    left: 12px;
+    background: #4CAF50;
+    color: white;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    animation: collab-fade-out 3s ease forwards;
+    animation-delay: 2s;
+}
+
+@keyframes collab-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes collab-fade-out {
+    to {
+        opacity: 0;
+    }
+}
+
+.collab-updated-item {
+    animation: collab-highlight 1.5s ease;
+}
+
+@keyframes collab-highlight {
+    0% {
+        background-color: rgba(76, 175, 80, 0.3);
+        box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.2);
+    }
+    100% {
+        background-color: transparent;
+        box-shadow: none;
+    }
+}
+
+.collab-deleted-item {
+    animation: collab-delete 0.5s ease forwards;
+}
+
+@keyframes collab-delete {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.5;
+        background-color: rgba(244, 67, 54, 0.2);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(0.95);
+        height: 0;
+        padding: 0;
+        margin: 0;
+    }
+}
+
+/* ============================================================================
+   Conflict Resolution Modal
+   ============================================================================ */
+
+.collab-conflict-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.collab-conflict-content {
+    background: white;
+    border-radius: 12px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.collab-conflict-header {
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+    color: white;
+    border-radius: 12px 12px 0 0;
+}
+
+.collab-conflict-header h4 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.collab-conflict-body {
+    padding: 20px;
+}
+
+.collab-conflict-comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.collab-conflict-version {
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.collab-conflict-version h5 {
+    margin: 0 0 12px 0;
+    font-size: 13px;
+    color: #6c757d;
+    text-transform: uppercase;
+}
+
+.collab-conflict-version.yours {
+    border: 2px solid #2196F3;
+}
+
+.collab-conflict-version.theirs {
+    border: 2px solid #ff9800;
+}
+
+.collab-conflict-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    padding-top: 16px;
+    border-top: 1px solid #e9ecef;
+}
+
+/* ============================================================================
+   Toast Notifications
+   ============================================================================ */
+
+.collab-toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.collab-toast {
+    padding: 12px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: slideIn 0.3s ease;
+    max-width: 350px;
+}
+
+.collab-toast.info {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.collab-toast.success {
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+    color: white;
+}
+
+.collab-toast.warning {
+    background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+    color: white;
+}
+
+.collab-toast.error {
+    background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+    color: white;
+}
+
+.collab-toast-icon {
+    font-size: 18px;
+}
+
+.collab-toast-message {
+    flex: 1;
+    font-size: 13px;
+}
+
+.collab-toast-close {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+}
+
+.collab-toast-close:hover {
+    color: white;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* ============================================================================
+   Editing Indicator
+   ============================================================================ */
+
+.collab-editing-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: rgba(103, 126, 234, 0.1);
+    border: 1px solid rgba(103, 126, 234, 0.3);
+    border-radius: 16px;
+    font-size: 11px;
+    color: #667eea;
+    margin-left: 8px;
+}
+
+.collab-editing-indicator .typing-dots {
+    display: flex;
+    gap: 2px;
+}
+
+.collab-editing-indicator .typing-dots span {
+    width: 4px;
+    height: 4px;
+    background: #667eea;
+    border-radius: 50%;
+    animation: typing 1.4s infinite ease-in-out;
+}
+
+.collab-editing-indicator .typing-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.collab-editing-indicator .typing-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typing {
+    0%, 60%, 100% {
+        transform: translateY(0);
+    }
+    30% {
+        transform: translateY(-4px);
+    }
+}
+
+/* ============================================================================
+   Form Input States
+   ============================================================================ */
+
+.collab-input-focus {
+    box-shadow: 0 0 0 3px rgba(103, 126, 234, 0.2) !important;
+    border-color: #667eea !important;
+}
+
+.collab-input-locked {
+    background-color: #f8f9fa !important;
+    cursor: not-allowed !important;
+}
+
+.collab-input-locked::placeholder {
+    color: #adb5bd;
+}
+
+/* ============================================================================
+   Live Field Updates
+   ============================================================================ */
+
+.collab-field-updated {
+    animation: field-update-flash 1s ease;
+    position: relative;
+}
+
+@keyframes field-update-flash {
+    0% {
+        background-color: rgba(76, 175, 80, 0.3);
+        box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.3);
+    }
+    100% {
+        background-color: transparent;
+        box-shadow: none;
+    }
+}
+
+.collab-update-tooltip {
+    position: absolute;
+    top: -24px;
+    right: 0;
+    background: #4CAF50;
+    color: white;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    animation: tooltip-fade 2s ease forwards;
+    z-index: 100;
+}
+
+@keyframes tooltip-fade {
+    0%, 80% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+.collab-typing-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #667eea;
+    padding: 2px 8px;
+    background: rgba(103, 126, 234, 0.1);
+    border-radius: 12px;
+    margin-left: 8px;
+    animation: typing-pulse 1.5s ease infinite;
+}
+
+@keyframes typing-pulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+.collab-typing-indicator .typing-dots {
+    display: inline-flex;
+    gap: 2px;
+}
+
+.collab-typing-indicator .typing-dots span {
+    width: 4px;
+    height: 4px;
+    background: #667eea;
+    border-radius: 50%;
+    animation: typing-bounce 1.4s ease-in-out infinite;
+}
+
+.collab-typing-indicator .typing-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.collab-typing-indicator .typing-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typing-bounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-4px); }
+}
+
+/* ============================================================================
+   Lock Badge (on entries)
+   ============================================================================ */
+
+.collab-lock-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: #ff9800;
+    color: white;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 50;
+    box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
+}
+
+.collab-lock-badge i {
+    font-size: 10px;
+}
+
+.collab-locked {
+    position: relative;
+    opacity: 0.85;
+}
+
+.collab-locked::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 152, 0, 0.05);
+    border: 2px dashed rgba(255, 152, 0, 0.5);
+    border-radius: 8px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* ============================================================================
+   Active Editing Indicator (shows who is editing an entry)
+   ============================================================================ */
+
+.collab-editing-entry {
+    position: relative;
+    border-left: 3px solid #667eea !important;
+}
+
+.collab-editing-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    z-index: 50;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    animation: collab-pulse 2s infinite;
+}
+
+.collab-editing-indicator i {
+    font-size: 10px;
+}
+
+@keyframes collab-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* ============================================================================
+   Attribution Badge
+   ============================================================================ */
+
+.collab-attribution-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #6c757d;
+    padding: 6px 12px;
+    background: linear-gradient(135deg, #e8f5e9 0%, #f3e5f5 100%);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    transition: all 0.3s ease;
+    opacity: 0;
+    transform: translateY(-10px);
+}
+
+.collab-attribution-badge.collab-attribution-visible {
+    opacity: 1;
+    transform: translateY(0);
+    background: linear-gradient(135deg, #c8e6c9 0%, #e1bee7 100%);
+    color: #37474f;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.collab-attribution-badge.collab-attribution-subtle {
+    opacity: 0.7;
+    transform: translateY(0);
+    background: #f5f5f5;
+    font-size: 10px;
+    padding: 4px 10px;
+}
+
+.collab-attribution-badge i {
+    color: #667eea;
+    font-size: 12px;
+}
+
+.collab-attribution-badge strong {
+    color: #667eea;
+}
+
+/* ============================================================================
+   Current User Badge
+   ============================================================================ */
+
+.collab-user-badge.current-user {
+    border-color: #4CAF50;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.5), 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* ============================================================================

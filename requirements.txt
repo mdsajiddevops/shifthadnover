@@ -12,3 +12,4 @@ openpyxl
 Flask-Migrate
 requests
 gunicorn
+pytz
