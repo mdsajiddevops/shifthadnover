@@ -1,0 +1,35 @@
+# Starter GitLab CI/CD pipeline — scaffolded by HiveMind.
+# Refine stages and jobs for your stack (node / python / java / etc.)
+# once you've chosen a runner image.
+
+stages:
+  - install
+  - lint
+  - test
+  - build
+
+default:
+  image: alpine:3.19
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS == null
+
+install:
+  stage: install
+  script:
+    - echo "Replace with your dependency install step."
+
+lint:
+  stage: lint
+  script:
+    - echo "Replace with your linter command."
+
+test:
+  stage: test
+  script:
+    - echo "Replace with your test runner command."
+
+build:
+  stage: build
+  script:
+    - echo "Replace with your build / package step."
