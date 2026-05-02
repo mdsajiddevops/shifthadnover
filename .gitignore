@@ -19,10 +19,12 @@ __pycache__/
 *.swo
 *~
 
-# Environment variables
+# Environment variables — only .example templates are committed
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
+!.env.domain.example
+!.env.http-only.example
 
 # Database
 *.db
@@ -68,6 +70,7 @@ fullchain.pem
 !migrations/*.sql
 !migration/*.sql
 !schema/*.sql
+!scripts/migrations/*.sql
 
 # Docker secrets source files — managed outside version control
 # (secrets/* ignores all files inside; !secrets/README.md keeps the setup doc committed)

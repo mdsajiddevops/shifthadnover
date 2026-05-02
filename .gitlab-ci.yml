@@ -20,6 +20,7 @@ stages:
   - install
   - lint
   - test
+  - build
   - deploy
 
 install:
@@ -37,16 +38,37 @@ install:
 lint:
   stage: lint
   script:
-    - .venv/bin/ruff check . --line-length 120 --exit-zero
+    - .venv/bin/ruff check . --line-length 120
+    - .venv/bin/ruff format --check .
 
+# Tests are HTTP integration tests requiring a live app+DB.
+# This stage runs an import smoke check and SQLite boot verification.
 test:
   stage: test
   variables:
+    LOCAL_DEVELOPMENT: "true"
     DATABASE_URL: sqlite:///ci_test.db
     SECRET_KEY: ci-test-secret
     FLASK_ENV: testing
   script:
-    - .venv/bin/python -c "import flask; print('Flask OK')"
+    - .venv/bin/python -c "import app; print('App imports OK')"
+    - .venv/bin/python app.py &
+    - APP_PID=$!
+    - sleep 5
+    - .venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" && echo "Health check passed"
+    - kill $APP_PID || true
+
+build:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA .
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
 
 deploy:
   stage: deploy

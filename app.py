@@ -7,6 +7,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_mail import Mail
 from flask_migrate import Migrate
+from flasgger import Swagger
+from prometheus_flask_exporter import PrometheusMetrics
 from config import Config
 import os
 import time
@@ -207,6 +209,16 @@ from models.team_shift_timing_config import TeamShiftTimingConfig  # Import team
 from models.escalation_matrix import EscalationMatrixEntry  # Import escalation matrix model
 from models.collaboration import HandoverSession, SectionLock, HandoverChange, DraftIncident, DraftKeyPoint  # Collaborative editing models
 db.init_app(app)
+
+# API docs — available at /apidocs
+Swagger(app, template={
+    'info': {'title': 'ShiftHandover API', 'version': '2.0.0'},
+    'securityDefinitions': {'Bearer': {'type': 'apiKey', 'name': 'Authorization', 'in': 'header'}},
+})
+
+# Prometheus metrics — available at /metrics
+PrometheusMetrics(app)
+
 login_manager = LoginManager(app)
 login_manager.login_view = 'auth.login'  # Redirect to login page for unauthenticated users
 login_manager.login_message = 'Please log in to access this page.'
@@ -344,8 +356,6 @@ from routes.handover_enhanced_routes import handover_enhanced_bp
 app.register_blueprint(handover_enhanced_bp)
 
 # Register debug blueprint for form troubleshooting
-from routes.debug_form import debug_bp
-app.register_blueprint(debug_bp)
 
 # Register email configuration blueprint
 from routes.email_config_routes import email_config_bp
@@ -376,8 +386,6 @@ from routes.checkin import checkin_bp
 app.register_blueprint(checkin_bp)
 
 # Register test blueprint
-from routes.test_routes import test_bp
-app.register_blueprint(test_bp)
 
 # Register SSO authentication blueprints
 from routes.sso_auth import sso_auth
@@ -710,26 +718,8 @@ def initialize_services():
             except Exception as e:
                 app_logger.warning(f"Could not initialize configurations: {e}")
         
-        # Check if CTask assignment feature is enabled
-        # Only initialize CTask scheduler in production and not during worker preload
-        # Note: os is already imported at module level
-        if os.environ.get('FLASK_ENV') == 'production' and not os.environ.get('GUNICORN_PRELOAD'):
-            try:
-                from models.app_config import AppConfig
-                if AppConfig.is_enabled('feature_ctask_assignment'):
-                    # Start the CTask assignment scheduler automatically (non-blocking)
-                    from services.ctask_scheduler import start_ctask_scheduler, get_scheduler_status
-                    
-                    # Quick check if scheduler is already running
-                    status = get_scheduler_status()
-                    if not status['running']:
-                        app_logger.info("Auto-starting CTask assignment scheduler...")
-                        start_ctask_scheduler()
-                        app_logger.warning("CTask assignment service started but ServiceNow not configured")
-                    else:
-                        app_logger.info("CTask assignment scheduler already running")
-            except Exception as e:
-                app_logger.warning(f"CTask scheduler initialization skipped: {e}")
+        # CTask background jobs are now handled by Celery workers (see tasks.py + celery_app.py).
+        # Start the celery worker and beat scheduler via docker-compose — do not start in-process.
                 
         _services_initialized = True  # Mark as initialized
                 
