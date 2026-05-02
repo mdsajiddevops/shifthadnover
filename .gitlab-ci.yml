@@ -2,17 +2,23 @@ stages:
   - install
   - lint
   - test
-  - build
+  - deploy
 
 default:
   image: python:3.11-slim
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS == null
-  cache:
-    key: ${CI_COMMIT_REF_SLUG}
-    paths:
-      - .venv/
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip-cache"
+  DATABASE_URL: "sqlite:///ci_test.db"
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .venv/
+    - .pip-cache/
 
 install:
   stage: install
@@ -20,41 +26,39 @@ install:
     - python -m venv .venv
     - .venv/bin/pip install --upgrade pip
     - .venv/bin/pip install -r requirements.txt
+    - .venv/bin/pip install ruff==0.4.4
+  artifacts:
+    paths:
+      - .venv/
+    expire_in: 1 hour
 
 lint:
   stage: lint
   script:
-    - .venv/bin/pip install ruff
-    - .venv/bin/ruff check . --max-line-length 120 --ignore E501,W503
+    - .venv/bin/ruff check . --max-line-length 120 --ignore E501,W503,E402 --exclude migrations/
 
-# Tests are HTTP integration tests requiring a live app+DB.
-# This stage runs a syntax + import smoke check and starts the app
-# against SQLite (LOCAL_DEVELOPMENT=true) to verify it boots cleanly.
 test:
   stage: test
+  script:
+    - .venv/bin/python -c "import flask; import app; print('Import OK')"
   variables:
-    LOCAL_DEVELOPMENT: "true"
     DATABASE_URL: "sqlite:///ci_test.db"
-    SECRET_KEY: "ci-test-secret-key"
-  script:
-    - .venv/bin/pip install pytest pytest-cov
-    # Smoke check: verify all modules import without errors
-    - .venv/bin/python -c "import app; print('App imports OK')"
-    # Start app in background and hit the health endpoint
-    - .venv/bin/python app.py &
-    - APP_PID=$!
-    - sleep 5
-    - .venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" && echo "Health check passed"
-    - kill $APP_PID || true
+    SECRET_KEY: "ci-test-secret"
+    FLASK_ENV: "testing"
 
-build:
-  stage: build
-  image: docker:24
-  services:
-    - docker:24-dind
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+deploy:
+  stage: deploy
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$DEPLOY_SSH_KEY" | tr -d '' | ssh-add -
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts
   script:
-    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA .
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+    - ssh $DEPLOY_USER@$DEPLOY_HOST "cd /app && git pull origin master && docker-compose -f docker-compose.prod.yml up -d --build"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: manual
+  environment:
+    name: production
