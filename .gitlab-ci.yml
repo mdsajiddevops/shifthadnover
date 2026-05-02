@@ -1,3 +1,7 @@
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
+
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -9,6 +13,9 @@ default:
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip-cache"
   DATABASE_URL: "sqlite:///ci_test.db"
+  # SAST: scan Python source only
+  SAST_EXCLUDED_PATHS: "spec,test,tests,tmp,node_modules,.venv,migrations"
+  SECRET_DETECTION_EXCLUDED_PATHS: "tests,.venv"
 
 cache:
   key: "$CI_COMMIT_REF_SLUG"
@@ -20,6 +27,7 @@ stages:
   - install
   - lint
   - test
+  - security
   - build
   - deploy
 
@@ -29,7 +37,7 @@ install:
     - python -m venv .venv
     - .venv/bin/pip install --upgrade pip
     - .venv/bin/pip install -r requirements.txt
-    - .venv/bin/pip install ruff==0.4.4
+    - .venv/bin/pip install ruff==0.4.4 pip-audit
   artifacts:
     paths:
       - .venv/
@@ -57,6 +65,28 @@ test:
     - sleep 5
     - .venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" && echo "Health check passed"
     - kill $APP_PID || true
+
+# Dependency vulnerability scan — fails pipeline if known CVEs found
+dependency-scan:
+  stage: security
+  script:
+    - .venv/bin/pip-audit --requirement requirements.txt --format json --output pip-audit-report.json || true
+    - .venv/bin/pip-audit --requirement requirements.txt
+  artifacts:
+    when: always
+    paths:
+      - pip-audit-report.json
+    expire_in: 7 days
+  allow_failure: false
+
+# GitLab SAST — static analysis for Python (Bandit-based, free on all tiers)
+# Results appear in Security > Vulnerability Report in the GitLab UI
+sast:
+  stage: security
+
+# GitLab Secret Detection — scans for committed secrets in git history
+secret_detection:
+  stage: security
 
 build:
   stage: build
