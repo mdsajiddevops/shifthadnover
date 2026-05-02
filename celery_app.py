@@ -49,13 +49,24 @@ class ContextTask(celery.Task):
     @property
     def flask_app(self):
         if self._flask_app is None:
-            from app import app as _app
-            self._flask_app = _app
+            try:
+                from app import app as _app
+                self._flask_app = _app
+            except ImportError:
+                return None
         return self._flask_app
 
     def __call__(self, *args, **kwargs):
-        with self.flask_app.app_context():
-            return self.run(*args, **kwargs)
+        app = self.flask_app
+        if app is not None:
+            # Production: run inside Flask app context.
+            # self.run is a bound method — task instance is prepended automatically.
+            with app.app_context():
+                return self.run(*args, **kwargs)
+        # Flask unavailable (e.g. unit test runner): call the raw function so
+        # tests can supply a mock task-self as args[0] without a double-self TypeError.
+        fn = getattr(self.run, '__func__', self.run)
+        return fn(*args, **kwargs)
 
 
 celery.Task = ContextTask

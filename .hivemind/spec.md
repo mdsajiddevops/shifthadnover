@@ -1,277 +1,242 @@
-# Functional Specification: ShiftOps — Archaeology Gap Remediation
+# Functional Specification: ShiftOps Archaeology & Hardening
 
 ---
 
 ## Meta
 
 | Field | Value |
-|---|---|
-| **Ticket ID** | CTCOAMSHM-6 |
-| **Project** | Shifthandover (ShiftOps / shifthandover_v3) |
+|-------|-------|
+| **Ticket ID** | CTCOAMSHM-7 |
+| **Project Name** | ShiftOps (Shifthandover) |
 | **Creation Date** | 2026-05-02 |
-| **Status** | Draft — Pending Review |
-| **Author** | Technical Specification Agent |
+| **Status** | In Review |
+| **Branch Scope** | Archaeology & Hardening |
+| **Spec Author** | Generated from interrogation session |
 
 ---
 
 ## Problem Statement
 
 ### Summary
-Remediate 8 medium-severity architecture, security, process, and hygiene gaps in ShiftOps to establish production-grade operational standards across the application, pipeline, and repository.
+Resolve 8 medium-severity production-readiness gaps in ShiftOps spanning infrastructure, security, process, and documentation hygiene.
 
 ### User Problem
-Developers, operators, and security reviewers cannot confidently deploy, extend, or audit ShiftOps: the application server entrypoint is inconsistent, background jobs may execute redundantly across worker processes, the CI pipeline provides no security feedback, test credentials are partially hardcoded in source files, binary artefacts pollute version history, and schema change history is untracked. These gaps collectively block safe scaling, create security exposure, and impede code review and onboarding.
+Development and operations teams cannot safely scale, deploy, or audit the ShiftOps application: the production entry point uses a development-mode server, scheduled tasks co-run with web workers causing duplicate task execution on scale-out, test credentials are hardcoded in source code, and migration history is undocumented — creating risk of schema drift, security exposure, and undetected operational failures across environments.
 
 ### Business Value
-Closing these gaps reduces deployment risk before the system scales beyond a single worker, enforces security hygiene ahead of CVE accumulation, ensures audit trails for regulated operations (handover submissions) are never silently lost, and introduces peer review enforcement — directly protecting the organisation from security incidents, data integrity failures, and compliance risk associated with an untested, un-audited change pipeline.
+Closing these gaps reduces the attack surface from credential leakage and unscanned CVEs, removes the architectural constraint blocking safe multi-worker deployment, and enforces a reviewable, auditable change pipeline — collectively lowering the probability and blast radius of a security incident or production outage caused by unreviewed or misconfigured code.
 
 ---
 
 ## Requirements
 
 | ID | Type | Priority | Description | Depends On |
-|---|---|---|---|---|
-| REQ-001 | Technical | P0 | The application shall define its startup sequence in a dedicated, version-controlled startup script; the container orchestration configuration shall invoke that script rather than the application module directly. | — |
-| REQ-002 | Functional | P0 | The application shall be served by a production-grade WSGI-compliant server process; the default worker count at initial deployment shall be one. | REQ-001 |
-| REQ-003 | Functional | P0 | All scheduled background job execution — including email digest delivery, external service polling, task retry handling, and assignment checks — shall be delegated exclusively to a distributed task queue. No scheduled job execution shall occur within the HTTP-serving worker process. | — |
-| REQ-004 | Functional | P0 | The scheduler management interface shall expose four operations — start, stop, get\_status, and force\_check — and shall source all execution state and dispatch exclusively from the distributed task queue backing REQ-003. | REQ-003 |
-| REQ-005 | Non-Functional | P0 | When two or more HTTP server worker processes are active concurrently, each scheduled background job shall execute exactly once per trigger interval. Duplicate execution of any background job is not permitted regardless of worker count. | REQ-003 |
-| REQ-006 | Functional | P0 | Background tasks that fail due to transient external-service errors shall be retried automatically; the system shall attempt a minimum of 3 retries with a minimum 30-second interval between each attempt. Tasks that exhaust all retry attempts shall be moved to a dead-letter queue and shall trigger an alert to the operations team. | REQ-003 |
-| REQ-007 | Technical | P0 | All test credential values (superadmin password, admin password, user password) used in the test configuration file shall be sourced from named environment variables. The test configuration file shall contain no credential values that are valid or usable outside a localhost-bound context. | — |
-| REQ-008 | Technical | P0 | The CI/CD pipeline shall include a dedicated security stage that executes three checks: (a) a dependency vulnerability scan against declared package requirements, (b) static application security analysis of Python source code, and (c) a scan of the full repository git history for committed secrets. The pipeline shall fail and block merges if any known CVEs are detected in declared dependencies. | — |
-| REQ-009 | Technical | P0 | The repository's version control ignore configuration shall exclude binary document files of the following types from tracking: PDF, Word document (.doc, .docx), Excel spreadsheet (.xlsx), and PowerPoint presentation (.pptx). No binary document files of these types shall remain present in the repository at any commit reachable from the primary integration branch. | — |
-| REQ-010 | Technical | P1 | Every database migration artefact — including all automated revision files and all ad-hoc SQL scripts — shall be catalogued in a dedicated migration registry file. Each entry shall record: the artefact's identifier, its application status (applied, pending, or superseded), and its required execution order relative to other artefacts. | — |
-| REQ-011 | Technical | P1 | All future database schema changes shall be introduced exclusively through the automated schema migration toolchain; no schema modification shall be applied to any environment without a corresponding tracked migration artefact registered per REQ-010. | REQ-010 |
-| REQ-012 | Technical | P1 | The version control platform shall enforce a branch protection policy on the primary integration branch (master/main) requiring a minimum of one approved peer review from a designated reviewer before any merge is permitted. | — |
-| REQ-013 | Non-Functional | P1 | The `get_status` operation of the scheduler management interface shall complete without blocking in-flight HTTP requests when the task queue broker is unavailable; web-tier request handling shall proceed independently of task queue reachability. Response time for `get_status` under broker-unavailable conditions shall not exceed 5 seconds. | REQ-004 |
-| REQ-014 | Functional | P1 | The application shall abort its startup sequence and emit a descriptive, human-readable error message if any of the following conditions are detected at launch: required secrets are absent, required secrets fail decryption, or the primary database is unreachable. The application shall not enter a running state under any of these conditions. | — |
-| REQ-015 | Functional | P0 | Audit-critical operations — defined as handover submissions and audit-log writes — shall never silently fail. Each such operation shall either complete successfully end-to-end or return a clear, specific error to the caller; partial state commits without corresponding audit records are not permitted. | — |
-| REQ-016 | Functional | P1 | On any form submission, the system shall validate all user-supplied input fields. If one or more fields are invalid (including empty, null, or out-of-range values), the system shall return a specific, field-level, actionable error message for each invalid field. No form submission shall produce a silent failure or an unhandled server error. | — |
-| REQ-017 | Functional | P1 | When a user attempts an operation they are not authorised to perform, the system shall return an error message that identifies the specific missing privilege or role required. Generic authorisation error responses that do not identify the permission context are not acceptable. | — |
-| REQ-018 | Non-Functional | P2 | All end-user and administrator documentation shall be maintained in a single authoritative location. Documentation shall remain current with the deployed version of the application at all times. | — |
+|----|------|----------|-------------|------------|
+| REQ-001 | Functional | P0 | The system shall execute all scheduled background tasks — including notification digests, third-party service polling operations, and retry operations — in a process isolated from the web request-handling process, such that running multiple concurrent web-serving workers does not produce duplicate task executions. | — |
+| REQ-002 | Functional | P0 | The system shall resolve all test suite authentication credentials from named environment variables; a localhost-only fallback to documented default values shall be permitted exclusively for individual developer convenience and shall not activate in any shared, staging, or production environment. | — |
+| REQ-003 | Functional | P0 | The system shall serve all production HTTP traffic through a production-grade WSGI-compatible server with a request timeout of at least 120 seconds; the development-mode server shall not be used as the production entry point under any condition. | — |
+| REQ-004 | Functional | P1 | The system shall maintain a human-readable document within the repository that unambiguously categorises every database migration script as one of: (1) applied to production, (2) superseded — must not be re-applied, or (3) environment-specific; all future schema changes shall be introduced exclusively via the versioned migration toolchain. | — |
+| REQ-005 | Functional | P0 | The system's CI/CD pipeline shall enforce a dedicated security scanning stage that completes before any build artifact is produced, comprising: (1) a dependency vulnerability scan that fails the pipeline on any known CVE and persists a machine-readable scan report as a pipeline artifact, (2) Python static application security analysis, and (3) full git-history scanning for committed secrets. | — |
+| REQ-006 | Functional | P1 | The system's source repository shall contain no tracked binary documentation files (portable document, word processing, spreadsheet, or presentation formats); these file-type patterns shall be permanently excluded from source tracking via repository-level ignore configuration. | — |
+| REQ-007 | Functional | P1 | The system's source repository shall require a minimum of one peer-reviewer approval on every merge request targeting the protected main branch; the merge request author shall be prohibited from satisfying the approval requirement through self-approval. | — |
+| REQ-008 | Functional | P0 | The system shall validate all user-submitted input on submission; for any validation failure the system shall return a response containing a specific, human-readable error message that identifies the offending field and the nature of the constraint violation. | — |
+| REQ-009 | Non-Functional | P0 | The background task subsystem shall guarantee at-most-once execution per trigger event; zero duplicate task executions shall be observed when the web-serving process is scaled to three or more concurrent workers, measurable by task execution log count matching trigger count over a 24-hour observation window. | REQ-001 |
+| REQ-010 | Non-Functional | P1 | Scheduled tasks that encounter a transient external-service failure shall automatically retry up to 3 times with a minimum 30-second delay between each attempt before recording a terminal failure state; retry count and final status shall be observable without manual log parsing. | REQ-001 |
+| REQ-011 | Non-Functional | P0 | The application shall terminate immediately at startup with a logged, human-readable error message when any required configuration value (credentials, database reachability) is absent or unreachable; it shall not enter a partially operational or silently degraded state. | — |
+| REQ-012 | Non-Functional | P1 | A failure of any non-critical background instrumentation service (e.g., background worker status queries) shall not propagate to the web-serving tier; core application routes shall return HTTP 200 and remain fully functional during an instrumentation outage, measurable by monitoring core route responses during a simulated instrumentation failure. | REQ-001 |
+| REQ-013 | Non-Functional | P0 | Authentication credentials (application, test, and service-account) shall never appear in source code, git commit history, CI/CD pipeline logs, or any pipeline-produced artifact; the sole permitted exception is an explicitly documented, localhost-only developer fallback value; violations shall be automatically detectable by the pipeline secret-detection stage. | REQ-005 |
 
 ---
 
 ## Acceptance Criteria
 
-> **Notation:** P0 requirements carry both a happy-path (✅) and an error/unhappy-path (❌) AC. P1 and P2 requirements carry at minimum one testable AC.
+### REQ-001 — Isolated Background Task Execution
 
----
+- **AC-001a** *(Happy Path)*: Given the application is running with three concurrent web-serving workers and the background task process is running in a separate isolated process, when a scheduled email digest task is triggered once, then exactly one completion record is written to the task execution log and exactly one email is dispatched; no duplicate records are observed.
+- **AC-001b** *(Error Path)*: Given the background task process is unavailable when a scheduled trigger fires, when the web-serving workers continue handling HTTP requests, then no task execution is attempted within the web-serving process, HTTP request handling continues without error, and the triggered task remains in a pending or queued state until the background process recovers.
 
-**REQ-001 — Startup Script Entrypoint**
+### REQ-002 — Environment Variable Credentials
 
-- **AC-001a** ✅ (REQ-001): Given the application is deployed via container orchestration, when the container starts, then the orchestration configuration invokes the startup script (`start.sh`) rather than the application module directly, and the WSGI server process is confirmed running.
-- **AC-001b** ❌ (REQ-001): Given the startup script is absent or contains a syntax error, when the container starts, then the container exits with a non-zero exit code and emits a descriptive error message within 10 seconds; no server process is left in a partially initialised state.
+- **AC-002a** *(Happy Path)*: Given the named environment variables for superadmin, admin, and user test credentials are populated in the CI/CD environment, when the test suite runs, then all authentication-dependent tests pass using the environment variable values and no credential literal appears in pipeline stdout, log output, or saved test artifacts.
+- **AC-002b** *(Error Path)*: Given the named environment variables are absent and the test runner is not executing on a localhost environment, when the test suite initialises, then the suite fails immediately with a clear error message identifying which environment variables are missing rather than silently substituting insecure default values.
 
-**REQ-002 — Production WSGI Server**
+### REQ-003 — Production-Grade WSGI Server
 
-- **AC-002a** ✅ (REQ-002): Given `start.sh` is invoked, when the server starts, then a WSGI-compliant server process binds to port 5000, reports 1 active worker, and begins accepting HTTP requests within 30 seconds.
-- **AC-002b** ❌ (REQ-002): Given port 5000 is already bound by another process, when the server starts, then the WSGI server exits with a non-zero code and logs an address-in-use error; no silent hang occurs.
+- **AC-003a** *(Happy Path)*: Given the application is started via the designated production entry-point, when the first inbound HTTP request arrives, then the request is served successfully; the running process is identifiable as the production WSGI server (not the development server); and a request requiring at least 90 seconds of processing time is not terminated prematurely.
+- **AC-003b** *(Error Path)*: Given the production entry-point is invoked but a required system resource (e.g., the target port is already bound) is unavailable, when the server process attempts to start, then the process exits with a non-zero exit code and writes a human-readable error message to the process log; the development-mode server is not invoked as a fallback.
 
-**REQ-003 — Distributed Task Queue for Background Jobs**
+### REQ-004 — Migration Documentation
 
-- **AC-003a** ✅ (REQ-003): Given a task queue worker process is running, when a scheduled trigger fires for any of the four job types (email digest, external service poll, task retry, assignment check), then the job executes via the task queue worker and no execution occurs within the HTTP server process.
-- **AC-003b** ❌ (REQ-003): Given the task queue broker is unavailable, when a scheduled job trigger fires, then the job is not silently discarded; a structured log entry recording the failure to enqueue is produced, and the HTTP server process continues serving requests uninterrupted.
-- **AC-003c** ❌ (REQ-003): Given the application source code is inspected, when a static search for APScheduler imports is performed across all modules, then zero matches are found.
+- **AC-004a** *(Happy Path)*: Given the migration documentation file exists at its expected repository path, when a developer reads it, then every migration script in the repository is unambiguously classified as "applied to production," "superseded — do not re-apply," or "environment-specific," with no script left uncategorised.
+- **AC-004b** *(Error Path)*: Given a developer locates a migration script documented as "superseded — do not re-apply," when they consult the document before executing the script, then the documentation provides an explicit warning and identifies which versioned migration supersedes it, enabling the developer to avoid accidental re-application.
 
-**REQ-004 — Scheduler Management Interface**
+### REQ-005 — Pipeline Security Scanning
 
-- **AC-004a** ✅ (REQ-004): Given a task queue worker is active, when `get_status()` is invoked, then the response reflects the live worker state sourced from the task queue and is returned within 3 seconds.
-- **AC-004b** ✅ (REQ-004): Given a task queue worker is active, when `force_check()` is invoked, then a job is dispatched to the task queue within 1 second and a confirmation is returned to the caller.
-- **AC-004c** ❌ (REQ-004): Given the task queue broker is unavailable, when `get_status()` is invoked, then it returns a degraded-state indicator (not a 500 error) and does not block for longer than 5 seconds.
+- **AC-005a** *(Happy Path)*: Given a commit introduces no new CVE-affected dependencies and contains no credential literals in git history, when the CI/CD pipeline runs, then the security scanning stage passes, a dependency scan artifact is saved to the pipeline, and the build stage proceeds.
+- **AC-005b** *(Error Path — CVE introduced)*: Given a dependency with a published CVE is added to the project's dependency manifest, when the CI/CD pipeline runs, then the dependency scan step fails, the pipeline does not advance to the build stage, and the artifact identifies the affected package name, version, and CVE identifier.
+- **AC-005c** *(Error Path — committed secret)*: Given a credential literal is present in any commit in the repository history, when the pipeline runs the secret-detection step, then the step fails, the pipeline does not advance to the build stage, and the finding is reported with sufficient context (file reference) to locate and remediate the exposure.
 
-**REQ-005 — No Duplicate Job Execution**
+### REQ-006 — Binary File Exclusion
 
-- **AC-005a** ✅ (REQ-005): Given two HTTP server worker processes are running concurrently, when a scheduled trigger fires for the email digest job, then exactly one execution is logged by the task queue; no duplicate execution record appears.
-- **AC-005b** ❌ (REQ-005): Given one of two concurrently running HTTP workers is terminated mid-cycle, when the next trigger fires, then the surviving worker (or task queue) executes the job exactly once and no duplicate or missed execution occurs.
+- **AC-006a** *(Happy Path)*: Given the repository ignore configuration has been committed with binary documentation file patterns, when a developer clones the repository from scratch, then no files matching *.pdf, *.docx, *.doc, *.xlsx, or *.pptx patterns are present in the working tree.
+- **AC-006b** *(Boundary — attempted add)*: Given a developer attempts to stage a binary documentation file for commit, when the version control tooling evaluates the staged files, then the file is excluded by the ignore rules and does not appear in the changeset to be committed.
 
-**REQ-006 — Background Task Retry and Dead-Letter Queue**
+### REQ-007 — Merge Request Approval Enforcement
 
-- **AC-006a** ✅ (REQ-006): Given a ServiceNow polling task fails on attempt 1 with a timeout error, when the retry scheduler runs, then the task is retried at attempt 2 no sooner than 30 seconds after attempt 1; on success at attempt 2, no further retries are scheduled.
-- **AC-006b** ❌ (REQ-006): Given a background task fails on all 3 retry attempts, when the final retry is exhausted, then the task is moved to the dead-letter queue, a structured log entry is written, and the operations team receives an alert; no silent discard occurs.
+- **AC-007a** *(Happy Path)*: Given a merge request targeting the main branch has been approved by at least one peer reviewer who is not the author, when the author initiates a merge, then the merge is permitted and completes.
+- **AC-007b** *(Error Path — no approval)*: Given a merge request is opened by an author who has repository merge rights, when the author attempts to merge without any peer-reviewer approval, then the merge is blocked and the platform reports that one approval is required before merging is permitted.
+- **AC-007c** *(Error Path — self-approval)*: Given a merge request is open, when the author attempts to approve their own merge request, then the approval is rejected and does not increment the approval count toward the required threshold.
 
-**REQ-007 — Environment-Variable Test Credentials**
+### REQ-008 — Input Validation and Error Messages
 
-- **AC-007a** ✅ (REQ-007): Given `TEST_SUPERADMIN_PASSWORD`, `TEST_ADMIN_PASSWORD`, and `TEST_USER_PASSWORD` environment variables are set, when `tests/config.py` is imported, then the credential values used in tests match those environment variable values exactly.
-- **AC-007b** ❌ (REQ-007): Given the three environment variables are unset and the test suite is executed against a non-localhost target, then the test suite fails with a configuration error before any credential is transmitted; no production-valid credential is exposed.
-- **AC-007c** ❌ (REQ-007): Given the `tests/config.py` source file is inspected, when a search for hardcoded non-localhost credential strings is performed, then zero matches are found.
+- **AC-008a** *(Happy Path)*: Given a user submits a fully valid form with all required fields populated within their permitted ranges, when the system processes the submission, then the operation proceeds without validation errors and the data is persisted.
+- **AC-008b** *(Error Path — empty required field)*: Given a user submits a form with a required field left empty, when the system validates the input, then the response contains an error message identifying the specific empty field as required; no partial record is persisted.
+- **AC-008c** *(Error Path — null or out-of-range value)*: Given a user submits a field with a null value or a value outside its permitted range, when the system validates the input, then the response contains an error message specifying the field name and the constraint that was violated.
 
-**REQ-008 — CI Security Stage**
+### REQ-009 — Scheduled Task Deduplication
 
-- **AC-008a** ✅ (REQ-008): Given a CI pipeline run on a branch with clean dependencies and no committed secrets, when the security stage executes, then all three checks (dependency CVE scan, SAST, secret history scan) complete without findings and the pipeline proceeds to subsequent stages.
-- **AC-008b** ❌ (REQ-008): Given a dependency with a known CVE is present in the declared package requirements file, when the dependency vulnerability scan runs, then the pipeline fails, the CVE identifier and affected package are reported in the pipeline log, and the merge is blocked.
-- **AC-008c** ❌ (REQ-008): Given a secret string is committed in the repository's git history, when the secret detection scan runs, then the pipeline fails and the offending commit reference is reported.
+- **AC-009a** *(Happy Path)*: Given three concurrent web-serving workers and one background task worker, when a scheduled email digest trigger fires exactly once over a 24-hour window, then the task execution log records exactly one completion event corresponding to that trigger; no duplicate completion records are present.
+- **AC-009b** *(Error Path — worker restart mid-execution)*: Given the background task worker restarts while a task is partially executed, when the task resumes, then no duplicate execution record is created and the task either completes cleanly or records a single terminal failure state.
 
-**REQ-009 — Binary File Exclusion**
+### REQ-010 — Scheduled Task Retry Behaviour
 
-- **AC-009a** ✅ (REQ-009): Given the version control ignore configuration is in place, when a developer executes `git add` on a file matching any of the excluded extensions (pdf, doc, docx, xlsx, pptx), then git reports the file as ignored and does not stage it.
-- **AC-009b** ❌ (REQ-009): Given the primary integration branch history is inspected, when a search for tracked binary document files (pdf, doc, docx, xlsx, pptx) is performed across all commits, then zero such files are found at any reachable commit.
+- **AC-010a** *(Happy Path — recovery on retry)*: Given a scheduled task encounters a transient external service error on its first attempt, when the retry policy activates, then the task retries up to 3 times at minimum 30-second intervals; upon recovery of the external service the task completes and records a single success state.
+- **AC-010b** *(Error Path — retries exhausted)*: Given a scheduled task exhausts all 3 retry attempts without success, when the final retry fails, then the task transitions to a terminal failed state that is observable without manual log parsing and no further automatic retry is attempted.
 
-**REQ-010 — Migration Registry**
+### REQ-011 — Startup Failure Behaviour
 
-- **AC-010** (REQ-010): Given the `migrations/README.md` file is present, when it is reviewed, then every Alembic revision file and every ad-hoc SQL script in the `migrations/` directory has a corresponding entry recording its identifier, status (applied / pending / superseded), and execution order.
+- **AC-011a** *(Happy Path)*: Given all required configuration values are present and the database is reachable, when the application process starts, then it enters the running state and begins accepting traffic within the normal startup window.
+- **AC-011b** *(Error Path)*: Given a required environment variable is absent at process start, when the application attempts to initialise, then the process exits with a non-zero exit code and writes a human-readable log message identifying the missing variable by name; the process does not continue to a partially running state.
 
-**REQ-011 — Schema Changes via Migration Toolchain**
+### REQ-012 — Non-Critical Service Degradation Isolation
 
-- **AC-011** (REQ-011): Given a developer introduces a schema change via the migration toolchain, when the toolchain generates the migration artefact, then a new timestamped revision file is created and an entry is added to the registry in `migrations/README.md`; no schema change is accepted in a merge request without both artefacts present.
+- **AC-012a** *(Happy Path)*: Given all background instrumentation services are operational, when a user navigates to core application pages, then all pages load successfully and instrumentation data is visible.
+- **AC-012b** *(Error Path)*: Given the background worker status instrumentation endpoint is unavailable, when a user navigates to core application pages, then all core routes return HTTP 200 and function correctly; only the instrumentation-specific UI element reflects the degraded state; no error is propagated to the user for core functionality.
 
-**REQ-012 — Branch Protection Policy**
+### REQ-013 — Credential Absence from Source and Logs
 
-- **AC-012a** (REQ-012): Given a merge request to the primary integration branch with zero approvals, when a merge is attempted, then the version control platform blocks the merge and displays a message requiring at least one approval.
-- **AC-012b** (REQ-012): Given a merge request to the primary integration branch with one or more approvals, when a merge is attempted, then the merge is permitted by the branch protection policy.
-
-**REQ-013 — Non-Blocking Scheduler Status**
-
-- **AC-013** (REQ-013): Given the task queue broker is unavailable, when `get_status()` is invoked on the scheduler interface, then the response is returned within 5 seconds with a degraded-state indicator; no HTTP request processing thread is blocked during this call.
-
-**REQ-014 — Fail-Fast Startup**
-
-- **AC-014a** (REQ-014): Given a required application secret is absent from the secrets store at launch, when the application starts, then it exits within 10 seconds and logs a specific error identifying the missing secret by name; no server port is bound.
-- **AC-014b** (REQ-014): Given the primary database is unreachable at launch, when the application starts, then it exits within 10 seconds and logs a connectivity error identifying the target; no server port is bound.
-
-**REQ-015 — Audit-Critical Operations Never Silently Fail**
-
-- **AC-015a** ✅ (REQ-015): Given a user submits a handover, when both the handover record and the audit log entry are successfully persisted, then the user receives a success confirmation and the audit log contains a timestamped record of the submission.
-- **AC-015b** ❌ (REQ-015): Given the audit log write fails during a handover submission, when the operation is attempted, then the entire operation is rolled back, the handover record is not persisted, and the user receives a clear error message; no partial state is written.
-
-**REQ-016 — Input Validation with Actionable Errors**
-
-- **AC-016a** (REQ-016): Given a user submits a form with one or more required fields left empty, when the submission is received, then the system returns a response identifying each empty field by name with an actionable correction message; no 500 error is returned.
-- **AC-016b** (REQ-016): Given a user submits a form with a field containing an out-of-range value, when the submission is received, then the system returns a field-level error message specifying the valid range; the submission is not silently accepted or discarded.
-
-**REQ-017 — Permission-Specific Error Messages**
-
-- **AC-017** (REQ-017): Given a `user`-role account attempts to approve a handover (a `team_admin` privilege), when the attempt is made, then the system returns an error message specifically identifying the required role or privilege (e.g., "team_admin access is required to approve handovers") rather than a generic 403 response.
-
-**REQ-018 — Single Authoritative Documentation Source**
-
-- **AC-018** (REQ-018): Given an end-user or administrator seeks guidance on any documented feature, when they access the designated documentation platform, then they find documentation current with the deployed application version; no conflicting documentation exists in the repository as binary file artefacts.
+- **AC-013a** *(Happy Path)*: Given the repository contains only environment variable references for credentials (with documented localhost-only fallbacks), when the secret detection stage runs against the full git history, then zero credential findings are reported and the stage passes.
+- **AC-013b** *(Error Path)*: Given a developer accidentally commits a credential literal to any branch, when the CI/CD pipeline runs, then the secret detection stage fails, the pipeline is blocked from producing build artifacts, and the finding is reported with sufficient context to locate and remediate the exposure.
 
 ---
 
 ## Constraints
 
 ### Performance
-- The application is deployed at medium traffic volume (thousands of HTTP requests per day). Standard database indexing and response caching are the expected performance controls at this scale.
-- Scheduler `get_status` operations shall complete within **5 seconds** under broker-unavailable conditions (REQ-013).
-- The WSGI server shall begin accepting HTTP requests within **30 seconds** of container start (REQ-002).
-- Application startup failure detection (missing secrets, DB unreachable) shall produce a terminal exit within **10 seconds** (REQ-014).
-- Background task retry intervals shall not be less than **30 seconds** between attempts (REQ-006).
+- The application shall support steady-state traffic measured in the order of thousands of HTTP requests per day. No formal SLA, P99 latency target, or peak RPS figure has been established for this branch; standard caching and database indexing are considered sufficient for the stated load.
+- Scheduled tasks that fail transiently shall complete within a maximum resolution window of approximately 90 seconds from first failure to final retry (1 initial attempt + 3 retries at ≥ 30-second intervals).
+- No load testing or performance benchmarking is required as part of this hardening branch.
 
 ### Security
-- Test credential values must not be valid outside a localhost-bound context. Hardcoded fallback values are permitted only for `localhost` targets (REQ-007).
-- The CI security stage must execute dependency CVE scanning, static application security analysis, and committed-secret detection on every pipeline run. Any detected CVE in declared dependencies is a pipeline-blocking failure (REQ-008).
-- The task queue broker connection must be authenticated; broker credentials shall not appear in source code or version-controlled configuration files.
-- Session token validation runs on every HTTP request (existing control; must be preserved through all refactoring).
-- SSO OAuth client credentials (client ID, client secret, tenant ID) are stored encrypted via the existing secrets manager; this mechanism shall not be altered by this work.
-- RBAC enforcement remains inline per route (existing pattern); no RBAC logic shall be removed or weakened during scheduler or entrypoint refactoring.
+- Credentials (application, test, and service-account) shall never be stored in plain text in source code, with the sole permitted exception of explicitly documented localhost-only developer fallback values that do not activate in shared or production environments.
+- All declared project dependencies shall be scanned for known CVEs on every CI/CD pipeline run; any pipeline run introducing a newly CVE-affected dependency shall be blocked from producing a build artifact.
+- The full git commit history shall be scanned for committed secrets on every CI/CD pipeline run without exception.
+- Python application source code shall be subject to static security analysis on every CI/CD pipeline run.
+- Direct commits to the main branch shall be blocked; all changes must pass through a merge request with at least one qualifying peer-reviewer approval.
+- Audit-critical operations (e.g., handover form submission) shall never silently fail or produce a partial success state; each operation shall either complete fully or raise a recorded exception that triggers the defined retry or abort strategy.
+- The existing session token validation mechanism (per-request validation against the `session_tokens` table, administrator-forced logout capability) shall remain intact and unmodified.
 
 ### Compatibility
-- The external interface of the scheduler management operations (start, stop, get_status, force_check) shall remain unchanged from the caller's perspective; only the internal execution backing changes (REQ-004).
-- All existing Flask Blueprint route URLs, HTTP methods, and response content types shall remain unchanged; this work does not modify any user-facing endpoint contract.
-- All existing session and authentication mechanisms (SSO and local login) shall continue to function without modification.
+- This branch introduces no changes to existing route contracts, URL structures, request or response schemas, session formats, RBAC role definitions, or database table schemas. All changes are internal infrastructure hardening.
+- The two-path authentication model (SSO primary, local login fallback) is preserved without modification. Existing authenticated sessions shall remain valid across the deployment boundary.
+- The existing four-tier RBAC role hierarchy (`super_admin` → `account_admin` → `team_admin` → `user`) and associated privilege boundaries are unchanged.
 
 ### Accessibility
-Not applicable to this scope — no new user-interface surfaces are introduced.
+Not applicable to this branch — no UI or front-end changes are introduced.
 
 ---
 
 ## Non-Goals
 
 | Non-Goal | Rationale |
-|---|---|
-| **Jira configuration and HiveMind service account permissions** | This is an operational admin task with no code dependency. Jira board 344407 permission errors (406) require Jira admin action; no code change is required or in-scope. |
-| **Confluence content migration from removed binary files** | Confluence is already the designated authoritative documentation source. No content backport from removed repository binary files is required. |
-| **Gunicorn worker count auto-scaling policy** | Initial deployment is intentionally single-worker. Scaling policy definition (thresholds, triggers, upper bounds) is deferred to a subsequent iteration after production baseline metrics are established. |
-| **Multi-environment Jira issue synchronisation** | Currently broken due to the permission issue noted above; repair is explicitly deferred pending Jira admin resolution. |
-| **New feature development or user-facing capability changes** | This specification addresses only gap remediation — infrastructure, pipeline, hygiene, and process — not new product functionality. |
-| **Pre-commit client-side git hooks** | Optional enhancement noted in open items; enforcement is handled at CI pipeline level in this iteration. Client-side hooks are not a deliverable. |
+|----------|-----------|
+| **Production credential rotation or adoption of a centralised secrets management system** | Environment variable injection from the deployment platform satisfies the current threat model. A dedicated vault service would introduce significant scope beyond this hardening branch and is not required to close the identified gaps. |
+| **Jira project permission configuration or board reconfiguration** | The required service-account role upgrade is an external administrative action with no associated code change; it is tracked as an open item (see Dependencies) and resolved outside this branch. |
+| **Load testing, performance benchmarking, or infrastructure provisioning for increased capacity** | This branch removes the architectural constraint blocking safe multi-worker deployment but does not include validation of scale-out behaviour beyond the duplicate-execution acceptance criterion. No SLA or latency target has been specified. |
+| **Real-time audit log streaming or SIEM integration** | Audit-critical operations are logged at the application level; the delivery mechanism, retention policy, and integration with security monitoring infrastructure are out of scope for this branch. |
+| **Replacement of the background task scheduler with a distributed workflow orchestration platform** | Current task volume and complexity do not require a dedicated orchestration system. The isolated background task worker approach satisfies present scaling requirements without that investment. |
+| **New user-visible features of any kind** | This branch is exclusively production-readiness and security hardening. Zero new user-visible functionality shall be introduced. |
 
 ---
 
 ## Assumptions
 
-| # | Assumption | Risk If Wrong | Risk Level | Validation Required Before Implementation |
-|---|---|---|---|---|
-| A-001 | A single WSGI worker process combined with distributed task queue workers is sufficient to handle thousands of HTTP requests per day at acceptable latency. | CPU-bound work in the HTTP process could cause latency spikes under concurrent load if the assumption is wrong; however, async workloads are already delegated to the task queue. | **Low** | Monitor p95 request latency post-deployment; add workers if latency exceeds agreed threshold. |
-| A-002 | Task queue workers are deployed and running in all environments (development, staging, production) as part of the standard container orchestration setup. | If workers are not started, all background jobs silently fail with no immediate HTTP-tier indication. | **Medium** | Confirm docker-compose and all production deployment manifests explicitly start worker processes before merging this work. |
-| A-003 | The message broker (required for the task queue) is deployed with sufficient availability and the web tier can tolerate broker unavailability for non-blocking status queries. | A broker outage halts the entire background job pipeline; job enqueueing fails until the broker recovers. | **Medium** | Confirm broker replication/HA configuration is in place; document recovery runbook before production deployment. |
-| A-004 | APScheduler is the only internal scheduler in the codebase; no other mechanism is triggering background jobs outside the task queue. | If additional scheduler instances exist and are not migrated, background jobs will continue to execute in the HTTP process, violating REQ-003 and REQ-005. | **Low** | Static code search for all scheduler-related imports (APScheduler, `threading.Timer`, `sched` module, etc.) shall be performed as part of the migration PR review. |
-| A-005 | Only 4 binary document files exist in the repository (2 PDFs, 2 DOCXs); `.gitignore` patterns are sufficient to prevent future additions. | If additional binary files are present or are added without detection, repository bloat continues and audit artefacts remain version-controlled. | **Low** | Full repository audit via `git log --all -- '*.pdf' '*.docx' '*.doc' '*.xlsx' '*.pptx'` shall be run before the cleanup commit is merged. |
-| A-006 | Jira admin will resolve HiveMind service account permissions on board 344407 within the project timeline. | Sprint tracking and issue correlation remain broken for the duration if unresolved; team velocity reporting is unreliable. | **Medium** | Assign explicit ticket to Jira admin with a documented ETA before project go-live. |
-| A-007 | Confluence is maintained as the single source of truth going forward through organisational discipline and process, not automated enforcement. | Documentation will drift from code unless reviews explicitly include documentation sign-off. | **Medium** | Add documentation update as a mandatory checklist item in the merge request template before enforcing REQ-018. |
+| ID | Assumption | Risk if Wrong | Validation Needed Before Implementation? |
+|----|-----------|--------------|------------------------------------------|
+| A-001 | The message queue service backing the background task worker is continuously available and monitored in all deployed environments. A prolonged outage would cause task queues to back up, potentially resulting in delayed notifications or stale handover data — though no duplicate executions would occur. | **Medium** — Backlogged tasks could produce missed notifications or stale handover states; prolonged failure without alerting may go undetected. | **Yes** — Confirm that message queue uptime monitoring and alert thresholds are in place before scaling the web-serving tier beyond a single worker. |
+| A-002 | All required environment variables (test credentials, application secrets) will be correctly populated in every non-localhost environment (CI, staging, production) prior to container startup. Misspelled or absent variables could cause test failures or silent use of insecure defaults in shared environments. | **Medium** — Insecure defaults in shared environments constitute a security exposure; missing variables cause startup failures that may not be immediately diagnosed. | **Yes** — A deployment verification runbook must be produced and validated against a staging environment before the first production deployment of this branch. |
+| A-003 | Python static application security analysis provides sufficient coverage for the application's current threat model without requiring custom rule authoring or supplementary scanning tools. | **Low** — Mature tooling with broad coverage is used; combined with dependency scanning and secret detection, the pipeline provides reasonable composite security signal. | **No** — Proceed; revisit if the application's threat model materially changes. |
+| A-004 | The external Jira administrator will complete the HiveMind service-account role upgrade to Developer on board 344407 within two weeks of this branch merging. | **Medium** — If unresolved, Jira issue correlation remains broken, potentially impeding sprint planning continuity and issue traceability. | **Yes** — Escalate to the Jira administrator if no confirmation is received within two weeks of merge. |
+| A-005 | "Thousands of requests per day" represents the steady-state average traffic volume, not a burst or sustained peak figure. Standard caching and database indexing are assumed sufficient without additional infrastructure investment. | **Low** — No burst or spike scenario has been identified. If sustained peaks exceed 10× the stated average, caching and indexing assumptions may need revisiting. | **No** — Proceed; revisit if production monitoring reveals sustained peaks exceeding 10× the average. |
+| A-006 | The failure-handling strategy classifications — abort on startup failure, retry on transient task failure, graceful degrade on non-critical instrumentation failure — are correctly scoped to their respective operations in the existing codebase. An incorrectly classified "non-critical" operation could silently fail without triggering retry or abort strategies. | **Medium** — A misclassified audit-critical operation could produce silent data loss that is not caught by automated means. | **Yes** — A dedicated code review pass verifying each task and startup check carries the correct failure strategy must be completed as part of merge request review before this branch is merged. |
+| A-007 | A second team member will join within six months, at which point the merge request approval rule becomes enforceable as a genuine peer-review gate rather than a formality for a single-developer project. | **Low** — The rule is configured and active from the point of enforcement regardless of team size; it provides immediate protection against accidental self-merges. | **No** — No action required; revisit rule configuration only if team structure changes significantly. |
 
 ---
 
 ## Edge Cases
 
-| # | Scenario | Expected Behaviour | Related Requirement |
-|---|---|---|---|
-| EC-001 | A form field receives a null or empty string submission | The system validates the field, returns a specific field-level error message naming the field and the correction needed, and does not proceed with partial data. No 500 error is emitted. | REQ-016 |
-| EC-002 | The task queue broker becomes unavailable while a background task is mid-execution | The in-flight task continues to execute if already dequeued by a worker. New enqueue operations fail and are logged. The web tier continues serving HTTP requests without blocking. Retry-eligible tasks are queued for re-attempt when the broker recovers. | REQ-003, REQ-013 |
-| EC-003 | A background task exhausts all 3 retry attempts | The task is moved to the dead-letter queue with full context (task type, input arguments, error trace, timestamp). An operations alert is dispatched. The task is not silently dropped and is recoverable by an operator. | REQ-006 |
-| EC-004 | A developer attempts to commit a `.pdf` file to the repository after `.gitignore` is updated | The file is rejected at staging time; git reports the file as ignored. A comment or note in `.gitignore` directs the developer to the authoritative documentation platform. | REQ-009 |
-| EC-005 | A handover submission succeeds at the database level but the audit log write fails | The entire operation is rolled back atomically. Neither the handover record nor a partial audit entry is persisted. The user receives an explicit error message indicating the submission failed and should be retried. | REQ-015 |
-| EC-006 | Two WSGI workers simultaneously attempt to enqueue the same scheduled job | Exactly one job execution record appears in the task queue. The distributed task queue's deduplication or lock mechanism prevents the second enqueue from producing a duplicate execution. | REQ-005 |
-| EC-007 | The application is started with a valid secrets store but the primary database is unreachable | The application detects the connectivity failure during startup health checks, logs a specific error identifying the database target, and exits with a non-zero code. No HTTP port is bound; no server enters a degraded running state. | REQ-014 |
-| EC-008 | `get_status()` is called while the task queue broker connection is timing out | The scheduler interface returns a degraded-state indicator within 5 seconds without waiting for the full broker connection timeout. No HTTP worker thread is blocked; other HTTP requests continue to be processed normally during this period. | REQ-004, REQ-013 |
-| EC-009 | A `user`-role account submits a request to approve a handover | The system returns a specific permission error identifying that `team_admin` (or higher) access is required for approval. The operation is not performed. The response is not a generic HTTP 403. | REQ-017 |
+| Scenario | Expected Behaviour | Related Requirement(s) |
+|----------|--------------------|------------------------|
+| **Empty or null required field submitted** | The system validates the submission before any data is persisted; the response identifies the specific field as empty or null and states what is required. No partial record is created. | REQ-008 |
+| **Required environment variable absent at application startup** | The process terminates immediately with a non-zero exit code and a human-readable log message naming the missing variable; the application does not enter a degraded running state; no insecure default value is used in a non-localhost environment. | REQ-002, REQ-011 |
+| **Third-party service (e.g., ServiceNow, Jira) unreachable during a scheduled task** | The task records the transient failure and is automatically retried up to 3 times at minimum 30-second intervals. If all retries are exhausted the task is recorded in a terminal failed state that is observable without manual log parsing. Core HTTP request handling remains unaffected. | REQ-001, REQ-010 |
+| **Background task worker unavailable when a scheduled trigger fires** | The task enters a pending or queued state in the task store. No execution is attempted within the web-serving process. HTTP request handling continues normally. When the background worker recovers the task is dequeued and executed exactly once. | REQ-001, REQ-009 |
+| **Background worker status instrumentation unreachable during a web request** | The web-serving tier handles the request normally; core routes return HTTP 200 and function correctly. Only the instrumentation-specific UI component reflects the degraded state; no error is propagated to the user for any core feature. | REQ-012 |
+| **Developer attempts to commit a binary documentation file** | The repository ignore configuration excludes the file from the changeset; the file is not staged and does not appear in the commit. The pipeline is not triggered for a file that would violate the binary exclusion policy. | REQ-006 |
+| **Credential literal committed to any branch** | The CI/CD pipeline's secret detection stage detects the committed credential, fails the stage, and blocks the pipeline from producing any build artifact. The finding is reported with file-reference context sufficient to locate and remediate the exposure before deployment. | REQ-005, REQ-013 |
+| **Merge request author attempts self-approval** | The repository platform rejects the self-approval; the approval count does not increment toward the required threshold; the merge remains blocked until a qualifying peer reviewer approves. | REQ-007 |
+| **Ad-hoc migration script marked "superseded — do not re-apply" is attempted** | The migration documentation unambiguously identifies the script as superseded, names the versioned migration that replaces it, and contains an explicit warning — enabling the operator to avoid or reverse the erroneous application without consulting an external resource. | REQ-004 |
+| **Audit-critical operation (e.g., handover submission) encounters a partial failure** | The operation either completes fully or raises a recorded exception and enters the retry cycle. Silent partial success or silent data loss shall not occur; the failure state is observable in the task execution record. | REQ-001, REQ-008, REQ-010 |
 
 ---
 
 ## Backward Compatibility
 
-**Scheduler Management Interface:** The external operation signatures (start, stop, get_status, force_check) are preserved. Internal execution backing is replaced; callers observe no change in interface shape or response structure. No breaking change.
+**No breaking changes — all changes are additive or internal-only.**
 
-**HTTP Endpoint Contracts:** No Flask Blueprint route URLs, HTTP methods, query parameters, or response content types are modified by this work. All ~45–50 endpoint contracts in the existing `routes/` modules remain unchanged. No breaking change.
-
-**Authentication and Session Behaviour:** SSO and local login flows, session token lifecycle, and per-request `validate_session()` behaviour are unchanged. No breaking change.
-
-**APScheduler Internal API:** APScheduler is removed from the application. If any code outside the primary application codebase (e.g., integration scripts, external tooling) directly invokes APScheduler's internal API, those callers will break. The interrogation confirms a code-search review shall be performed to validate no such external dependency exists before the removal is merged. **Risk: Low — no external callers identified.** If callers are found, they shall be documented in the release notes as a breaking change with a migration path to the equivalent task queue dispatch call.
-
-**Migration Artefacts:** The `migrations/README.md` registry is a new file; no existing file is modified or removed. All existing Alembic revision files are retained. No breaking change to schema history.
-
-**Test Configuration:** The `tests/config.py` file changes from hardcoded credentials to environment variable reads with localhost-only fallbacks. Any CI pipeline job that runs the test suite without the three environment variables set will fail until those variables are configured in the CI environment. **This is an intentional, documented change requiring pipeline configuration updates before deployment.**
+This branch introduces no modifications to existing route contracts, URL structures, request or response schemas, session formats, RBAC role definitions, or database table schemas. The existing authentication flows (SSO primary, local login fallback) are preserved without alteration. The session token mechanism — including per-request validation against the database and administrator-forced session revocation — is unchanged. The background task scheduler replacement is an internal infrastructure change that preserves all externally observable task outcomes (email digests dispatched, polling results recorded, retry behaviour). Existing authenticated sessions will remain valid across the deployment boundary.
 
 ---
 
 ## Dependencies
 
-| Dependency | Type | Role | Availability Risk |
-|---|---|---|---|
-| **Distributed Task Queue (Celery + Broker)** | Infrastructure | Background job execution, scheduler state, retry logic (REQ-003, REQ-004, REQ-006) | Medium — broker (Redis or equivalent) must be deployed and healthy in all environments |
-| **Message Broker (Redis or equivalent)** | Infrastructure | Task queue transport layer; required for worker communication | Medium — single point of failure if not replicated; recovery runbook required |
-| **GitLab CI/CD Pipeline** | Platform | Hosts and executes the security stage (dependency scan, SAST, secret detection) for REQ-008 | Low — existing infrastructure; security stage is a configuration addition |
-| **Dependency Vulnerability Scanner (pip-audit)** | CI Tooling | Scans `requirements.txt` for known CVEs as part of the security stage | Low — open-source tool; version pinned in CI config |
-| **Static Application Security Testing Tool (Bandit)** | CI Tooling | Performs Python SAST on application source as part of the security stage | Low — open-source tool; version pinned in CI config |
-| **GitLab Secret Detection Template** | CI Tooling | Scans git history for committed secrets as part of the security stage | Low — native GitLab CI template; no external dependency |
-| **EPAM Microsoft Identity Provider (SSO)** | External Service | OAuth 2.0 / SAML authentication; unchanged by this work | Low — existing integration; no modification in scope |
-| **ServiceNow** | External API | Target of polling tasks subject to retry logic (REQ-006) | Medium — external service availability is the primary driver of retry exhaustion scenarios |
-| **Confluence** | Documentation Platform | Authoritative source of truth for all user and administrator documentation (REQ-018) | Low — organisational process dependency; no code dependency |
-| **Alembic (via Flask-Migrate)** | Tooling | Automated schema migration generation and tracking (REQ-011) | Low — already integrated; registry documentation is additive |
+| Dependency | Type | Purpose | Risk |
+|-----------|------|---------|------|
+| **Message queue service** | Infrastructure | Persists and dispatches background and scheduled tasks; required for process-isolated task execution and safe multi-worker deployment | Medium — see A-001; must have uptime monitoring before scaling |
+| **External database (MySQL-compatible)** | Infrastructure | Persistent storage for all application data, session tokens, and encrypted configuration; required for startup; abort strategy applies if unreachable | Medium — startup failure strategy terminates the process immediately on unreachability |
+| **Versioned migration toolchain** (Flask-Migrate / Alembic) | Internal toolchain | All future schema changes must be introduced exclusively via versioned migrations; already in use; no new adoption required | Low — tooling already integrated |
+| **CI/CD platform** (GitLab) | Infrastructure | Hosts pipeline definitions, SAST and secret detection templates, merge request approval rules, and pipeline artifact storage | Low — platform already in use; no new platform adoption |
+| **Dependency vulnerability database** | External service (public) | Consulted by the dependency vulnerability scan stage to identify known CVEs against declared dependencies | Low — standard public databases; no authentication or SLA required |
+| **External identity provider** (OAuth 2.0 / SAML — EPAM Microsoft) | External service | Primary SSO authentication; configuration loaded from the encrypted credential store at startup; not modified by this branch | Low — pre-existing integration; unchanged |
+| **ServiceNow** | External REST API | Polled by scheduled background tasks; transient unavailability handled by retry policy (REQ-010) | Medium — prolonged outage causes task backlog; monitoring/alerting recommended |
+| **Jira** (board 344407) | External service | Issue correlation and sprint planning; HiveMind service account requires Developer role upgrade before Jira integration is fully functional | Medium — unresolved; no code change in this branch; tracked as open item; escalate if unresolved within two weeks of merge |
+| **Confluence** | External service | Single source of truth for user documentation (Admin Guide, User Guide) following binary file removal from the repository | Low — documentation-only dependency; no runtime impact |
 
 ---
 
 ## Glossary
 
 | Term | Definition |
-|---|---|
-| **Alembic** | Database schema migration framework used by Flask-Migrate to generate versioned migration scripts. |
-| **APScheduler** | Advanced Python Scheduler — a Python library previously used to schedule in-process background jobs within the Flask application. Removed by this work. |
-| **Archaeology Gap** | A discrepancy between the intended or documented architecture and the actual current state of the codebase, discovered during technical review. |
-| **Branch Protection** | A version control platform policy that enforces conditions (e.g., peer approval count) before a merge to a protected branch is permitted. |
-| **CVE** | Common Vulnerabilities and Exposures — a publicly catalogued software security vulnerability with a unique identifier (e.g., CVE-2024-XXXXX). |
-| **Dead-Letter Queue (DLQ)** | A queue that holds messages (tasks) that have failed all retry attempts, making them available for manual operator inspection and recovery. |
-| **Distributed Task Queue** | A system that decouples job submission from execution by routing tasks to worker processes via a message broker. In this project, Celery over Redis. |
-| **Flask Blueprint** | Flask's module system for organising route handlers; ShiftOps has approximately 45–50 Blueprints, each scoped to a domain area. |
-| **Fernet** | A symmetric authenticated encryption scheme used by the ShiftOps secrets manager to encrypt credentials at rest. |
-| **Gunicorn** | Green Unicorn — a production-grade WSGI-compliant HTTP server for Python applications. Replaces the Flask development server in this work. |
-| **Migration Registry** | The `migrations/README.md` file cataloguing all database migration artefacts with their status and execution order. |
-| **RBAC** | Role-Based Access Control — the authorisation model used in ShiftOps (`super_admin` → `account_admin` → `team_admin` → `user`). |
-| **SAST** | Static Application Security Testing — automated analysis of source code for security vulnerabilities without executing the program. In this project, performed by Bandit. |
-| **SSO** | Single Sign-On — the primary authentication mechanism for ShiftOps, implemented via OAuth 2.0 / SAML against the EPAM Microsoft identity provider. |
-| **WSGI** | Web Server Gateway Interface — the Python standard interface between web servers and application frameworks. |
-| **Celery** | An open-source distributed task queue used to execute background jobs asynchronously in worker processes separate from the HTTP tier. |
-| **pip-audit** | A Python CLI tool that audits declared package dependencies against known CVE databases. |
-| **Bandit** | A Python-specific SAST tool that analyses source code for common security issues. |
-| **start.sh** | The dedicated startup script that encapsulates the application server launch command; invoked by the container orchestration configuration. |
+|------|-----------|
+| **Alembic** | Database schema migration framework providing versioned, incremental migration scripts. Used via Flask-Migrate. All future schema changes in ShiftOps shall use this mechanism exclusively. |
+| **APScheduler** | Advanced Python Scheduler — the in-process library previously used to run periodic tasks within the web-serving process. Its removal from the web-serving process is the subject of REQ-001. |
+| **Audit-critical operation** | Any operation whose partial or silent failure constitutes an unacceptable data integrity risk — principally handover form submission and associated incident logging. These operations shall never silently fail. |
+| **Background task worker** | A process isolated from the web-serving tier responsible for executing scheduled and queued tasks (notification digests, third-party polling, retries). |
+| **Celery** | Distributed task queue framework referenced in project context as the implementation technology for the isolated background task worker. Not prescribed as a requirement; listed for glossary context only. |
+| **CVE** | Common Vulnerabilities and Exposures — a publicly disclosed software security vulnerability with a standardised identifier (e.g., CVE-2024-12345). |
+| **EPAM** | The organisation operating the Microsoft identity provider used for ShiftOps SSO authentication. |
+| **Fernet** | Symmetric authenticated encryption scheme (AES-128-CBC with HMAC-SHA256) used to protect credentials stored in the application database. |
+| **Flask-Migrate** | Flask extension wrapping Alembic to provide versioned database migration management within the ShiftOps application. |
+| **Gunicorn** | Production-grade WSGI HTTP server referenced in project context. Not prescribed as a requirement technology; listed for glossary context only. |
+| **Handover** | The primary work artefact in ShiftOps — a structured record of shift status, incidents, key points, and actions passed from one operational shift team to the next. |
+| **HiveMind** | The service account used by ShiftOps for Jira integration; currently awaiting a Developer role upgrade on board 344407. |
+| **pip-audit** | Command-line tool that audits Python project dependencies against known vulnerability databases and produces a machine-readable report. Referenced in project context; not prescribed as a requirement. |
+| **RBAC** | Role-Based Access Control — the authorisation model governing user permissions in ShiftOps across four roles: `super_admin`, `account_admin`, `team_admin`, `user`. |
+| **SAML** | Security Assertion Markup Language — an open standard for exchanging authentication and authorisation data between an identity provider and a service provider. Used as part of the ShiftOps SSO flow. |
+| **SAST** | Static Application Security Testing — automated analysis of source code to identify potential security vulnerabilities without executing the code. |
+| **Secret Detection** | Automated scanning of source code and git history to identify committed credentials, API keys, or other sensitive literal values. |
+| **Session Token** | A server-side record in the `session_tokens` database table created on login and validated on every request; administrators can revoke tokens to force logout regardless of client cookie state. |
+| **ShiftOps** | The production name of the Shifthandover project — a server-side rendered web application for shift handover management built on the Flask framework. |
+| **SSO** | Single Sign-On — authentication mechanism allowing users to authenticate once with the EPAM Microsoft identity provider and access ShiftOps without re-entering credentials. |
+| **Superseded migration** | A migration script that has been replaced by a versioned Alembic migration and must not be re-applied to any environment. Documented in the migration README (REQ-004). |
+| **WSGI** | Web Server Gateway Interface — the Python standard (PEP 3333) defining the interface between web servers and Python web applications. |

@@ -9,11 +9,20 @@ Provides:
 """
 import logging
 from datetime import datetime
-from flask_login import current_user
-from flask import request
-from models.models import db
 
 logger = logging.getLogger(__name__)
+
+# Module-level imports so tests can patch services.audit_service.db / current_user / etc.
+try:
+    from flask_login import current_user
+    from flask import request
+    from models.models import db
+    from models.audit_log import AuditLog
+except Exception:
+    current_user = None  # type: ignore[assignment]
+    request = None  # type: ignore[assignment]
+    db = None  # type: ignore[assignment]
+    AuditLog = None  # type: ignore[assignment,misc]
 
 
 def log_action(action: str, details: str | None = None) -> None:
@@ -22,8 +31,6 @@ def log_action(action: str, details: str | None = None) -> None:
     This is the lightweight path used by route handlers that do not need the
     full atomic handover transaction (e.g. view events, admin actions).
     """
-    from models.audit_log import AuditLog
-
     user_id = getattr(current_user, 'id', None)
     username = getattr(current_user, 'username', None)
     db.session.add(AuditLog(
@@ -55,8 +62,6 @@ def submit_handover_with_audit(
     Raises:
         Exception: Re-raised after rollback if either write fails.
     """
-    from models.audit_log import AuditLog
-
     user_id = getattr(current_user, 'id', None)
     username = getattr(current_user, 'username', None)
 

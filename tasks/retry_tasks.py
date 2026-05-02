@@ -8,11 +8,22 @@ on transient DB failures.
 REQ-006: dead-letter records can be manually promoted to 'pending_retry' by an
 operator to trigger a re-attempt via this sweep.
 """
+import json
 import logging
+from datetime import datetime
+
 from celery_app import celery
 from tasks.dlq_handler import on_task_failure as _dlq_on_failure
 
 logger = logging.getLogger(__name__)
+
+# Module-level imports so tests can patch tasks.retry_tasks.FailedTask / db.
+try:
+    from models.failed_task import FailedTask
+    from models.models import db
+except Exception:
+    FailedTask = None  # type: ignore[assignment]
+    db = None  # type: ignore[assignment]
 
 
 @celery.task(
@@ -24,21 +35,16 @@ logger = logging.getLogger(__name__)
 def retry_failed_tasks(self):
     """Re-enqueue failed_tasks records that an operator has promoted to pending_retry."""
     try:
-        from models.failed_task import FailedTask
-        from models.models import db
-        from datetime import datetime
-
         pending = FailedTask.query.filter_by(status='pending_retry').all()
         requeued = 0
         errors = 0
 
         for record in pending:
             try:
-                from celery_app import celery as _celery
-                _celery.send_task(
+                celery.send_task(
                     record.task_name,
-                    args=__import__('json').loads(record.task_args or '[]'),
-                    kwargs=__import__('json').loads(record.task_kwargs or '{}'),
+                    args=json.loads(record.task_args or '[]'),
+                    kwargs=json.loads(record.task_kwargs or '{}'),
                 )
                 record.status = 'requeued'
                 record.updated_at = datetime.utcnow()

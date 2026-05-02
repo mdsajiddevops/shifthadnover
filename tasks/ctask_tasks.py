@@ -15,6 +15,14 @@ from tasks.dlq_handler import on_task_failure as _dlq_on_failure
 
 logger = logging.getLogger(__name__)
 
+# Module-level import so tests can patch tasks.ctask_tasks.AppConfig.
+try:
+    from models.app_config import AppConfig
+    from services.ctask_assignment_service import CTaskAssignmentService
+except Exception:
+    AppConfig = None  # type: ignore[assignment,misc]
+    CTaskAssignmentService = None  # type: ignore[assignment,misc]
+
 
 @celery.task(
     name='tasks.ctask_tasks.run_ctask_assignment',
@@ -25,12 +33,10 @@ logger = logging.getLogger(__name__)
 def run_ctask_assignment(self):
     """Process unassigned ServiceNow CTasks and assign them to on-shift engineers."""
     try:
-        from models.app_config import AppConfig
         if not AppConfig.is_enabled('feature_ctask_assignment'):
             logger.debug('run_ctask_assignment: feature disabled, skipping.')
             return {'skipped': True, 'reason': 'feature_ctask_assignment disabled'}
 
-        from services.ctask_assignment_service import CTaskAssignmentService
         service = CTaskAssignmentService()
         result = service.process_unassigned_ctasks()
         logger.info('run_ctask_assignment completed: %s', result)

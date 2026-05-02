@@ -7,7 +7,18 @@ import time
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List
-from services.ctask_assignment_service import CTaskAssignmentService
+
+# Module-level Celery instance so tests can patch services.ctask_scheduler.celery.
+try:
+    from celery_app import celery
+except Exception:
+    celery = None  # type: ignore[assignment]
+
+# Module-level task reference so tests can patch services.ctask_scheduler.run_ctask_assignment.
+try:
+    from tasks.ctask_tasks import run_ctask_assignment
+except Exception:
+    run_ctask_assignment = None  # type: ignore[assignment]
 
 class CTaskScheduler:
     def __init__(self, check_interval_minutes: int = 2):
@@ -82,6 +93,7 @@ class CTaskScheduler:
             
             # Initialize assignment service if not already done
             if not self.assignment_service:
+                from services.ctask_assignment_service import CTaskAssignmentService
                 self.assignment_service = CTaskAssignmentService()
             
             # Process pending CTasks
@@ -150,8 +162,9 @@ class CTaskScheduler:
         
         # Initialize assignment service if not already done
         if not self.assignment_service:
+            from services.ctask_assignment_service import CTaskAssignmentService
             self.assignment_service = CTaskAssignmentService()
-            
+
         return self.process_unassigned_ctasks()
 
 # ---------------------------------------------------------------------------
@@ -162,17 +175,19 @@ class CTaskScheduler:
 # same signatures so routes/ctask_assignment.py requires no changes.
 # ---------------------------------------------------------------------------
 
+_scheduler_logger = logging.getLogger(__name__)
+
+
 def start_ctask_scheduler():
     """No-op — Celery Beat manages scheduling. Workers are started via docker-compose."""
-    import logging
-    logging.getLogger(__name__).info(
+    _scheduler_logger.info(
         "start_ctask_scheduler called — scheduling is managed by Celery Beat, no action needed."
     )
 
+
 def stop_ctask_scheduler():
     """No-op — stop the Celery worker via docker-compose to pause scheduling."""
-    import logging
-    logging.getLogger(__name__).info(
+    _scheduler_logger.info(
         "stop_ctask_scheduler called — to pause scheduling, stop the celery-beat container."
     )
 
@@ -183,7 +198,6 @@ def get_scheduler_status():
     Returns a structured dict — never raises (REQ-004).
     """
     try:
-        from celery_app import celery
         # inspect timeout kept well under the 5 s budget (REQ-013).
         inspect = celery.control.inspect(timeout=2.0)
         active = inspect.active() or {}
@@ -209,7 +223,6 @@ def get_scheduler_status():
 
 def force_scheduler_check():
     """Dispatch an immediate CTask assignment task via Celery."""
-    from tasks.ctask_tasks import run_ctask_assignment
     result = run_ctask_assignment.delay()
     return {
         'dispatched': True,

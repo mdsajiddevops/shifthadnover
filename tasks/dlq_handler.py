@@ -15,6 +15,16 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+# Module-level imports so these names can be patched by tests.
+# Guarded with try/except so the module is importable in test environments
+# where the application DB hasn't been initialised yet.
+try:
+    from models.failed_task import FailedTask
+    from models.models import db
+except Exception:
+    FailedTask = None  # type: ignore[assignment]
+    db = None  # type: ignore[assignment]
+
 
 def _write_db_record(
     task_id: str,
@@ -27,9 +37,6 @@ def _write_db_record(
     max_retries: int,
 ) -> None:
     """Persist a FailedTask row.  Raises on DB error (caller handles)."""
-    from models.failed_task import FailedTask
-    from models.models import db
-
     record = FailedTask(
         celery_task_id=task_id,
         task_name=task_name,
@@ -128,7 +135,10 @@ def on_task_failure(
     except Exception as db_exc:
         logger.error('DLQ: DB write failed for task %s: %s', task_id, db_exc)
 
-    _dispatch_alert(task_id, task_name, str(exc)[:500])
+    try:
+        _dispatch_alert(task_id, task_name, str(exc)[:500])
+    except Exception as alert_exc:
+        logger.error('DLQ: alert dispatch raised for task %s: %s', task_id, alert_exc)
 
     if not db_ok:
         logger.critical(

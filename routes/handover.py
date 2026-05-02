@@ -6,6 +6,7 @@ from models.models import TeamMember, Shift, Incident, ShiftKeyPoint, ShiftRoste
 from sqlalchemy import or_, func, inspect
 from models.handover_enhanced import HandoverRequest
 from models.audit_log import AuditLog
+from utils.validation import validate_form, validate_required, validate_max_length, format_error_response
 # Optional collaboration imports - may not exist on all deployments
 try:
     from models.collaboration import DraftIncident, DraftKeyPoint, DraftChangeInfo, DraftKBUpdate
@@ -1193,8 +1194,21 @@ def edit_handover(shift_id):
         shift.date = datetime.strptime(request.form['handover_date'], '%Y-%m-%d').date()
         shift.current_shift_type = request.form['current_shift_type']
         shift.next_shift_type = request.form['next_shift_type']
-        shift.additional_notes = request.form.get('additional_notes', '')
+        _edit_additional_notes = request.form.get('additional_notes', '')
         action = request.form.get('action', 'send')
+
+        # Validate field lengths before any DB write
+        _edit_handover_errors = validate_form([
+            (validate_max_length, _edit_additional_notes, 'additional_notes', 2000),
+        ])
+        if _edit_handover_errors:
+            if request.is_json:
+                return jsonify(format_error_response(_edit_handover_errors)), 422
+            for _err in _edit_handover_errors:
+                flash(_err['message'], 'error')
+            return redirect(url_for('handover.edit_handover', shift_id=shift_id))
+
+        shift.additional_notes = _edit_additional_notes
         old_status = shift.status
         
         # 🔧 CRITICAL FIX: Prevent converting draft to submission if another submission already exists
@@ -2585,6 +2599,18 @@ def handover():
                 return jsonify({'errors': _validation_errors}), 400
             for _field_err in _validation_errors.values():
                 flash(_field_err, 'error')
+            return redirect(url_for('handover.handover'))
+
+        # Additional field-length validation (COMP-010)
+        _additional_notes = request.form.get('additional_notes', '')
+        _handover_extra_errors = validate_form([
+            (validate_max_length, _additional_notes, 'additional_notes', 2000),
+        ])
+        if _handover_extra_errors:
+            if request.is_json:
+                return jsonify(format_error_response(_handover_extra_errors)), 422
+            for _err in _handover_extra_errors:
+                flash(_err['message'], 'error')
             return redirect(url_for('handover.handover'))
 
         logger.debug(f"[DEBUG_ACTION] Action received from form: '{action}' (default: 'submit')")

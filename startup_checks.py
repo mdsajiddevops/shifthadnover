@@ -12,6 +12,14 @@ import json
 import os
 import sys
 
+# Module-level reference so tests can patch startup_checks.create_engine.
+# Guarded so this module is importable without sqlalchemy (test environments).
+try:
+    from sqlalchemy import create_engine, text
+except ImportError:  # pragma: no cover
+    create_engine = None  # type: ignore[assignment]
+    text = str  # type: ignore[assignment]  # fallback: pass raw string to execute
+
 # ---------------------------------------------------------------------------
 # Required secrets — all resolved via the 3-tier hierarchy:
 #   1. /run/secrets/<name>  (Docker secrets, production)
@@ -74,8 +82,6 @@ def check_database() -> None:
             _fail('database', 'PRIMARY_DB', 'DATABASE_URL secret unavailable')
 
     try:
-        from sqlalchemy import create_engine, text
-
         connect_args: dict = {}
         if db_url.startswith('mysql') or db_url.startswith('postgresql'):
             connect_args['connect_timeout'] = 5

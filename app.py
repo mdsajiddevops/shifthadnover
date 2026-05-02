@@ -97,6 +97,16 @@ app.config.from_object(Config)
 # Setup logging FIRST before any other operations
 app_logger = setup_logging(app)
 
+# Bind Celery to the Flask app context so tasks can access db.session safely.
+# The ContextTask in celery_app.py lazily wraps each task call in app_context().
+# Updating celery.conf with app.config propagates Flask config to the worker.
+try:
+    from celery_app import celery as _celery
+    _celery.conf.update(app.config)
+    app_logger.info("Celery-Flask context binding applied.")
+except Exception as _celery_exc:
+    app_logger.warning("Celery binding skipped: %s", _celery_exc)
+
 # Configure ProxyFix for nginx reverse proxy only in production
 # This fixes URL generation behind nginx proxy
 if not os.environ.get('LOCAL_DEVELOPMENT', 'false').lower() == 'true':

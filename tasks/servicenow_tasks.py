@@ -13,38 +13,13 @@ from tasks.dlq_handler import on_task_failure as _dlq_on_failure
 
 logger = logging.getLogger(__name__)
 
-
-def _run_servicenow_poll():
-    """Poll ServiceNow for new/updated incidents and cache results."""
+# Module-level imports so tests can patch tasks.servicenow_tasks.AppConfig / ServiceNowService.
+try:
     from models.app_config import AppConfig
-    if not AppConfig.is_enabled('feature_servicenow_sync'):
-        logger.debug('poll_servicenow: feature disabled, skipping.')
-        return {'skipped': True, 'reason': 'feature_servicenow_sync disabled'}
-
     from services.servicenow_service import ServiceNowService
-    service = ServiceNowService()
-
-    if not service.is_configured():
-        logger.debug('poll_servicenow: ServiceNow not configured, skipping.')
-        return {'skipped': True, 'reason': 'ServiceNow not configured'}
-
-    # Verify connectivity before doing expensive queries.
-    connection_result = service.test_connection()
-    if not connection_result.get('success'):
-        raise ConnectionError(
-            f"ServiceNow connection test failed: {connection_result.get('message')}"
-        )
-
-    # Fetch incidents for current shift period using the configured groups.
-    from datetime import datetime, date
-    today = date.today()
-    incidents = service.get_incidents_for_shift(
-        shift_date=today.strftime('%Y-%m-%d'),
-    ) if hasattr(service, 'get_incidents_for_shift') else []
-
-    fetched = len(incidents) if isinstance(incidents, list) else 0
-    logger.info('poll_servicenow: fetched %d incident records', fetched)
-    return {'fetched': fetched, 'date': today.isoformat()}
+except Exception:
+    AppConfig = None  # type: ignore[assignment,misc]
+    ServiceNowService = None  # type: ignore[assignment,misc]
 
 
 @celery.task(
@@ -56,7 +31,20 @@ def _run_servicenow_poll():
 def poll_servicenow(self):
     """Poll ServiceNow for new/updated incidents and CTasks and sync them locally."""
     try:
-        return _run_servicenow_poll()
+        if not AppConfig.is_enabled('feature_servicenow_sync'):
+            logger.debug('poll_servicenow: feature disabled, skipping.')
+            return {'skipped': True, 'reason': 'feature_servicenow_sync disabled'}
+
+        service = ServiceNowService()
+
+        if not service.is_configured():
+            logger.debug('poll_servicenow: ServiceNow not configured, skipping.')
+            return {'skipped': True, 'reason': 'ServiceNow not configured'}
+
+        result = service.sync_incidents_and_ctasks()
+        logger.info('poll_servicenow completed: %s', result)
+        return result
+
     except Exception as exc:
         logger.warning(
             'poll_servicenow failed (attempt %d/%d): %s',

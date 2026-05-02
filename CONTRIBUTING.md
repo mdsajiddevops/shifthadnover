@@ -32,7 +32,8 @@ python app.py
 pytest tests/test_startup_checks.py tests/test_celery_app.py tests/test_dlq_handler.py \
        tests/test_celery_tasks.py tests/test_ctask_scheduler.py \
        tests/test_validators.py tests/test_rbac_errors.py \
-       tests/test_audit_service.py tests/test_tests_config.py -v
+       tests/test_audit_service.py tests/test_tests_config.py \
+       tests/test_validation.py tests/test_worker_status.py -v
 ```
 
 ### HTTP integration tests (require a running app instance)
@@ -107,7 +108,7 @@ ruff format .
 - [ ] Lint passes (`ruff check .`)
 - [ ] `secrets/` directory was not committed
 - [ ] No `.env` files (other than `.example` templates) were committed
-- [ ] No binary documents (`.pdf`, `.doc`, `.docx`, `.xlsx`, `.pptx`) committed — use Confluence
+- [ ] No binary documents (`.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`) committed — use Confluence
 - [ ] If schema changed: `flask db migrate` run, migration registered in `migrations/README.md`
 - [ ] If new Celery task: registered in `celeryconfig.py` and tested in `tests/test_celery_tasks.py`
 - [ ] CHANGELOG.md updated if user-facing change

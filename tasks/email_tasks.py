@@ -12,38 +12,13 @@ from tasks.dlq_handler import on_task_failure as _dlq_on_failure
 
 logger = logging.getLogger(__name__)
 
-
-def _run_email_digest():
-    """Execute email digest logic, importing service lazily to avoid circular imports."""
+# Module-level imports so tests can patch tasks.email_tasks.AppConfig / ShiftEmailService.
+try:
     from models.app_config import AppConfig
-    if not AppConfig.is_enabled('feature_email_digest'):
-        logger.debug('send_email_digest: feature disabled, skipping.')
-        return {'skipped': True, 'reason': 'feature_email_digest disabled'}
-
-    # Collect all pending handovers that need email notification.
-    from models.models import db
-    from models.models import Handover
-    from services.email_service import send_handover_email
-    from datetime import datetime, timedelta
-
-    # Find handovers submitted in the last digest window that haven't been emailed.
-    since = datetime.utcnow() - timedelta(hours=1)
-    pending = db.session.query(Handover).filter(
-        Handover.submitted_at >= since,
-        Handover.email_sent.is_(False),
-    ).all() if hasattr(Handover, 'email_sent') else []
-
-    sent = 0
-    errors = 0
-    for handover in pending:
-        try:
-            send_handover_email(handover)
-            sent += 1
-        except Exception as e:
-            logger.error('send_email_digest: failed for handover %s: %s', handover.id, e)
-            errors += 1
-
-    return {'sent': sent, 'errors': errors, 'total': len(pending)}
+    from services.shift_email_service import ShiftEmailService
+except Exception:
+    AppConfig = None  # type: ignore[assignment,misc]
+    ShiftEmailService = None  # type: ignore[assignment,misc]
 
 
 @celery.task(
@@ -55,7 +30,15 @@ def _run_email_digest():
 def send_email_digest(self):
     """Send periodic shift handover email digest to configured recipients."""
     try:
-        return _run_email_digest()
+        if not AppConfig.is_enabled('feature_email_digest'):
+            logger.debug('send_email_digest: feature disabled, skipping.')
+            return {'skipped': True, 'reason': 'feature_email_digest disabled'}
+
+        service = ShiftEmailService()
+        result = service.send_shift_summary_emails()
+        logger.info('send_email_digest completed: %s', result)
+        return result
+
     except Exception as exc:
         logger.warning(
             'send_email_digest failed (attempt %d/%d): %s',

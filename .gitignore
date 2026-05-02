@@ -62,7 +62,9 @@ dmypy.json
 *.pdf
 *.docx
 *.doc
+*.xls
 *.xlsx
+*.ppt
 *.pptx
 
 # TLS certificates and private keys — managed via Docker secrets

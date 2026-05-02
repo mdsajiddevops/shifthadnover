@@ -1,126 +1,153 @@
-# Requirements Summary: Archaeology Gap Remediation
+# Requirements Summary: Archaeology & Hardening Branch
 
-## Executive Overview
+## 1. Executive Overview
 
-This interrogation captured decisions to close 8 medium-severity archaeology gaps across architecture, security, process, and standards. The work consolidates disparate execution models (Flask dev server → gunicorn, APScheduler + Celery Beat → Celery-only), establishes security guardrails in CI (pip-audit, SAST, secret detection), enforces peer review on code changes, and cleanses binary files from version control. All changes are codebase and pipeline-scoped; operational issues (Jira permissions) are explicitly out-of-scope.
+This branch resolves 8 medium-severity gaps discovered during archaeology in infrastructure, security, process, and documentation. Six gaps have been fixed (Gunicorn migration, migration tracking, credential hardening, SAST/scanning, APScheduler refactoring, binary file removal), while one (Jira permissions) is deferred to external admin action, and one (branch protection) requires organizational process change upon team growth. The scope consolidates production-readiness improvements with no new feature work.
 
-## Functional Requirements
+---
 
-- The system shall execute the Flask application using gunicorn with a single-worker configuration (`gunicorn -w 1 -b 0.0.0.0:5000 app:app`); docker-compose.yml shall invoke `bash start.sh` rather than `python app.py` directly.
+## 2. Functional Requirements
 
-- The system shall implement all scheduled job execution (email digests, ServiceNow polling, task retries, ctask assignment checks) through Celery, removing internal APScheduler use from the main Flask/gunicorn process.
+- **The system shall execute scheduled tasks (email digests, ServiceNow polling, retry operations) via Celery-backed workers**, eliminating single-worker constraints and enabling safe horizontal scaling of Gunicorn. *Q: [gap_architecture] APScheduler refactoring* — services/ctask_scheduler.py now dispatches to Celery; workers are managed via docker-compose; status queries use `celery.control.inspect`.
 
-- The system shall expose the same scheduler API (start, stop, get_status, force_check) backed by Celery; status queries shall use `celery.control.inspect` to query live worker state, and force-check operations shall dispatch `run_ctask_assignment.delay()` to the task queue.
+- **The system shall retrieve all test credentials from environment variables** (`TEST_SUPERADMIN_PASSWORD`, `TEST_ADMIN_PASSWORD`, `TEST_USER_PASSWORD`), with localhost-only fallback to hardcoded defaults for developer convenience. *Q: [gap_security] Credential hardening* — tests/config.py updated; CLAUDE.md and CONTRIBUTING.md now show env var pattern instead of literals.
 
-- The system shall support deployment of multiple gunicorn workers without duplicate job execution for any background task.
+- **The system shall run gunicorn with a 120-second timeout in production**, backed by bash start.sh entry point (not Flask development server). *Q: [gap_architecture] Gunicorn migration* — docker-compose.yml web service command changed from `python app.py` to `bash start.sh`; start.sh ends with `exec gunicorn -w 1 -b 0.0.0.0:5000 --timeout 120 --access-logfile - app:app`.
 
-- The system shall document every migration file (Alembic revisions, ad-hoc SQL scripts) in `migrations/README.md` with status (applied, superseded, or pending) and execution order; all future schema changes shall go through `flask db migrate`.
+- **The system shall document the status and interplay of all ad-hoc SQL migration scripts and Alembic versioned migrations** in migrations/README.md, including: which scripts are applied to production, which are superseded (marked "Do not re-apply"), and which are environment-specific. *Q: [gap_architecture] Migration tracking* — established rule that all future schema changes go through `flask db migrate` only.
 
-- The system shall enforce branch protection on the master/main branch requiring a minimum of 1 approved review before merge; this applies to all future merge requests.
+- **The system shall enforce pipeline security scanning before build**, including: (1) pip-audit dependency scan (blocks on known CVEs, JSON artifact saved), (2) GitLab SAST (Bandit-based Python static analysis), (3) GitLab Secret Detection (git history scan for committed secrets). *Q: [gap_security] SAST/scanning* — three stages added to .gitlab-ci.yml in dedicated security stage running before build.
 
-- The system shall read all test credentials (superadmin password, admin password, user password) from environment variables (`TEST_SUPERADMIN_PASSWORD`, `TEST_ADMIN_PASSWORD`, `TEST_USER_PASSWORD`) in `tests/config.py`, with hardcoded localhost-only fallbacks.
+- **The system shall not track binary documentation files in git** (*.pdf, *.docx, *.doc, *.xlsx, *.pptx removed from tracking; added to .gitignore). *Q: [gap_standards] Binary file bloat* — Confluence is single source of truth for user documentation.
 
-- The system shall exclude binary document files (*.pdf, *.docx, *.doc, *.xlsx, *.pptx) from git version control via `.gitignore`.
+- **The system shall require a minimum of 1 reviewer approval for merge requests to master**, preventing self-approval by the author. *Q: [gap_process] Branch protection* — GitLab MR approval rules configured; author cannot approve own MR; direct pushes to master blocked immediately regardless of team size. Will enforce once second team member joins.
 
-- The system shall establish Confluence as the authoritative source of truth for all user and admin documentation.
+---
 
-## Constraints & Non-Functional Requirements
+## 3. Constraints & Non-Functional Requirements
 
-- **Volume & Performance**: Medium traffic volume (thousands of requests/day); standard caching and indexing are sufficient for this scale.
+- **Performance & Scalability**: Medium volume — thousands of requests per day; standard caching and indexing suffice. *Q: [constraints]* — No high-throughput or microsecond-latency requirements stated.
 
-- **Concurrency Model**: Single-worker gunicorn is intentional and supported because background job execution is delegated entirely to Celery workers; Celery handles the async queue, not the Flask process.
+- **Security Posture**: 
+  - Credentials must never appear in source code, git history, or CI/CD logs (except localhost-only fallbacks). *Q: [gap_security] Credential exposure*
+  - All external dependencies must be scanned for known CVEs on every pipeline run. *Q: [gap_security] SAST/scanning*
+  - No direct pushes to master; all changes require peer review. *Q: [gap_process] Branch protection*
 
-- **Deployment Assumption**: Multiple gunicorn worker replicas are now safe and shall not cause duplicate job scheduling, as APScheduler has been removed from the primary process.
+- **Scalability Constraint Removal**: APScheduler and Celery Beat must not run in the same process as Gunicorn. Gunicorn can scale to multiple workers without duplicate task execution. *Q: [gap_architecture] Scaling* — documented constraint removed; safe for N workers.
 
-## Edge Cases & Error Handling
+- **Data Integrity**: All migration scripts must be traceable and documented to prevent schema drift across environments. *Q: [gap_architecture] Migration tracking*
 
-| Scenario | Expected Behaviour | Relates To |
-|----------|-------------------|-----------|
-| **Empty or null input** | System shall validate all user inputs and return clear, actionable error messages to the client; no silent failures or 500 errors. | Acceptance Criteria: User receives clear validation feedback |
-| **Network timeout or third-party API unavailability** | For background/async operations (Celery tasks): max_retries=3 with 30-second countdown between attempts; transient failures self-heal without operator intervention. For startup/security failures (missing secrets, DB connectivity): abort immediately with a descriptive error message rather than starting in a degraded state. | Functional Requirement: Celery-backed scheduler |
-| **User lacking required permissions** | System shall return a clear, permission-specific error message (e.g., "You do not have permission to approve this handover") rather than a generic 403. | Acceptance Criteria: User receives clear error feedback |
-| **Redis/Celery outage** | Non-critical scheduler status checks (e.g., `get_status` querying worker health) shall not block the web tier if Redis is unavailable; web requests shall proceed independently of queue state. Audit-critical operations (handover submissions, audit-log writes) shall never silently fail; these shall either succeed end-to-end or return a clear error. | Functional Requirement: Scheduler status queries use inspect, not blocking I/O |
-| **Partial async job failure** | Celery retry logic (3 attempts, 30-second intervals) handles transient failures in external calls (ServiceNow, email, database). If max_retries is exhausted, the task is logged and moved to the dead-letter queue; operations team is alerted by monitoring. | Functional Requirement: Celery task execution |
+---
 
-## Dependencies & Integrations
+## 4. Edge Cases & Error Handling
 
-- **Celery Task Queue**: Message broker (Redis, RabbitMQ, or equivalent) is required for Celery worker communication; Redis outage tolerances are documented in edge cases.
+| Scenario | Expected Behaviour | Related Requirement |
+|----------|-------------------|---------------------|
+| **Empty or null user input** | System validates input and returns clear error message. | [acceptance_criteria] validations enforced |
+| **Network timeout or third-party API unavailability** | Celery tasks retry up to 3 times with 30-second countdown between attempts; transient failures self-heal without operator intervention. | [edge_cases] partial failure (C strategy) |
+| **User lacks required permissions (Jira, ServiceNow, audit submission)** | Request rejected immediately with permission-denied error; no silent failure or degraded mode. | [edge_cases] permission-denied scenario |
+| **Startup failure (missing secrets, DB unreachable)** | Process aborts immediately with clear error log; does not start in broken state. | [edge_cases] startup failures (A strategy) |
+| **Redis or non-critical scheduler status check unavailable** | Status check fails gracefully without cascading to web tier; optional instrumentation degraded but core app runs. | [edge_cases] non-critical check (D strategy) — isolated failure |
+| **Partial audit-critical operation failure** | Never silently fails. Either succeeds fully, or raises exception and retries (no silent degradation for handover submissions). | [edge_cases] audit-critical handover |
 
-- **External APIs**: Third-party REST/GraphQL services (ServiceNow polling, identity providers) are integrated as Celery tasks with built-in retry logic.
+---
 
-- **Authentication/SSO Provider**: OAuth or SAML provider (already integrated) continues to be used for user authentication; SSO token handling is audit-logged.
+## 5. Dependencies & Integrations
 
-- **External Databases/Data Warehouses**: Integration points remain unchanged; Celery tasks may write to external systems as part of background job execution.
+- **Message Queue**: Celery (Redis backend for task persistence and worker coordination). *Q: [dependencies] message queue* — previously APScheduler + Celery Beat; now pure Celery.
 
-- **Jira Board 344407**: Requires HiveMind service account permissions to be resolved by Jira admin; no code change required (out-of-scope for this work).
+- **External APIs**: Third-party REST/GraphQL APIs (e.g., ServiceNow, Jira) for polling and task dispatch. *Q: [dependencies] integrations* — Celery retry strategy (3 retries, 30s countdown) handles transient failures.
 
-- **Confluence**: Designated as documentation source of truth; no code dependency, but organizational discipline is required to keep it current.
+- **Authentication/SSO**: OAuth and/or SAML provider for user authentication. *Q: [dependencies] AuthN/AuthZ* — credentials remain hardcoded in code as fallback only for localhost.
 
-- **GitLab CI/CD Pipeline**: Security scanning integrations (pip-audit for CVE scanning, Bandit-based SAST, GitLab Secret Detection template) are native to .gitlab-ci.yml.
+- **Database**: External database (PyMySQL in requirements.txt) with versioned migrations via Flask-Migrate/Alembic. *Q: [dependencies] external database*
 
-## Scope Boundaries
+- **CI/CD Pipeline**: GitLab (SAST, Secret Detection templates, MR approval rules, artifact storage). *Q: [gap_security] SAST* — no feature flag; scanning runs on every pipeline from this point forward.
 
-### In-Scope
-- **Codebase refactoring**: Gunicorn entrypoint, Celery scheduler API, migration documentation
-- **CI/CD pipeline enhancements**: Security scanning layers (pip-audit, SAST, secret detection)
-- **Version control hygiene**: Binary file removal, .gitignore updates
-- **Documentation updates**: CLAUDE.md, CONTRIBUTING.md (credential examples, scheduler architecture), migrations/README.md
-- **Branch protection policy**: Enforcement of minimum 1 review approval on master merges
+- **Jira Integration** (OUT-OF-SCOPE for this branch): Board 344407 requires HiveMind service account upgrade to Developer role; currently in Jira admin queue. *Q: [gap_process] Jira permissions* — no code change; external admin action.
 
-### Out-of-Scope (Non-Goals)
-- **Jira configuration**: HiveMind service account permissions and board access are operational admin tasks, not code changes.
-- **Confluence content migration**: Existing documentation in Confluence is already authoritative; no content backport required from removed binary files.
-- **Multi-environment Jira synchronization**: Currently broken (406/permission errors); will be handled separately after Jira admin resolution.
-- **Gunicorn worker count tuning**: Initial deployment uses 1 worker; auto-scaling policies are not defined in this iteration.
+---
 
-## Acceptance Criteria
+## 6. Scope Boundaries
 
-1. **Given** the application is deployed with start.sh, **when** the container starts, **then** gunicorn executes with 1 worker on port 5000 and docker-compose.yml calls `bash start.sh`.
+**In Scope:**
+- Gunicorn configuration and Flask dev server replacement
+- Celery-backed task scheduler (APScheduler removal from Flask process)
+- Environment variable injection for test and production credentials
+- Migration documentation and script hygiene
+- Binary file removal and .gitignore enforcement
+- GitLab SAST, pip-audit, and Secret Detection integration
+- MR approval rules and branch protection on master
 
-2. **Given** a Celery worker is running, **when** a scheduled job (email digest, ServiceNow poll, task retry) is triggered, **then** it executes via Celery and completes without duplicating if multiple gunicorn workers are active.
+**Out of Scope (Non-Goals):**
+- Jira project permissions or board configuration — resolved via external admin.
+- Production credential rotation or secret management system (e.g., HashiCorp Vault) — fallbacks to env vars assumed sufficient.
+- Horizontal scaling of APScheduler to external scheduler (e.g., Chronos, Airflow) — Celery satisfies current scaling requirements.
+- Load testing or performance benchmarking against "thousands of requests/day" — constraint is qualitative; no SLA or P99 latency target stated.
+- Real-time audit log streaming or SIEM integration — audit-critical operations are logged; delivery mechanism not specified.
 
-3. **Given** services/ctask_scheduler.py is imported, **when** `get_status()` is called, **then** it returns live Celery worker state via `celery.control.inspect()` without blocking the web tier.
+---
 
-4. **Given** a schema change is required, **when** the developer runs `flask db migrate`, **then** a timestamped Alembic revision is created and documented in migrations/README.md.
+## 7. Acceptance Criteria
 
-5. **Given** a git push to a feature branch, **when** a merge request is opened to master, **then** GitLab enforces at least 1 approval from a reviewer before merge is permitted.
+| Requirement | Acceptance Criterion |
+|-------------|---------------------|
+| **Celery-backed scheduler** | Given Gunicorn scaled to 3 workers with Celery workers in separate container, when email digest task triggers, then exactly one email is sent (no duplicates) and status is visible via `celery.control.inspect`. |
+| **Environment variable credentials** | Given TEST_SUPERADMIN_PASSWORD set in CI/CD, when test suite runs, then tests authenticate as superadmin and no hardcoded credentials appear in stdout or artifact logs. |
+| **Gunicorn startup** | Given gunicorn process starts with `bash start.sh`, when app receives first request, then request is served and shutdown timeout is 120 seconds. |
+| **Migration documentation** | Given migrations/README.md exists, when developer reads script status, then they can distinguish applied (prod), superseded (do-not-reapply), and environment-specific scripts without external wiki. |
+| **Security scanning** | Given .gitlab-ci.yml runs security stage before build, when a new CVE in requirements.txt is introduced, then pipeline fails with pip-audit report artifact and Secret Detection blocks commit. |
+| **Binary file removal** | Given git history is clean, when developer clones repo, then no *.pdf, *.docx, *.xlsx, *.pptx files are present and .gitignore contains binary patterns. |
+| **Branch protection** | Given a new MR is opened to master, when the author attempts to merge without peer review, then merge is blocked and GitLab reports "1 approval required". |
+| **Input validation & error messages** | Given user submits invalid input (empty, null, or out-of-range), when system processes request, then response contains specific error message describing the validation failure. |
 
-6. **Given** test credentials are needed, **when** tests/config.py is imported, **then** credentials are read from environment variables (TEST_SUPERADMIN_PASSWORD, etc.) with localhost-only hardcoded fallbacks.
+---
 
-7. **Given** the CI pipeline runs, **when** the security stage executes, **then** pip-audit scans requirements.txt for CVEs, Bandit SAST scans Python code, and secret detection scans git history; pipeline fails if known CVEs are found.
+## 8. Assumptions & Risks
 
-8. **Given** the git repository is cloned, **when** a user attempts to add a PDF, DOCX, or XLSX file, **then** it is rejected by .gitignore and a note directs them to Confluence.
+| Assumption | Risk Level | Rationale |
+|-----------|-----------|-----------|
+| Celery Redis backend is always available and monitored. If Redis goes down, scheduled tasks queue but do not execute until recovery. | **Medium** | Celery retry logic assumes Redis is transient; prolonged outage (hours) could cause task backlog or stale handover submissions. Monitoring/alerting must watch Redis uptime. |
+| Environment variables are correctly populated in all non-localhost environments (dev, staging, prod). | **Medium** | If env vars are missing or typo'd in deployment, test suite or app will silently use insecure defaults or fail at startup. Deployment runbook must verify all TEST_* vars are set before container start. |
+| GitLab SAST (Bandit) catches sufficient Python security issues for this app's threat model. | **Low** | Bandit is mature and free-tier; no advanced custom rules required. Static analysis is never complete, but combined with Secret Detection and pip-audit provides reasonable coverage. |
+| Jira admin will complete service account role upgrade within the team's normal workflow cadence. | **Medium** | If Jira permissions remain unresolved, issue correlation will stay broken; may delay future sprint planning. Assume admin is aware but deprioritized; escalate if unresolved after 2 weeks. |
+| The "thousands of requests/day" constraint is steady-state average, not peak. | **Low** | No burst or scaling scenario specified. Standard caching and indexing (assumed in-place) will suffice. If peak exceeds 10x average, reconsider. |
+| Partial failure handling strategies (retry C, abort A, degrade D) are correctly scoped to their respective operations. | **Medium** | If a "non-critical" operation (D) is incorrectly classified, silent failure could go unnoticed. Requires code review to verify each Celery task and startup check is tagged correctly. |
+| Second team member will join within 6 months; MR approval rule becomes enforceable at that time. | **Low** | Current single-developer project; rule enforced after hire. Assume org has hiring plan. |
 
-9. **Given** a user provides empty or null input to any form, **when** they submit, **then** the system returns a specific, actionable validation error message.
+---
 
-10. **Given** ServiceNow returns a timeout error, **when** a Celery task is invoked, **then** it automatically retries up to 3 times with 30-second intervals before failing.
+## 9. Contradictions
 
-## Assumptions & Risks
+**None detected.**
 
-| Assumption | Confidence | Risk If Wrong | Mitigation |
-|-----------|-----------|-----------|-----------|
-| Single-worker gunicorn + Celery is sufficient for thousands of requests/day | HIGH | Low — async workload is already distributed to Celery workers; CPU-bound work in gunicorn is minimal. | Monitor request latency; add workers if p95 latency exceeds threshold. |
-| Celery workers are deployed and always running in all environments (dev, staging, prod) | MEDIUM | **Medium** — if workers are not running, all background jobs silently fail (no immediate error). | Deployment docs must explicitly cover worker startup; monitoring/alerting for worker health is required before production. |
-| Redis is available and configured for Celery state management | MEDIUM | **Medium** — Redis outage blocks job enqueueing and execution; web tier is isolated per design but job pipeline halts. | Deploy Redis with replication; establish clear runbook for Redis recovery. |
-| Jira admin will resolve HiveMind service account permissions on board 344407 | LOW | **Medium** — if unresolved, sprint tracking and issue correlation remain broken. | Assign ticket to Jira admin with explicit scope; confirm ETA before go-live. |
-| Confluence is maintained as the single source of truth going forward | MEDIUM | **Medium** — if documentation drifts from code, users follow stale guidance. | Require documentation updates as part of PR review process; establish doc review cadence. |
-| APScheduler was the only internal scheduler; no other process is triggering background jobs outside Celery | HIGH | Low — code review during refactoring surfaced all job submission points. | Code search for APScheduler imports confirms removal; static analysis validates. |
-| Binary files were only 4 (2 PDFs, 2 DOCXs) and .gitignore patterns will catch future submissions | MEDIUM | Low — if future binary files slip through, they are easily caught in PR review. | Add pre-commit hook to block binary files (optional but recommended). |
+All Q&A answers are internally consistent. Gaps discovered (Werkzeug, migrations, credentials, SAST) are resolved via concrete commits with no conflicting guidance. Process improvements (branch protection, Jira permissions) acknowledge external dependencies and single-developer status without contradiction.
 
-## Contradictions
+---
 
-**None detected.** All answers are internally consistent and complementary. The decisions form a coherent strategy: (1) use gunicorn for HTTP serving, (2) delegate scheduling to Celery for scalability, (3) secure the CI/CD pipeline, (4) enforce code review, and (5) clean up version control and documentation structure.
+## 10. Open Items
 
-## Open Items
+1. **Jira Service Account Upgrade** (Blocker for future sprint planning)
+   - Status: Awaiting Jira admin to grant HiveMind account Developer role on project linked to board 344407.
+   - Owner: External (Jira admin)
+   - Timeline: Target within 2 weeks to unblock issue correlation.
 
-- **Jira Configuration** (External): Confirm with Jira admin that HiveMind service account has been granted necessary permissions on board 344407; clarify expected resolution date.
+2. **Deployment Verification Runbook** (Before production release)
+   - Requirement: Document and test that all environment variables (TEST_SUPERADMIN_PASSWORD, TEST_ADMIN_PASSWORD, TEST_USER_PASSWORD, etc.) are correctly populated in staging/prod before container start.
+   - Owner: DevOps/release engineer
+   - Timeline: Before first prod deployment of this branch.
 
-- **Celery Worker Deployment**: Confirm that docker-compose (and all production deployment manifests) explicitly start Celery workers; document worker count configuration for different environments.
+3. **Redis Monitoring & Alerting** (Before scalable Celery deployment)
+   - Requirement: Verify Redis uptime monitoring and alert thresholds are in place; define action plan for Redis outage (failover, manual retry dispatch).
+   - Owner: Infrastructure/SRE
+   - Timeline: Before scaling Gunicorn beyond 1 worker.
 
-- **Monitoring & Alerting**: Define monitoring for Celery worker health (e.g., alert if no workers are alive for >5 minutes) and task failure rates (e.g., alert if task retries exceed 10% of total).
+4. **Code Review of Error Handling Scoping** (Before merge)
+   - Requirement: Review each Celery task and startup sequence to confirm they are tagged with correct failure strategy (A/C/D) per edge case strategy in Q&A.
+   - Owner: Code reviewer (architecture/senior eng)
+   - Timeline: As part of MR approval.
 
-- **Pre-Commit Hooks** (Optional): Consider implementing a client-side git hook to reject binary file additions before they reach the CI pipeline.
-
-- **Documentation Review**: Confirm CLAUDE.md and CONTRIBUTING.md have been updated to reflect the Celery scheduler architecture and environment variable credential patterns; schedule documentation review with team before merging.
-
-- **Backwards Compatibility**: Confirm no external consumers are relying on APScheduler internal APIs; any deprecated endpoints should be marked clearly in release notes.
+5. **Confluence Documentation Update** (Best practice)
+   - Requirement: Verify ShiftOps_Admin_Guide and ShiftOps_User_Guide are present and up-to-date in Confluence; remove stale wiki pages that may still reference binary files in git.
+   - Owner: Technical writer or product owner
+   - Timeline: Within 1 sprint of this branch merge.

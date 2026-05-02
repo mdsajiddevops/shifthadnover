@@ -285,6 +285,24 @@
     </div>
     {% endif %}
 
+    <!-- Worker Status Widget (COMP-011) -->
+    <div class="row mb-3">
+        <div class="col-12">
+            {% if worker_status and worker_status.available %}
+            <div class="worker-stats alert alert-success py-2 mb-0" role="status">
+                <i class="bi bi-cpu me-1"></i>
+                Background workers: <strong>{{ worker_status.worker_count }}</strong> &nbsp;|&nbsp;
+                Active tasks: <strong>{{ worker_status.active_tasks }}</strong>
+            </div>
+            {% elif worker_status %}
+            <div class="worker-stats worker-stats--degraded alert alert-secondary py-2 mb-0" role="status">
+                <i class="bi bi-cpu me-1"></i>
+                Worker instrumentation unavailable
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
     <!-- Modern Glass-Morphism Statistics Cards -->
     <div class="row g-4 mb-4">
         <div class="col-lg-3 col-md-6">
