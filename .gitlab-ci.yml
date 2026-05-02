@@ -1,61 +1,35 @@
+# Starter GitLab CI/CD pipeline — scaffolded by HiveMind.
+# Refine stages and jobs for your stack (node / python / java / etc.)
+# once you've chosen a runner image.
 
-  workflow:
-    rules:
-      - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS == null
+stages:
+  - install
+  - lint
+  - test
+  - build
 
-  default:
-    image: python:3.11-slim
+default:
+  image: alpine:3.19
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS == null
 
-  variables:
-    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip-cache"
-    DATABASE_URL: "sqlite:///ci_test.db"
+install:
+  stage: install
+  script:
+    - echo "Replace with your dependency install step."
 
-  cache:
-    key: "$CI_COMMIT_REF_SLUG"
-    paths:
-      - .venv/
-      - .pip-cache/
+lint:
+  stage: lint
+  script:
+    - echo "Replace with your linter command."
 
-  install:
-    stage: install
-    script:
-      - python -m venv .venv
-      - .venv/bin/pip install --upgrade pip
-      - .venv/bin/pip install -r requirements.txt
-      - .venv/bin/pip install ruff==0.4.4
-    artifacts:
-      paths:
-        - .venv/
-      expire_in: 1 hour
+test:
+  stage: test
+  script:
+    - echo "Replace with your test runner command."
 
-  lint:
-    stage: lint
-    script:
-      - .venv/bin/ruff check . --line-length 120 --exit-zero
-
-  test:
-    stage: test
-    variables:
-      DATABASE_URL: sqlite:///ci_test.db
-      SECRET_KEY: ci-test-secret
-      FLASK_ENV: testing
-    script:
-      - .venv/bin/python -c "import flask; print('Flask OK')"
-
-  deploy:
-    stage: deploy
-    image: alpine:3.19
-    script:
-      - echo "Deploy step - configure DEPLOY_SSH_KEY, DEPLOY_HOST, DEPLOY_USER in CI/CD variables"
-    rules:
-      - if: $CI_COMMIT_BRANCH == "master"
-        when: manual
-    environment:
-      name: production
-
-  stages:
-    - install
-    - lint
-    - test
-    - deploy
+build:
+  stage: build
+  script:
+    - echo "Replace with your build / package step."
