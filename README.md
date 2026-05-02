@@ -1,6 +1,6 @@
-# shifthandover_v3
+# Shift Handover Application
 
-Project description goes here.
+Multi-team shift handover management web app for NOC/operations teams. Handles shift handover forms, incident tracking, roster management and check-in/check-out for operations teams.
 
 ## Getting started
 
