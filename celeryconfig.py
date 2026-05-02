@@ -32,6 +32,11 @@ beat_schedule = {
         'task': 'tasks.ctask_tasks.run_ctask_assignment',
         'schedule': timedelta(seconds=120),
     },
+    # Handover draft cleanup: remove HandoverDraft rows not updated in 24 hours
+    'draft-cleanup': {
+        'task': 'tasks.draft_cleanup_task.cleanup_stale_drafts',
+        'schedule': timedelta(hours=24),
+    },
 }
 
 task_serializer = 'json'

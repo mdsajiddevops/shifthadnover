@@ -218,6 +218,7 @@ from models.servicenow_config import ServiceNowConfig  # Import ServiceNow confi
 from models.team_shift_timing_config import TeamShiftTimingConfig  # Import team shift timing config model
 from models.escalation_matrix import EscalationMatrixEntry  # Import escalation matrix model
 from models.collaboration import HandoverSession, SectionLock, HandoverChange, DraftIncident, DraftKeyPoint  # Collaborative editing models
+from models.handover_draft import HandoverDraft  # Yjs draft persistence (CTCOAMSHM-7)
 db.init_app(app)
 
 # API docs — available at /apidocs
@@ -452,6 +453,13 @@ app.register_blueprint(problem_tickets_bp)
 # Register collaborative handover blueprint for real-time multi-user editing
 from routes.collaboration import collaboration_bp
 app.register_blueprint(collaboration_bp)
+
+# Initialise flask-sock and register WebSocket handover relay (CTCOAMSHM-7).
+# Routes in routes/ws_handover.py are decorated with @sock.route(...)  which
+# stores them in the Sock object; init_app registers them on the Flask app.
+from services.sock_instance import sock
+import routes.ws_handover  # noqa: F401 — side-effect: registers @sock.route handlers
+sock.init_app(app)
 
 # Add template global functions
 @app.template_global()

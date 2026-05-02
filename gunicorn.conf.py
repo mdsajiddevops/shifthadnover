@@ -3,6 +3,9 @@
 # Do NOT set daemon = True; containers must run in the foreground.
 
 workers = 1
+# gthread allows multiple concurrent WebSocket connections per worker (one thread per WS conn).
+worker_class = "gthread"
+threads = 8
 bind = "0.0.0.0:5000"
 timeout = 120
 loglevel = "info"

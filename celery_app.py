@@ -34,6 +34,7 @@ celery = Celery(
         'tasks.servicenow_tasks',
         'tasks.retry_tasks',
         'tasks.ctask_tasks',
+        'tasks.draft_cleanup_task',
     ],
 )
 
