@@ -58,6 +58,13 @@ dmypy.json
 *.backup
 *.bak
 
+# Binary documentation — maintained in Confluence, not git
+*.pdf
+*.docx
+*.doc
+*.xlsx
+*.pptx
+
 # TLS certificates and private keys — managed via Docker secrets
 private.key
 fullchain.pem
