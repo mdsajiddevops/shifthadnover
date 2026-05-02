@@ -1,14 +1,11 @@
-  stages:
-    - install
-    - lint
-    - test
-    - deploy
 
-  default:
-    image: python:3.11-slim
+  workflow:
     rules:
       - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS == null
+
+  default:
+    image: python:3.11-slim
 
   variables:
     PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip-cache"
@@ -50,9 +47,15 @@
     stage: deploy
     image: alpine:3.19
     script:
-      - echo "Deploy via SSH - configure DEPLOY_SSH_KEY, DEPLOY_HOST, DEPLOY_USER in CI variables"
+      - echo "Deploy step - configure DEPLOY_SSH_KEY, DEPLOY_HOST, DEPLOY_USER in CI/CD variables"
     rules:
       - if: $CI_COMMIT_BRANCH == "master"
         when: manual
     environment:
       name: production
+
+  stages:
+    - install
+    - lint
+    - test
+    - deploy
