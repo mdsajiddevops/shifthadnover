@@ -30,7 +30,8 @@ Tests are HTTP integration tests — they require a running app instance.
 
 ```bash
 # Start the app first, then:
-python tests/run_tests.py --url http://localhost:5000 --user superadmin --password admin123 --verbose
+export TEST_SUPERADMIN_PASSWORD=<your-superadmin-password>
+python tests/run_tests.py --url http://localhost:5000 --user superadmin --password $TEST_SUPERADMIN_PASSWORD --verbose
 pytest tests/test_application.py -v
 ```
 

@@ -53,7 +53,7 @@ Two runners coexist:
 
 ```bash
 # Custom suite runner (admin sanity checks)
-python tests/run_tests.py --url http://localhost:5000 --user superadmin --password admin123 --verbose
+python tests/run_tests.py --url http://localhost:5000 --user superadmin --password $TEST_SUPERADMIN_PASSWORD --verbose
 
 # pytest (test_application.py only)
 pytest tests/test_application.py -v
