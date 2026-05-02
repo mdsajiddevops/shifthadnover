@@ -93,6 +93,6 @@ except Exception as e:
     print("Continuing without database initialization...")
 PYEOF
 
-# Start Flask application
+# Start Flask application via Gunicorn (single worker — Celery handles background jobs)
 echo "Starting Flask application on port 5000..."
-exec python app.py
+exec gunicorn -w 1 -b 0.0.0.0:5000 --timeout 120 --access-logfile - app:app

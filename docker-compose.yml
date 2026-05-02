@@ -62,7 +62,7 @@ services:
   web:
     build: .
     restart: unless-stopped
-    command: python app.py
+    command: bash start.sh
     
     volumes:
       - .:/app
