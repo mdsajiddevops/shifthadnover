@@ -27,7 +27,7 @@ REQ-010: every migration is catalogued below with identifier, status, and execut
 | 10 | `add_status_to_shift_change_info.py` | Status field on change info records | alembic | applied |
 | 11 | `add_team_email_configuration.py` | Per-team email config | alembic | applied |
 | 12 | `add_user_role_column.py` | Role column on user table | alembic | applied |
-| 13 | `add_failed_tasks_table.py` *(pending generation)* | Dead-letter queue table for exhausted Celery tasks | alembic | pending |
+| 13 | `add_failed_tasks_table.py` | Dead-letter queue table for exhausted Celery tasks (DLQ, REQ-006) | alembic | pending |
 
 **To add a new schema change:** always use `flask db migrate -m "description"` — never
 write a raw SQL file for changes that should be environment-portable (REQ-011).

@@ -347,6 +347,9 @@ app.register_blueprint(keypoints_bp)
 from routes.ctask_assignment import ctask_assignment_bp
 app.register_blueprint(ctask_assignment_bp)
 
+from routes.scheduler import scheduler_bp
+app.register_blueprint(scheduler_bp)
+
 # Register config blueprint for admin configuration
 from routes.config import config_bp
 app.register_blueprint(config_bp)
