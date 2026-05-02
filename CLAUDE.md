@@ -80,7 +80,7 @@ Test config (base URL, default creds, timeouts) lives in `tests/config.py`.
 - `templates/` — Jinja2 server-side rendering; `base.html` is the master layout
 - `static/` — CSS, JS, sample files
 
-`app.py` is the Flask app factory: initializes extensions, registers all Blueprints, sets up session validation middleware, background scheduler, and template globals.
+`app.py` is the Flask app factory: initializes extensions, registers all Blueprints, sets up session validation middleware, and template globals.
 
 ### Multi-Tenancy Model
 
@@ -111,7 +111,7 @@ Every request runs `validate_session()` middleware that checks `session_token` a
 
 ### Background Scheduler
 
-`app.py` starts an in-process background scheduler that runs periodic jobs: scheduled email digests, ServiceNow polling (`services/ctask_scheduler.py`), and email-delivery retries. Because it runs inside the app process, deployments assume a **single Gunicorn worker** — scaling out requires moving these jobs to an external scheduler.
+Background jobs (ServiceNow CTask polling) run via **Celery Beat** — see `celery_app.py` and `tasks.py`. The `celery-worker` and `celery-beat` services in `docker-compose.yml` must be running for scheduled tasks to execute. The Gunicorn web process has no scheduler and can be scaled to multiple workers safely.
 
 ### Operator Scripts
 

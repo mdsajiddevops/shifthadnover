@@ -154,21 +154,56 @@ class CTaskScheduler:
             
         return self.process_unassigned_ctasks()
 
-# Global scheduler instance
-ctask_scheduler = CTaskScheduler()
+# ---------------------------------------------------------------------------
+# Celery-backed public API
+# The CTaskScheduler threading class above is kept for reference but is no
+# longer started in-process. All periodic execution is handled by the Celery
+# beat scheduler (celery_app.py + tasks.py). These functions preserve the
+# same signatures so routes/ctask_assignment.py requires no changes.
+# ---------------------------------------------------------------------------
 
 def start_ctask_scheduler():
-    """Start the global CTask scheduler"""
-    ctask_scheduler.start()
+    """No-op — Celery Beat manages scheduling. Workers are started via docker-compose."""
+    import logging
+    logging.getLogger(__name__).info(
+        "start_ctask_scheduler called — scheduling is managed by Celery Beat, no action needed."
+    )
 
 def stop_ctask_scheduler():
-    """Stop the global CTask scheduler"""
-    ctask_scheduler.stop()
+    """No-op — stop the Celery worker via docker-compose to pause scheduling."""
+    import logging
+    logging.getLogger(__name__).info(
+        "stop_ctask_scheduler called — to pause scheduling, stop the celery-beat container."
+    )
 
 def get_scheduler_status():
-    """Get the status of the global CTask scheduler"""
-    return ctask_scheduler.get_status()
+    """Return Celery worker availability as scheduler status."""
+    try:
+        from tasks import celery
+        inspect = celery.control.inspect(timeout=2.0)
+        active = inspect.active() or {}
+        workers_up = len(active) > 0
+        return {
+            'running': workers_up,
+            'status': 'Running' if workers_up else 'Stopped (no Celery workers)',
+            'workers': list(active.keys()),
+            'last_check': None,
+            'next_check': None,
+            'engine': 'celery',
+        }
+    except Exception as e:
+        return {
+            'running': False,
+            'status': f'Unknown — Celery unreachable: {e}',
+            'engine': 'celery',
+        }
 
 def force_scheduler_check():
-    """Force an immediate check"""
-    return ctask_scheduler.force_check()
+    """Dispatch an immediate Celery task instead of running in-process."""
+    from tasks import run_ctask_assignment
+    result = run_ctask_assignment.delay()
+    return {
+        'dispatched': True,
+        'task_id': result.id,
+        'message': 'CTask assignment task queued on Celery worker',
+    }
