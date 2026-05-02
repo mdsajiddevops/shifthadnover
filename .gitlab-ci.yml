@@ -37,7 +37,8 @@ install:
     - python -m venv .venv
     - .venv/bin/pip install --upgrade pip
     - .venv/bin/pip install -r requirements.txt
-    - .venv/bin/pip install ruff==0.4.4 pip-audit
+    - .venv/bin/pip install ruff==0.4.4
+    # pip-audit and bandit are CI-only tools installed in the security stage from requirements-ci.txt
   artifacts:
     paths:
       - .venv/
@@ -66,10 +67,12 @@ test:
     - .venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" && echo "Health check passed"
     - kill $APP_PID || true
 
-# Dependency vulnerability scan — fails pipeline if known CVEs found
+# Dependency CVE scan — blocking merge gate (REQ-008 / T-006)
+# pip-audit installed from requirements-ci.txt, NOT from the production venv
 dependency-scan:
   stage: security
   script:
+    - .venv/bin/pip install -r requirements-ci.txt
     - .venv/bin/pip-audit --requirement requirements.txt --format json --output pip-audit-report.json || true
     - .venv/bin/pip-audit --requirement requirements.txt
   artifacts:
@@ -78,6 +81,20 @@ dependency-scan:
       - pip-audit-report.json
     expire_in: 7 days
   allow_failure: false
+
+# Python SAST via Bandit — advisory (REQ-008 / T-006)
+sast-bandit:
+  stage: security
+  script:
+    - .venv/bin/pip install -r requirements-ci.txt
+    - .venv/bin/bandit -r . -x tests/,.venv/,migrations/ -f json -o bandit-report.json || true
+    - .venv/bin/bandit -r . -x tests/,.venv/,migrations/
+  artifacts:
+    when: always
+    paths:
+      - bandit-report.json
+    expire_in: 7 days
+  allow_failure: true
 
 # GitLab SAST — static analysis for Python (Bandit-based, free on all tiers)
 # Results appear in Security > Vulnerability Report in the GitLab UI

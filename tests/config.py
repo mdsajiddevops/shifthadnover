@@ -12,6 +12,34 @@ Export before running:
     export TEST_BASE_URL=http://localhost:5000   # optional
 """
 import os
+from urllib.parse import urlparse
+
+
+class ConfigurationError(Exception):
+    """Raised when test credentials are unsafe for a non-localhost target."""
+
+
+def _is_localhost(url: str) -> bool:
+    host = urlparse(url).hostname or ''
+    return host in ('localhost', '127.0.0.1', '::1')
+
+
+def _safe_credential(env_var: str, sentinel: str, base_url: str, label: str) -> str:
+    """Return env var value, or sentinel if targeting localhost only.
+
+    Raises ConfigurationError when the target is not localhost and the env
+    var is unset — prevents sentinel credentials reaching a remote system.
+    """
+    value = os.environ.get(env_var)
+    if value is not None:
+        return value
+    if _is_localhost(base_url):
+        return sentinel
+    raise ConfigurationError(
+        f"{label}: environment variable {env_var!r} is not set but "
+        f"TEST_BASE_URL={base_url!r} targets a non-localhost host. "
+        "Set the variable before running tests against a remote target."
+    )
 
 
 class TestConfig:
@@ -20,15 +48,21 @@ class TestConfig:
     TEST_USERS = {
         'super_admin': {
             'username': os.environ.get('TEST_SUPERADMIN_USER', 'superadmin'),
-            'password': os.environ.get('TEST_SUPERADMIN_PASSWORD', 'admin123'),
+            'password': _safe_credential(
+                'TEST_SUPERADMIN_PASSWORD', 'admin123', BASE_URL, 'super_admin password'
+            ),
         },
         'account_admin': {
             'username': os.environ.get('TEST_ADMIN_USER', 'accountadmin'),
-            'password': os.environ.get('TEST_ADMIN_PASSWORD', 'admin123'),
+            'password': _safe_credential(
+                'TEST_ADMIN_PASSWORD', 'admin123', BASE_URL, 'account_admin password'
+            ),
         },
         'regular_user': {
             'username': os.environ.get('TEST_USER', 'ctctestuser'),
-            'password': os.environ.get('TEST_USER_PASSWORD', 'test123'),
+            'password': _safe_credential(
+                'TEST_USER_PASSWORD', 'test123', BASE_URL, 'regular_user password'
+            ),
         },
     }
 

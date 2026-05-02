@@ -11,23 +11,26 @@ Managed by Flask-Migrate. Applied automatically at startup via `flask db upgrade
 (or `alembic upgrade head` in `start.sh`). These are the **authoritative** schema
 history — never edit a committed revision file.
 
-| File | Purpose | Auto-applied |
-|------|---------|--------------|
-| `001_team_roster_tables.py` | Initial team and roster tables | ✅ Yes |
-| `add_app_config_table.py` | App-level feature config storage | ✅ Yes |
-| `add_application_detail_table.py` | Application detail fields | ✅ Yes |
-| `add_checkin_system.py` | Engineer check-in/check-out | ✅ Yes |
-| `add_collaborative_handover_tables.py` | Draft/lock/change tables for co-editing | ✅ Yes |
-| `add_incident_fields.py` | Extra fields on incident records | ✅ Yes |
-| `add_jira_id_to_keypoint.py` | Jira issue ID column on key points | ✅ Yes |
-| `add_servicenow_config_table.py` | ServiceNow connection config | ✅ Yes |
-| `add_servicenow_tables.py` | ServiceNow CTask and incident tables | ✅ Yes |
-| `add_status_to_shift_change_info.py` | Status field on change info records | ✅ Yes |
-| `add_team_email_configuration.py` | Per-team email config | ✅ Yes |
-| `add_user_role_column.py` | Role column on user table | ✅ Yes |
+REQ-010: every migration is catalogued below with identifier, status, and execution order.
+
+| Order | Revision ID / File | Description | Type | Status |
+|------|--------------------|-------------|------|--------|
+| 1 | `001_team_roster_tables.py` | Initial team and roster tables | alembic | applied |
+| 2 | `add_app_config_table.py` | App-level feature config storage | alembic | applied |
+| 3 | `add_application_detail_table.py` | Application detail fields | alembic | applied |
+| 4 | `add_checkin_system.py` | Engineer check-in/check-out | alembic | applied |
+| 5 | `add_collaborative_handover_tables.py` | Draft/lock/change tables for co-editing | alembic | applied |
+| 6 | `add_incident_fields.py` | Extra fields on incident records | alembic | applied |
+| 7 | `add_jira_id_to_keypoint.py` | Jira issue ID column on key points | alembic | applied |
+| 8 | `add_servicenow_config_table.py` | ServiceNow connection config | alembic | applied |
+| 9 | `add_servicenow_tables.py` | ServiceNow CTask and incident tables | alembic | applied |
+| 10 | `add_status_to_shift_change_info.py` | Status field on change info records | alembic | applied |
+| 11 | `add_team_email_configuration.py` | Per-team email config | alembic | applied |
+| 12 | `add_user_role_column.py` | Role column on user table | alembic | applied |
+| 13 | `add_failed_tasks_table.py` *(pending generation)* | Dead-letter queue table for exhausted Celery tasks | alembic | pending |
 
 **To add a new schema change:** always use `flask db migrate -m "description"` — never
-write a raw SQL file for changes that should be environment-portable.
+write a raw SQL file for changes that should be environment-portable (REQ-011).
 
 ---
 

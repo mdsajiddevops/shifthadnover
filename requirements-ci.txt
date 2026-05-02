@@ -1,0 +1,3 @@
+# CI-only security tooling — do NOT install in production images
+pip-audit==2.7.3
+bandit==1.7.8

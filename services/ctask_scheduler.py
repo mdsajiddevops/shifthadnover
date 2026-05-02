@@ -177,9 +177,14 @@ def stop_ctask_scheduler():
     )
 
 def get_scheduler_status():
-    """Return Celery worker availability as scheduler status."""
+    """Return Celery worker availability as scheduler status.
+
+    Completes within 5 seconds regardless of broker availability (REQ-013).
+    Returns a structured dict — never raises (REQ-004).
+    """
     try:
-        from tasks import celery
+        from celery_app import celery
+        # inspect timeout kept well under the 5 s budget (REQ-013).
         inspect = celery.control.inspect(timeout=2.0)
         active = inspect.active() or {}
         workers_up = len(active) > 0
@@ -192,15 +197,19 @@ def get_scheduler_status():
             'engine': 'celery',
         }
     except Exception as e:
+        # Broker unreachable — return degraded dict, do not raise (REQ-004).
         return {
             'running': False,
-            'status': f'Unknown — Celery unreachable: {e}',
+            'status': f'Unknown — Celery broker unreachable: {e}',
+            'workers': [],
             'engine': 'celery',
+            'broker_error': str(e),
         }
 
+
 def force_scheduler_check():
-    """Dispatch an immediate Celery task instead of running in-process."""
-    from tasks import run_ctask_assignment
+    """Dispatch an immediate CTask assignment task via Celery."""
+    from tasks.ctask_tasks import run_ctask_assignment
     result = run_ctask_assignment.delay()
     return {
         'dispatched': True,

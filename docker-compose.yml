@@ -96,6 +96,10 @@ services:
       
       # Force use of database configuration for app settings
       USE_DATABASE_CONFIG: "true"
+
+      # Celery broker / backend for scheduler status queries (REQ-004/REQ-013)
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
       
     secrets:
       - flask_secret_key
@@ -137,7 +141,9 @@ services:
   celery-worker:
     build: .
     restart: unless-stopped
-    command: celery -A tasks worker --loglevel=info --concurrency=2
+    # REQ-003: all background job execution delegated exclusively to Celery.
+    # celery_app.py reads CELERY_BROKER_URL / CELERY_RESULT_BACKEND from env.
+    command: celery -A celery_app worker --loglevel=info --concurrency=2
     environment:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
@@ -159,7 +165,9 @@ services:
   celery-beat:
     build: .
     restart: unless-stopped
-    command: celery -A tasks beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    # REQ-005: Beat runs as a single process — each job executes exactly once
+    # per interval regardless of HTTP worker count (native deduplication).
+    command: celery -A celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
     environment:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
