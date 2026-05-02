@@ -1,7 +1,3 @@
-# Starter GitLab CI/CD pipeline — scaffolded by HiveMind.
-# Refine stages and jobs for your stack (node / python / java / etc.)
-# once you've chosen a runner image.
-
 stages:
   - install
   - lint
@@ -9,27 +5,56 @@ stages:
   - build
 
 default:
-  image: alpine:3.19
+  image: python:3.11-slim
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS == null
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - .venv/
 
 install:
   stage: install
   script:
-    - echo "Replace with your dependency install step."
+    - python -m venv .venv
+    - .venv/bin/pip install --upgrade pip
+    - .venv/bin/pip install -r requirements.txt
 
 lint:
   stage: lint
   script:
-    - echo "Replace with your linter command."
+    - .venv/bin/pip install ruff
+    - .venv/bin/ruff check . --max-line-length 120 --ignore E501,W503
 
+# Tests are HTTP integration tests requiring a live app+DB.
+# This stage runs a syntax + import smoke check and starts the app
+# against SQLite (LOCAL_DEVELOPMENT=true) to verify it boots cleanly.
 test:
   stage: test
+  variables:
+    LOCAL_DEVELOPMENT: "true"
+    DATABASE_URL: "sqlite:///ci_test.db"
+    SECRET_KEY: "ci-test-secret-key"
   script:
-    - echo "Replace with your test runner command."
+    - .venv/bin/pip install pytest pytest-cov
+    # Smoke check: verify all modules import without errors
+    - .venv/bin/python -c "import app; print('App imports OK')"
+    # Start app in background and hit the health endpoint
+    - .venv/bin/python app.py &
+    - APP_PID=$!
+    - sleep 5
+    - .venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" && echo "Health check passed"
+    - kill $APP_PID || true
 
 build:
   stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
-    - echo "Replace with your build / package step."
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA .
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA

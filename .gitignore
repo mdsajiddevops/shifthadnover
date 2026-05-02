@@ -55,3 +55,21 @@ dmypy.json
 # Backup files
 *.backup
 *.bak
+
+# TLS certificates and private keys — managed via Docker secrets
+private.key
+fullchain.pem
+*.pfx
+*.pem
+*.key
+
+# Database dumps — never commit these
+*.sql
+!migrations/*.sql
+!migration/*.sql
+!schema/*.sql
+
+# Docker secrets source files — managed outside version control
+# (secrets/* ignores all files inside; !secrets/README.md keeps the setup doc committed)
+secrets/*
+!secrets/README.md
