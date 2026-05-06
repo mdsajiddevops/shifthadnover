@@ -410,6 +410,9 @@ class TeamMember(db.Model):
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)  # Active/Inactive status
     
+    # Scheduler role: 'lead' always gets E on weekdays / OFF on weekends; 'support' follows rotation
+    scheduling_role = db.Column(db.String(16), default='support', nullable=True)
+
     # Check-in status fields
     availability_status = db.Column(db.String(32), default='offline')  # offline, oncall, online
     last_checkin = db.Column(db.DateTime, nullable=True)
