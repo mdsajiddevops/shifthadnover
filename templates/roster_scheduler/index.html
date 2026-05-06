@@ -1,7 +1,21 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
-.rs-container { max-width: 1400px; margin: 0 auto; }
+.rs-container { max-width: 100%; margin: 0 auto; padding: 0 0.5rem; }
+
+/* Uniform toolbar buttons */
+.rs-btn {
+    display: inline-flex; align-items: center;
+    padding: 5px 12px; font-size: .8rem; font-weight: 600;
+    border-radius: 6px; border: none; cursor: pointer; white-space: nowrap;
+    background: #1e3c72; color: #fff; text-decoration: none;
+    transition: background .15s;
+}
+.rs-btn:hover  { background: #16305e; color: #fff; }
+.rs-btn-publish { background: #e6a817; color: #1a1a1a; }
+.rs-btn-publish:hover { background: #c98f10; color: #1a1a1a; }
+.rs-btn-danger  { background: #fff; color: #c0392b; border: 1px solid #c0392b; }
+.rs-btn-danger:hover { background: #fdecea; color: #c0392b; }
 
 .rs-hero {
     background: linear-gradient(135deg, #e8f0fe 0%, #d4e4fc 50%, #c5d9f8 100%);
@@ -18,11 +32,14 @@
 }
 
 /* shift code chips */
-.sc { display:inline-block; width:30px; height:22px; border-radius:4px; color:#fff;
-      font-weight:700; font-size:.65rem; text-align:center; line-height:22px; }
+.sc { display:inline-block; width:34px; height:24px; border-radius:4px; color:#fff;
+      font-weight:700; font-size:.7rem; text-align:center; line-height:24px; }
 .sc-D   { background:#1a73e8; }
 .sc-E   { background:#f57c00; }
 .sc-N   { background:#7b1fa2; }
+.sc-OCN { background:#006064; }
+.sc-WMO { background:#f0a830; }
+.sc-WEO { background:#ff7c98; }
 .sc-OS  { background:#2e7d32; }
 .sc-OF  { background:#00838f; }
 .sc-VL  { background:#c62828; }
@@ -33,9 +50,9 @@
 
 /* grid */
 .grid-wrap { overflow-x: auto; }
-table.roster-grid { border-collapse: collapse; font-size: .78rem; min-width: 900px; }
+table.roster-grid { border-collapse: collapse; font-size: .85rem; min-width: 1100px; width: 100%; }
 table.roster-grid th, table.roster-grid td {
-    padding: 4px 6px; border: 1px solid #e0e0e0; white-space: nowrap; }
+    padding: 6px 8px; border: 1px solid #e0e0e0; white-space: nowrap; }
 table.roster-grid thead th { background: #f5f7fa; font-weight: 600; color: #444; }
 table.roster-grid tbody tr:hover { background: #f9fbff; }
 td.wknd { background: #fafafa; }
@@ -48,6 +65,56 @@ td.today-col { background: #fff8e1 !important; }
 
 .legend-row { display:flex; flex-wrap:wrap; gap:.75rem; margin-bottom:.5rem; }
 .leg { display:flex; align-items:center; gap:.35rem; font-size:.78rem; }
+
+/* editable cells */
+.editable-cell { cursor: pointer; }
+.editable-cell:hover { background: rgba(26,115,232,.07) !important; }
+
+/* shift picker */
+#shiftPicker {
+    display: none; position: fixed; z-index: 9999;
+    background: #fff; border: 1px solid #dee2e6; border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.18); padding: 10px; min-width: 168px;
+}
+.picker-label { font-size: .62rem; color: #888; margin-bottom: 7px;
+    font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.pick-btn { color:#fff; font-weight:700; font-size:.65rem; border:none;
+    border-radius:4px; height:26px; cursor:pointer; transition:opacity .12s; outline-offset:2px; }
+.pick-btn:hover  { opacity: .82; }
+.pick-btn.active { outline: 2px solid #333; }
+.picker-row3 { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; margin-bottom:4px; }
+.picker-row2 { display:grid; grid-template-columns:repeat(2,1fr); gap:4px; margin-bottom:4px; }
+.picker-row4 { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-bottom:7px; }
+.pick-clear { width:100%; font-size:.72rem; background:#f5f5f5;
+    border:1px solid #ddd; border-radius:4px; padding:3px 0; cursor:pointer; color:#555; }
+.pick-clear:hover { background:#e8e8e8; }
+
+/* view tabs */
+.view-tabs { display:flex; gap:.5rem; border-bottom: 2px solid #e8eef3; margin-bottom:1rem; padding-bottom:0; }
+.view-tab  { padding:.35rem .9rem; font-size:.82rem; font-weight:600; cursor:pointer;
+    border:none; background:none; color:#6c757d; border-bottom:2px solid transparent; margin-bottom:-2px; }
+.view-tab.active { color:#1a73e8; border-bottom-color:#1a73e8; }
+.view-pane { display:none; }
+.view-pane.active { display:block; }
+
+/* coverage table */
+table.cov-grid { border-collapse:collapse; font-size:.85rem; min-width:1100px; width:100%; }
+table.cov-grid th, table.cov-grid td {
+    padding:6px 8px; border:1px solid #e0e0e0; text-align:center; white-space:nowrap; }
+table.cov-grid thead th { background:#f5f7fa; font-weight:600; color:#444; }
+.cov-ok    { background:#e8f5e9; color:#2e7d32; font-weight:700; }
+.cov-short { background:#fdecea; color:#c62828; font-weight:700; }
+.cov-empty { color:#bdbdbd; }
+.cov-req   { font-size:.65rem; color:#888; }
+
+/* summary table */
+table.sum-grid { border-collapse:collapse; font-size:.82rem; }
+table.sum-grid th, table.sum-grid td {
+    padding:5px 10px; border:1px solid #e0e0e0; text-align:center; }
+table.sum-grid thead th { background:#f5f7fa; font-weight:600; color:#444; }
+table.sum-grid td.name-col { text-align:left; font-weight:600; color:#1e3c72; min-width:140px; }
+.sum-val  { font-weight:700; }
+.sum-zero { color:#bdbdbd; }
 </style>
 
 <div class="rs-container">
@@ -56,7 +123,7 @@ td.today-col { background: #fff8e1 !important; }
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
             <div>
                 <h2><i class="bi bi-calendar-check me-2"></i>Roster Scheduler</h2>
-                <p>Auto-generated shift roster — view and navigate by month.</p>
+                <p>Auto-generated shift roster — view, edit, and manage by month.</p>
             </div>
             {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
             <a href="/admin/roster-scheduler" class="btn btn-sm btn-outline-primary">
@@ -102,42 +169,135 @@ td.today-col { background: #fff8e1 !important; }
                 <input type="hidden" name="team_id" value="{{ team_id }}">
                 <button type="submit" class="btn btn-sm btn-primary">Go</button>
             </div>
-            {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
-            <div class="col-auto ms-auto">
-                <button type="button" class="btn btn-sm btn-success" id="btnGenerate">
-                    <i class="bi bi-magic me-1"></i>Generate Schedule
-                </button>
-            </div>
-            {% endif %}
         </form>
-    </div>
 
-    <!-- Legend -->
-    <div class="rs-card py-2">
-        <div class="legend-row">
-            <div class="leg"><span class="sc sc-D">D</span> Day</div>
-            <div class="leg"><span class="sc sc-E">E</span> Evening</div>
-            <div class="leg"><span class="sc sc-N">N</span> Night/OCN</div>
-            <div class="leg"><span class="sc sc-OS">OS</span> Weekend On-site</div>
-            <div class="leg"><span class="sc sc-OF">OF</span> Weekend Off-site</div>
-            <div class="leg"><span class="sc sc-VL">VL</span> Vacation</div>
-            <div class="leg"><span class="sc sc-SL">SL</span> Sick Leave</div>
-            <div class="leg"><span class="sc sc-HL">HL</span> Holiday</div>
-            <div class="leg"><span class="sc sc-CO">CO</span> Comp-off</div>
-            <div class="leg"><span class="sc sc-off"> </span> Off</div>
+        {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
+        <div class="d-flex flex-wrap gap-2 mt-2 pt-2 border-top align-items-center">
+            <button type="button" class="rs-btn" id="btnGenerate">
+                <i class="bi bi-magic me-1"></i>Generate
+            </button>
+            <button type="button" class="rs-btn" id="btnLeave">
+                <i class="bi bi-calendar-x me-1"></i>Apply Leave
+            </button>
+            <button type="button" class="rs-btn" id="btnUploadLeave">
+                <i class="bi bi-file-earmark-arrow-up me-1"></i>Upload Leave Plan
+            </button>
+            <button type="button" class="rs-btn" id="btnBulkFill">
+                <i class="bi bi-grid-3x3-gap-fill me-1"></i>Bulk Fill
+            </button>
+            <button type="button" class="rs-btn" id="btnImport">
+                <i class="bi bi-upload me-1"></i>Import CSV
+            </button>
+            <a id="btnExport" href="#" class="rs-btn">
+                <i class="bi bi-file-earmark-excel me-1"></i>Export XLSX
+            </a>
+            <button type="button" class="rs-btn rs-btn-publish" id="btnSync">
+                <i class="bi bi-send me-1"></i>Publish to Shift Roster
+            </button>
+            <button type="button" class="rs-btn rs-btn-danger ms-auto" id="btnReset">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Month
+            </button>
         </div>
+        {% else %}
+        <div class="d-flex gap-2 mt-2 pt-2 border-top">
+            <a id="btnExport" href="#" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-file-earmark-excel me-1"></i>Export XLSX
+            </a>
+        </div>
+        {% endif %}
     </div>
 
-    <!-- Grid -->
+    <!-- View tabs + content -->
     <div class="rs-card">
-        <div id="gridMsg" class="text-muted small mb-2" style="display:none">Loading...</div>
-        <div class="grid-wrap">
-            <table class="roster-grid" id="rosterGrid">
-                <thead id="gridHead"></thead>
-                <tbody id="gridBody"></tbody>
-            </table>
+        <div class="view-tabs">
+            <button class="view-tab active" data-target="paneRoster" onclick="switchView('paneRoster', this)">
+                <i class="bi bi-table me-1"></i>Roster
+            </button>
+            <button class="view-tab" data-target="paneCoverage" onclick="switchView('paneCoverage', this)">
+                <i class="bi bi-bar-chart-line me-1"></i>Coverage
+            </button>
+            <button class="view-tab" data-target="paneSummary" onclick="switchView('paneSummary', this)">
+                <i class="bi bi-person-badge me-1"></i>Summary
+            </button>
+        </div>
+
+        <!-- Roster pane -->
+        <div id="paneRoster" class="view-pane active">
+            <!-- Legend -->
+            <div class="legend-row mb-3">
+                <div class="leg"><span class="sc sc-D">D</span> Day</div>
+                <div class="leg"><span class="sc sc-E">E</span> Evening</div>
+                <div class="leg"><span class="sc sc-N">N</span> Night</div>
+                <div class="leg"><span class="sc sc-OCN">OCN</span> On-Call Night</div>
+                <div class="leg"><span class="sc sc-WMO">WMO</span> Weekend Morning</div>
+                <div class="leg"><span class="sc sc-WEO">WEO</span> Weekend Evening</div>
+                <div class="leg"><span class="sc sc-OS">OS</span> OnShore</div>
+                <div class="leg"><span class="sc sc-OF">OF</span> OffShore</div>
+                <div class="leg"><span class="sc sc-VL">VL</span> Vacation</div>
+                <div class="leg"><span class="sc sc-SL">SL</span> Sick Leave</div>
+                <div class="leg"><span class="sc sc-HL">HL</span> Holiday</div>
+                <div class="leg"><span class="sc sc-CO">CO</span> Comp-off</div>
+                {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
+                <div class="leg ms-auto text-muted" style="font-size:.72rem">
+                    <i class="bi bi-pencil-square me-1"></i>Click any cell to edit
+                </div>
+                {% endif %}
+            </div>
+            <div id="gridMsg" class="text-muted small mb-2" style="display:none">Loading...</div>
+            <div class="grid-wrap">
+                <table class="roster-grid" id="rosterGrid">
+                    <thead id="gridHead"></thead>
+                    <tbody id="gridBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Coverage pane -->
+        <div id="paneCoverage" class="view-pane">
+            <div id="covMsg" class="text-muted small mb-2" style="display:none">Loading...</div>
+            <div class="grid-wrap">
+                <table class="cov-grid" id="covGrid">
+                    <thead id="covHead"></thead>
+                    <tbody id="covBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Summary pane -->
+        <div id="paneSummary" class="view-pane">
+            <div id="sumMsg" class="text-muted small mb-2" style="display:none">Loading...</div>
+            <div class="table-responsive">
+                <table class="sum-grid" id="sumGrid">
+                    <thead id="sumHead"></thead>
+                    <tbody id="sumBody"></tbody>
+                </table>
+            </div>
         </div>
     </div>
+</div>
+
+<!-- Shift picker -->
+<div id="shiftPicker">
+    <div class="picker-label">Change Shift</div>
+    <div class="picker-row3">
+        <button class="pick-btn" style="background:#1a73e8" data-code="D"   onclick="selectShiftCode('D')">D</button>
+        <button class="pick-btn" style="background:#f57c00" data-code="E"   onclick="selectShiftCode('E')">E</button>
+        <button class="pick-btn" style="background:#7b1fa2" data-code="N"   onclick="selectShiftCode('N')">N</button>
+        <button class="pick-btn" style="background:#006064" data-code="OCN" onclick="selectShiftCode('OCN')">OCN</button>
+    </div>
+    <div class="picker-row2">
+        <button class="pick-btn" style="background:#f0a830" data-code="WMO" onclick="selectShiftCode('WMO')">WMO</button>
+        <button class="pick-btn" style="background:#ff7c98" data-code="WEO" onclick="selectShiftCode('WEO')">WEO</button>
+        <button class="pick-btn" style="background:#2e7d32" data-code="OS" onclick="selectShiftCode('OS')">OS</button>
+        <button class="pick-btn" style="background:#00838f" data-code="OF" onclick="selectShiftCode('OF')">OF</button>
+    </div>
+    <div class="picker-row4">
+        <button class="pick-btn" style="background:#c62828" data-code="VL" onclick="selectShiftCode('VL')">VL</button>
+        <button class="pick-btn" style="background:#ad1457" data-code="SL" onclick="selectShiftCode('SL')">SL</button>
+        <button class="pick-btn" style="background:#6a1b9a" data-code="HL" onclick="selectShiftCode('HL')">HL</button>
+        <button class="pick-btn" style="background:#4e342e" data-code="CO" onclick="selectShiftCode('CO')">CO</button>
+    </div>
+    <button class="pick-clear" onclick="selectShiftCode('')">✕ Clear</button>
 </div>
 
 <!-- Generate modal -->
@@ -148,20 +308,286 @@ td.today-col { background: #fff8e1 !important; }
         <h5 class="modal-title">Generate Schedule</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
+      <!-- Generate form (shown before generation) -->
+      <div id="genForm">
+        <div class="modal-body">
+          <p class="small text-muted mb-3">Auto-generate roster for <strong id="genLabel"></strong>.</p>
+          <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="overwriteCheck">
+              <label class="form-check-label small" for="overwriteCheck">
+                  Overwrite existing (non-leave) entries
+              </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-success" id="btnConfirmGenerate">Generate</button>
+        </div>
+      </div>
+      <!-- Success state (shown after generation) -->
+      <div id="genSuccess" style="display:none">
+        <div class="modal-body text-center py-4">
+          <div class="mb-3">
+            <i class="bi bi-check-circle-fill text-success" style="font-size:2.5rem"></i>
+          </div>
+          <p class="fw-semibold mb-1">Schedule generated!</p>
+          <p class="small text-muted mb-0">Publish it to the Shift Roster tab so your team can see it.</p>
+        </div>
+        <div class="modal-footer justify-content-center gap-2">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-sm btn-warning text-dark" id="btnPublishAfterGen">
+            <i class="bi bi-send me-1"></i>Publish to Shift Roster
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Leave modal -->
+<div class="modal fade" id="leaveModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-calendar-x me-2"></i>Apply Leave</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
       <div class="modal-body">
-        <p class="small text-muted mb-3">
-            Generate auto schedule for <strong id="genLabel"></strong>.
-        </p>
+        <div class="mb-3">
+            <label class="form-label fw-semibold small">Team Member</label>
+            <select id="leaveMember" class="form-select form-select-sm">
+                <option value="">— select member —</option>
+            </select>
+        </div>
+        <div class="row g-2 mb-3">
+            <div class="col">
+                <label class="form-label fw-semibold small">From</label>
+                <input type="date" id="leaveFrom" class="form-control form-control-sm">
+            </div>
+            <div class="col">
+                <label class="form-label fw-semibold small">To</label>
+                <input type="date" id="leaveTo" class="form-control form-control-sm">
+            </div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label fw-semibold small">Leave Type</label>
+            <div class="d-flex flex-wrap gap-3">
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="leaveCode" id="lvVL" value="VL" checked>
+                    <label class="form-check-label small" for="lvVL"><span class="sc sc-VL">VL</span> Vacation</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="leaveCode" id="lvSL" value="SL">
+                    <label class="form-check-label small" for="lvSL"><span class="sc sc-SL">SL</span> Sick</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="leaveCode" id="lvHL" value="HL">
+                    <label class="form-check-label small" for="lvHL"><span class="sc sc-HL">HL</span> Holiday</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="leaveCode" id="lvCO" value="CO">
+                    <label class="form-check-label small" for="lvCO"><span class="sc sc-CO">CO</span> Comp-off</label>
+                </div>
+            </div>
+        </div>
         <div class="form-check mb-2">
-            <input class="form-check-input" type="checkbox" id="overwriteCheck">
-            <label class="form-check-label small" for="overwriteCheck">
-                Overwrite existing (non-leave) entries
+            <input class="form-check-input" type="checkbox" id="leaveAutoFix" checked>
+            <label class="form-check-label small" for="leaveAutoFix">
+                Auto-rebalance coverage for affected days
             </label>
         </div>
+        <div id="leaveMsg" class="small text-danger mt-2" style="display:none"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-sm btn-success" id="btnConfirmGenerate">Generate</button>
+        <button type="button" class="btn btn-sm btn-primary" id="btnConfirmLeave">Apply Leave</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Fill modal -->
+<div class="modal fade" id="bulkFillModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-grid-3x3-gap-fill me-2"></i>Bulk Fill</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">Apply one shift code to all team members over a date range.</p>
+        <div class="mb-3">
+            <label class="form-label fw-semibold small">Shift Code</label>
+            <select id="bulkCode" class="form-select form-select-sm">
+                <option value="D">D — Day</option>
+                <option value="E">E — Evening</option>
+                <option value="N">N — Night</option>
+                <option value="OCN">OCN — On-Call Night</option>
+                <option value="WMO">WMO — Weekend Morning</option>
+                <option value="WEO">WEO — Weekend Evening</option>
+                <option value="OS">OS — OnShore</option>
+                <option value="OF">OF — OffShore</option>
+                <option value="VL">VL — Vacation</option>
+                <option value="SL">SL — Sick Leave</option>
+                <option value="HL">HL — Holiday</option>
+                <option value="CO">CO — Comp-off</option>
+            </select>
+        </div>
+        <div class="row g-2 mb-3">
+            <div class="col">
+                <label class="form-label fw-semibold small">From</label>
+                <input type="date" id="bulkFrom" class="form-control form-control-sm">
+            </div>
+            <div class="col">
+                <label class="form-label fw-semibold small">To</label>
+                <input type="date" id="bulkTo" class="form-control form-control-sm">
+            </div>
+        </div>
+        <div class="form-check mb-1">
+            <input class="form-check-input" type="checkbox" id="bulkWeekdaysOnly">
+            <label class="form-check-label small" for="bulkWeekdaysOnly">Weekdays only (Mon–Fri)</label>
+        </div>
+        <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="bulkSkipLeave" checked>
+            <label class="form-check-label small" for="bulkSkipLeave">Skip existing leave entries (VL/SL/HL/CO)</label>
+        </div>
+        <div id="bulkMsg" class="small text-danger mt-2" style="display:none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-secondary" id="btnConfirmBulk">Apply to All Members</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Upload Leave Plan modal -->
+<div class="modal fade" id="uploadLeaveModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-file-earmark-arrow-up me-2"></i>Upload Leave Plan</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-3">
+          Upload your standard leave planner Excel sheet. Columns should be month headers like
+          <strong>Jan-26</strong>, <strong>Feb-26</strong>, etc. Each cell contains comma-separated
+          day numbers (e.g. <code>12,13,14</code> or <code>1-5</code>).
+        </p>
+        <div class="mb-3">
+          <label class="form-label fw-semibold small">Leave Type</label>
+          <select id="uploadLeaveType" class="form-select form-select-sm">
+            <option value="VL">VL — Vacation Leave</option>
+            <option value="SL">SL — Sick Leave</option>
+            <option value="CO">CO — Comp Off</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold small">Excel File (.xlsx)</label>
+          <input type="file" id="uploadLeaveFile" class="form-control form-control-sm" accept=".xlsx,.xls">
+        </div>
+        <div id="uploadLeaveResult" class="mt-2" style="display:none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" id="btnConfirmUploadLeave">
+          <i class="bi bi-upload me-1"></i>Upload &amp; Apply
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Import CSV modal -->
+<div class="modal fade" id="importModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-upload me-2"></i>Import Shifts from CSV</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-2">
+            Upload a CSV with columns: <code>member_name</code> (or <code>member_id</code>),
+            <code>date</code> (YYYY-MM-DD), <code>shift_code</code>.
+        </p>
+        <div class="mb-3">
+            <label class="form-label fw-semibold small">CSV File</label>
+            <input type="file" id="importFile" class="form-control form-control-sm" accept=".csv">
+        </div>
+        <div id="importResult" style="display:none" class="small mt-2">
+            <div id="importSummary" class="mb-1"></div>
+            <div id="importErrors" class="text-danger"></div>
+        </div>
+        <div id="importMsg" class="small text-danger mt-2" style="display:none"></div>
+        <div class="mt-3 p-2 rounded" style="background:#f8f9fa; font-size:.75rem; color:#666;">
+            <strong>Example CSV:</strong><br>
+            <code>member_name,date,shift_code<br>
+            Alice,2026-05-01,D<br>
+            Bob,2026-05-01,E</code>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-sm btn-info text-white" id="btnConfirmImport">Import</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Push to Shift Roster modal -->
+<div class="modal fade" id="syncModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#fff3cd; border-bottom:1px solid #ffe69c;">
+        <h5 class="modal-title text-dark"><i class="bi bi-send me-2"></i>Publish to Shift Roster</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small mb-3">
+            Copy the auto-generated schedule for <strong id="syncLabel"></strong> into the
+            main <strong>Shift Roster</strong> tab so staff can see it there as well.
+        </p>
+        <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="syncOverwrite">
+            <label class="form-check-label small" for="syncOverwrite">
+                Overwrite existing entries in Shift Roster for this month
+                <span class="text-muted">(unchecked = only fill empty days)</span>
+            </label>
+        </div>
+        <div class="alert alert-info py-2 px-3 small mb-0">
+            <i class="bi bi-info-circle me-1"></i>
+            After pushing, you can view and further edit entries in the
+            <a href="/roster" target="_blank">Shift Roster tab <i class="bi bi-box-arrow-up-right"></i></a>.
+        </div>
+        <div id="syncResult" class="mt-3" style="display:none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-warning text-dark" id="btnConfirmSync">
+            <i class="bi bi-send me-1"></i>Publish to Shift Roster
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Reset Month modal -->
+<div class="modal fade" id="resetModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i>Reset Month</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small">Delete all auto-generated entries for <strong id="resetLabel"></strong>.</p>
+        <p class="small text-muted mb-0">Leave entries (VL/SL/HL/CO) are preserved. This cannot be undone.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-danger" id="btnConfirmReset">Reset</button>
       </div>
     </div>
   </div>
@@ -169,68 +595,107 @@ td.today-col { background: #fff8e1 !important; }
 
 <script>
 (function(){
-    const YEAR = {{ year }};
-    const MONTH = {{ month }};
+    const YEAR    = {{ year }};
+    const MONTH   = {{ month }};
     const TEAM_ID = document.getElementById('teamSelect')
                   ? parseInt(document.getElementById('teamSelect').value) : {{ team_id or 0 }};
-
-    const SC_CLASS = {
-        D:'sc-D', E:'sc-E', N:'sc-N', OS:'sc-OS', OF:'sc-OF',
-        VL:'sc-VL', SL:'sc-SL', HL:'sc-HL', CO:'sc-CO'
+    const IS_ADMIN = {{ 'true' if current_user.role in ['super_admin', 'account_admin', 'team_admin'] else 'false' }};
+    const MONTHS   = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const DAYS     = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+    const SC_BG    = {
+        D:'#1a73e8', E:'#f57c00', N:'#7b1fa2', OCN:'#006064',
+        'D/OCN':'#43a047', 'E/OCN':'#43a047', 'N/OCN':'#43a047',
+        WMO:'#f0a830', WEO:'#ff7c98',
+        OS:'#2e7d32', OF:'#00838f',
+        VL:'#c62828', SL:'#ad1457', HL:'#6a1b9a', CO:'#4e342e',
     };
+
+    let currentMembers = [];
 
     function chipFor(code) {
         if (!code) return '<span class="sc sc-off">&nbsp;</span>';
-        const cls = SC_CLASS[code] || 'sc-off';
-        return `<span class="sc ${cls}">${code}</span>`;
+        // Combined code e.g. "E/OCN" — single chip, solid green
+        if (code.includes('/')) {
+            return `<span class="sc" style="background:#43a047;width:46px;font-size:.58rem;letter-spacing:-.5px">${code}</span>`;
+        }
+        const bg = SC_BG[code];
+        return bg
+            ? `<span class="sc" style="background:${bg}">${code}</span>`
+            : `<span class="sc sc-off">${code}</span>`;
     }
 
-    function daysInMonth(y, m) {
-        return new Date(y, m, 0).getDate();
+    function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
+
+    function monthFirstDay() {
+        return `${YEAR}-${String(MONTH).padStart(2,'0')}-01`;
+    }
+    function monthLastDay() {
+        return `${YEAR}-${String(MONTH).padStart(2,'0')}-${String(daysInMonth(YEAR,MONTH)).padStart(2,'0')}`;
     }
 
-    function isWknd(y, m, d) {
-        const dw = new Date(y, m-1, d).getDay();
-        return dw === 0 || dw === 6;
+    // -----------------------------------------------------------------------
+    // View tab switching
+    // -----------------------------------------------------------------------
+    window.switchView = function(paneId, btn) {
+        document.querySelectorAll('.view-pane').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.view-tab').forEach(b => b.classList.remove('active'));
+        document.getElementById(paneId).classList.add('active');
+        btn.classList.add('active');
+
+        if (paneId === 'paneCoverage' && !covLoaded) loadCoverage();
+        if (paneId === 'paneSummary'  && !sumLoaded) loadSummary();
+    };
+    let covLoaded = false, sumLoaded = false;
+
+    // -----------------------------------------------------------------------
+    // Export link
+    // -----------------------------------------------------------------------
+    const btnExport = document.getElementById('btnExport');
+    if (btnExport) {
+        btnExport.href = `/api/roster/export?team_id=${TEAM_ID}&year=${YEAR}&month=${MONTH}`;
     }
 
-    const MONTHS = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const DAYS   = ['Su','Mo','Tu','We','Th','Fr','Sa'];
-
+    // -----------------------------------------------------------------------
+    // Roster grid
+    // -----------------------------------------------------------------------
     function renderGrid(data) {
+        currentMembers = data;
         const days = daysInMonth(YEAR, MONTH);
         const today = new Date();
         const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
-        // Build header
         let headHtml = '<tr><th>Member</th>';
         for (let d = 1; d <= days; d++) {
-            const dt = new Date(YEAR, MONTH-1, d);
-            const dw = dt.getDay();
-            const dateStr = `${YEAR}-${String(MONTH).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            const isToday = dateStr === todayKey;
-            const wkndClass = (dw===0||dw===6) ? ' class="wknd"' : '';
-            const todayAttr = isToday ? ' style="background:#fff3cd;font-weight:700"' : '';
-            headHtml += `<th${wkndClass}${todayAttr}>${DAYS[dw]}<br>${d}</th>`;
+            const dt  = new Date(YEAR, MONTH-1, d);
+            const dw  = dt.getDay();
+            const ds  = `${YEAR}-${String(MONTH).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const bgStyle = (ds === todayKey) ? ' style="background:#fff3cd;font-weight:700"' : '';
+            const cls  = (dw===0||dw===6) ? ' class="wknd"' : '';
+            headHtml += `<th${cls}${bgStyle}>${DAYS[dw]}<br>${d}</th>`;
         }
         headHtml += '</tr>';
         document.getElementById('gridHead').innerHTML = headHtml;
 
-        // Build body
         let bodyHtml = '';
         data.forEach(function(member){
             const isLead = member.scheduling_role === 'lead';
             bodyHtml += '<tr>';
             bodyHtml += `<td class="name-cell">${isLead ? '<span class="lead-badge">LEAD</span>' : ''}${member.name}</td>`;
             for (let d = 1; d <= days; d++) {
-                const dateStr = `${YEAR}-${String(MONTH).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                const code = (member.shifts || {})[dateStr] || '';
-                const dt = new Date(YEAR, MONTH-1, d);
-                const dw = dt.getDay();
-                const wkndClass = (dw===0||dw===6) ? ' class="wknd"' : '';
-                const isToday = dateStr === todayKey;
-                const todayAttr = isToday ? ' class="today-col"' : '';
-                bodyHtml += `<td${wkndClass || todayAttr}>${chipFor(code)}</td>`;
+                const ds   = `${YEAR}-${String(MONTH).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const code = (member.shifts || {})[ds] || '';
+                const dt   = new Date(YEAR, MONTH-1, d);
+                const dw   = dt.getDay();
+
+                const classes = [];
+                if (dw===0||dw===6) classes.push('wknd');
+                if (ds===todayKey)  classes.push('today-col');
+                if (IS_ADMIN)       classes.push('editable-cell');
+
+                const clsAttr  = classes.length ? ` class="${classes.join(' ')}"` : '';
+                const dataAttr = IS_ADMIN ? ` data-mid="${member.team_member_id}" data-date="${ds}" data-code="${code}"` : '';
+                const clickAttr = IS_ADMIN ? ' onclick="openShiftPicker(this)"' : '';
+                bodyHtml += `<td${clsAttr}${dataAttr}${clickAttr}>${chipFor(code)}</td>`;
             }
             bodyHtml += '</tr>';
         });
@@ -239,6 +704,8 @@ td.today-col { background: #fff8e1 !important; }
     }
 
     function loadGrid() {
+        closePicker();
+        covLoaded = false; sumLoaded = false;
         document.getElementById('gridMsg').textContent = 'Loading schedule…';
         document.getElementById('gridMsg').style.display = 'block';
         document.getElementById('gridBody').innerHTML = '';
@@ -248,59 +715,562 @@ td.today-col { background: #fff8e1 !important; }
             .then(function(res){
                 if (res.success && res.data && res.data.length > 0) {
                     renderGrid(res.data);
-                } else if (res.success && (!res.data || res.data.length === 0)) {
+                } else if (res.success) {
                     document.getElementById('gridMsg').textContent =
-                        'No schedule yet. Use "Generate Schedule" to create one.';
+                        'No schedule yet. Use "Generate" to create one.';
                 } else {
                     document.getElementById('gridMsg').textContent = 'Error: ' + (res.error || 'Unknown');
                 }
             })
-            .catch(function(e){
-                document.getElementById('gridMsg').textContent = 'Failed to load: ' + e;
+            .catch(function(e){ document.getElementById('gridMsg').textContent = 'Failed: ' + e; });
+    }
+
+    // -----------------------------------------------------------------------
+    // Coverage view
+    // -----------------------------------------------------------------------
+    function renderCoverage(res) {
+        const days = res.days;
+        const cov  = res.coverage;
+        const req  = res.requirements;
+        const stat = res.status;
+        const CODES = ['D', 'E', 'N', 'OCN', 'WMO', 'WEO', 'OS', 'OF'];
+
+        let headHtml = '<tr><th>Shift</th><th class="cov-req">Required</th>';
+        for (const d of days) {
+            const dt = new Date(YEAR, MONTH-1, d);
+            const dw = dt.getDay();
+            const cls = (dw===0||dw===6) ? ' class="wknd"' : '';
+            headHtml += `<th${cls}>${DAYS[dw]}<br>${d}</th>`;
+        }
+        headHtml += '</tr>';
+        document.getElementById('covHead').innerHTML = headHtml;
+
+        let bodyHtml = '';
+        CODES.forEach(function(code){
+            const bg = SC_BG[code] || '#aaa';
+            bodyHtml += `<tr><td><span class="sc" style="background:${bg}">${code}</span></td>`;
+            bodyHtml += `<td class="cov-req" style="font-size:.75rem">${req[code] || '—'}</td>`;
+            (cov[code] || []).forEach(function(count, i){
+                const s = (stat[code] || [])[i] || 'empty';
+                const cls = s === 'ok' ? 'cov-ok' : s === 'short' ? 'cov-short' : 'cov-empty';
+                bodyHtml += `<td class="${cls}">${count || '—'}</td>`;
             });
-    }
-
-    // Generate schedule
-    const genLabel = document.getElementById('genLabel');
-    if (genLabel) {
-        genLabel.textContent = `${MONTHS[MONTH]} ${YEAR}`;
-    }
-
-    const btnGen = document.getElementById('btnGenerate');
-    if (btnGen) {
-        btnGen.addEventListener('click', function(){
-            new bootstrap.Modal(document.getElementById('generateModal')).show();
+            bodyHtml += '</tr>';
         });
+        document.getElementById('covBody').innerHTML = bodyHtml;
+        document.getElementById('covMsg').style.display = 'none';
+        covLoaded = true;
     }
 
-    const btnConfirm = document.getElementById('btnConfirmGenerate');
-    if (btnConfirm) {
-        btnConfirm.addEventListener('click', function(){
-            const overwrite = document.getElementById('overwriteCheck').checked;
-            btnConfirm.disabled = true;
-            btnConfirm.textContent = 'Generating…';
-            fetch('/api/roster/generate', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({team_id: TEAM_ID, year: YEAR, month: MONTH, overwrite: overwrite})
-            })
+    function loadCoverage() {
+        document.getElementById('covMsg').textContent = 'Loading coverage…';
+        document.getElementById('covMsg').style.display = 'block';
+        fetch(`/api/roster/coverage?team_id=${TEAM_ID}&year=${YEAR}&month=${MONTH}`)
             .then(r => r.json())
             .then(function(res){
-                bootstrap.Modal.getInstance(document.getElementById('generateModal')).hide();
-                if (res.success) {
-                    loadGrid();
-                } else {
-                    alert('Error: ' + (res.error || 'Unknown'));
-                }
+                if (res.success) renderCoverage(res);
+                else document.getElementById('covMsg').textContent = 'Error: ' + (res.error || 'Unknown');
             })
-            .catch(function(e){ alert('Request failed: ' + e); })
-            .finally(function(){
-                btnConfirm.disabled = false;
-                btnConfirm.textContent = 'Generate';
-            });
-        });
+            .catch(function(e){ document.getElementById('covMsg').textContent = 'Failed: ' + e; });
     }
 
+    // -----------------------------------------------------------------------
+    // Summary view
+    // -----------------------------------------------------------------------
+    const SUM_CODES = ['D', 'E', 'N', 'OCN', 'WMO', 'WEO', 'OS', 'OF', 'VL', 'SL', 'HL', 'CO'];
+
+    function renderSummary(data) {
+        let headHtml = '<tr><th class="name-col">Member</th>';
+        SUM_CODES.forEach(function(code){
+            const bg = SC_BG[code] || '#aaa';
+            headHtml += `<th><span class="sc" style="background:${bg}">${code}</span></th>`;
+        });
+        headHtml += '<th>Total</th></tr>';
+        document.getElementById('sumHead').innerHTML = headHtml;
+
+        let bodyHtml = '';
+        data.forEach(function(m){
+            const isLead = m.scheduling_role === 'lead';
+            bodyHtml += '<tr>';
+            bodyHtml += `<td class="name-col">${isLead ? '<span class="lead-badge">LEAD</span>' : ''}${m.name}</td>`;
+            SUM_CODES.forEach(function(code){
+                const val = (m.counts || {})[code] || 0;
+                bodyHtml += `<td class="${val ? 'sum-val' : 'sum-zero'}">${val || '—'}</td>`;
+            });
+            bodyHtml += `<td class="sum-val">${m.total_days || 0}</td>`;
+            bodyHtml += '</tr>';
+        });
+
+        // Totals row
+        if (data.length) {
+            bodyHtml += '<tr style="border-top:2px solid #ccc; background:#f5f7fa;">';
+            bodyHtml += '<td class="name-col" style="font-weight:700">Total</td>';
+            SUM_CODES.forEach(function(code){
+                const total = data.reduce((s, m) => s + ((m.counts || {})[code] || 0), 0);
+                bodyHtml += `<td class="sum-val">${total || '—'}</td>`;
+            });
+            const grandTotal = data.reduce((s, m) => s + (m.total_days || 0), 0);
+            bodyHtml += `<td class="sum-val">${grandTotal}</td></tr>`;
+        }
+
+        document.getElementById('sumBody').innerHTML = bodyHtml;
+        document.getElementById('sumMsg').style.display = 'none';
+        sumLoaded = true;
+    }
+
+    function loadSummary() {
+        document.getElementById('sumMsg').textContent = 'Loading summary…';
+        document.getElementById('sumMsg').style.display = 'block';
+        fetch(`/api/roster/summary?team_id=${TEAM_ID}&year=${YEAR}&month=${MONTH}`)
+            .then(r => r.json())
+            .then(function(res){
+                if (res.success) renderSummary(res.data);
+                else document.getElementById('sumMsg').textContent = 'Error: ' + (res.error || 'Unknown');
+            })
+            .catch(function(e){ document.getElementById('sumMsg').textContent = 'Failed: ' + e; });
+    }
+
+    // -----------------------------------------------------------------------
+    // Shift picker
+    // -----------------------------------------------------------------------
+    const picker = document.getElementById('shiftPicker');
+    picker._cell = null;
+
+    window.openShiftPicker = function(cell) {
+        if (picker._cell === cell) { closePicker(); return; }
+        closePicker();
+        picker._cell     = cell;
+        picker._memberId = parseInt(cell.dataset.mid);
+        picker._date     = cell.dataset.date;
+
+        const code = cell.dataset.code || '';
+        picker.querySelectorAll('[data-code]').forEach(function(btn){
+            btn.classList.toggle('active', btn.dataset.code === code);
+        });
+
+        picker.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const ph   = picker.offsetHeight || 180;
+        const top  = (rect.bottom + ph > window.innerHeight)
+            ? rect.top + window.scrollY - ph - 4
+            : rect.bottom + window.scrollY + 2;
+        picker.style.top  = top + 'px';
+        picker.style.left = Math.min(rect.left, window.innerWidth - 180) + 'px';
+    };
+
+    function closePicker() {
+        picker.style.display = 'none';
+        picker._cell = null;
+    }
+
+    window.selectShiftCode = function(code) {
+        if (!picker._cell) return;
+        const cell     = picker._cell;
+        const memberId = picker._memberId;
+        const shiftDate = picker._date;
+        closePicker();
+
+        const prevCode = cell.dataset.code;
+        cell.innerHTML    = chipFor(code);
+        cell.dataset.code = code;
+
+        fetch('/api/roster/shift', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({team_member_id: memberId, shift_date: shiftDate, shift_code: code, team_id: TEAM_ID})
+        })
+        .then(r => r.json())
+        .then(function(res){
+            if (!res.success) {
+                alert('Error: ' + (res.error || 'Unknown'));
+                cell.innerHTML    = chipFor(prevCode);
+                cell.dataset.code = prevCode;
+            } else {
+                covLoaded = false; sumLoaded = false;
+            }
+        })
+        .catch(function(e){
+            alert('Request failed: ' + e);
+            cell.innerHTML    = chipFor(prevCode);
+            cell.dataset.code = prevCode;
+        });
+    };
+
+    document.addEventListener('click', function(e){
+        if (picker.style.display !== 'none' &&
+            !picker.contains(e.target) &&
+            !e.target.closest('.editable-cell')) {
+            closePicker();
+        }
+    });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closePicker(); });
+
+    // -----------------------------------------------------------------------
+    // Generate schedule
+    // -----------------------------------------------------------------------
+    const genLabel = document.getElementById('genLabel');
+    if (genLabel) genLabel.textContent = `${MONTHS[MONTH]} ${YEAR}`;
+
+    const btnGen = document.getElementById('btnGenerate');
+    if (btnGen) btnGen.addEventListener('click', function(){
+        new bootstrap.Modal(document.getElementById('generateModal')).show();
+    });
+
+    const btnConfirmGen = document.getElementById('btnConfirmGenerate');
+    if (btnConfirmGen) btnConfirmGen.addEventListener('click', function(){
+        const overwrite = document.getElementById('overwriteCheck').checked;
+        btnConfirmGen.disabled = true; btnConfirmGen.textContent = 'Generating…';
+        fetch('/api/roster/generate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({team_id: TEAM_ID, year: YEAR, month: MONTH, overwrite: overwrite})
+        })
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success) {
+                loadGrid();
+                // Switch to success state with Publish button
+                document.getElementById('genForm').style.display = 'none';
+                document.getElementById('genSuccess').style.display = 'block';
+            } else {
+                bootstrap.Modal.getInstance(document.getElementById('generateModal')).hide();
+                alert('Error: ' + (res.error || 'Unknown'));
+            }
+        })
+        .catch(function(e){
+            bootstrap.Modal.getInstance(document.getElementById('generateModal')).hide();
+            alert('Request failed: ' + e);
+        })
+        .finally(function(){ btnConfirmGen.disabled = false; btnConfirmGen.textContent = 'Generate'; });
+    });
+
+    // Reset generate modal state when it closes
+    document.getElementById('generateModal').addEventListener('hidden.bs.modal', function(){
+        document.getElementById('genForm').style.display = 'block';
+        document.getElementById('genSuccess').style.display = 'none';
+    });
+
+    // Publish button inside generate success state → close generate, open sync modal
+    const btnPublishAfterGen = document.getElementById('btnPublishAfterGen');
+    if (btnPublishAfterGen) btnPublishAfterGen.addEventListener('click', function(){
+        bootstrap.Modal.getInstance(document.getElementById('generateModal')).hide();
+        setTimeout(function(){
+            // Reset sync modal state and open it
+            document.getElementById('syncResult').style.display = 'none';
+            document.getElementById('btnConfirmSync').style.display = '';
+            document.querySelector('#syncModal .btn-secondary').textContent = 'Cancel';
+            new bootstrap.Modal(document.getElementById('syncModal')).show();
+        }, 300);
+    });
+
+    // -----------------------------------------------------------------------
+    // Leave Application
+    // -----------------------------------------------------------------------
+    const btnLeave = document.getElementById('btnLeave');
+    if (btnLeave) btnLeave.addEventListener('click', function(){
+        const sel = document.getElementById('leaveMember');
+        sel.innerHTML = '<option value="">— select member —</option>';
+        currentMembers.forEach(function(m){
+            const opt = document.createElement('option');
+            opt.value = m.team_member_id;
+            opt.textContent = m.name + (m.scheduling_role === 'lead' ? ' [LEAD]' : '');
+            sel.appendChild(opt);
+        });
+        document.getElementById('leaveFrom').value = monthFirstDay();
+        document.getElementById('leaveTo').value   = monthLastDay();
+        document.getElementById('leaveMsg').style.display = 'none';
+        new bootstrap.Modal(document.getElementById('leaveModal')).show();
+    });
+
+    const btnConfirmLeave = document.getElementById('btnConfirmLeave');
+    if (btnConfirmLeave) btnConfirmLeave.addEventListener('click', function(){
+        const memberId  = document.getElementById('leaveMember').value;
+        const from      = document.getElementById('leaveFrom').value;
+        const to        = document.getElementById('leaveTo').value;
+        const leaveCode = document.querySelector('input[name="leaveCode"]:checked')?.value;
+        const autoFix   = document.getElementById('leaveAutoFix').checked;
+        const msgEl     = document.getElementById('leaveMsg');
+        msgEl.style.display = 'none';
+
+        if (!memberId) { msgEl.textContent = 'Please select a team member.'; msgEl.style.display='block'; return; }
+        if (!from || !to) { msgEl.textContent = 'Please select a date range.'; msgEl.style.display='block'; return; }
+        if (from > to) { msgEl.textContent = 'From date must be before To date.'; msgEl.style.display='block'; return; }
+
+        const dates = [];
+        let cur = new Date(from + 'T00:00:00');
+        const end = new Date(to + 'T00:00:00');
+        while (cur <= end) { dates.push(cur.toISOString().split('T')[0]); cur.setDate(cur.getDate()+1); }
+
+        btnConfirmLeave.disabled = true; btnConfirmLeave.textContent = 'Applying…';
+        fetch('/api/roster/leave', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({member_id: parseInt(memberId), leave_code: leaveCode, dates, auto_fix: autoFix})
+        })
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success) {
+                bootstrap.Modal.getInstance(document.getElementById('leaveModal')).hide();
+                loadGrid();
+            } else { msgEl.textContent = 'Error: ' + (res.error || 'Unknown'); msgEl.style.display='block'; }
+        })
+        .catch(function(e){ msgEl.textContent = 'Request failed: ' + e; msgEl.style.display='block'; })
+        .finally(function(){ btnConfirmLeave.disabled = false; btnConfirmLeave.textContent = 'Apply Leave'; });
+    });
+
+    // -----------------------------------------------------------------------
+    // Bulk Fill
+    // -----------------------------------------------------------------------
+    const btnBulkFill = document.getElementById('btnBulkFill');
+    if (btnBulkFill) btnBulkFill.addEventListener('click', function(){
+        document.getElementById('bulkFrom').value = monthFirstDay();
+        document.getElementById('bulkTo').value   = monthLastDay();
+        document.getElementById('bulkMsg').style.display = 'none';
+        new bootstrap.Modal(document.getElementById('bulkFillModal')).show();
+    });
+
+    const btnConfirmBulk = document.getElementById('btnConfirmBulk');
+    if (btnConfirmBulk) btnConfirmBulk.addEventListener('click', function(){
+        const shiftCode    = document.getElementById('bulkCode').value;
+        const from         = document.getElementById('bulkFrom').value;
+        const to           = document.getElementById('bulkTo').value;
+        const weekdaysOnly = document.getElementById('bulkWeekdaysOnly').checked;
+        const skipLeave    = document.getElementById('bulkSkipLeave').checked;
+        const msgEl        = document.getElementById('bulkMsg');
+        msgEl.style.display = 'none';
+
+        if (!from || !to) { msgEl.textContent = 'Please select a date range.'; msgEl.style.display='block'; return; }
+        if (from > to) { msgEl.textContent = 'From must be ≤ To.'; msgEl.style.display='block'; return; }
+        if (!confirm(`Apply "${shiftCode}" to ALL members from ${from} to ${to}?`)) return;
+
+        btnConfirmBulk.disabled = true; btnConfirmBulk.textContent = 'Applying…';
+        fetch('/api/roster/bulk-fill', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({team_id: TEAM_ID, shift_code: shiftCode, date_from: from, date_to: to,
+                weekdays_only: weekdaysOnly, skip_protected: skipLeave})
+        })
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success) {
+                bootstrap.Modal.getInstance(document.getElementById('bulkFillModal')).hide();
+                loadGrid();
+                if (res.applied_count !== undefined)
+                    setTimeout(function(){ alert(`Applied ${res.applied_count} entries.`); }, 300);
+            } else { msgEl.textContent = 'Error: ' + (res.error || 'Unknown'); msgEl.style.display='block'; }
+        })
+        .catch(function(e){ msgEl.textContent = 'Request failed: ' + e; msgEl.style.display='block'; })
+        .finally(function(){ btnConfirmBulk.disabled = false; btnConfirmBulk.textContent = 'Apply to All Members'; });
+    });
+
+    // -----------------------------------------------------------------------
+    // CSV Import
+    // -----------------------------------------------------------------------
+    const btnImport = document.getElementById('btnImport');
+    if (btnImport) btnImport.addEventListener('click', function(){
+        document.getElementById('importFile').value = '';
+        document.getElementById('importResult').style.display = 'none';
+        document.getElementById('importMsg').style.display = 'none';
+        new bootstrap.Modal(document.getElementById('importModal')).show();
+    });
+
+    const btnConfirmImport = document.getElementById('btnConfirmImport');
+    if (btnConfirmImport) btnConfirmImport.addEventListener('click', function(){
+        const fileInput = document.getElementById('importFile');
+        const msgEl     = document.getElementById('importMsg');
+        msgEl.style.display = 'none';
+
+        if (!fileInput.files || !fileInput.files[0]) {
+            msgEl.textContent = 'Please select a CSV file.'; msgEl.style.display='block'; return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        formData.append('team_id', TEAM_ID);
+
+        btnConfirmImport.disabled = true; btnConfirmImport.textContent = 'Importing…';
+        fetch('/api/roster/import', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success) {
+                const resultEl = document.getElementById('importResult');
+                document.getElementById('importSummary').innerHTML =
+                    `<span class="text-success fw-bold">Imported: ${res.imported}</span>` +
+                    (res.skipped ? ` &nbsp;|&nbsp; <span class="text-warning">Skipped: ${res.skipped}</span>` : '');
+                const errDiv = document.getElementById('importErrors');
+                if (res.errors && res.errors.length) {
+                    errDiv.innerHTML = res.errors.map(e => `<div>⚠ ${e}</div>`).join('');
+                } else { errDiv.innerHTML = ''; }
+                resultEl.style.display = 'block';
+                if (res.imported > 0) loadGrid();
+            } else {
+                msgEl.textContent = 'Error: ' + (res.error || 'Unknown'); msgEl.style.display='block';
+            }
+        })
+        .catch(function(e){ msgEl.textContent = 'Request failed: ' + e; msgEl.style.display='block'; })
+        .finally(function(){ btnConfirmImport.disabled = false; btnConfirmImport.textContent = 'Import'; });
+    });
+
+    // -----------------------------------------------------------------------
+    // Upload Leave Plan (Excel)
+    // -----------------------------------------------------------------------
+    const btnUploadLeave = document.getElementById('btnUploadLeave');
+    if (btnUploadLeave) btnUploadLeave.addEventListener('click', function(){
+        document.getElementById('uploadLeaveResult').style.display = 'none';
+        document.getElementById('uploadLeaveFile').value = '';
+        new bootstrap.Modal(document.getElementById('uploadLeaveModal')).show();
+    });
+
+    const btnConfirmUploadLeave = document.getElementById('btnConfirmUploadLeave');
+    if (btnConfirmUploadLeave) btnConfirmUploadLeave.addEventListener('click', function(){
+        const fileInput = document.getElementById('uploadLeaveFile');
+        const resultEl  = document.getElementById('uploadLeaveResult');
+        resultEl.style.display = 'none';
+
+        if (!fileInput.files.length) {
+            resultEl.innerHTML = '<div class="alert alert-warning py-2 px-3 small mb-0">Please select an Excel file.</div>';
+            resultEl.style.display = 'block'; return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        formData.append('team_id', TEAM_ID);
+        formData.append('leave_type', document.getElementById('uploadLeaveType').value);
+
+        btnConfirmUploadLeave.disabled = true;
+        btnConfirmUploadLeave.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Uploading…';
+
+        fetch('/api/roster/upload-leave-plan', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success) {
+                let html = `<div class="alert alert-success py-2 px-3 small mb-0">
+                    <strong>${res.created}</strong> leave entries created`;
+                if (res.skipped) html += `, <strong>${res.skipped}</strong> skipped (protected)`;
+                if (res.unmatched && res.unmatched.length)
+                    html += `<br><span class="text-warning">⚠ Names not matched: ${res.unmatched.join(', ')}</span>`;
+                html += '</div>';
+                resultEl.innerHTML = html;
+                resultEl.style.display = 'block';
+                if (res.created > 0) loadGrid();
+            } else {
+                resultEl.innerHTML = `<div class="alert alert-danger py-2 px-3 small mb-0">${res.error || 'Unknown error'}</div>`;
+                resultEl.style.display = 'block';
+            }
+        })
+        .catch(function(e){
+            resultEl.innerHTML = `<div class="alert alert-danger py-2 px-3 small mb-0">Request failed: ${e}</div>`;
+            resultEl.style.display = 'block';
+        })
+        .finally(function(){
+            btnConfirmUploadLeave.disabled = false;
+            btnConfirmUploadLeave.innerHTML = '<i class="bi bi-upload me-1"></i>Upload &amp; Apply';
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // Push to Shift Roster (sync)
+    // -----------------------------------------------------------------------
+    const syncLabel = document.getElementById('syncLabel');
+    if (syncLabel) syncLabel.textContent = `${MONTHS[MONTH]} ${YEAR}`;
+
+    const btnSync = document.getElementById('btnSync');
+    if (btnSync) btnSync.addEventListener('click', function(){
+        document.getElementById('syncResult').style.display = 'none';
+        document.getElementById('syncOverwrite').checked = false;
+        new bootstrap.Modal(document.getElementById('syncModal')).show();
+    });
+
+    const btnConfirmSync = document.getElementById('btnConfirmSync');
+    if (btnConfirmSync) btnConfirmSync.addEventListener('click', function(){
+        const overwrite = document.getElementById('syncOverwrite').checked;
+        const resultEl  = document.getElementById('syncResult');
+        resultEl.style.display = 'none';
+
+        btnConfirmSync.disabled = true;
+        btnConfirmSync.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Pushing…';
+
+        fetch('/api/roster/sync-to-roster', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({team_id: TEAM_ID, year: YEAR, month: MONTH, overwrite: overwrite})
+        })
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success) {
+                const parts = [];
+                if (res.synced)      parts.push(`<span class="text-success fw-bold">${res.synced} new entries added</span>`);
+                if (res.overwritten) parts.push(`<span class="text-warning fw-bold">${res.overwritten} entries updated</span>`);
+                if (res.skipped)     parts.push(`<span class="text-muted">${res.skipped} skipped (already existed)</span>`);
+                const total = (res.synced || 0) + (res.overwritten || 0);
+                resultEl.innerHTML = `
+                    <div class="alert alert-success py-2 px-3 small mb-0">
+                        <i class="bi bi-check-circle me-1"></i>
+                        Done — ${parts.join(' &nbsp;|&nbsp; ')}.
+                        ${total > 0 ? `<br><a href="/roster" target="_blank" class="alert-link">Open Shift Roster tab <i class="bi bi-box-arrow-up-right"></i></a>` : ''}
+                    </div>`;
+                resultEl.style.display = 'block';
+                // Update confirm button to Close
+                btnConfirmSync.style.display = 'none';
+                document.querySelector('#syncModal .btn-secondary').textContent = 'Close';
+            } else {
+                resultEl.innerHTML = `<div class="alert alert-danger py-2 px-3 small mb-0">${res.error || 'Unknown error'}</div>`;
+                resultEl.style.display = 'block';
+            }
+        })
+        .catch(function(e){
+            resultEl.innerHTML = `<div class="alert alert-danger py-2 px-3 small mb-0">Request failed: ${e}</div>`;
+            resultEl.style.display = 'block';
+        })
+        .finally(function(){
+            btnConfirmSync.disabled = false;
+            btnConfirmSync.innerHTML = '<i class="bi bi-arrow-left-right me-1"></i>Push to Shift Roster';
+        });
+    });
+
+    // Reset confirm button when modal is reopened
+    document.getElementById('syncModal').addEventListener('hidden.bs.modal', function(){
+        const btn = document.getElementById('btnConfirmSync');
+        if (btn) { btn.style.display = ''; btn.disabled = false; }
+        document.querySelector('#syncModal .btn-secondary').textContent = 'Cancel';
+        document.getElementById('syncResult').style.display = 'none';
+    });
+
+    // -----------------------------------------------------------------------
+    // Reset Month
+    // -----------------------------------------------------------------------
+    const resetLabel = document.getElementById('resetLabel');
+    if (resetLabel) resetLabel.textContent = `${MONTHS[MONTH]} ${YEAR}`;
+
+    const btnReset = document.getElementById('btnReset');
+    if (btnReset) btnReset.addEventListener('click', function(){
+        new bootstrap.Modal(document.getElementById('resetModal')).show();
+    });
+
+    const btnConfirmReset = document.getElementById('btnConfirmReset');
+    if (btnConfirmReset) btnConfirmReset.addEventListener('click', function(){
+        btnConfirmReset.disabled = true; btnConfirmReset.textContent = 'Resetting…';
+        fetch('/api/roster/schedule', {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({team_id: TEAM_ID, year: YEAR, month: MONTH})
+        })
+        .then(r => r.json())
+        .then(function(res){
+            bootstrap.Modal.getInstance(document.getElementById('resetModal')).hide();
+            if (res.success) {
+                loadGrid();
+                if (res.deleted_count !== undefined)
+                    setTimeout(function(){ alert(`Reset — ${res.deleted_count} entries removed.`); }, 300);
+            } else { alert('Error: ' + (res.error || 'Unknown')); }
+        })
+        .catch(function(e){ alert('Request failed: ' + e); })
+        .finally(function(){ btnConfirmReset.disabled = false; btnConfirmReset.textContent = 'Reset'; });
+    });
+
+    // -----------------------------------------------------------------------
+    // Init
+    // -----------------------------------------------------------------------
     loadGrid();
 })();
 </script>

@@ -14,14 +14,14 @@ from datetime import date
 DEFAULT_SHIFT_MAP: dict[str, str] = {
     'D':     'D',
     'E':     'E',
-    'OCN/E': 'N',
-    'WMO':   'OS',
-    'WEO':   'OF',
+    'OCN/E': 'OCN',
+    'WMO':   'WMO',
+    'WEO':   'WEO',
     'VL':    'VL',
     'SL':    'SL',
     'PH':    'HL',
     'COFF':  'CO',
-    'OFF':   'OF',
+    'OFF':   '',
 }
 
 PROTECTED_CODES = frozenset({'VL', 'SL', 'HL', 'CO', 'PH'})
@@ -101,12 +101,8 @@ def build_shift_pool(reqs: dict, num_supports: int) -> list[str]:
     num_n = min(num_n, ns - num_d - num_e)
 
     pool = ['D'] * num_d + ['E'] * num_e + ['N'] * num_n
-    if e_req == '*' or not e_req or e_req == 0:
-        while len(pool) < ns:
-            pool.append('E')
-    else:
-        while len(pool) < ns:
-            pool.append('OF')
+    while len(pool) < ns:
+        pool.append('E')
     return pool[:ns]
 
 
@@ -160,6 +156,13 @@ def compute_month_plan(
         week_off = (rot_off + wi) % ns
         week_assign[wn] = {supports[pi]["id"]: pool[(pi + week_off) % ns] for pi in range(ns)}
 
+    # OCN weekly rotation: one support member per week carries on-call night duty
+    # Their weekday shift code becomes "<base>/OCN" (e.g. "E/OCN")
+    ocn_duty: dict[int, int] = {}  # ISO week -> member_id with OCN duty
+    for wi, wn in enumerate(week_nums):
+        ocn_idx = (seed + wi) % ns
+        ocn_duty[wn] = supports[ocn_idx]["id"]
+
     # Weekend counts
     wmo_req = reqs.get('OS', reqs.get('WMO', 1))
     weo_req = reqs.get('OF', reqs.get('WEO', 1))
@@ -180,11 +183,11 @@ def compute_month_plan(
         ordered = [supports[(i + w_off) % ns] for i in range(ns)]
         result: dict[int, str] = {}
         for m in ordered[:wmo_count]:
-            result[m["id"]] = 'OS'
+            result[m["id"]] = 'WMO'
         for m in ordered[wmo_count:wmo_count + weo_count]:
-            result[m["id"]] = 'OF'
+            result[m["id"]] = 'WEO'
         for m in ordered[wmo_count + weo_count:]:
-            result[m["id"]] = 'OF'
+            result[m["id"]] = ''  # weekday off — not assigned to a weekend shift
         return result
 
     assignments: list[dict] = []
@@ -203,15 +206,19 @@ def compute_month_plan(
                 code = 'HL'
             elif is_weekend(d):
                 if is_lead:
-                    code = 'OF'
+                    code = ''  # leads get weekends off
                 else:
-                    code = _weekend_assign(day).get(mid, 'OF')
+                    code = _weekend_assign(day).get(mid, '')
             else:
                 if is_lead:
                     code = 'E'
                 else:
                     wn = iso_week(d)
                     code = week_assign.get(wn, {}).get(mid, 'E')
+                    # OCN overlay: one member per week carries on-call night duty
+                    # Only applies to regular shift codes D/E/N, not leaves or weekend codes
+                    if ocn_duty.get(wn) == mid and code in ('D', 'E', 'N'):
+                        code = code + '/OCN'
 
             assignments.append({
                 "member_id": mid,

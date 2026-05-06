@@ -419,3 +419,288 @@ def api_update_member_role(member_id):
     member.scheduling_role = scheduling_role
     db.session.commit()
     return jsonify({'success': True})
+
+
+# ---------------------------------------------------------------------------
+# API — manual cell edit
+# ---------------------------------------------------------------------------
+
+@roster_scheduler_bp.route('/api/roster/shift', methods=['PUT'])
+@login_required
+def api_update_shift():
+    if not _admin_required():
+        return jsonify({'success': False, 'error': 'Admin required'}), 403
+
+    account_id, team_id = _current_account_team()
+    body = request.get_json(force=True) or {}
+
+    try:
+        member_id = int(body['team_member_id'])
+        shift_date = date.fromisoformat(str(body['shift_date']))
+        shift_code = str(body.get('shift_code', '')).strip().upper()
+        req_team_id = int(body.get('team_id', team_id))
+    except (KeyError, ValueError, TypeError) as exc:
+        return jsonify({'success': False, 'error': f'Invalid parameters: {exc}'}), 400
+
+    from services.roster_scheduler_service import update_shift
+    try:
+        result = update_shift(member_id, shift_date, shift_code, req_team_id, account_id)
+        return jsonify({'success': True, **result})
+    except ValueError as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 400
+    except Exception as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+# ---------------------------------------------------------------------------
+# API — bulk fill
+# ---------------------------------------------------------------------------
+
+@roster_scheduler_bp.route('/api/roster/bulk-fill', methods=['POST'])
+@login_required
+def api_bulk_fill():
+    if not _admin_required():
+        return jsonify({'success': False, 'error': 'Admin required'}), 403
+
+    account_id, team_id = _current_account_team()
+    body = request.get_json(force=True) or {}
+
+    try:
+        req_team_id = int(body.get('team_id', team_id))
+        shift_code = str(body['shift_code']).strip().upper()
+        date_from = date.fromisoformat(str(body['date_from']))
+        date_to = date.fromisoformat(str(body['date_to']))
+        weekdays_only = bool(body.get('weekdays_only', False))
+        member_ids = body.get('member_ids')
+    except (KeyError, ValueError, TypeError) as exc:
+        return jsonify({'success': False, 'error': f'Invalid parameters: {exc}'}), 400
+
+    if date_from > date_to:
+        return jsonify({'success': False, 'error': 'date_from must be <= date_to'}), 400
+
+    from datetime import timedelta
+    dates = []
+    d = date_from
+    while d <= date_to:
+        if not weekdays_only or d.weekday() < 5:
+            dates.append(d)
+        d += timedelta(days=1)
+
+    from services.roster_scheduler_service import bulk_fill
+    try:
+        result = bulk_fill(req_team_id, account_id, shift_code, dates, member_ids)
+        return jsonify({'success': True, **result})
+    except ValueError as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 400
+    except Exception as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+# ---------------------------------------------------------------------------
+# API — reset month (DELETE non-protected rows)
+# ---------------------------------------------------------------------------
+
+@roster_scheduler_bp.route('/api/roster/schedule', methods=['DELETE'])
+@login_required
+def api_reset_schedule():
+    if not _admin_required():
+        return jsonify({'success': False, 'error': 'Admin required'}), 403
+
+    account_id, team_id = _current_account_team()
+    body = request.get_json(force=True) or {}
+
+    try:
+        req_team_id = int(body.get('team_id', team_id))
+        year = int(body.get('year', date.today().year))
+        month = int(body.get('month', date.today().month))
+    except (ValueError, TypeError) as exc:
+        return jsonify({'success': False, 'error': f'Invalid parameters: {exc}'}), 400
+
+    from services.roster_scheduler_service import reset_month_schedule
+    try:
+        result = reset_month_schedule(req_team_id, account_id, year, month)
+        return jsonify({'success': True, **result})
+    except Exception as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+# ---------------------------------------------------------------------------
+# API — sync to existing ShiftRoster table
+# ---------------------------------------------------------------------------
+
+@roster_scheduler_bp.route('/api/roster/sync-to-roster', methods=['POST'])
+@login_required
+def api_sync_to_roster():
+    """
+    Push the auto-generated schedule for a month into the main ShiftRoster table
+    so it appears in the existing Shift Roster tab.
+    """
+    if not _admin_required():
+        return jsonify({'success': False, 'error': 'Admin required'}), 403
+
+    account_id, team_id = _current_account_team()
+    body = request.get_json(force=True) or {}
+
+    try:
+        req_team_id = int(body.get('team_id', team_id))
+        year        = int(body.get('year',    date.today().year))
+        month       = int(body.get('month',   date.today().month))
+        overwrite   = bool(body.get('overwrite', False))
+    except (ValueError, TypeError) as exc:
+        return jsonify({'success': False, 'error': f'Invalid parameters: {exc}'}), 400
+
+    from services.roster_scheduler_service import sync_to_shift_roster
+    try:
+        result = sync_to_shift_roster(req_team_id, account_id, year, month, overwrite)
+        return jsonify({'success': True, **result})
+    except Exception as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+# ---------------------------------------------------------------------------
+# API — export to XLSX
+# ---------------------------------------------------------------------------
+
+@roster_scheduler_bp.route('/api/roster/export')
+@login_required
+def api_export_schedule():
+    account_id, team_id = _current_account_team()
+    year, month = _parse_year_month(request)
+
+    req_team_id = request.args.get('team_id', team_id)
+    try:
+        req_team_id = int(req_team_id)
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'Invalid team_id'}), 400
+
+    from services.roster_scheduler_service import get_shift_view, export_to_xlsx
+    try:
+        data = get_shift_view(req_team_id, account_id, year, month)
+        xlsx_bytes = export_to_xlsx(data, year, month)
+        import calendar
+        month_name = calendar.month_name[month]
+        filename = f'roster_{year}_{month:02d}.xlsx'
+        from flask import send_file
+        import io
+        return send_file(
+            io.BytesIO(xlsx_bytes),
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename,
+        )
+    except Exception as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+# ---------------------------------------------------------------------------
+# API — coverage view
+# ---------------------------------------------------------------------------
+
+@roster_scheduler_bp.route('/api/roster/coverage')
+@login_required
+def api_get_coverage():
+    account_id, team_id = _current_account_team()
+    year, month = _parse_year_month(request)
+
+    req_team_id = request.args.get('team_id', team_id)
+    try:
+        req_team_id = int(req_team_id)
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'Invalid team_id'}), 400
+
+    from services.roster_scheduler_service import get_coverage_view
+    try:
+        data = get_coverage_view(req_team_id, account_id, year, month)
+        return jsonify({'success': True, **data})
+    except Exception as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+# ---------------------------------------------------------------------------
+# API — member summary
+# ---------------------------------------------------------------------------
+
+@roster_scheduler_bp.route('/api/roster/summary')
+@login_required
+def api_get_summary():
+    account_id, team_id = _current_account_team()
+    year, month = _parse_year_month(request)
+
+    req_team_id = request.args.get('team_id', team_id)
+    try:
+        req_team_id = int(req_team_id)
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'Invalid team_id'}), 400
+
+    from services.roster_scheduler_service import get_member_summary
+    try:
+        data = get_member_summary(req_team_id, account_id, year, month)
+        return jsonify({'success': True, 'data': data})
+    except Exception as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+# ---------------------------------------------------------------------------
+# API — CSV import
+# ---------------------------------------------------------------------------
+
+@roster_scheduler_bp.route('/api/roster/import', methods=['POST'])
+@login_required
+def api_import_csv():
+    if not _admin_required():
+        return jsonify({'success': False, 'error': 'Admin required'}), 403
+
+    account_id, team_id = _current_account_team()
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file uploaded'}), 400
+
+    f = request.files['file']
+    if not f.filename or not f.filename.lower().endswith('.csv'):
+        return jsonify({'success': False, 'error': 'Please upload a .csv file'}), 400
+
+    try:
+        req_team_id = int(request.form.get('team_id', team_id))
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'Invalid team_id'}), 400
+
+    from services.roster_scheduler_service import import_from_csv
+    try:
+        result = import_from_csv(f.stream, req_team_id, account_id)
+        return jsonify({'success': True, **result})
+    except ValueError as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 400
+    except Exception as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@roster_scheduler_bp.route('/api/roster/upload-leave-plan', methods=['POST'])
+@login_required
+def api_upload_leave_plan():
+    if not _admin_required():
+        return jsonify({'success': False, 'error': 'Admin required'}), 403
+
+    account_id, team_id = _current_account_team()
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file uploaded'}), 400
+
+    f = request.files['file']
+    if not f.filename or not f.filename.lower().endswith(('.xlsx', '.xls')):
+        return jsonify({'success': False, 'error': 'Please upload an .xlsx or .xls file'}), 400
+
+    try:
+        req_team_id = int(request.form.get('team_id', team_id))
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'Invalid team_id'}), 400
+
+    leave_type = request.form.get('leave_type', 'VL').upper()
+
+    from services.roster_scheduler_service import upload_leave_plan
+    try:
+        result = upload_leave_plan(f.stream, req_team_id, account_id, leave_type)
+        return jsonify({'success': True, **result})
+    except ValueError as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 400
+    except Exception as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 500

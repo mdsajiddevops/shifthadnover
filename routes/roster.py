@@ -379,7 +379,7 @@ def roster():
 # ========================================
 
 # Valid shift codes for validation
-VALID_SHIFT_CODES = ['D', 'E', 'N', 'LE', 'G', 'VL', 'HL', 'CO', 'SL', 'OS', 'OF', 'O', '']
+VALID_SHIFT_CODES = ['D', 'E', 'N', 'OCN', 'D/OCN', 'E/OCN', 'N/OCN', 'LE', 'G', 'VL', 'HL', 'CO', 'SL', 'WMO', 'WEO', 'OS', 'OF', 'O', '']
 
 
 def is_admin():

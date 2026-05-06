@@ -50,11 +50,16 @@ class TestRosterSchedulerPages:
             allow_redirects=True,
             timeout=TestConfig.REQUEST_TIMEOUT,
         )
-        # Should redirect away or show 403 — NOT a 200 with settings content
+        # Should redirect away or show 403 — NOT a 200 with admin settings content.
+        # Check for admin-specific headings (not just 'coverage' which is also a regular view tab).
         is_denied = resp.status_code in (403, 404)
-        is_redirected = 'scheduler' not in resp.url.lower() and resp.status_code == 200
-        settings_visible = 'coverage' in resp.text.lower() and resp.status_code == 200
-        assert is_denied or is_redirected or not settings_visible, (
+        admin_url_reached = '/admin/roster-scheduler' in resp.url
+        admin_settings_visible = (
+            ('coverage requirements' in resp.text.lower() or 'public holidays' in resp.text.lower())
+            and admin_url_reached
+            and resp.status_code == 200
+        )
+        assert is_denied or not admin_settings_visible, (
             'Regular user should not see admin scheduler settings'
         )
 
@@ -266,7 +271,7 @@ class TestScheduleAPI:
         data = resp.json()
         if not data.get('success') or not data.get('assignments'):
             pytest.skip('No assignments in response')
-        valid_codes = {'D', 'E', 'N', 'OS', 'OF', 'VL', 'SL', 'HL', 'CO', 'LE', 'G'}
+        valid_codes = {'D', 'E', 'N', 'OCN', 'D/OCN', 'E/OCN', 'N/OCN', 'WMO', 'WEO', 'OS', 'OF', 'VL', 'SL', 'HL', 'CO', 'LE', 'G', ''}
         for a in data['assignments']:
             assert a['shift_code'] in valid_codes, (
                 f"Unexpected shift code {a['shift_code']} on {a['shift_date']}"

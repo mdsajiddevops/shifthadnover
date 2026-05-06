@@ -402,7 +402,14 @@
                                 <span class="shift-status-indicator shift-active"></span>
                                 <span class="engineer-name">
                                     {{ engineer|safe_engineer_name }}
-                                    {% if not engineer.is_primary_shift %}<span class="text-muted"> ({{ engineer.display_shift_code }})</span>{% endif %}
+                                    {% set sc = engineer.display_shift_code %}
+                                    {% if sc %}
+                                        {% if '/' in sc %}
+                                            <span class="shift-badge sb-combined">{{ sc }}</span>
+                                        {% else %}
+                                            <span class="shift-badge sb-{{ sc }}">{{ sc }}</span>
+                                        {% endif %}
+                                    {% endif %}
                                 </span>
                             </div>
                             {% endfor %}
@@ -421,7 +428,14 @@
                                 <span class="shift-status-indicator shift-upcoming"></span>
                                 <span class="engineer-name">
                                     {{ engineer|safe_engineer_name }}
-                                    {% if not engineer.is_primary_shift %}<span class="text-muted"> ({{ engineer.display_shift_code }})</span>{% endif %}
+                                    {% set sc = engineer.display_shift_code %}
+                                    {% if sc %}
+                                        {% if '/' in sc %}
+                                            <span class="shift-badge sb-combined">{{ sc }}</span>
+                                        {% else %}
+                                            <span class="shift-badge sb-{{ sc }}">{{ sc }}</span>
+                                        {% endif %}
+                                    {% endif %}
                                 </span>
                             </div>
                             {% endfor %}
@@ -919,6 +933,28 @@
     </script>
 
     <style>
+        /* Shift code badges */
+        .shift-badge {
+            display: inline-block; padding: 1px 6px; border-radius: 4px;
+            font-size: .65rem; font-weight: 700; color: #fff;
+            vertical-align: middle; margin-left: 4px; letter-spacing: .3px;
+        }
+        .sb-D   { background: #1a73e8; }
+        .sb-E   { background: #f57c00; }
+        .sb-N   { background: #7b1fa2; }
+        .sb-OCN { background: #006064; }
+        .sb-LE  { background: #c2185b; }
+        .sb-G   { background: #2e7d32; }
+        .sb-WMO { background: #f0a830; }
+        .sb-WEO { background: #ff7c98; }
+        .sb-OS  { background: #2e7d32; }
+        .sb-OF  { background: #00838f; }
+        .sb-VL  { background: #c62828; }
+        .sb-SL  { background: #ad1457; }
+        .sb-HL  { background: #6a1b9a; }
+        .sb-CO  { background: #4e342e; }
+        .sb-combined { background: #43a047; } /* E/OCN etc */
+
         /* Additional CSS for enhanced animations */
         .fadeInUp {
             animation: fadeInUp 0.8s ease-out forwards;
