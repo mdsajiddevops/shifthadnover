@@ -254,7 +254,7 @@
             </div>
             
             <!-- Team Management Section -->
-            {% if is_tab_enabled('tab_shift_roster') or is_tab_enabled('tab_roster_upload') or is_tab_enabled('tab_team_details') or is_tab_enabled('tab_oncall_dashboard') %}
+            {% if is_tab_enabled('tab_shift_roster') or is_tab_enabled('tab_roster_upload') or is_tab_enabled('tab_team_details') or is_tab_enabled('tab_oncall_dashboard') or is_tab_enabled('tab_roster_scheduler') %}
             <div class="nav-section">
                 <div class="section-title">
                     <span class="section-icon">👥</span>
@@ -289,6 +289,14 @@
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/teams-roster') else '' }}" href="/teams-roster" data-tooltip="On-Call Dashboard">
                         <i class="nav-icon bi bi-headset"></i>
                         <span class="nav-text">On-Call Dashboard</span>
+                    </a>
+                </div>
+                {% endif %}
+                {% if is_tab_enabled('tab_roster_scheduler') %}
+                <div class="modern-nav-item">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/roster-scheduler') else '' }}" href="/roster-scheduler" data-tooltip="Roster Scheduler">
+                        <i class="nav-icon bi bi-calendar-check"></i>
+                        <span class="nav-text">Roster Scheduler</span>
                     </a>
                 </div>
                 {% endif %}
@@ -398,6 +406,14 @@
                         <span class="nav-text">Manual Roster</span>
                     </a>
                 </div>
+                {% if is_tab_enabled('tab_roster_scheduler') %}
+                <div class="modern-nav-item">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/roster-scheduler') else '' }}" href="/admin/roster-scheduler" data-tooltip="Roster Scheduler Settings">
+                        <i class="nav-icon bi bi-calendar-check-fill"></i>
+                        <span class="nav-text">Roster Scheduler</span>
+                    </a>
+                </div>
+                {% endif %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/system-health') else '' }}" href="/admin/system-health" data-tooltip="System Health">
                         <i class="nav-icon bi bi-heart-pulse"></i>

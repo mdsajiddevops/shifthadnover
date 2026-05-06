@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.rs-container { max-width: 1400px; margin: 0 auto; }
+
+.rs-hero {
+    background: linear-gradient(135deg, #e8f0fe 0%, #d4e4fc 50%, #c5d9f8 100%);
+    border-radius: 16px; padding: 1.5rem 2rem; margin-bottom: 1.5rem;
+    border: 1px solid #b8d4f8;
+}
+.rs-hero h2 { color: #1e3c72; font-weight: 700; margin-bottom: .25rem; }
+.rs-hero p  { color: #4a6fa5; margin-bottom: 0; }
+
+.rs-card {
+    background: #fff; border-radius: 12px; padding: 1.25rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,.08); border: 1px solid #e8eef3;
+    margin-bottom: 1.25rem;
+}
+
+/* shift code chips */
+.sc { display:inline-block; width:30px; height:22px; border-radius:4px; color:#fff;
+      font-weight:700; font-size:.65rem; text-align:center; line-height:22px; }
+.sc-D   { background:#1a73e8; }
+.sc-E   { background:#f57c00; }
+.sc-N   { background:#7b1fa2; }
+.sc-OS  { background:#2e7d32; }
+.sc-OF  { background:#00838f; }
+.sc-VL  { background:#c62828; }
+.sc-SL  { background:#ad1457; }
+.sc-HL  { background:#6a1b9a; }
+.sc-CO  { background:#4e342e; }
+.sc-off { background:#bdbdbd; }
+
+/* grid */
+.grid-wrap { overflow-x: auto; }
+table.roster-grid { border-collapse: collapse; font-size: .78rem; min-width: 900px; }
+table.roster-grid th, table.roster-grid td {
+    padding: 4px 6px; border: 1px solid #e0e0e0; white-space: nowrap; }
+table.roster-grid thead th { background: #f5f7fa; font-weight: 600; color: #444; }
+table.roster-grid tbody tr:hover { background: #f9fbff; }
+td.wknd { background: #fafafa; }
+td.today-col { background: #fff8e1 !important; }
+
+.name-cell { font-weight: 600; color: #1e3c72; min-width: 130px; }
+.lead-badge { font-size:.6rem; background:#1a1030; color:#a78bfa;
+              border:1px solid #3d2a6e; padding:1px 5px; border-radius:3px;
+              font-weight:700; margin-right:4px; vertical-align:middle; }
+
+.legend-row { display:flex; flex-wrap:wrap; gap:.75rem; margin-bottom:.5rem; }
+.leg { display:flex; align-items:center; gap:.35rem; font-size:.78rem; }
+</style>
+
+<div class="rs-container">
+    <!-- Hero -->
+    <div class="rs-hero">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+                <h2><i class="bi bi-calendar-check me-2"></i>Roster Scheduler</h2>
+                <p>Auto-generated shift roster — view and navigate by month.</p>
+            </div>
+            {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
+            <a href="/admin/roster-scheduler" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-gear me-1"></i>Scheduler Settings
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="rs-card">
+        <form method="get" action="/roster-scheduler" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Team</label>
+                <select name="team_id" id="teamSelect" class="form-select form-select-sm"
+                        style="min-width:180px" onchange="this.form.submit()">
+                    {% for t in teams %}
+                    <option value="{{ t.id }}" {% if t.id == team_id %}selected{% endif %}>
+                        {{ t.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Month</label>
+                <select name="month" class="form-select form-select-sm" onchange="this.form.submit()">
+                    {% for m in range(1,13) %}
+                    <option value="{{ m }}" {% if m == month %}selected{% endif %}>
+                        {{ ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m] }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Year</label>
+                <select name="year" class="form-select form-select-sm" onchange="this.form.submit()">
+                    {% for y in range(2024, 2028) %}
+                    <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <input type="hidden" name="team_id" value="{{ team_id }}">
+                <button type="submit" class="btn btn-sm btn-primary">Go</button>
+            </div>
+            {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
+            <div class="col-auto ms-auto">
+                <button type="button" class="btn btn-sm btn-success" id="btnGenerate">
+                    <i class="bi bi-magic me-1"></i>Generate Schedule
+                </button>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Legend -->
+    <div class="rs-card py-2">
+        <div class="legend-row">
+            <div class="leg"><span class="sc sc-D">D</span> Day</div>
+            <div class="leg"><span class="sc sc-E">E</span> Evening</div>
+            <div class="leg"><span class="sc sc-N">N</span> Night/OCN</div>
+            <div class="leg"><span class="sc sc-OS">OS</span> Weekend On-site</div>
+            <div class="leg"><span class="sc sc-OF">OF</span> Weekend Off-site</div>
+            <div class="leg"><span class="sc sc-VL">VL</span> Vacation</div>
+            <div class="leg"><span class="sc sc-SL">SL</span> Sick Leave</div>
+            <div class="leg"><span class="sc sc-HL">HL</span> Holiday</div>
+            <div class="leg"><span class="sc sc-CO">CO</span> Comp-off</div>
+            <div class="leg"><span class="sc sc-off"> </span> Off</div>
+        </div>
+    </div>
+
+    <!-- Grid -->
+    <div class="rs-card">
+        <div id="gridMsg" class="text-muted small mb-2" style="display:none">Loading...</div>
+        <div class="grid-wrap">
+            <table class="roster-grid" id="rosterGrid">
+                <thead id="gridHead"></thead>
+                <tbody id="gridBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Generate modal -->
+<div class="modal fade" id="generateModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Generate Schedule</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-3">
+            Generate auto schedule for <strong id="genLabel"></strong>.
+        </p>
+        <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="overwriteCheck">
+            <label class="form-check-label small" for="overwriteCheck">
+                Overwrite existing (non-leave) entries
+            </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-success" id="btnConfirmGenerate">Generate</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+    const YEAR = {{ year }};
+    const MONTH = {{ month }};
+    const TEAM_ID = document.getElementById('teamSelect')
+                  ? parseInt(document.getElementById('teamSelect').value) : {{ team_id or 0 }};
+
+    const SC_CLASS = {
+        D:'sc-D', E:'sc-E', N:'sc-N', OS:'sc-OS', OF:'sc-OF',
+        VL:'sc-VL', SL:'sc-SL', HL:'sc-HL', CO:'sc-CO'
+    };
+
+    function chipFor(code) {
+        if (!code) return '<span class="sc sc-off">&nbsp;</span>';
+        const cls = SC_CLASS[code] || 'sc-off';
+        return `<span class="sc ${cls}">${code}</span>`;
+    }
+
+    function daysInMonth(y, m) {
+        return new Date(y, m, 0).getDate();
+    }
+
+    function isWknd(y, m, d) {
+        const dw = new Date(y, m-1, d).getDay();
+        return dw === 0 || dw === 6;
+    }
+
+    const MONTHS = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const DAYS   = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+    function renderGrid(data) {
+        const days = daysInMonth(YEAR, MONTH);
+        const today = new Date();
+        const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+        // Build header
+        let headHtml = '<tr><th>Member</th>';
+        for (let d = 1; d <= days; d++) {
+            const dt = new Date(YEAR, MONTH-1, d);
+            const dw = dt.getDay();
+            const dateStr = `${YEAR}-${String(MONTH).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const isToday = dateStr === todayKey;
+            const wkndClass = (dw===0||dw===6) ? ' class="wknd"' : '';
+            const todayAttr = isToday ? ' style="background:#fff3cd;font-weight:700"' : '';
+            headHtml += `<th${wkndClass}${todayAttr}>${DAYS[dw]}<br>${d}</th>`;
+        }
+        headHtml += '</tr>';
+        document.getElementById('gridHead').innerHTML = headHtml;
+
+        // Build body
+        let bodyHtml = '';
+        data.forEach(function(member){
+            const isLead = member.scheduling_role === 'lead';
+            bodyHtml += '<tr>';
+            bodyHtml += `<td class="name-cell">${isLead ? '<span class="lead-badge">LEAD</span>' : ''}${member.name}</td>`;
+            for (let d = 1; d <= days; d++) {
+                const dateStr = `${YEAR}-${String(MONTH).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const code = (member.shifts || {})[dateStr] || '';
+                const dt = new Date(YEAR, MONTH-1, d);
+                const dw = dt.getDay();
+                const wkndClass = (dw===0||dw===6) ? ' class="wknd"' : '';
+                const isToday = dateStr === todayKey;
+                const todayAttr = isToday ? ' class="today-col"' : '';
+                bodyHtml += `<td${wkndClass || todayAttr}>${chipFor(code)}</td>`;
+            }
+            bodyHtml += '</tr>';
+        });
+        document.getElementById('gridBody').innerHTML = bodyHtml;
+        document.getElementById('gridMsg').style.display = 'none';
+    }
+
+    function loadGrid() {
+        document.getElementById('gridMsg').textContent = 'Loading schedule…';
+        document.getElementById('gridMsg').style.display = 'block';
+        document.getElementById('gridBody').innerHTML = '';
+        document.getElementById('gridHead').innerHTML = '';
+        fetch(`/api/roster/schedule?team_id=${TEAM_ID}&year=${YEAR}&month=${MONTH}`)
+            .then(r => r.json())
+            .then(function(res){
+                if (res.success && res.data && res.data.length > 0) {
+                    renderGrid(res.data);
+                } else if (res.success && (!res.data || res.data.length === 0)) {
+                    document.getElementById('gridMsg').textContent =
+                        'No schedule yet. Use "Generate Schedule" to create one.';
+                } else {
+                    document.getElementById('gridMsg').textContent = 'Error: ' + (res.error || 'Unknown');
+                }
+            })
+            .catch(function(e){
+                document.getElementById('gridMsg').textContent = 'Failed to load: ' + e;
+            });
+    }
+
+    // Generate schedule
+    const genLabel = document.getElementById('genLabel');
+    if (genLabel) {
+        genLabel.textContent = `${MONTHS[MONTH]} ${YEAR}`;
+    }
+
+    const btnGen = document.getElementById('btnGenerate');
+    if (btnGen) {
+        btnGen.addEventListener('click', function(){
+            new bootstrap.Modal(document.getElementById('generateModal')).show();
+        });
+    }
+
+    const btnConfirm = document.getElementById('btnConfirmGenerate');
+    if (btnConfirm) {
+        btnConfirm.addEventListener('click', function(){
+            const overwrite = document.getElementById('overwriteCheck').checked;
+            btnConfirm.disabled = true;
+            btnConfirm.textContent = 'Generating…';
+            fetch('/api/roster/generate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({team_id: TEAM_ID, year: YEAR, month: MONTH, overwrite: overwrite})
+            })
+            .then(r => r.json())
+            .then(function(res){
+                bootstrap.Modal.getInstance(document.getElementById('generateModal')).hide();
+                if (res.success) {
+                    loadGrid();
+                } else {
+                    alert('Error: ' + (res.error || 'Unknown'));
+                }
+            })
+            .catch(function(e){ alert('Request failed: ' + e); })
+            .finally(function(){
+                btnConfirm.disabled = false;
+                btnConfirm.textContent = 'Generate';
+            });
+        });
+    }
+
+    loadGrid();
+})();
+</script>
+{% endblock %}

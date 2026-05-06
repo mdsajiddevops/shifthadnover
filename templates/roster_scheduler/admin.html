@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.rsa-container { max-width: 1100px; margin: 0 auto; }
+
+.rsa-hero {
+    background: linear-gradient(135deg, #fce4ec 0%, #f8bbd0 50%, #f48fb1 100%);
+    border-radius: 16px; padding: 1.5rem 2rem; margin-bottom: 1.5rem;
+    border: 1px solid #f48fb1;
+}
+.rsa-hero h2 { color: #880e4f; font-weight: 700; margin-bottom: .25rem; }
+.rsa-hero p  { color: #ad1457; margin-bottom: 0; }
+
+.rsa-card {
+    background: #fff; border-radius: 12px; padding: 1.25rem 1.5rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,.08); border: 1px solid #e8eef3;
+    margin-bottom: 1.5rem;
+}
+.rsa-card h5 { font-size:.95rem; font-weight:700; color:#1e3c72; margin-bottom:1rem; }
+
+.role-badge-lead    { background:#1a1030; color:#a78bfa; border:1px solid #3d2a6e;
+                      padding:2px 8px; border-radius:4px; font-size:.7rem; font-weight:700; }
+.role-badge-support { background:#e3f2fd; color:#1565c0; border:1px solid #90caf9;
+                      padding:2px 8px; border-radius:4px; font-size:.7rem; font-weight:700; }
+</style>
+
+<div class="rsa-container">
+    <!-- Hero -->
+    <div class="rsa-hero">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+                <h2><i class="bi bi-gear me-2"></i>Roster Scheduler — Settings</h2>
+                <p>Configure coverage requirements, public holidays, and member scheduling roles.</p>
+            </div>
+            <a href="/roster-scheduler" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-arrow-left me-1"></i>Back to Roster
+            </a>
+        </div>
+    </div>
+
+    <!-- Team selector -->
+    <div class="rsa-card">
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Team</label>
+                <select id="teamSelect" class="form-select form-select-sm" style="min-width:200px">
+                    {% for t in teams %}
+                    <option value="{{ t.id }}" {% if t.id == team_id %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-primary" id="btnLoadTeam">Load</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Coverage Requirements -->
+    <div class="rsa-card">
+        <h5><i class="bi bi-list-check me-2"></i>Coverage Requirements</h5>
+        <p class="small text-muted mb-3">
+            Set how many people are needed per shift code each day.
+            Use <code>*</code> to fill remaining slots automatically.
+        </p>
+        <div class="table-responsive mb-3">
+            <table class="table table-sm table-bordered" id="reqTable">
+                <thead class="table-light">
+                    <tr><th>Shift Code</th><th>Required Count</th><th></th></tr>
+                </thead>
+                <tbody id="reqBody">
+                    <tr><td colspan="3" class="text-muted small text-center">Select a team above.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <form id="addReqForm" class="row g-2">
+            <div class="col-auto">
+                <select class="form-select form-select-sm" id="newReqCode" style="min-width:110px">
+                    <option value="D">D — Day</option>
+                    <option value="E">E — Evening</option>
+                    <option value="N">N — Night/OCN</option>
+                    <option value="OS">OS — Wknd On-site</option>
+                    <option value="OF">OF — Wknd Off-site</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <input type="text" class="form-control form-control-sm" id="newReqCount"
+                       placeholder="1 or *" style="width:90px" value="1">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-success">Add / Update</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Public Holidays -->
+    <div class="rsa-card">
+        <h5><i class="bi bi-calendar-event me-2"></i>Public Holidays</h5>
+        <p class="small text-muted mb-3">
+            Holidays apply across the account. Affected days are auto-marked as <strong>HL</strong>.
+        </p>
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-auto">
+                <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Year</label>
+                <select id="holYear" class="form-select form-select-sm">
+                    {% for y in range(current_year - 1, current_year + 3) %}
+                    <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-secondary" id="btnLoadHolidays">Load Holidays</button>
+            </div>
+        </div>
+        <div class="table-responsive mb-3">
+            <table class="table table-sm table-bordered">
+                <thead class="table-light">
+                    <tr><th>Date</th><th>Name</th><th></th></tr>
+                </thead>
+                <tbody id="holBody">
+                    <tr><td colspan="3" class="text-muted small text-center">Select a year above.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <form id="addHolForm" class="row g-2">
+            <div class="col-auto">
+                <input type="date" class="form-control form-control-sm" id="newHolDate">
+            </div>
+            <div class="col-auto">
+                <input type="text" class="form-control form-control-sm" id="newHolName"
+                       placeholder="Holiday name" style="min-width:200px">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-success">Add Holiday</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Member Scheduling Roles -->
+    <div class="rsa-card">
+        <h5><i class="bi bi-people me-2"></i>Member Scheduling Roles</h5>
+        <p class="small text-muted mb-3">
+            <strong>Lead</strong> members always get Evening shift on weekdays and Off on weekends.
+            <strong>Support</strong> members follow the rotation.
+        </p>
+        <div id="memberList" class="text-muted small">Select a team above to manage roles.</div>
+    </div>
+</div>
+
+<script>
+(function(){
+    let currentTeamId = parseInt(document.getElementById('teamSelect').value) || 0;
+    const ACCOUNT_ID = {{ account_id or 'null' }};
+
+    /* ── Coverage Requirements ── */
+    function loadReqs(teamId) {
+        fetch(`/api/roster/coverage-requirements?team_id=${teamId}`)
+        .then(r => r.json())
+        .then(function(res){
+            if (!res.success) return;
+            const tbody = document.getElementById('reqBody');
+            if (!res.data.length) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-muted small text-center">No requirements set. Defaults will be used.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = res.data.map(function(r){
+                return `<tr>
+                    <td><strong>${r.shift_code}</strong></td>
+                    <td>${r.required_count}</td>
+                    <td><button class="btn btn-xs btn-outline-danger" style="font-size:.7rem;padding:1px 6px"
+                        onclick="deleteReq(${r.id})">Remove</button></td>
+                </tr>`;
+            }).join('');
+        });
+    }
+
+    window.deleteReq = function(id) {
+        if (!confirm('Remove this requirement?')) return;
+        fetch(`/api/roster/coverage-requirements/${id}`, {method:'DELETE'})
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success) loadReqs(currentTeamId);
+        });
+    };
+
+    document.getElementById('addReqForm').addEventListener('submit', function(e){
+        e.preventDefault();
+        const code  = document.getElementById('newReqCode').value;
+        const count = document.getElementById('newReqCount').value.trim();
+        if (!count) return;
+        fetch('/api/roster/coverage-requirements', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({team_id: currentTeamId, shift_code: code, required_count: count})
+        })
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success) {
+                loadReqs(currentTeamId);
+                document.getElementById('newReqCount').value = '1';
+            } else {
+                alert('Error: ' + res.error);
+            }
+        });
+    });
+
+    /* ── Public Holidays ── */
+    function loadHolidays() {
+        const year = document.getElementById('holYear').value;
+        fetch(`/api/roster/holidays?year=${year}`)
+        .then(r => r.json())
+        .then(function(res){
+            const tbody = document.getElementById('holBody');
+            if (!res.success || !res.data.length) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-muted small text-center">No holidays configured for this year.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = res.data.map(function(h){
+                return `<tr>
+                    <td>${h.date}</td>
+                    <td>${h.name}</td>
+                    <td><button class="btn btn-xs btn-outline-danger" style="font-size:.7rem;padding:1px 6px"
+                        onclick="deleteHoliday(${h.id})">Remove</button></td>
+                </tr>`;
+            }).join('');
+        });
+    }
+
+    window.deleteHoliday = function(id) {
+        if (!confirm('Remove this holiday?')) return;
+        fetch(`/api/roster/holidays/${id}`, {method:'DELETE'})
+        .then(r => r.json())
+        .then(function(res){ if (res.success) loadHolidays(); });
+    };
+
+    document.getElementById('btnLoadHolidays').addEventListener('click', loadHolidays);
+
+    document.getElementById('addHolForm').addEventListener('submit', function(e){
+        e.preventDefault();
+        const d = document.getElementById('newHolDate').value;
+        const n = document.getElementById('newHolName').value.trim();
+        if (!d || !n) { alert('Please enter both date and name.'); return; }
+        fetch('/api/roster/holidays', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({date: d, name: n})
+        })
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success) {
+                loadHolidays();
+                document.getElementById('newHolDate').value = '';
+                document.getElementById('newHolName').value = '';
+            } else {
+                alert('Error: ' + res.error);
+            }
+        });
+    });
+
+    /* ── Members ── */
+    function loadMembers(teamId) {
+        fetch(`/api/roster/members?team_id=${teamId}`)
+        .then(r => r.json())
+        .then(function(res){
+            const container = document.getElementById('memberList');
+            if (!res.success || !res.data.length) {
+                container.innerHTML = '<p class="text-muted small">No active members found for this team.</p>';
+                return;
+            }
+            container.innerHTML = '<div class="row g-2">' +
+                res.data.map(function(m){
+                    const isLead = m.scheduling_role === 'lead';
+                    return `<div class="col-md-6 col-lg-4">
+                        <div class="d-flex align-items-center justify-content-between
+                                    border rounded px-3 py-2" style="font-size:.85rem">
+                            <span>${m.name}</span>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-xs ${isLead ? 'btn-primary' : 'btn-outline-secondary'}"
+                                    style="font-size:.65rem;padding:2px 7px"
+                                    onclick="setRole(${m.id},'lead',this)">Lead</button>
+                                <button class="btn btn-xs ${!isLead ? 'btn-primary' : 'btn-outline-secondary'}"
+                                    style="font-size:.65rem;padding:2px 7px"
+                                    onclick="setRole(${m.id},'support',this)">Support</button>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('') +
+            '</div>';
+        });
+    }
+
+    window.setRole = function(memberId, role, btn) {
+        fetch(`/api/roster/members/${memberId}/role`, {
+            method:'PUT',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({scheduling_role: role})
+        })
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success) loadMembers(currentTeamId);
+            else alert('Error: ' + res.error);
+        });
+    };
+
+    /* ── Load All ── */
+    function loadAll(teamId) {
+        currentTeamId = teamId;
+        loadReqs(teamId);
+        loadMembers(teamId);
+    }
+
+    document.getElementById('btnLoadTeam').addEventListener('click', function(){
+        const tid = parseInt(document.getElementById('teamSelect').value);
+        if (tid) loadAll(tid);
+    });
+
+    // Auto-load current team
+    if (currentTeamId) {
+        loadAll(currentTeamId);
+        loadHolidays();
+    }
+})();
+</script>
+{% endblock %}

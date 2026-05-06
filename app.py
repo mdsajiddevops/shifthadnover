@@ -206,6 +206,7 @@ from models.servicenow_config import ServiceNowConfig  # Import ServiceNow confi
 from models.team_shift_timing_config import TeamShiftTimingConfig  # Import team shift timing config model
 from models.escalation_matrix import EscalationMatrixEntry  # Import escalation matrix model
 from models.collaboration import HandoverSession, SectionLock, HandoverChange, DraftIncident, DraftKeyPoint  # Collaborative editing models
+from models.roster_scheduler_models import ShiftCoverageRequirement, PublicHoliday, ScheduledShift  # Roster scheduler models
 db.init_app(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'auth.login'  # Redirect to login page for unauthenticated users
@@ -416,6 +417,9 @@ app.register_blueprint(incident_metrics_bp)
 
 from routes.manual_roster import manual_roster_bp
 app.register_blueprint(manual_roster_bp)
+
+from routes.roster_scheduler import roster_scheduler_bp
+app.register_blueprint(roster_scheduler_bp)
 
 from routes.system_health import system_health_bp
 app.register_blueprint(system_health_bp)
