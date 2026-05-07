@@ -348,7 +348,7 @@
                 {% if open_incidents %}
                     <div class="incidents-list">
                         {% for incident in open_incidents[:5] %}
-                        <div class="modern-incident-item">
+                        <div class="modern-incident-item" id="dashboard-incident-{{ incident.id }}">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div class="flex-grow-1">
                                     <div class="incident-title">{{ incident.title }}</div>
@@ -368,6 +368,13 @@
                                         {{ incident.assigned_to }}
                                     </div>
                                     {% endif %}
+                                </div>
+                                <div class="ms-2 flex-shrink-0">
+                                    <button class="btn btn-sm btn-outline-success"
+                                            title="Mark resolved — will stop carrying forward into new handover forms"
+                                            onclick="resolveIncident({{ incident.id }}, this)">
+                                        <i class="bi bi-check-circle"></i> Resolve
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -1662,6 +1669,28 @@
                 });
             }
         });
+    </script>
+    <script>
+    function resolveIncident(incidentId, btn) {
+        if (!confirm('Mark this incident as resolved? It will no longer carry forward into new handover forms.')) return;
+        btn.disabled = true;
+        fetch('/api/incidents/' + incidentId + '/resolve', {method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'}})
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'resolved') {
+                    const card = document.getElementById('dashboard-incident-' + incidentId);
+                    if (card) {
+                        card.style.transition = 'opacity 0.4s';
+                        card.style.opacity = '0';
+                        setTimeout(() => card.remove(), 400);
+                    }
+                } else {
+                    btn.disabled = false;
+                    alert('Failed to resolve incident.');
+                }
+            })
+            .catch(() => { btn.disabled = false; alert('Network error.'); });
+    }
     </script>
 </div>
 {% endblock %}

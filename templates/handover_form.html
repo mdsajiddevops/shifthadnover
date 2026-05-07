@@ -716,7 +716,56 @@
                                 </div>
                                 <div class="card-body">
                                     <div id="open-incidents-container">
+                                        {% if carryforward_open_incidents %}
+                                            {% for inc in carryforward_open_incidents %}
+                                            <div class="incident-entry mb-3 border p-3 rounded border-warning">
+                                                <div class="d-flex align-items-center mb-2">
+                                                    <span class="badge bg-warning text-dark me-2"><i class="fas fa-history me-1"></i>Carried from previous shift</span>
+                                                    <small class="text-muted">{{ inc.title }}</small>
+                                                </div>
+                                                <input type="hidden" name="open_incident_carried_id[]" value="{{ inc.id }}">
+                                                <div class="row">
+                                                    <div class="col-md-3">
+                                                        <label class="form-label">Application Name</label>
+                                                        {% set parts = inc.title.split(' - ', 1) %}
+                                                        <input type="text" class="form-control" name="open_incident_app[]" value="{{ parts[0] if parts|length > 0 else '' }}" placeholder="Application Name">
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label class="form-label">Incident ID</label>
+                                                        <input type="text" class="form-control" name="open_incident_id[]" value="{{ parts[1] if parts|length > 1 else '' }}" placeholder="INC0001234">
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label class="form-label">Priority</label>
+                                                        <select class="form-select" name="open_incident_priority[]">
+                                                            <option value="Low" {% if inc.priority == 'Low' %}selected{% endif %}>Low</option>
+                                                            <option value="Medium" {% if inc.priority == 'Medium' %}selected{% endif %}>Medium</option>
+                                                            <option value="High" {% if inc.priority == 'High' %}selected{% endif %}>High</option>
+                                                            <option value="Critical" {% if inc.priority == 'Critical' %}selected{% endif %}>Critical</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label class="form-label">Handover To</label>
+                                                        <select class="form-select next-engineers-select" name="open_incident_assigned[]">
+                                                            <option value="">Select Next Shift Engineer</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div class="row mt-2">
+                                                    <div class="col-11">
+                                                        <label class="form-label">Description</label>
+                                                        <textarea class="form-control" name="open_incident_description[]" rows="2" placeholder="Brief description of the open incident">{{ inc.description or '' }}</textarea>
+                                                    </div>
+                                                    <div class="col-1 d-flex align-items-end">
+                                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        {% else %}
                                         <div class="incident-entry mb-3 border p-3 rounded">
+                                            <input type="hidden" name="open_incident_carried_id[]" value="">
                                             <div class="row">
                                                 <div class="col-md-3">
                                                     <label class="form-label">Application Name</label>
@@ -755,6 +804,7 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        {% endif %}
                                     </div>
                                     <button type="button" class="btn btn-outline-warning" onclick="addIncident('open')">
                                         <i class="fas fa-plus"></i> Add Open Incident
@@ -855,7 +905,57 @@
                                 </div>
                                 <div class="card-body">
                                     <div id="handover-incidents-container">
+                                        {% if carryforward_handover_incidents %}
+                                            {% for inc in carryforward_handover_incidents %}
+                                            <div class="incident-entry mb-3 border p-3 rounded border-info">
+                                                <div class="d-flex align-items-center mb-2">
+                                                    <span class="badge bg-info text-dark me-2"><i class="fas fa-history me-1"></i>Carried from previous shift</span>
+                                                    <small class="text-muted">{{ inc.title }}</small>
+                                                </div>
+                                                <input type="hidden" name="handover_incident_carried_id[]" value="{{ inc.id }}">
+                                                <div class="row">
+                                                    <div class="col-md-3">
+                                                        <label class="form-label">Application Name</label>
+                                                        {% set parts = inc.title.split(' - ', 1) %}
+                                                        <input type="text" class="form-control" name="handover_incident_app[]" value="{{ parts[0] if parts|length > 0 else '' }}" placeholder="Application Name">
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label class="form-label">Incident ID</label>
+                                                        <input type="text" class="form-control" name="handover_incident_id[]" value="{{ parts[1] if parts|length > 1 else '' }}" placeholder="INC0001234">
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label class="form-label">Current Status</label>
+                                                        <select class="form-select" name="handover_incident_status[]">
+                                                            <option value="Monitoring" {% if inc.status == 'Monitoring' %}selected{% endif %}>Monitoring</option>
+                                                            <option value="Pending Vendor" {% if inc.status == 'Pending Vendor' %}selected{% endif %}>Pending Vendor</option>
+                                                            <option value="Pending Customer" {% if inc.status == 'Pending Customer' %}selected{% endif %}>Pending Customer</option>
+                                                            <option value="In Progress" {% if inc.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                                                            <option value="Waiting for Approval" {% if inc.status == 'Waiting for Approval' %}selected{% endif %}>Waiting for Approval</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label class="form-label">Handover To</label>
+                                                        <select class="form-select next-engineers-select" name="handover_incident_next_by[]">
+                                                            <option value="">Select Next Shift Engineer</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div class="row mt-2">
+                                                    <div class="col-11">
+                                                        <label class="form-label">Handover Notes & Next Actions</label>
+                                                        <textarea class="form-control" name="handover_incident_notes[]" rows="3" placeholder="Important notes for the next shift and specific actions to be taken">{{ inc.handover or inc.description or '' }}</textarea>
+                                                    </div>
+                                                    <div class="col-1 d-flex align-items-end">
+                                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        {% else %}
                                         <div class="incident-entry mb-3 border p-3 rounded">
+                                            <input type="hidden" name="handover_incident_carried_id[]" value="">
                                             <div class="row">
                                                 <div class="col-md-3">
                                                     <label class="form-label">Application Name</label>
@@ -895,6 +995,7 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        {% endif %}
                                     </div>
                                     <button type="button" class="btn btn-outline-info" onclick="addIncident('handover')">
                                         <i class="fas fa-plus"></i> Add Handover Incident
@@ -2282,6 +2383,7 @@ function addIncident(type, incidentData = null) {
             container = document.getElementById('open-incidents-container');
             incidentHTML = `
                 <div class="incident-entry mb-3 border p-3 rounded">
+                    <input type="hidden" name="open_incident_carried_id[]" value="">
                     <div class="row">
                         <div class="col-md-3">
                             <label class="form-label">Application Name</label>
@@ -2397,6 +2499,7 @@ function addIncident(type, incidentData = null) {
             container = document.getElementById('handover-incidents-container');
             incidentHTML = `
                 <div class="incident-entry mb-3 border p-3 rounded">
+                    <input type="hidden" name="handover_incident_carried_id[]" value="">
                     <div class="row">
                         <div class="col-md-3">
                             <label class="form-label">Application Name</label>

@@ -1025,3 +1025,29 @@ def dashboard():
         pending_notifications=pending_notifications,
         team_filter_context=team_filter_context
     )
+
+
+@dashboard_bp.route('/api/incidents/<int:incident_id>/resolve', methods=['POST'])
+@login_required
+def resolve_incident(incident_id):
+    """Mark an incident as resolved so it stops carrying forward into new handover forms."""
+    from flask import jsonify
+    incident = Incident.query.get_or_404(incident_id)
+    if incident.account_id != current_user.account_id and current_user.role != 'super_admin':
+        return jsonify({'error': 'Forbidden'}), 403
+    incident.is_resolved = True
+    db.session.commit()
+    return jsonify({'status': 'resolved', 'id': incident_id})
+
+
+@dashboard_bp.route('/api/incidents/<int:incident_id>/unresolve', methods=['POST'])
+@login_required
+def unresolve_incident(incident_id):
+    """Reopen a resolved incident so it carries forward again."""
+    from flask import jsonify
+    incident = Incident.query.get_or_404(incident_id)
+    if incident.account_id != current_user.account_id and current_user.role != 'super_admin':
+        return jsonify({'error': 'Forbidden'}), 403
+    incident.is_resolved = False
+    db.session.commit()
+    return jsonify({'status': 'unresolved', 'id': incident_id})

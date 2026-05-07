@@ -3000,6 +3000,7 @@ def handover():
             # Get arrays for each field type
             app_names = request.form.getlist(f'{field_prefix}_app[]')
             incident_ids = request.form.getlist(f'{field_prefix}_id[]')
+            carried_ids = request.form.getlist(f'{field_prefix}_carried_id[]')
             
             logger.debug(f"Found {len(app_names)} app names: {app_names}")
             logger.debug(f"Found {len(incident_ids)} incident IDs: {incident_ids}")
@@ -3031,7 +3032,17 @@ def handover():
                         db.session.add(incident)
                         logger.debug(f"Added open incident to session: {incident}")
                         logger.debug(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
-                        
+
+                        # Mark original as resolved if this was carried forward from a previous shift
+                        if i < len(carried_ids) and carried_ids[i].strip():
+                            try:
+                                src = Incident.query.get(int(carried_ids[i]))
+                                if src:
+                                    src.is_resolved = True
+                                    logger.debug(f"[CARRYFORWARD] Marked source incident {src.id} as resolved")
+                            except (ValueError, TypeError):
+                                pass
+
                         # Create incident assignment if an engineer is assigned
                         assigned_engineer = assigned_to[i] if i < len(assigned_to) and assigned_to[i].strip() else None
                         if assigned_engineer:
@@ -3127,7 +3138,17 @@ def handover():
                         db.session.add(incident)
                         logger.debug(f"Added handover incident to session: {incident}")
                         logger.debug(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
-                        
+
+                        # Mark original as resolved if this was carried forward from a previous shift
+                        if i < len(carried_ids) and carried_ids[i].strip():
+                            try:
+                                src = Incident.query.get(int(carried_ids[i]))
+                                if src:
+                                    src.is_resolved = True
+                                    logger.debug(f"[CARRYFORWARD] Marked source handover incident {src.id} as resolved")
+                            except (ValueError, TypeError):
+                                pass
+
                         # Create incident assignment if next action engineer is assigned
                         next_action_by = next_by[i] if i < len(next_by) and next_by[i].strip() else None
                         if next_action_by:
@@ -3959,6 +3980,24 @@ def handover():
     
     logger.debug(f"[DEBUG] CARRYFORWARD SUMMARY: {len(open_key_points)} key points, {len(change_infos)} change requests, {len(kb_updates)} KB updates")
 
+    # Carryforward: unresolved Open+Handover incidents (no time limit — until explicitly resolved)
+    unresolved_incidents_raw = Incident.query.filter(
+        Incident.account_id == current_user.account_id,
+        Incident.team_id == query_team_id,
+        Incident.type.in_(['Open', 'Handover']),
+        Incident.is_resolved == False
+    ).order_by(Incident.id.desc()).all()
+
+    # Deduplicate by title (keep latest per title)
+    _inc_map = {}
+    for _inc in unresolved_incidents_raw:
+        if _inc.title not in _inc_map:
+            _inc_map[_inc.title] = _inc
+    _cf_all = list(_inc_map.values())
+    carryforward_open_incidents = [i for i in _cf_all if i.type == 'Open']
+    carryforward_handover_incidents = [i for i in _cf_all if i.type == 'Handover']
+    logger.debug(f"[DEBUG] Incident carryforward: {len(carryforward_open_incidents)} open, {len(carryforward_handover_incidents)} handover")
+
     # Initialize ServiceNow service to get assignment group configuration for template
     # QUICK FIX: Skip ServiceNow initialization for local development to avoid delays
     try:
@@ -4009,6 +4048,8 @@ def handover():
         priority_incidents=[],
         handover_incidents=[],
         escalated_incidents=[],
+        carryforward_open_incidents=carryforward_open_incidents,
+        carryforward_handover_incidents=carryforward_handover_incidents,
         change_infos=change_infos,
         kb_updates=kb_updates,
         today=handover_date.strftime('%Y-%m-%d'),  # Use adjusted handover_date instead of default_date
