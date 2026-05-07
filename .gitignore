@@ -55,3 +55,19 @@ dmypy.json
 # Backup files
 *.backup
 *.bak
+
+# SSL certificates and private keys (never commit these)
+*.pem
+*.key
+*.pfx
+*.crt
+*.cer
+
+# Local dev / prod SQL dumps
+backup_*.sql
+prod_backup*.sql
+seed_*.sql
+local_shifthandover.db
+
+# Local dev helper scripts output
+init_local.sql
