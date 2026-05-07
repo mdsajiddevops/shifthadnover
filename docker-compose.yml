@@ -167,7 +167,9 @@ services:
     restart: unless-stopped
     # REQ-005: Beat runs as a single process — each job executes exactly once
     # per interval regardless of HTTP worker count (native deduplication).
-    command: celery -A celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    command: celery -A celery_app beat --loglevel=info --schedule=/var/celery/celerybeat-schedule
+    volumes:
+      - celerybeat_data:/var/celery
     environment:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
@@ -222,4 +224,6 @@ volumes:
   app_logs:
     driver: local
   uploads_data:
+    driver: local
+  celerybeat_data:
     driver: local
