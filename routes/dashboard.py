@@ -4,6 +4,7 @@ from flask_login import login_required, current_user
 from models.models import Incident, TeamMember, ShiftRoster, ShiftKeyPoint, Shift, Account, Team, User, db
 from services.team_access_service import TeamAccessService
 from services.multi_team_service import apply_team_filtering
+from services.worker_status import get_worker_status
 import plotly.graph_objs as go
 import plotly
 import json
@@ -999,6 +1000,9 @@ def dashboard():
         pending_notifications = []
         pending_count = 0
 
+    # Fetch worker status last — a slow/unavailable broker adds at most 1s latency.
+    worker_status = get_worker_status()
+
     return render_template(
         'dashboard.html',
         accounts=accounts,
@@ -1023,7 +1027,8 @@ def dashboard():
         end_date=end_date or to_date.strftime('%Y-%m-%d'),
         pending_count=pending_count,
         pending_notifications=pending_notifications,
-        team_filter_context=team_filter_context
+        team_filter_context=team_filter_context,
+        worker_status=worker_status,
     )
 
 

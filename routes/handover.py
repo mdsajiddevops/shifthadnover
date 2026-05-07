@@ -6,6 +6,7 @@ from models.models import TeamMember, Shift, Incident, ShiftKeyPoint, ShiftRoste
 from sqlalchemy import or_, func, inspect
 from models.handover_enhanced import HandoverRequest
 from models.audit_log import AuditLog
+from utils.validation import validate_form, validate_required, validate_max_length, format_error_response
 # Optional collaboration imports - may not exist on all deployments
 try:
     from models.collaboration import DraftIncident, DraftKeyPoint, DraftChangeInfo, DraftKBUpdate
@@ -38,10 +39,12 @@ def is_collaboration_enabled():
         _COLLABORATION_CHECKED = True
     return COLLABORATION_ENABLED
 
-from services.audit_service import log_action
+from services.audit_service import log_action, submit_handover_with_audit
 from services.email_service import send_handover_email, send_incident_assignment_notification
 from services.servicenow_service import ServiceNowService
 from services.team_access_service import TeamAccessService
+from utils.validators import validate_handover_fields
+from utils.rbac_errors import resolve_rbac_error
 from datetime import datetime, timedelta, time as dt_time
 from sqlalchemy import or_, and_
 import pytz
@@ -51,6 +54,17 @@ import logging
 logger = logging.getLogger(__name__)
 
 handover_bp = Blueprint('handover', __name__)
+
+
+@handover_bp.errorhandler(400)
+def _bad_request(e):
+    return jsonify({'error': str(e)}), 400
+
+
+@handover_bp.errorhandler(403)
+def _forbidden(e):
+    return jsonify({'error': str(e)}), 403
+
 
 def detect_user_shift(user_id, account_id, team_id, date):
     """
@@ -1171,8 +1185,21 @@ def edit_handover(shift_id):
         shift.date = datetime.strptime(request.form['handover_date'], '%Y-%m-%d').date()
         shift.current_shift_type = request.form['current_shift_type']
         shift.next_shift_type = request.form['next_shift_type']
-        shift.additional_notes = request.form.get('additional_notes', '')
+        _edit_additional_notes = request.form.get('additional_notes', '')
         action = request.form.get('action', 'send')
+
+        # Validate field lengths before any DB write
+        _edit_handover_errors = validate_form([
+            (validate_max_length, _edit_additional_notes, 'additional_notes', 2000),
+        ])
+        if _edit_handover_errors:
+            if request.is_json:
+                return jsonify(format_error_response(_edit_handover_errors)), 422
+            for _err in _edit_handover_errors:
+                flash(_err['message'], 'error')
+            return redirect(url_for('handover.edit_handover', shift_id=shift_id))
+
+        shift.additional_notes = _edit_additional_notes
         old_status = shift.status
         
         # 🔧 CRITICAL FIX: Prevent converting draft to submission if another submission already exists
@@ -2607,6 +2634,43 @@ def handover():
             return redirect(url_for('handover.handover'))
             
         action = request.form.get('action', 'submit')
+
+        # ── RBAC gate (REQ-017) ──────────────────────────────────────────────
+        _role_rank = {'user': 0, 'team_admin': 1, 'account_admin': 2, 'super_admin': 3}
+        _required_role = 'user'  # any authenticated user may submit a handover
+        if _role_rank.get(current_user.role, -1) < _role_rank.get(_required_role, 99):
+            rbac_msg = resolve_rbac_error(current_user.role, _required_role, 'submit_handover')
+            if request.is_json:
+                return jsonify({'error': rbac_msg}), 403
+            flash(rbac_msg, 'error')
+            return redirect(url_for('handover.handover'))
+
+        # ── Field validation gate (REQ-016) ──────────────────────────────────
+        _form_data = {
+            'shift_date': str(date) if date else None,
+            'shift_type': current_shift_type,
+            'submitted_by': current_user.username,
+        }
+        _validation_errors = validate_handover_fields(_form_data)
+        if _validation_errors:
+            if request.is_json:
+                return jsonify({'errors': _validation_errors}), 400
+            for _field_err in _validation_errors.values():
+                flash(_field_err, 'error')
+            return redirect(url_for('handover.handover'))
+
+        # Additional field-length validation (COMP-010)
+        _additional_notes = request.form.get('additional_notes', '')
+        _handover_extra_errors = validate_form([
+            (validate_max_length, _additional_notes, 'additional_notes', 2000),
+        ])
+        if _handover_extra_errors:
+            if request.is_json:
+                return jsonify(format_error_response(_handover_extra_errors)), 422
+            for _err in _handover_extra_errors:
+                flash(_err['message'], 'error')
+            return redirect(url_for('handover.handover'))
+
         logger.debug(f"[DEBUG_ACTION] Action received from form: '{action}' (default: 'submit')")
         logger.debug(f"[DEBUG_ACTION] All form keys: {list(request.form.keys())}")  # All keys
         
@@ -3420,13 +3484,36 @@ def handover():
 
             # End of no_autoflush context - now we can commit everything safely
         
+        # ── Atomic handover + audit log commit (REQ-015) ────────────────────────
+        # Add deferred audit log from incident processing (if any)
+        if 'audit_log' in locals():
+            db.session.add(audit_log)
+
+        # Add primary audit log entry — committed atomically with shift data
+        audit_action = 'Create Handover' if action == 'submit' else 'Save Handover Draft'
+        audit_details = f'Shift: {current_shift_type}, Date: {date}, Status: {shift.status}, Team: {team_id}, Account: {account_id}'
+        db.session.add(AuditLog(
+            user_id=current_user.id,
+            username=current_user.username,
+            action=audit_action,
+            details=audit_details,
+        ))
+
         # Add timing debug
         import time
         start_commit_time = time.time()
         logger.debug(f"[DEBUG] Starting database commit at {start_commit_time}")
-        
-        db.session.commit()
-        
+
+        try:
+            db.session.commit()
+        except Exception as _commit_exc:
+            db.session.rollback()
+            logger.error('Handover commit failed — rolled back: %s', _commit_exc)
+            if request.is_json:
+                return jsonify({'error': 'Submission failed. Please retry.'}), 500
+            flash('Submission failed due to a database error. Please retry.', 'error')
+            return redirect(url_for('handover.handover'))
+
         # Verify the handover was saved correctly
         logger.debug(f"[DEBUG] After commit - verifying shift creation:")
         saved_shift = Shift.query.get(shift.id)
@@ -3437,7 +3524,7 @@ def handover():
             logger.debug(f"   Status: {saved_shift.status}")
             logger.debug(f"   Account ID: {saved_shift.account_id}")
             logger.debug(f"   Team ID: {saved_shift.team_id}")
-            
+
             # Check if it would be visible in reports
             all_shifts_count = Shift.query.count()
             filtered_shifts_count = Shift.query.filter_by(account_id=saved_shift.account_id, team_id=saved_shift.team_id).count()
@@ -3445,23 +3532,6 @@ def handover():
             logger.debug(f"   Shifts with same account/team: {filtered_shifts_count}")
         else:
             logger.error(f"❌ ERROR: Shift {shift.id} not found after commit!")
-        
-        # Add the deferred audit log from incident processing
-        if 'audit_log' in locals():
-            db.session.add(audit_log)
-        
-        # Create audit log entry for handover creation/submission
-        audit_action = 'Create Handover' if action == 'submit' else 'Save Handover Draft'
-        audit_details = f'Shift: {current_shift_type}, Date: {date}, Status: {shift.status}, Team: {team_id}, Account: {account_id}'
-        
-        # Add audit log entry with proper user information
-        db.session.add(AuditLog(
-            user_id=current_user.id,
-            username=current_user.username,
-            action=audit_action,
-            details=audit_details
-        ))
-        db.session.commit()
         
         # 🔍 VERIFY KEY POINT CLOSURES AFTER COMMIT
         logger.debug("🔍 VERIFYING KEY POINT STATUSES AFTER COMMIT:")

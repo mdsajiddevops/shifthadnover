@@ -19,12 +19,12 @@ __pycache__/
 *.swo
 *~
 
-# Environment variables
+# Environment variables — only .example templates are committed
 .env
-.env.local
-.env.production
-.env.domain
-.env.http-only
+.env.*
+!.env.example
+!.env.domain.example
+!.env.http-only.example
 
 # Database
 *.db
@@ -58,21 +58,36 @@ dmypy.json
 *.backup
 *.bak
 
-# SSL certificates and private keys (never commit these)
+# Binary documentation — maintained in Confluence, not git
+*.pdf
+*.docx
+*.doc
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+
+# TLS certificates and private keys — managed via Docker secrets
+private.key
+fullchain.pem
+*.pfx
 *.pem
 *.key
-*.pfx
 *.crt
 *.cer
 
-# Local dev / prod SQL dumps
-backup_*.sql
-prod_backup*.sql
-seed_*.sql
+# Database dumps — never commit these
+*.sql
+!migrations/*.sql
+!migration/*.sql
+!schema/*.sql
+!scripts/migrations/*.sql
+
 local_shifthandover.db
 
-# Local dev helper scripts output
-init_local.sql
+# Docker secrets source files — managed outside version control
+secrets/*
+!secrets/README.md
 
 # Dev/design artifacts — not part of production source
 archive/

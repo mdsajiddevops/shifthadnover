@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_login import login_required, current_user
 from models.models import ShiftKeyPoint, ShiftKeyPointUpdate, db
+from utils.validation import validate_form, validate_required, validate_max_length, format_error_response
 from sqlalchemy import func
 from datetime import date
 import logging
@@ -23,7 +24,16 @@ def edit_keypoint(key_point_id):
     
     if request.method == 'POST':
         new_description = request.form.get('description', '').strip()
-        
+
+        _kp_errors = validate_form([
+            (validate_required, new_description, 'description'),
+            (validate_max_length, new_description, 'description', 2000),
+        ])
+        if _kp_errors:
+            for _err in _kp_errors:
+                flash(_err['message'], 'danger')
+            return redirect(url_for('keypoints.keypoints'))
+
         if not new_description:
             flash('Description is required.', 'danger')
             return redirect(url_for('keypoints.keypoints'))
@@ -75,8 +85,18 @@ def edit_keypoint(key_point_id):
 def edit_keypoint_update(update_id):
     update = ShiftKeyPointUpdate.query.get_or_404(update_id)
     if request.method == 'POST':
-        update_text = request.form.get('update_text')
+        update_text = request.form.get('update_text', '').strip()
         update_date = request.form.get('update_date')
+
+        _upd_errors = validate_form([
+            (validate_required, update_text, 'update_text'),
+            (validate_max_length, update_text, 'update_text', 2000),
+        ])
+        if _upd_errors:
+            for _err in _upd_errors:
+                flash(_err['message'], 'danger')
+            return render_template('edit_keypoint_update.html', update=update)
+
         if update_text:
             update.update_text = update_text
             if update_date:
@@ -364,8 +384,25 @@ def keypoints():
 @keypoints_bp.route('/keypoints/update/<int:key_point_id>', methods=['POST'])
 @login_required
 def add_keypoint_update(key_point_id):
-    update_text = request.form.get('update_text')
+    update_text = request.form.get('update_text', '').strip()
     update_date = request.form.get('update_date') or date.today().isoformat()
+
+    _add_upd_errors = validate_form([
+        (validate_required, update_text, 'update_text'),
+        (validate_max_length, update_text, 'update_text', 2000),
+    ])
+    if _add_upd_errors:
+        for _err in _add_upd_errors:
+            flash(_err['message'], 'danger')
+        filter_params = {}
+        if request.form.get('filter_status'):
+            filter_params['status'] = request.form.get('filter_status')
+        if request.form.get('filter_date'):
+            filter_params['date'] = request.form.get('filter_date')
+        if request.form.get('filter_team_id'):
+            filter_params['team_id'] = request.form.get('filter_team_id')
+        return redirect(url_for('keypoints.keypoints', **filter_params))
+
     if update_text:
         update = ShiftKeyPointUpdate(
             key_point_id=key_point_id,

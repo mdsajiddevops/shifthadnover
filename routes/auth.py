@@ -6,6 +6,7 @@ from models.password_reset import PasswordResetToken
 from services.password_reset_service import PasswordResetService
 from services.team_access_service import TeamAccessService
 from werkzeug.security import check_password_hash, generate_password_hash
+from utils.validation import validate_form, validate_required, validate_max_length, format_error_response
 import logging
 import secrets
 
@@ -167,6 +168,24 @@ def login():
     if request.method == 'POST' and 'username' in request.form and 'password' in request.form:
         username = request.form['username']
         password = request.form['password']
+
+        # Validate required login fields before any DB lookup
+        _login_errors = validate_form([
+            (validate_required, username, 'username'),
+            (validate_required, password, 'password'),
+            (validate_max_length, username, 'username', 255),
+        ])
+        if _login_errors:
+            for _err in _login_errors:
+                flash(_err['message'], 'error')
+            return render_template('login.html',
+                                   accounts=accounts,
+                                   teams=teams,
+                                   selected_account_id=selected_account_id_int,
+                                   selected_team_id=selected_team_id_int,
+                                   pending_count=0,
+                                   pending_assignments=[])
+
         user = User.query.filter_by(username=username).first()
         
         if user and user.role == 'super_admin':
@@ -275,11 +294,20 @@ def forgot_password():
     """Forgot password page - initiate password reset"""
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
-        
+
+        _fp_errors = validate_form([
+            (validate_required, email, 'email'),
+            (validate_max_length, email, 'email', 255),
+        ])
+        if _fp_errors:
+            for _err in _fp_errors:
+                flash(_err['message'], 'error')
+            return render_template('auth/forgot_password.html')
+
         if not email:
             flash('Email address is required.', 'error')
             return render_template('auth/forgot_password.html')
-        
+
         # Get client information for security logging
         ip_address = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR'))
         user_agent = request.environ.get('HTTP_USER_AGENT', '')

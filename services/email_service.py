@@ -1224,3 +1224,32 @@ def send_schedule_published_notification(team_id: int, year: int, month: int,
     except Exception as exc:
         logging.warning(f"[EMAIL_SERVICE] Failed to send schedule publish notification: {exc}")
         return {'success': False, 'error': str(exc)}
+
+
+def send_ops_alert(subject: str, body: str) -> None:
+    """Send an operations alert email to configured admin recipients.
+
+    Used by the DLQ handler (tasks/dlq_handler.py) when a Celery task
+    exhausts all retries.  Raises on failure so the caller can fall back.
+    """
+    from flask import current_app
+    from flask_mail import Message
+    from app import mail
+
+    recipients = current_app.config.get(
+        'OPS_ALERT_RECIPIENTS',
+        current_app.config.get('MAIL_DEFAULT_SENDER', ''),
+    )
+    if isinstance(recipients, str):
+        recipients = [r.strip() for r in recipients.split(',') if r.strip()]
+
+    if not recipients:
+        raise RuntimeError('OPS_ALERT_RECIPIENTS is not configured — cannot send ops alert')
+
+    msg = Message(
+        subject=subject,
+        sender=current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@shifthandover'),
+        recipients=recipients,
+        body=body,
+    )
+    mail.send(msg)

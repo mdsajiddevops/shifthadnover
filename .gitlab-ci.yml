@@ -1,57 +1,125 @@
-stages:
-  - install
-  - lint
-  - test
-  - build
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
 
-default:
-  image: python:3.11-slim
-  before_script:
-    - pip install --quiet --upgrade pip
-    - pip install --quiet -r requirements.txt
+workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS == null
 
+default:
+  image: python:3.11-slim
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip-cache"
+  DATABASE_URL: "sqlite:///ci_test.db"
+  SAST_EXCLUDED_PATHS: "spec,test,tests,tmp,node_modules,.venv,migrations"
+  SECRET_DETECTION_EXCLUDED_PATHS: "tests,.venv"
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .venv/
+    - .pip-cache/
+
+stages:
+  - install
+  - lint
+  - test
+  - security
+  - build
+  - deploy
+
 install:
   stage: install
   script:
-    - pip install --quiet -r requirements.txt
-    - python -c "import flask; print('Flask', flask.__version__)"
-  cache:
-    key: pip-$CI_COMMIT_REF_SLUG
+    - python -m venv .venv
+    - .venv/bin/pip install --upgrade pip
+    - .venv/bin/pip install -r requirements.txt
+    - .venv/bin/pip install ruff==0.4.4
+  artifacts:
     paths:
-      - .pip-cache/
+      - .venv/
+    expire_in: 1 hour
 
 lint:
   stage: lint
-  before_script:
-    - pip install --quiet ruff
   script:
-    - ruff check . --select E,F,W --ignore E501 --exclude migrations/,migration/,archive/,mockups/
-  allow_failure: true
+    - .venv/bin/ruff check . --line-length 120
+    - .venv/bin/ruff format --check .
 
+# Tests are HTTP integration tests requiring a live app+DB.
+# This stage runs an import smoke check and SQLite boot verification.
 test:
   stage: test
   variables:
     LOCAL_DEVELOPMENT: "true"
-    DATABASE_URL: "sqlite:///test_shifthandover.db"
-    FLASK_SECRET_KEY: "ci-test-secret-key"
-    SECRETS_MASTER_KEY: "ci-test-master-key-32chars-padding"
-    SSO_ENCRYPTION_KEY: "ci-test-sso-encryption-key-32chr"
+    DATABASE_URL: sqlite:///ci_test.db
+    SECRET_KEY: ci-test-secret
+    FLASK_ENV: testing
   script:
-    - pip install --quiet pytest
-    - python -c "from app import create_app; app = create_app(); print('App factory OK')"
-  after_script:
-    - rm -f test_shifthandover.db
+    - .venv/bin/python -c "import app; print('App imports OK')"
+    - .venv/bin/python app.py &
+    - APP_PID=$!
+    - sleep 5
+    - .venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" && echo "Health check passed"
+    - kill $APP_PID || true
+
+# Dependency CVE scan — blocking merge gate (REQ-008 / T-006)
+dependency-scan:
+  stage: security
+  script:
+    - .venv/bin/pip install -r requirements-ci.txt
+    - .venv/bin/pip-audit --requirement requirements.txt --format json --output pip-audit-report.json || true
+    - .venv/bin/pip-audit --requirement requirements.txt
+  artifacts:
+    when: always
+    paths:
+      - pip-audit-report.json
+    expire_in: 7 days
+  allow_failure: false
+
+# Python SAST via Bandit — advisory (REQ-008 / T-006)
+sast-bandit:
+  stage: security
+  script:
+    - .venv/bin/pip install -r requirements-ci.txt
+    - .venv/bin/bandit -r . -x tests/,.venv/,migrations/ -f json -o bandit-report.json || true
+    - .venv/bin/bandit -r . -x tests/,.venv/,migrations/
+  artifacts:
+    when: always
+    paths:
+      - bandit-report.json
+    expire_in: 7 days
+  allow_failure: true
+
+# GitLab SAST — static analysis for Python (Bandit-based, free on all tiers)
+sast:
+  stage: security
+
+# GitLab Secret Detection — scans for committed secrets in git history
+secret_detection:
+  stage: security
 
 build:
   stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
-    - docker build -t shifthandover:$CI_COMMIT_SHORT_SHA .
-  only:
-    - main
-    - master
-    - develop
-  tags:
-    - docker
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA .
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+
+deploy:
+  stage: deploy
+  image: alpine:3.19
+  script:
+    - echo "Deploy step - configure DEPLOY_SSH_KEY, DEPLOY_HOST, DEPLOY_USER in CI/CD variables"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: manual
+  environment:
+    name: production

@@ -56,13 +56,18 @@ INSERT IGNORE INTO alembic_version VALUES ('fix_scheduling_role_nullable');
 
 ## Running Tests
 
-All tests are HTTP integration tests — they require a **running app instance** (Docker or local dev). There is no unit-test layer.
+**Unit tests** (no running app required):
+```bash
+pytest tests/test_startup_checks.py tests/test_celery_app.py tests/test_dlq_handler.py \
+       tests/test_celery_tasks.py tests/test_ctask_scheduler.py \
+       tests/test_validators.py tests/test_rbac_errors.py \
+       tests/test_audit_service.py tests/test_tests_config.py -v
+```
 
-Five runners coexist — all require a running app instance:
-
+**HTTP integration tests** (require a running app instance — Docker or local dev):
 ```bash
 # 1. Custom sanity suite (28 tests, admin)
-python3 tests/run_tests.py --url http://localhost:5000 --user superadmin --password admin123 --verbose
+python3 tests/run_tests.py --url http://localhost:5000 --user superadmin --password $TEST_SUPERADMIN_PASSWORD --verbose
 
 # 2. pytest suite (37 tests)
 pytest tests/test_application.py -v
@@ -83,6 +88,15 @@ python3 tests/test_change_info.py            # change-info dedup + reports
 
 Test config (base URL, default creds, timeouts) lives in `tests/config.py`.
 
+**Test credentials:** always set env vars before targeting non-localhost:
+```bash
+export TEST_SUPERADMIN_PASSWORD=<password>
+export TEST_ADMIN_PASSWORD=<password>
+export TEST_USER_PASSWORD=<password>
+export TEST_BASE_URL=http://localhost:5000   # optional
+```
+Omitting these against a non-localhost `TEST_BASE_URL` raises `ConfigurationError` (prevents sentinel credentials reaching remote systems).
+
 ## Architecture
 
 ### Layered Blueprint Structure
@@ -93,7 +107,7 @@ Test config (base URL, default creds, timeouts) lives in `tests/config.py`.
 - `templates/` — Jinja2 server-side rendering; `base.html` is the master layout
 - `static/` — CSS, JS, sample files
 
-`app.py` is the Flask app factory: initializes extensions, registers all Blueprints, sets up session validation middleware, background scheduler, and template globals.
+`app.py` is the Flask app factory: initializes extensions, registers all Blueprints, sets up session validation middleware, and template globals.
 
 ### Multi-Tenancy Model
 
@@ -126,9 +140,41 @@ YJS CRDT library is self-hosted (`static/js/yjs.bundle.js`, ~91 KB) — no CDN d
 
 Every request runs `validate_session()` middleware that checks `session_token` against the DB — allows server-side forced logout (e.g., admin terminates a user session).
 
-### Background Scheduler
+### Background Scheduler (Celery Execution Tier)
 
-`app.py` starts an in-process background scheduler that runs periodic jobs: scheduled email digests, ServiceNow polling (`services/ctask_scheduler.py`), and email-delivery retries. Because it runs inside the app process, deployments assume a **single Gunicorn worker** — scaling out requires moving these jobs to an external scheduler.
+All background job execution is delegated exclusively to Celery — the HTTP-serving process (Gunicorn) runs **zero** scheduled jobs (REQ-003/ADR-001).
+
+**Architecture:**
+- `celery_app.py` — standalone Celery application; reads `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` exclusively from environment variables.
+- `celeryconfig.py` — Beat periodic schedule for all four job types.
+- `tasks/` package — individual task modules:
+  - `tasks/ctask_tasks.py` — CTask auto-assignment (every 2 minutes)
+  - `tasks/email_tasks.py` — email digest (hourly)
+  - `tasks/servicenow_tasks.py` — ServiceNow incident/CTask sync (every 5 minutes)
+  - `tasks/retry_tasks.py` — DLQ retry sweep (every 10 minutes)
+  - `tasks/dlq_handler.py` — on-failure callback; writes `failed_tasks` DB record and dispatches ops alert
+
+**Starting workers (all required for background jobs):**
+```bash
+# Celery worker (processes tasks from queue)
+celery -A celery_app worker --loglevel=info
+
+# Celery Beat (enqueues periodic tasks — must run as a single instance)
+celery -A celery_app beat --loglevel=info
+```
+
+**Environment variables required:**
+```bash
+export CELERY_BROKER_URL=redis://redis:6379/0
+export CELERY_RESULT_BACKEND=redis://redis:6379/0
+```
+
+**Scheduler management API** (`services/ctask_scheduler.py`):
+- `get_scheduler_status()` — uses `celery.control.inspect(timeout=2.0)`; returns structured dict; never raises even when broker is unreachable (REQ-004/REQ-013).
+- `force_scheduler_check()` — dispatches `run_ctask_assignment.delay()`.
+- `start_ctask_scheduler()` / `stop_ctask_scheduler()` — no-ops; managed via docker-compose.
+
+**Dead-letter queue:** Tasks exhausting all 3 retries write a `FailedTask` record (see `models/failed_task.py`) and dispatch an ops alert. Failed records can be re-queued by setting `status='pending_retry'` — the retry sweep picks them up automatically.
 
 ### Operator Scripts
 
@@ -143,11 +189,17 @@ Every request runs `validate_session()` middleware that checks `session_token` a
 
 | Variable | Purpose |
 |---|---|
-| `LOCAL_DEVELOPMENT=true` | Uses SQLite, disables ProxyFix |
+| `LOCAL_DEVELOPMENT=true` | Uses SQLite, disables ProxyFix, skips Docker-secret checks |
 | `FLASK_ENV` | `production` or `development` |
 | `FORCE_HTTPS` | Redirect all HTTP to HTTPS |
 | `APP_DOMAIN` / `APP_BASE_URL` | Used for OAuth redirect URIs |
 | `DATABASE_URL` | Override DB connection string |
+| `CELERY_BROKER_URL` | Redis broker URL for Celery (default: `redis://redis:6379/0`) |
+| `CELERY_RESULT_BACKEND` | Redis result backend URL (default: `redis://redis:6379/0`) |
+| `TEST_BASE_URL` | Base URL for integration tests (default: `http://localhost:5000`) |
+| `TEST_SUPERADMIN_PASSWORD` | Superadmin password for tests (required for non-localhost) |
+| `TEST_ADMIN_PASSWORD` | Account admin password for tests (required for non-localhost) |
+| `TEST_USER_PASSWORD` | Regular user password for tests (required for non-localhost) |
 
 ## Recent Features (CTCOAMSHM-1)
 

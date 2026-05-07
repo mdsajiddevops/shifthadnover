@@ -7,7 +7,18 @@ import time
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List
-from services.ctask_assignment_service import CTaskAssignmentService
+
+# Module-level Celery instance so tests can patch services.ctask_scheduler.celery.
+try:
+    from celery_app import celery
+except Exception:
+    celery = None  # type: ignore[assignment]
+
+# Module-level task reference so tests can patch services.ctask_scheduler.run_ctask_assignment.
+try:
+    from tasks.ctask_tasks import run_ctask_assignment
+except Exception:
+    run_ctask_assignment = None  # type: ignore[assignment]
 
 class CTaskScheduler:
     def __init__(self, check_interval_minutes: int = 2):
@@ -82,6 +93,7 @@ class CTaskScheduler:
             
             # Initialize assignment service if not already done
             if not self.assignment_service:
+                from services.ctask_assignment_service import CTaskAssignmentService
                 self.assignment_service = CTaskAssignmentService()
             
             # Process pending CTasks
@@ -150,25 +162,70 @@ class CTaskScheduler:
         
         # Initialize assignment service if not already done
         if not self.assignment_service:
+            from services.ctask_assignment_service import CTaskAssignmentService
             self.assignment_service = CTaskAssignmentService()
-            
+
         return self.process_unassigned_ctasks()
 
-# Global scheduler instance
-ctask_scheduler = CTaskScheduler()
+# ---------------------------------------------------------------------------
+# Celery-backed public API
+# The CTaskScheduler threading class above is kept for reference but is no
+# longer started in-process. All periodic execution is handled by the Celery
+# beat scheduler (celery_app.py + tasks.py). These functions preserve the
+# same signatures so routes/ctask_assignment.py requires no changes.
+# ---------------------------------------------------------------------------
+
+_scheduler_logger = logging.getLogger(__name__)
+
 
 def start_ctask_scheduler():
-    """Start the global CTask scheduler"""
-    ctask_scheduler.start()
+    """No-op — Celery Beat manages scheduling. Workers are started via docker-compose."""
+    _scheduler_logger.info(
+        "start_ctask_scheduler called — scheduling is managed by Celery Beat, no action needed."
+    )
+
 
 def stop_ctask_scheduler():
-    """Stop the global CTask scheduler"""
-    ctask_scheduler.stop()
+    """No-op — stop the Celery worker via docker-compose to pause scheduling."""
+    _scheduler_logger.info(
+        "stop_ctask_scheduler called — to pause scheduling, stop the celery-beat container."
+    )
 
 def get_scheduler_status():
-    """Get the status of the global CTask scheduler"""
-    return ctask_scheduler.get_status()
+    """Return Celery worker availability as scheduler status.
+
+    Completes within 5 seconds regardless of broker availability (REQ-013).
+    Returns a structured dict — never raises (REQ-004).
+    """
+    try:
+        # inspect timeout kept well under the 5 s budget (REQ-013).
+        inspect = celery.control.inspect(timeout=2.0)
+        active = inspect.active() or {}
+        workers_up = len(active) > 0
+        return {
+            'running': workers_up,
+            'status': 'Running' if workers_up else 'Stopped (no Celery workers)',
+            'workers': list(active.keys()),
+            'last_check': None,
+            'next_check': None,
+            'engine': 'celery',
+        }
+    except Exception as e:
+        # Broker unreachable — return degraded dict, do not raise (REQ-004).
+        return {
+            'running': False,
+            'status': f'Unknown — Celery broker unreachable: {e}',
+            'workers': [],
+            'engine': 'celery',
+            'broker_error': str(e),
+        }
+
 
 def force_scheduler_check():
-    """Force an immediate check"""
-    return ctask_scheduler.force_check()
+    """Dispatch an immediate CTask assignment task via Celery."""
+    result = run_ctask_assignment.delay()
+    return {
+        'dispatched': True,
+        'task_id': result.id,
+        'message': 'CTask assignment task queued on Celery worker',
+    }
