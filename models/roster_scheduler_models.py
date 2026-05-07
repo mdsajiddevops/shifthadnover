@@ -115,6 +115,7 @@ class ScheduledShift(db.Model):
     shift_code      = db.Column(db.String(10), nullable=False)
     is_protected    = db.Column(db.Boolean, default=False, nullable=False)
     source          = db.Column(db.String(16), default='auto', nullable=False)
+    created_by_id   = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_at      = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at      = db.Column(db.DateTime, default=datetime.utcnow,
                                 onupdate=datetime.utcnow, nullable=False)
@@ -136,7 +137,8 @@ class ScheduledShift(db.Model):
 
     @classmethod
     def upsert(cls, team_member_id: int, team_id: int, account_id: int,
-               shift_date, shift_code: str, source: str = 'auto') -> 'ScheduledShift':
+               shift_date, shift_code: str, source: str = 'auto',
+               created_by_id: int | None = None) -> 'ScheduledShift':
         """
         Insert or update a scheduled shift.  Never overwrites a protected row when
         called with source='auto'.
@@ -150,6 +152,8 @@ class ScheduledShift(db.Model):
             existing.shift_code = shift_code
             existing.source = source
             existing.is_protected = shift_code in cls._LEAVE_CODES
+            if created_by_id is not None:
+                existing.created_by_id = created_by_id
         else:
             existing = cls(
                 team_member_id=team_member_id,
@@ -159,6 +163,7 @@ class ScheduledShift(db.Model):
                 shift_code=shift_code,
                 source=source,
                 is_protected=shift_code in cls._LEAVE_CODES,
+                created_by_id=created_by_id,
             )
             db.session.add(existing)
         return existing

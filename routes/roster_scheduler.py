@@ -50,6 +50,14 @@ def _current_account_team():
     return account_id, team_id
 
 
+_MIN_YEAR = 2000
+_MAX_YEAR = 2100
+
+
+def _clamp_year(y: int) -> int:
+    return max(_MIN_YEAR, min(_MAX_YEAR, y))
+
+
 def _parse_year_month(req):
     today = date.today()
     try:
@@ -57,6 +65,8 @@ def _parse_year_month(req):
         month = int(req.args.get('month', today.month))
     except (ValueError, TypeError):
         year, month = today.year, today.month
+    year = max(_MIN_YEAR, min(_MAX_YEAR, year))
+    month = max(1, min(12, month))
     return year, month
 
 
@@ -83,12 +93,10 @@ def roster_scheduler():
     import calendar
     month_name = calendar.month_name[month]
 
-    # Fetch teams for selector (super_admin sees all, others see own)
+    # Fetch teams for selector
     from models.models import Team
-    if current_user.role == 'super_admin':
-        teams = Team.query.filter_by(account_id=account_id).all() if account_id else []
-    else:
-        teams = Team.query.filter_by(account_id=account_id).all() if account_id else []
+    teams = Team.query.filter_by(account_id=account_id).all() if account_id else []
+    no_account_warning = (current_user.role == 'super_admin' and not account_id)
 
     return render_template(
         'roster_scheduler/index.html',
@@ -98,6 +106,7 @@ def roster_scheduler():
         teams=teams,
         team_id=team_id,
         account_id=account_id,
+        no_account_warning=no_account_warning,
     )
 
 
@@ -112,10 +121,8 @@ def roster_scheduler_admin():
     account_id, team_id = _current_account_team()
 
     from models.models import Team
-    if current_user.role == 'super_admin':
-        teams = Team.query.filter_by(account_id=account_id).all() if account_id else []
-    else:
-        teams = Team.query.filter_by(account_id=account_id).all() if account_id else []
+    teams = Team.query.filter_by(account_id=account_id).all() if account_id else []
+    no_account_warning = (current_user.role == 'super_admin' and not account_id)
 
     today = date.today()
     return render_template(
@@ -124,6 +131,7 @@ def roster_scheduler_admin():
         team_id=team_id,
         account_id=account_id,
         current_year=today.year,
+        no_account_warning=no_account_warning,
     )
 
 
@@ -162,7 +170,7 @@ def api_generate_schedule():
 
     try:
         req_team_id = int(body.get('team_id', team_id))
-        year = int(body.get('year', date.today().year))
+        year = _clamp_year(int(body.get('year', date.today().year)))
         month = int(body.get('month', date.today().month))
         overwrite = bool(body.get('overwrite', False))
     except (ValueError, TypeError) as exc:
@@ -171,7 +179,8 @@ def api_generate_schedule():
     from services.roster_scheduler_service import generate_month_schedule
     try:
         result = generate_month_schedule(req_team_id, account_id, year, month,
-                                         overwrite=overwrite)
+                                         overwrite=overwrite,
+                                         created_by_id=current_user.id)
         return jsonify({'success': True, **result})
     except Exception as exc:
         return jsonify({'success': False, 'error': str(exc)}), 500
@@ -188,7 +197,7 @@ def api_preview_schedule():
 
     try:
         req_team_id = int(body.get('team_id', team_id))
-        year = int(body.get('year', date.today().year))
+        year = _clamp_year(int(body.get('year', date.today().year)))
         month = int(body.get('month', date.today().month))
     except (ValueError, TypeError) as exc:
         return jsonify({'success': False, 'error': f'Invalid parameters: {exc}'}), 400
@@ -444,7 +453,8 @@ def api_update_shift():
 
     from services.roster_scheduler_service import update_shift
     try:
-        result = update_shift(member_id, shift_date, shift_code, req_team_id, account_id)
+        result = update_shift(member_id, shift_date, shift_code, req_team_id, account_id,
+                              created_by_id=current_user.id)
         return jsonify({'success': True, **result})
     except ValueError as exc:
         return jsonify({'success': False, 'error': str(exc)}), 400
@@ -488,7 +498,8 @@ def api_bulk_fill():
 
     from services.roster_scheduler_service import bulk_fill
     try:
-        result = bulk_fill(req_team_id, account_id, shift_code, dates, member_ids)
+        result = bulk_fill(req_team_id, account_id, shift_code, dates, member_ids,
+                           created_by_id=current_user.id)
         return jsonify({'success': True, **result})
     except ValueError as exc:
         return jsonify({'success': False, 'error': str(exc)}), 400
@@ -511,7 +522,7 @@ def api_reset_schedule():
 
     try:
         req_team_id = int(body.get('team_id', team_id))
-        year = int(body.get('year', date.today().year))
+        year = _clamp_year(int(body.get('year', date.today().year)))
         month = int(body.get('month', date.today().month))
     except (ValueError, TypeError) as exc:
         return jsonify({'success': False, 'error': f'Invalid parameters: {exc}'}), 400
@@ -550,8 +561,20 @@ def api_sync_to_roster():
         return jsonify({'success': False, 'error': f'Invalid parameters: {exc}'}), 400
 
     from services.roster_scheduler_service import sync_to_shift_roster
+    from services.email_service import send_schedule_published_notification
     try:
         result = sync_to_shift_roster(req_team_id, account_id, year, month, overwrite)
+        # Fire-and-forget notification — failure should not block the response
+        try:
+            send_schedule_published_notification(
+                team_id=req_team_id,
+                year=year,
+                month=month,
+                published_by=current_user.username or current_user.name or 'Admin',
+                synced_count=result.get('synced', 0),
+            )
+        except Exception:
+            pass
         return jsonify({'success': True, **result})
     except Exception as exc:
         return jsonify({'success': False, 'error': str(exc)}), 500
@@ -658,6 +681,10 @@ def api_import_csv():
     f = request.files['file']
     if not f.filename or not f.filename.lower().endswith('.csv'):
         return jsonify({'success': False, 'error': 'Please upload a .csv file'}), 400
+    f.stream.seek(0, 2)
+    if f.stream.tell() > 5 * 1024 * 1024:
+        return jsonify({'success': False, 'error': 'File too large. Maximum size is 5 MB.'}), 413
+    f.stream.seek(0)
 
     try:
         req_team_id = int(request.form.get('team_id', team_id))
@@ -666,7 +693,7 @@ def api_import_csv():
 
     from services.roster_scheduler_service import import_from_csv
     try:
-        result = import_from_csv(f.stream, req_team_id, account_id)
+        result = import_from_csv(f.stream, req_team_id, account_id, created_by_id=current_user.id)
         return jsonify({'success': True, **result})
     except ValueError as exc:
         return jsonify({'success': False, 'error': str(exc)}), 400
@@ -688,6 +715,10 @@ def api_upload_leave_plan():
     f = request.files['file']
     if not f.filename or not f.filename.lower().endswith(('.xlsx', '.xls')):
         return jsonify({'success': False, 'error': 'Please upload an .xlsx or .xls file'}), 400
+    f.stream.seek(0, 2)
+    if f.stream.tell() > 5 * 1024 * 1024:
+        return jsonify({'success': False, 'error': 'File too large. Maximum size is 5 MB.'}), 413
+    f.stream.seek(0)
 
     try:
         req_team_id = int(request.form.get('team_id', team_id))
@@ -698,7 +729,8 @@ def api_upload_leave_plan():
 
     from services.roster_scheduler_service import upload_leave_plan
     try:
-        result = upload_leave_plan(f.stream, req_team_id, account_id, leave_type)
+        result = upload_leave_plan(f.stream, req_team_id, account_id, leave_type,
+                                    created_by_id=current_user.id)
         return jsonify({'success': True, **result})
     except ValueError as exc:
         return jsonify({'success': False, 'error': str(exc)}), 400

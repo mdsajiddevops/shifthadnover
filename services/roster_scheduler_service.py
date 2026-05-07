@@ -53,6 +53,7 @@ def generate_month_schedule(
     month: int,
     overwrite: bool = False,
     dry_run: bool = False,
+    created_by_id: int | None = None,
 ) -> dict:
     """
     Generate shift assignments for all active TeamMembers of team_id for year/month.
@@ -83,16 +84,24 @@ def generate_month_schedule(
         .all()
     )
     if not db_members:
-        return {"assignments": [], "warnings": ["No active team members found."], "dry_run": dry_run}
+        return {"assignments": [], "warnings": ["No active team members found. Add members to this team before generating a schedule."], "dry_run": dry_run}
 
     members = [
         {
             "id": m.id,
             "name": m.name,
-            "scheduling_role": getattr(m, 'scheduling_role', 'support'),
+            "scheduling_role": getattr(m, 'scheduling_role', 'support') or 'support',
+            "lead_shift": getattr(m, 'lead_shift', None) or 'E',
         }
         for m in db_members
     ]
+
+    support_count = sum(1 for m in members if m["scheduling_role"] != "lead")
+    if support_count == 0:
+        return {"assignments": [], "warnings": [
+            f"No support members found — only {len(members)} lead(s) in this team. "
+            "Assign at least one member as 'support' in Scheduler Settings before generating."
+        ], "dry_run": dry_run}
 
     plan = compute_month_plan(
         year=year,
@@ -126,6 +135,7 @@ def generate_month_schedule(
                 shift_date=a["shift_date"],
                 shift_code=a["shift_code"],
                 source='auto',
+                created_by_id=created_by_id,
             )
         db.session.commit()
 
@@ -304,6 +314,7 @@ def update_shift(
     shift_code: str,
     team_id: int,
     account_id: int,
+    created_by_id: int | None = None,
 ) -> dict:
     """
     Manually update (or clear) a single shift cell.
@@ -328,6 +339,7 @@ def update_shift(
             shift_date=shift_date,
             shift_code=shift_code,
             source='manual',
+            created_by_id=created_by_id,
         )
     db.session.commit()
     return {
@@ -348,6 +360,7 @@ def bulk_fill(
     dates: list[date],
     member_ids: list[int] | None = None,
     skip_protected: bool = True,
+    created_by_id: int | None = None,
 ) -> dict:
     """
     Apply shift_code to every member (or a subset) across the given dates.
@@ -391,6 +404,7 @@ def bulk_fill(
                 shift_date=d,
                 shift_code=shift_code,
                 source='manual',
+                created_by_id=created_by_id,
             )
             applied_count += 1
 
@@ -570,11 +584,15 @@ def get_coverage_view(team_id: int, account_id: int, year: int, month: int) -> d
     # Evaluate against requirements
     for code in SHIFT_CODES:
         req = reqs_raw.get(code, 0)
+        try:
+            req_int = int(req) if req != '*' else 0
+        except (ValueError, TypeError):
+            req_int = 0
         for i in range(total_days):
             actual = counts[code][i]
             if actual == 0:
                 status[code][i] = 'empty'
-            elif req == '*' or actual >= int(req):
+            elif req == '*' or actual >= req_int:
                 status[code][i] = 'ok'
             else:
                 status[code][i] = 'short'
@@ -643,7 +661,7 @@ def get_member_summary(team_id: int, account_id: int, year: int, month: int) -> 
 _IMPORT_CODES = {'D', 'E', 'N', 'OCN', 'D/OCN', 'E/OCN', 'N/OCN', 'WMO', 'WEO', 'OS', 'OF', 'VL', 'SL', 'HL', 'CO', 'LE', 'G'}
 
 
-def import_from_csv(stream, team_id: int, account_id: int) -> dict:
+def import_from_csv(stream, team_id: int, account_id: int, created_by_id: int | None = None) -> dict:
     """
     Import shifts from a CSV file stream.
 
@@ -732,6 +750,7 @@ def import_from_csv(stream, team_id: int, account_id: int) -> dict:
             shift_date=shift_date,
             shift_code=shift_code,
             source='import',
+            created_by_id=created_by_id,
         )
         imported += 1
 
@@ -743,7 +762,7 @@ def import_from_csv(stream, team_id: int, account_id: int) -> dict:
 # Leave planner Excel upload
 # ---------------------------------------------------------------------------
 
-def upload_leave_plan(file_stream, team_id: int, account_id: int, leave_type: str = 'VL') -> dict:
+def upload_leave_plan(file_stream, team_id: int, account_id: int, leave_type: str = 'VL', created_by_id: int | None = None) -> dict:
     """
     Parse a leave planner Excel file and create leave entries.
 
@@ -795,12 +814,14 @@ def upload_leave_plan(file_stream, team_id: int, account_id: int, leave_type: st
 
     def _resolve_member(raw_name: str):
         key = raw_name.lower().strip()
+        # 1. Exact match
         if key in name_map:
             return name_map[key]
-        # Try substring match
-        for mkey, m in name_map.items():
-            if key in mkey or mkey in key:
-                return m
+        # 2. Unique prefix/suffix match (only if exactly one member matches)
+        matches = [m for mkey, m in name_map.items()
+                   if key in mkey or mkey in key]
+        if len(matches) == 1:
+            return matches[0]
         return None
 
     def _parse_days(cell_val) -> list[int]:
@@ -812,12 +833,17 @@ def upload_leave_plan(file_stream, team_id: int, account_id: int, leave_type: st
             if '-' in part:
                 bounds = part.split('-')
                 if len(bounds) == 2 and bounds[0].strip().isdigit() and bounds[1].strip().isdigit():
-                    days.extend(range(int(bounds[0]), int(bounds[1]) + 1))
+                    lo = max(1, int(bounds[0]))
+                    hi = min(31, int(bounds[1]))
+                    days.extend(range(lo, hi + 1))
             elif part.isdigit():
-                days.append(int(part))
+                day = int(part)
+                if 1 <= day <= 31:
+                    days.append(day)
         return days
 
     created = 0
+    updated = 0
     skipped = 0
     unmatched: list[str] = []
 
@@ -847,6 +873,7 @@ def upload_leave_plan(file_stream, team_id: int, account_id: int, leave_type: st
                     skipped += 1
                     continue
 
+                is_new = existing is None
                 ScheduledShift.upsert(
                     team_member_id=member.id,
                     team_id=team_id,
@@ -854,11 +881,15 @@ def upload_leave_plan(file_stream, team_id: int, account_id: int, leave_type: st
                     shift_date=d,
                     shift_code=leave_type,
                     source='leave_plan',
+                    created_by_id=created_by_id,
                 )
-                created += 1
+                if is_new:
+                    created += 1
+                else:
+                    updated += 1
 
     db.session.commit()
-    return {'created': created, 'skipped': skipped, 'unmatched': unmatched}
+    return {'created': created, 'updated': updated, 'skipped': skipped, 'unmatched': unmatched}
 
 
 # ---------------------------------------------------------------------------
@@ -946,9 +977,10 @@ def sync_to_shift_roster(
 
     # Build lookup of existing ShiftRoster rows: {(team_member_id, date): row}
     existing_rows = ShiftRoster.query.filter(
-        ShiftRoster.team_id  == team_id,
-        ShiftRoster.date     >= start,
-        ShiftRoster.date     <= end,
+        ShiftRoster.team_id    == team_id,
+        ShiftRoster.account_id == account_id,
+        ShiftRoster.date       >= start,
+        ShiftRoster.date       <= end,
     ).all()
     existing_map: dict[tuple, ShiftRoster] = {
         (r.team_member_id, r.date): r for r in existing_rows

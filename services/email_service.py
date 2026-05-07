@@ -1169,3 +1169,68 @@ This is an automated notification from the Shift Handover System.
             'success': False,
             'error': f'Failed to send follow-up email: {str(e)}'
         }
+
+
+def send_schedule_published_notification(team_id: int, year: int, month: int,
+                                          published_by: str, synced_count: int) -> dict:
+    """
+    Notify team members that the shift schedule for a month has been published.
+    Sends a single digest email to all team members with a valid email address.
+    Silently skips if SMTP is not configured.
+    """
+    import calendar as _cal
+    try:
+        from flask import current_app
+        from flask_mail import Mail, Message
+        from models.models import db, TeamMember
+
+        smtp_server = current_app.config.get('MAIL_SERVER')
+        if not smtp_server:
+            logging.info("[EMAIL_SERVICE] SMTP not configured — skipping schedule publish notification")
+            return {'success': False, 'error': 'SMTP not configured'}
+
+        members = TeamMember.query.filter_by(team_id=team_id, is_active=True).all()
+        recipients = [m.email for m in members if m.email and '@' in m.email]
+        if not recipients:
+            logging.info("[EMAIL_SERVICE] No member emails found — skipping schedule publish notification")
+            return {'success': False, 'error': 'No recipients'}
+
+        month_name = _cal.month_name[month]
+        subject = f"Shift Schedule Published: {month_name} {year}"
+
+        html = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #1e3c72;">Shift Schedule Published</h2>
+            <p>The shift schedule for <strong>{month_name} {year}</strong> has been published to the Shift Roster.</p>
+            <table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Month</strong></td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{month_name} {year}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Published by</strong></td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{published_by}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Shifts synced</strong></td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{synced_count}</td>
+                </tr>
+            </table>
+            <p style="color: #666; font-size: 13px;">Please log in to the Shift Handover app to view your schedule.</p>
+        </div>
+        """
+
+        mail = Mail(current_app)
+        msg = Message(
+            subject=subject,
+            recipients=recipients,
+            html=html,
+            sender=current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@shifthandover'),
+        )
+        mail.send(msg)
+        logging.info(f"[EMAIL_SERVICE] Schedule publish notification sent to {len(recipients)} members")
+        return {'success': True, 'recipients': len(recipients)}
+
+    except Exception as exc:
+        logging.warning(f"[EMAIL_SERVICE] Failed to send schedule publish notification: {exc}")
+        return {'success': False, 'error': str(exc)}

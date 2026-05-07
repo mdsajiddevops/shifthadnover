@@ -133,6 +133,18 @@ table.sum-grid td.name-col { text-align:left; font-weight:600; color:#1e3c72; mi
         </div>
     </div>
 
+    {% if no_account_warning %}
+    <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        No account selected. Please select an account from the top navigation to load teams.
+    </div>
+    {% elif not teams %}
+    <div class="alert alert-info d-flex align-items-center gap-2 mb-3" role="alert">
+        <i class="bi bi-info-circle-fill"></i>
+        No teams found for this account. Create a team first before using the scheduler.
+    </div>
+    {% endif %}
+
     <!-- Controls -->
     <div class="rs-card">
         <form method="get" action="/roster-scheduler" class="row g-2 align-items-end">
@@ -655,6 +667,13 @@ table.sum-grid td.name-col { text-align:left; font-weight:600; color:#1e3c72; mi
         btnExport.href = `/api/roster/export?team_id=${TEAM_ID}&year=${YEAR}&month=${MONTH}`;
     }
 
+    // Escape user-supplied strings before injecting into innerHTML
+    function esc(str) {
+        const d = document.createElement('div');
+        d.appendChild(document.createTextNode(String(str || '')));
+        return d.innerHTML;
+    }
+
     // -----------------------------------------------------------------------
     // Roster grid
     // -----------------------------------------------------------------------
@@ -680,7 +699,7 @@ table.sum-grid td.name-col { text-align:left; font-weight:600; color:#1e3c72; mi
         data.forEach(function(member){
             const isLead = member.scheduling_role === 'lead';
             bodyHtml += '<tr>';
-            bodyHtml += `<td class="name-cell">${isLead ? '<span class="lead-badge">LEAD</span>' : ''}${member.name}</td>`;
+            bodyHtml += `<td class="name-cell">${isLead ? '<span class="lead-badge">LEAD</span>' : ''}${esc(member.name)}</td>`;
             for (let d = 1; d <= days; d++) {
                 const ds   = `${YEAR}-${String(MONTH).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
                 const code = (member.shifts || {})[ds] || '';
@@ -792,7 +811,7 @@ table.sum-grid td.name-col { text-align:left; font-weight:600; color:#1e3c72; mi
         data.forEach(function(m){
             const isLead = m.scheduling_role === 'lead';
             bodyHtml += '<tr>';
-            bodyHtml += `<td class="name-col">${isLead ? '<span class="lead-badge">LEAD</span>' : ''}${m.name}</td>`;
+            bodyHtml += `<td class="name-col">${isLead ? '<span class="lead-badge">LEAD</span>' : ''}${esc(m.name)}</td>`;
             SUM_CODES.forEach(function(code){
                 const val = (m.counts || {})[code] || 0;
                 bodyHtml += `<td class="${val ? 'sum-val' : 'sum-zero'}">${val || '—'}</td>`;

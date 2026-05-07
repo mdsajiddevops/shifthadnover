@@ -126,7 +126,7 @@ def month_seed(year: int, month: int, team_index: int = 0) -> int:
 def compute_month_plan(
     year: int,
     month: int,
-    members: list[dict],  # [{"id": int, "name": str, "scheduling_role": "lead"|"support"}]
+    members: list[dict],  # [{"id": int, "name": str, "scheduling_role": "lead"|"support", "lead_shift": "E"}]
     reqs: dict,           # {"D": int|"*", "E": int|"*", "N": int|"*", "OS": int|"*", "OF": int|"*"}
     holidays: set[int],   # set of day-ints that are public holidays
     existing: dict[int, dict[int, str]],  # {member_id: {day: shift_code}} — protected days
@@ -211,7 +211,7 @@ def compute_month_plan(
                     code = _weekend_assign(day).get(mid, '')
             else:
                 if is_lead:
-                    code = 'E'
+                    code = member.get("lead_shift") or 'E'
                 else:
                     wn = iso_week(d)
                     code = week_assign.get(wn, {}).get(mid, 'E')

@@ -86,7 +86,7 @@ class ShiftRoster(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
     team_member_id = db.Column(db.Integer, db.ForeignKey('team_member.id'), nullable=False)
-    shift_code = db.Column(db.String(8), nullable=True)  # E, D, N, G, LE, VL, HL, CO, or blank
+    shift_code = db.Column(db.String(10), nullable=True)  # E, D, N, G, LE, VL, HL, CO, D/OCN, E/OCN, N/OCN, or blank
     account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
 
@@ -411,7 +411,9 @@ class TeamMember(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)  # Active/Inactive status
     
     # Scheduler role: 'lead' always gets E on weekdays / OFF on weekends; 'support' follows rotation
-    scheduling_role = db.Column(db.String(16), default='support', nullable=True)
+    scheduling_role = db.Column(db.String(16), default='support', nullable=False, server_default='support')
+    # Shift code assigned to leads on weekdays (default 'E', configurable per member)
+    lead_shift = db.Column(db.String(8), default='E', nullable=True)
 
     # Check-in status fields
     availability_status = db.Column(db.String(32), default='offline')  # offline, oncall, online

@@ -159,12 +159,27 @@ def get_next_shift_type(current_shift_type):
 def create_new_shift(date, current_shift_type, next_shift_type, account_id, team_id, action, additional_notes=None):
     """
     Creates a new shift record for each handover submission.
-    This prevents overriding existing shifts and maintains proper data integrity.
+    For draft saves: replaces any existing draft for the same slot to prevent accumulation.
     """
     logger.debug(f"[NEW_SHIFT] Creating new shift: {date} {current_shift_type}→{next_shift_type} (action: '{action}')")
     logger.debug(f"[NEW_SHIFT] Action type: {type(action)}, Will set status to: {'draft' if action == 'draft' else 'sent'}")
-    
-    # Always create a new shift for each handover submission
+
+    # For draft saves, delete any existing draft for the same slot first
+    if action == 'draft':
+        old_drafts = Shift.query.filter_by(
+            date=date,
+            current_shift_type=current_shift_type,
+            next_shift_type=next_shift_type,
+            account_id=account_id,
+            team_id=team_id,
+            status='draft',
+        ).all()
+        for old in old_drafts:
+            db.session.delete(old)
+        if old_drafts:
+            db.session.flush()
+            logger.debug(f"[NEW_SHIFT] Replaced {len(old_drafts)} existing draft(s) for same slot")
+
     new_shift = Shift(
         date=date,
         current_shift_type=current_shift_type,
@@ -176,7 +191,7 @@ def create_new_shift(date, current_shift_type, next_shift_type, account_id, team
         created_at=datetime.now(),
         additional_notes=additional_notes
     )
-    
+
     db.session.add(new_shift)
     
     # Commit immediately to get the ID and ensure it exists
@@ -2594,7 +2609,7 @@ def handover():
         for field in keypoint_fields:
             logger.debug(f"🔥   {field}: {request.form.getlist(field)}")
         
-        # 🔧 CRITICAL FIX: Prevent multiple handover submissions for the same shift
+        # Prevent multiple handover submissions for the same shift (lock row to close race window)
         if action == 'submit':  # Only check for actual submissions, not drafts
             existing_handover = Shift.query.filter_by(
                 date=date,
@@ -2602,9 +2617,9 @@ def handover():
                 next_shift_type=next_shift_type,
                 account_id=account_id,
                 team_id=team_id,
-                status='sent'  # Only check for already submitted handovers
-            ).first()
-            
+                status='sent',
+            ).with_for_update(nowait=False).first()
+
             if existing_handover:
                 logger.debug(f"[DUPLICATE_CHECK] Found existing submitted handover: ID={existing_handover.id}")
                 flash('❌ This shift handover has already been submitted! You cannot submit the same shift handover twice. '

@@ -20,26 +20,26 @@ class SecureConfigManager:
             try:
                 with open(secret_file, 'r') as f:
                     value = f.read().strip()
-                    logging.info(f"✅ Loaded {secret_name} from Docker secret")
+                    logging.info(f"✅ Secret loaded (Docker)")
                     return value
             except Exception as e:
-                logging.error(f"Error reading Docker secret {secret_name}: {e}")
-        
+                logging.error(f"Error reading Docker secret: {e}")
+
         # Try local secrets directory (development/testing)
         local_secret_file = f"./secrets/{secret_name.lower()}"
         if os.path.exists(local_secret_file):
             try:
                 with open(local_secret_file, 'r') as f:
                     value = f.read().strip()
-                    logging.info(f"✅ Loaded {secret_name} from local secrets file")
+                    logging.info(f"✅ Secret loaded (local file)")
                     return value
             except Exception as e:
-                logging.error(f"Error reading local secret {secret_name}: {e}")
-        
+                logging.error(f"Error reading local secret file: {e}")
+
         # Fallback to environment variables for development
         env_value = os.environ.get(secret_name.upper())
         if env_value:
-            logging.info(f"✅ Loaded {secret_name} from environment variable")
+            logging.info(f"✅ Secret loaded (environment)")
             return env_value
         
         # Check if running in development mode
@@ -54,7 +54,7 @@ class SecureConfigManager:
                     try:
                         with open(secret_file_path, 'r') as f:
                             value = f.read().strip()
-                            logging.info(f"✅ Loaded {secret_name} from local secrets file")
+                            logging.info(f"✅ Secret loaded (local file)")
                             return value
                     except Exception as e:
                         logging.warning(f"Could not read local secret file: {e}")
@@ -72,7 +72,7 @@ class SecureConfigManager:
                     try:
                         with open(secret_file_path, 'r') as f:
                             value = f.read().strip()
-                            logging.info(f"✅ Loaded {secret_name} from local secrets file")
+                            logging.info(f"✅ Secret loaded (local file)")
                             return value
                     except Exception as e:
                         logging.warning(f"Could not read local secret file: {e}")
