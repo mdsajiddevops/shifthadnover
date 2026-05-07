@@ -116,10 +116,24 @@ build:
 deploy:
   stage: deploy
   image: alpine:3.19
+  before_script:
+    - apk add --no-cache openssh-client
+    - mkdir -p ~/.ssh
+    - echo "$DEPLOY_SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
   script:
-    - echo "Deploy step - configure DEPLOY_SSH_KEY, DEPLOY_HOST, DEPLOY_USER in CI/CD variables"
+    - ssh "$DEPLOY_USER@$DEPLOY_HOST" "
+        set -e &&
+        cd /opt/shifthandover &&
+        git pull origin master &&
+        docker-compose -f docker-compose.prod.yml pull &&
+        docker-compose -f docker-compose.prod.yml up -d --build &&
+        docker system prune -f --volumes=false
+      "
   rules:
     - if: $CI_COMMIT_BRANCH == "master"
       when: manual
   environment:
     name: production
+    url: https://$APP_DOMAIN

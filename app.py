@@ -224,8 +224,153 @@ db.init_app(app)
 
 # API docs — available at /apidocs
 Swagger(app, template={
-    'info': {'title': 'ShiftHandover API', 'version': '2.0.0'},
-    'securityDefinitions': {'Bearer': {'type': 'apiKey', 'name': 'Authorization', 'in': 'header'}},
+    'swagger': '2.0',
+    'info': {
+        'title': 'ShiftHandover API',
+        'version': '2.0.0',
+        'description': (
+            'REST API for the ShiftHandover multi-team NOC operations platform. '
+            'All endpoints require an authenticated session (cookie-based). '
+            'The app uses Flask blueprints — ~45 route modules covering handovers, '
+            'incidents, rosters, reports, collaboration, and admin functions.'
+        ),
+    },
+    'basePath': '/',
+    'consumes': ['application/json'],
+    'produces': ['application/json'],
+    'securityDefinitions': {
+        'SessionCookie': {
+            'type': 'apiKey',
+            'name': 'session',
+            'in': 'cookie',
+            'description': 'Flask session cookie — obtained by POST /login',
+        }
+    },
+    'security': [{'SessionCookie': []}],
+    'tags': [
+        {'name': 'auth', 'description': 'Login, logout, SSO'},
+        {'name': 'handover', 'description': 'Create, submit, and manage shift handover forms'},
+        {'name': 'incidents', 'description': 'Incident tracking and carryforward'},
+        {'name': 'roster', 'description': 'Shift roster management and scheduler'},
+        {'name': 'reports', 'description': 'Handover and incident reports'},
+        {'name': 'collaboration', 'description': 'Real-time collaborative editing (SSE + YJS)'},
+        {'name': 'admin', 'description': 'User, team, and account administration'},
+        {'name': 'checkin', 'description': 'Shift check-in / check-out'},
+    ],
+    'paths': {
+        '/login': {
+            'post': {
+                'tags': ['auth'],
+                'summary': 'Authenticate user',
+                'parameters': [{'in': 'formData', 'name': 'username', 'type': 'string', 'required': True},
+                               {'in': 'formData', 'name': 'password', 'type': 'string', 'required': True},
+                               {'in': 'formData', 'name': 'csrf_token', 'type': 'string', 'required': True}],
+                'responses': {'302': {'description': 'Redirect to dashboard on success'}},
+            }
+        },
+        '/logout': {
+            'get': {
+                'tags': ['auth'],
+                'summary': 'End session',
+                'responses': {'302': {'description': 'Redirect to login page'}},
+            }
+        },
+        '/api/handovers': {
+            'get': {
+                'tags': ['handover'],
+                'summary': 'List handover records for the active team',
+                'parameters': [
+                    {'in': 'query', 'name': 'team_id', 'type': 'integer'},
+                    {'in': 'query', 'name': 'date', 'type': 'string', 'format': 'date'},
+                ],
+                'responses': {'200': {'description': 'Array of handover records'}},
+            }
+        },
+        '/api/incidents': {
+            'get': {
+                'tags': ['incidents'],
+                'summary': 'List incidents for the active team',
+                'responses': {'200': {'description': 'Array of incident objects'}},
+            },
+            'post': {
+                'tags': ['incidents'],
+                'summary': 'Create a new incident',
+                'parameters': [{'in': 'body', 'name': 'body', 'schema': {
+                    'type': 'object',
+                    'properties': {
+                        'title': {'type': 'string'},
+                        'description': {'type': 'string'},
+                        'status': {'type': 'string', 'enum': ['Open', 'In Progress', 'Resolved', 'Closed']},
+                        'priority': {'type': 'string', 'enum': ['P1', 'P2', 'P3', 'P4']},
+                    },
+                    'required': ['title', 'status'],
+                }}],
+                'responses': {'201': {'description': 'Incident created'}},
+            },
+        },
+        '/api/roster/upload': {
+            'post': {
+                'tags': ['roster'],
+                'summary': 'Upload roster CSV/Excel for a team and month',
+                'consumes': ['multipart/form-data'],
+                'parameters': [
+                    {'in': 'formData', 'name': 'file', 'type': 'file', 'required': True},
+                    {'in': 'formData', 'name': 'team_id', 'type': 'integer', 'required': True},
+                    {'in': 'formData', 'name': 'year', 'type': 'integer', 'required': True},
+                    {'in': 'formData', 'name': 'month', 'type': 'integer', 'required': True},
+                ],
+                'responses': {'200': {'description': 'Upload result with synced count'}},
+            }
+        },
+        '/api/checkin': {
+            'post': {
+                'tags': ['checkin'],
+                'summary': 'Check in for current shift',
+                'responses': {'200': {'description': 'Check-in recorded'}},
+            }
+        },
+        '/api/checkout': {
+            'post': {
+                'tags': ['checkin'],
+                'summary': 'Check out from current shift',
+                'responses': {'200': {'description': 'Check-out recorded'}},
+            }
+        },
+        '/collab/session/{handover_id}': {
+            'get': {
+                'tags': ['collaboration'],
+                'summary': 'Join or resume a collaborative editing session',
+                'parameters': [{'in': 'path', 'name': 'handover_id', 'type': 'integer', 'required': True}],
+                'responses': {'200': {'description': 'Session info and active participants'}},
+            }
+        },
+        '/collab/sse/{handover_id}': {
+            'get': {
+                'tags': ['collaboration'],
+                'summary': 'SSE stream for real-time collaborative editing events',
+                'parameters': [{'in': 'path', 'name': 'handover_id', 'type': 'integer', 'required': True}],
+                'produces': ['text/event-stream'],
+                'responses': {'200': {'description': 'Continuous SSE event stream'}},
+            }
+        },
+        '/health': {
+            'get': {
+                'tags': ['admin'],
+                'summary': 'Health check — returns 200 if app is running',
+                'security': [],
+                'responses': {'200': {'description': 'OK'}},
+            }
+        },
+        '/metrics': {
+            'get': {
+                'tags': ['admin'],
+                'summary': 'Prometheus metrics endpoint',
+                'security': [],
+                'produces': ['text/plain'],
+                'responses': {'200': {'description': 'Prometheus exposition format metrics'}},
+            }
+        },
+    },
 })
 
 # Prometheus metrics — available at /metrics
