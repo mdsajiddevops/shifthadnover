@@ -982,14 +982,16 @@ def edit_handover(shift_id):
             'title': title,
             'app_name': app_name,
             'priority': getattr(incident, 'priority', 'Medium'),
-            'description': description_content,  # Use handover field primarily, fallback to description
+            'short_desc': getattr(incident, 'description', '') or '',
+            'description': description_content,
             'assigned_to': assigned_to_name,
             'status': incident_status,
-            'resolution': resolution_content,  # For closed incidents
-            'escalated_to': escalated_to_content,  # For escalated incidents
-            'impact': impact_content,  # For priority incidents
-            'next_action_by': next_action_by_content,  # For handover incidents
-            'notes': notes_content  # For handover incidents
+            'resolution': resolution_content,
+            'escalated_to': escalated_to_content,
+            'impact': impact_content,
+            'next_action_by': next_action_by_content,
+            'notes': notes_content,
+            'incident_type': incident_type,  # used by edit mode JS to set status dropdown
         }
         
         # ✅ FIX: Add additional fields for Escalated incidents
@@ -1053,48 +1055,22 @@ def edit_handover(shift_id):
         from werkzeug.datastructures import MultiDict
         mutable_form = MultiDict(request.form)
 
-        # Merge draft incidents into form data
-        # Group by incident type
-        incident_type_mapping = {
-            'Open': 'open',
-            'Closed': 'closed',
-            'Priority': 'priority',
-            'Handover': 'handover',
-            'Escalated': 'escalated'
-        }
-
+        # Merge draft incidents into unified form fields
         for draft_inc in collab_draft_incidents:
             inc_type = draft_inc.incident_type or 'Open'
-            prefix = incident_type_mapping.get(inc_type, 'open')
+            inc_id   = draft_inc.incident_id or draft_inc.title or ''
 
-            # Check if this incident is already in form (by incident_id)
-            existing_ids = mutable_form.getlist(f'{prefix}_incident_id[]')
-            inc_id = draft_inc.incident_id or draft_inc.title or ''
-
+            existing_ids = mutable_form.getlist('incident_id[]')
             if inc_id not in existing_ids:
-                # Add this collaborative draft to form data
-                mutable_form.add(f'{prefix}_incident_id[]', inc_id)
-                mutable_form.add(f'{prefix}_incident_app[]', draft_inc.app_name or '')
-                mutable_form.add(f'{prefix}_incident_priority[]', draft_inc.priority or 'Medium')
-                mutable_form.add(f'{prefix}_incident_description[]', draft_inc.description or '')
-                mutable_form.add(f'{prefix}_incident_assigned[]', str(draft_inc.assigned_to_id) if draft_inc.assigned_to_id else '')
-
-                # Type-specific fields
-                if inc_type == 'Closed':
-                    mutable_form.add(f'{prefix}_incident_resolution[]', draft_inc.resolution or draft_inc.description or '')
-                elif inc_type == 'Escalated':
-                    mutable_form.add(f'{prefix}_incident_level[]', 'L2')
-                    mutable_form.add(f'{prefix}_incident_to[]', str(draft_inc.escalated_to_id) if draft_inc.escalated_to_id else '')
-                    mutable_form.add(f'{prefix}_incident_reason[]', draft_inc.description or '')
-                    mutable_form.add(f'{prefix}_incident_status[]', draft_inc.status or 'Escalated')
-                elif inc_type == 'Handover':
-                    mutable_form.add(f'{prefix}_incident_status[]', draft_inc.status or 'Monitoring')
-                    mutable_form.add(f'{prefix}_incident_notes[]', draft_inc.description or '')
-                    mutable_form.add(f'{prefix}_incident_next_by[]', str(draft_inc.assigned_to_id) if draft_inc.assigned_to_id else '')
-                elif inc_type == 'Priority':
-                    mutable_form.add(f'{prefix}_incident_level[]', draft_inc.priority or 'High')
-                    mutable_form.add(f'{prefix}_incident_impact[]', draft_inc.description or '')
-
+                mutable_form.add('incident_id[]',          inc_id)
+                mutable_form.add('incident_app[]',         draft_inc.app_name or '')
+                mutable_form.add('incident_short_desc[]',  draft_inc.description or '')
+                mutable_form.add('incident_status[]',      inc_type)
+                mutable_form.add('incident_priority[]',    draft_inc.priority or 'Medium')
+                mutable_form.add('incident_assigned[]',    str(draft_inc.assigned_to_id) if draft_inc.assigned_to_id else '')
+                mutable_form.add('incident_escalated_to[]', str(draft_inc.escalated_to_id) if draft_inc.escalated_to_id else '')
+                mutable_form.add('incident_notes[]',       draft_inc.description or '')
+                mutable_form.add('incident_carried_id[]',  '')
                 logger.debug(f"🔄 MERGED draft incident: {inc_id} ({inc_type}) from user {draft_inc.created_by_id}")
 
         # Merge draft keypoints into form data
@@ -1323,11 +1299,82 @@ def edit_handover(shift_id):
         )
         # Don't commit yet - this was causing session loss during incident processing
         
+        def add_incident_unified_edit():
+            """Unified incident handler for edit_handover POST — reads the new unified form fields."""
+            app_names      = request.form.getlist('incident_app[]')
+            incident_ids   = request.form.getlist('incident_id[]')
+            short_descs    = request.form.getlist('incident_short_desc[]')
+            statuses       = request.form.getlist('incident_status[]')
+            priorities     = request.form.getlist('incident_priority[]')
+            assigned_list  = request.form.getlist('incident_assigned[]')
+            escalated_list = request.form.getlist('incident_escalated_to[]')
+            notes_list     = request.form.getlist('incident_notes[]')
+            carried_ids    = request.form.getlist('incident_carried_id[]')
+
+            logger.debug(f"🔧 EDIT UNIFIED INCIDENTS: {len(app_names)} entries")
+
+            _ts = {
+                'Open':('Open','Active'), 'Handover':('Handover','Active'),
+                'Priority':('Priority','Active'), 'Escalated':('Escalated','Escalated'),
+                'Closed':('Closed','Closed'),
+            }
+            for i in range(len(app_names)):
+                app_name = app_names[i].strip()   if i < len(app_names)      else ''
+                inc_id   = incident_ids[i].strip() if i < len(incident_ids)   else ''
+                if not app_name and not inc_id:
+                    continue
+                sc = statuses[i] if i < len(statuses) else 'Open'
+                inc_type, db_status = _ts.get(sc, ('Open','Active'))
+                full_title    = f"{app_name} - {inc_id}".strip(' -') if inc_id else app_name
+                short_desc    = short_descs[i]    if i < len(short_descs)    else ''
+                priority_val  = priorities[i]     if i < len(priorities)     else 'Medium'
+                assigned_val  = assigned_list[i]  if i < len(assigned_list)  else ''
+                escalated_val = escalated_list[i] if i < len(escalated_list) else ''
+                notes_val     = notes_list[i]     if i < len(notes_list)     else ''
+                carried_val   = carried_ids[i].strip() if i < len(carried_ids) else ''
+
+                incident = Incident(
+                    title=full_title, status=db_status, priority=priority_val,
+                    assigned_to=assigned_val, escalated_to=escalated_val,
+                    description=short_desc, handover=notes_val,
+                    shift_id=shift.id, type=inc_type,
+                    account_id=shift.account_id, team_id=shift.team_id,
+                    is_resolved=(inc_type == 'Closed'),
+                )
+                db.session.add(incident)
+
+                if carried_val:
+                    try:
+                        src = Incident.query.get(int(carried_val))
+                        if src:
+                            src.is_resolved = True
+                            src.resolved_at = datetime.utcnow()
+                    except (ValueError, TypeError):
+                        pass
+
+                if inc_type in ('Open', 'Handover', 'Priority') and assigned_val:
+                    try:
+                        hr = HandoverRequest.query.filter_by(shift_id=shift.id).first()
+                        if not hr:
+                            hr = HandoverRequest(shift_id=shift.id, account_id=shift.account_id, team_id=shift.team_id, created_at=datetime.now())
+                            db.session.add(hr)
+                            db.session.flush()
+                        create_enhanced_incident_assignment(
+                            incident_title=full_title, incident_description=notes_val,
+                            incident_priority=priority_val, assigned_to_name=assigned_val,
+                            account_id=shift.account_id, team_id=shift.team_id,
+                            handover_context=f"Assigned during {shift.current_shift_type} to {shift.next_shift_type} handover on {shift.date}",
+                            handover_request_id=hr.id
+                        )
+                    except Exception as e:
+                        logger.debug(f"[EDIT ASSIGNMENT] Error: {e}")
+
+        # Legacy stub — kept so any remaining code references don't raise NameError
         def add_incident(field_prefix, inc_type):
             # Handle different incident types with their specific fields
             incident_ids = request.form.getlist(f'{field_prefix}_incident_id[]')
-            
-            logger.debug(f"🔧 PROCESSING {inc_type} INCIDENTS:")
+
+            logger.debug(f"🔧 PROCESSING {inc_type} INCIDENTS (LEGACY — should not be called):")
             logger.debug(f"   Found {len(incident_ids)} incident IDs for type '{inc_type}'")
             logger.debug(f"   🔍 DEBUG: Raw incident_ids = {incident_ids}")
             logger.debug(f"   🔍 DEBUG: Field prefix = '{field_prefix}'")
@@ -1561,13 +1608,9 @@ def edit_handover(shift_id):
         for incident in existing_incidents:
             db.session.delete(incident)
         
-        # Now create ALL incident types from current form data
-        logger.debug(f"   Creating ALL incident types from form data")
-        add_incident('open', 'Open')
-        add_incident('closed', 'Closed')
-        add_incident('priority', 'Priority')
-        add_incident('handover', 'Handover')
-        add_incident('escalated', 'Escalated')
+        # Now create ALL incidents from unified form section
+        logger.debug(f"   Creating ALL incidents from unified form data")
+        add_incident_unified_edit()
         # 🔧 CRITICAL FIX: Always process keypoints in edit mode (they should be updated)
         # Process key points - fix field name mismatch
         key_point_descriptions = request.form.getlist('keypoint_description[]')
@@ -2989,242 +3032,97 @@ def handover():
         logger.debug(f"[CRITICAL DEBUG] action = {action}")
         logger.debug(f"[CRITICAL DEBUG] Form keys: {list(request.form.keys())[:10]}...")  # First 10 keys
         
-        # Add incidents - using detailed form structure
-        def add_detailed_incident(field_prefix, inc_type):
-            logger.debug(f"=== Processing incidents for {field_prefix} ({inc_type}) ===")
-            
-            # 🛡️ BULLETPROOF: Use the shift object that was already created by the main function
+        # Add incidents — unified form (single section, all types via incident_status dropdown)
+        def add_unified_incident():
+            logger.debug("=== Processing unified incidents ===")
             shift_id_to_use = shift.id
-            logger.debug(f"[SAFETY] Using main function's shift ID: {shift_id_to_use}")
-            
-            # Get arrays for each field type
-            app_names = request.form.getlist(f'{field_prefix}_app[]')
-            incident_ids = request.form.getlist(f'{field_prefix}_id[]')
-            carried_ids = request.form.getlist(f'{field_prefix}_carried_id[]')
-            
-            logger.debug(f"Found {len(app_names)} app names: {app_names}")
-            logger.debug(f"Found {len(incident_ids)} incident IDs: {incident_ids}")
-            logger.debug(f"Will use shift_id: {shift_id_to_use}")
-            
-            # Handle specific fields for each incident type
-            if inc_type == 'Open':
-                priorities = request.form.getlist(f'{field_prefix}_priority[]')
-                assigned_to = request.form.getlist(f'{field_prefix}_assigned[]')
-                descriptions = request.form.getlist(f'{field_prefix}_description[]')
-                
-                logger.debug(f"Open incident fields - priorities: {priorities}, assigned: {assigned_to}, descriptions: {descriptions}")
-                
-                for i in range(len(app_names)):
-                    if i < len(incident_ids) and (app_names[i].strip() or incident_ids[i].strip()):
-                        logger.debug(f"Creating open incident {i+1}: {app_names[i]} - {incident_ids[i]}")
-                        full_title = f"{app_names[i]} - {incident_ids[i]}".strip(' -')
-                        incident = Incident(
-                            title=full_title,
-                            status='Active',
-                            priority=priorities[i] if i < len(priorities) else 'Medium',
-                            assigned_to=assigned_to[i] if i < len(assigned_to) else '',
-                            description=descriptions[i] if i < len(descriptions) else '',
-                            shift_id=shift_id_to_use,
-                            type='Open',
-                            account_id=account_id,
-                            team_id=team_id
-                        )
-                        db.session.add(incident)
-                        logger.debug(f"Added open incident to session: {incident}")
-                        logger.debug(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
 
-                        # Mark original as resolved if this was carried forward from a previous shift
-                        if i < len(carried_ids) and carried_ids[i].strip():
-                            try:
-                                src = Incident.query.get(int(carried_ids[i]))
-                                if src:
-                                    src.is_resolved = True
-                                    src.resolved_at = datetime.utcnow()
-                                    logger.debug(f"[CARRYFORWARD] Marked source incident {src.id} as resolved")
-                            except (ValueError, TypeError):
-                                pass
+            app_names      = request.form.getlist('incident_app[]')
+            incident_ids   = request.form.getlist('incident_id[]')
+            short_descs    = request.form.getlist('incident_short_desc[]')
+            statuses       = request.form.getlist('incident_status[]')
+            priorities     = request.form.getlist('incident_priority[]')
+            assigned_list  = request.form.getlist('incident_assigned[]')
+            escalated_list = request.form.getlist('incident_escalated_to[]')
+            notes_list     = request.form.getlist('incident_notes[]')
+            carried_ids    = request.form.getlist('incident_carried_id[]')
 
-                        # Create incident assignment if an engineer is assigned
-                        assigned_engineer = assigned_to[i] if i < len(assigned_to) and assigned_to[i].strip() else None
-                        if assigned_engineer:
-                            try:
-                                logger.debug(f"[DEBUG] Creating enhanced assignment for: {full_title} → {assigned_engineer}")
-                                success = create_enhanced_incident_assignment(
-                                    incident_title=full_title,
-                                    incident_description=descriptions[i] if i < len(descriptions) else '',
-                                    incident_priority=priorities[i] if i < len(priorities) else 'Medium',
-                                    assigned_to_name=assigned_engineer,
-                                    account_id=account_id,
-                                    team_id=team_id,
-                                    handover_context=f"Assigned during {current_shift_type} to {next_shift_type} handover on {date}",
-                                    handover_request_id=shift_id_to_use  # Link to the handover_request we created
-                                )
-                                if success:
-                                    logger.debug(f"[DEBUG] ✅ Successfully created assignment: {full_title} → {assigned_engineer}")
-                                else:
-                                    logger.debug(f"[DEBUG] ❌ Failed to create assignment: {full_title} → {assigned_engineer}")
-                            except Exception as e:
-                                logger.debug(f"[DEBUG] ❌ Error creating assignment: {str(e)}")
-                        
-            elif inc_type == 'Closed':
-                resolutions = request.form.getlist(f'{field_prefix}_resolution[]')
+            logger.debug(f"Found {len(app_names)} unified incident entries; shift_id={shift_id_to_use}")
 
-                logger.debug(f"Closed incident fields - resolutions: {resolutions}")
+            _type_status = {
+                'Open':      ('Open',      'Active'),
+                'Handover':  ('Handover',  'Active'),
+                'Priority':  ('Priority',  'Active'),
+                'Escalated': ('Escalated', 'Escalated'),
+                'Closed':    ('Closed',    'Closed'),
+            }
 
-                for i in range(len(app_names)):
-                    if i < len(incident_ids) and (app_names[i].strip() or incident_ids[i].strip()):
-                        logger.debug(f"Creating closed incident {i+1}: {app_names[i]} - {incident_ids[i]}")
-                        incident = Incident(
-                            title=f"{app_names[i]} - {incident_ids[i]}".strip(' -'),
-                            status='Closed',
-                            priority='Medium',  # Default priority for closed incidents
-                            description=resolutions[i] if i < len(resolutions) else '',
-                            shift_id=shift_id_to_use,
-                            type='Closed',
+            for i in range(len(app_names)):
+                app_name = app_names[i].strip() if i < len(app_names) else ''
+                inc_id   = incident_ids[i].strip() if i < len(incident_ids) else ''
+                if not app_name and not inc_id:
+                    continue
+
+                status_choice  = statuses[i]       if i < len(statuses)       else 'Open'
+                inc_type, db_status = _type_status.get(status_choice, ('Open', 'Active'))
+                full_title     = f"{app_name} - {inc_id}".strip(' -') if inc_id else app_name
+                short_desc     = short_descs[i]    if i < len(short_descs)    else ''
+                priority_val   = priorities[i]     if i < len(priorities)     else 'Medium'
+                assigned_val   = assigned_list[i]  if i < len(assigned_list)  else ''
+                escalated_val  = escalated_list[i] if i < len(escalated_list) else ''
+                notes_val      = notes_list[i]     if i < len(notes_list)     else ''
+                carried_val    = carried_ids[i].strip() if i < len(carried_ids) else ''
+
+                incident = Incident(
+                    title=full_title,
+                    status=db_status,
+                    priority=priority_val,
+                    assigned_to=assigned_val,
+                    escalated_to=escalated_val,
+                    description=short_desc,
+                    handover=notes_val,
+                    shift_id=shift_id_to_use,
+                    type=inc_type,
+                    account_id=account_id,
+                    team_id=team_id,
+                    is_resolved=(inc_type == 'Closed'),
+                )
+                db.session.add(incident)
+                logger.debug(f"Added {inc_type} incident: {full_title}")
+
+                # Mark source incident resolved when carried forward
+                if carried_val:
+                    try:
+                        src = Incident.query.get(int(carried_val))
+                        if src:
+                            src.is_resolved = True
+                            src.resolved_at = datetime.utcnow()
+                    except (ValueError, TypeError):
+                        pass
+
+                # Incident assignment notification for assigned engineers
+                if inc_type in ('Open', 'Handover', 'Priority') and assigned_val:
+                    try:
+                        create_enhanced_incident_assignment(
+                            incident_title=full_title,
+                            incident_description=notes_val,
+                            incident_priority=priority_val,
+                            assigned_to_name=assigned_val,
                             account_id=account_id,
                             team_id=team_id,
-                            is_resolved=True
+                            handover_context=f"Assigned during {current_shift_type} to {next_shift_type} handover on {date}",
+                            handover_request_id=shift_id_to_use
                         )
-                        db.session.add(incident)
+                    except Exception as e:
+                        logger.debug(f"[ASSIGNMENT] Error: {e}")
 
-                        # Mark original as resolved if this closed incident was carried forward
-                        if i < len(carried_ids) and carried_ids[i].strip():
-                            try:
-                                src = Incident.query.get(int(carried_ids[i]))
-                                if src:
-                                    src.is_resolved = True
-                                    src.resolved_at = datetime.utcnow()
-                                    logger.debug(f"[CARRYFORWARD] Marked source incident {src.id} resolved (moved to Closed)")
-                            except (ValueError, TypeError):
-                                pass
-                        logger.debug(f"Added closed incident to session: {incident}")
-                        logger.debug(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
-                        
-            elif inc_type == 'Priority':
-                levels = request.form.getlist(f'{field_prefix}_level[]')
-                escalated_to = request.form.getlist(f'{field_prefix}_escalated[]')
-                impacts = request.form.getlist(f'{field_prefix}_impact[]')
-                
-                logger.debug(f"Priority incident fields - levels: {levels}, escalated: {escalated_to}, impacts: {impacts}")
-                
-                for i in range(len(app_names)):
-                    if i < len(incident_ids) and (app_names[i].strip() or incident_ids[i].strip()):
-                        logger.debug(f"Creating priority incident {i+1}: {app_names[i]} - {incident_ids[i]}")
-                        incident = Incident(
-                            title=f"{app_names[i]} - {incident_ids[i]}".strip(' -'),
-                            status='Active',
-                            priority=levels[i] if i < len(levels) else 'High',
-                            escalated_to=escalated_to[i] if i < len(escalated_to) else '',
-                            description=impacts[i] if i < len(impacts) else '',
-                            shift_id=shift_id_to_use,
-                            type='Priority',
-                            account_id=account_id,
-                            team_id=team_id
-                        )
-                        db.session.add(incident)
-                        logger.debug(f"Added priority incident to session: {incident}")
-                        logger.debug(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
-                        
-            elif inc_type == 'Handover':
-                statuses = request.form.getlist(f'{field_prefix}_status[]')
-                next_by = request.form.getlist(f'{field_prefix}_next_by[]')
-                notes = request.form.getlist(f'{field_prefix}_notes[]')
-                
-                logger.debug(f"Handover incident fields - statuses: {statuses}, next_by: {next_by}, notes: {notes}")
-                
-                for i in range(len(app_names)):
-                    if i < len(incident_ids) and (app_names[i].strip() or incident_ids[i].strip()):
-                        logger.debug(f"Creating handover incident {i+1}: {app_names[i]} - {incident_ids[i]}")
-                        full_title = f"{app_names[i]} - {incident_ids[i]}".strip(' -')
-                        incident = Incident(
-                            title=full_title,
-                            status=statuses[i] if i < len(statuses) else 'Active',
-                            priority='Medium',  # Default priority for handover incidents
-                            assigned_to=next_by[i] if i < len(next_by) else '',  # Store "next action by" in assigned_to
-                            description=notes[i] if i < len(notes) else '',
-                            handover=notes[i] if i < len(notes) else '',  # Store notes in handover field
-                            shift_id=shift_id_to_use,
-                            type='Handover',
-                            account_id=account_id,
-                            team_id=team_id
-                        )
-                        db.session.add(incident)
-                        logger.debug(f"Added handover incident to session: {incident}")
-                        logger.debug(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
+            logger.debug("=== Finished unified incident processing ===")
 
-                        # Mark original as resolved if this was carried forward from a previous shift
-                        if i < len(carried_ids) and carried_ids[i].strip():
-                            try:
-                                src = Incident.query.get(int(carried_ids[i]))
-                                if src:
-                                    src.is_resolved = True
-                                    src.resolved_at = datetime.utcnow()
-                                    logger.debug(f"[CARRYFORWARD] Marked source handover incident {src.id} as resolved")
-                            except (ValueError, TypeError):
-                                pass
-
-                        # Create incident assignment if next action engineer is assigned
-                        next_action_by = next_by[i] if i < len(next_by) and next_by[i].strip() else None
-                        if next_action_by:
-                            try:
-                                logger.debug(f"[DEBUG] Creating enhanced assignment for handover: {full_title} → {next_action_by}")
-                                success = create_enhanced_incident_assignment(
-                                    incident_title=full_title,
-                                    incident_description=notes[i] if i < len(notes) else '',
-                                    incident_priority='Medium',
-                                    assigned_to_name=next_action_by,
-                                    account_id=account_id,
-                                    team_id=team_id,
-                                    handover_context=f"Handover incident from {current_shift_type} to {next_shift_type} shift on {date}",
-                                    handover_request_id=shift_id_to_use  # Link to the handover_request we created
-                                )
-                                if success:
-                                    logger.debug(f"[DEBUG] ✅ Successfully created handover assignment: {full_title} → {next_action_by}")
-                                else:
-                                    logger.debug(f"[DEBUG] ❌ Failed to create handover assignment: {full_title} → {next_action_by}")
-                            except Exception as e:
-                                logger.debug(f"[DEBUG] ❌ Error creating handover assignment: {str(e)}")
-                        
-            elif inc_type == 'Escalated':
-                escalated_to = request.form.getlist(f'{field_prefix}_to[]')
-                escalation_reasons = request.form.getlist(f'{field_prefix}_reason[]')
-                current_statuses = request.form.getlist(f'{field_prefix}_status[]')
-                
-                logger.debug(f"Escalated incident fields - escalated_to: {escalated_to}, escalation_reasons: {escalation_reasons}, current_statuses: {current_statuses}")
-                
-                for i in range(len(app_names)):
-                    if i < len(incident_ids) and (app_names[i].strip() or incident_ids[i].strip()):
-                        logger.debug(f"Creating escalated incident {i+1}: {app_names[i]} - {incident_ids[i]}")
-                        # Truncate status to fit database column (VARCHAR(16))
-                        status_value = current_statuses[i] if i < len(current_statuses) else 'Escalated'
-                        status_truncated = status_value[:16] if status_value else 'Escalated'
-                        
-                        incident = Incident(
-                            title=f"{app_names[i]} - {incident_ids[i]}".strip(' -'),
-                            status=status_truncated,  # Truncated to 16 characters
-                            priority='High',  # Default priority for escalated incidents
-                            escalated_to=escalated_to[i] if i < len(escalated_to) else '',  # This field exists
-                            description=escalation_reasons[i] if i < len(escalation_reasons) else '',  # Store escalation reason in description
-                            shift_id=shift_id_to_use,
-                            type='Escalated',
-                            account_id=account_id,
-                            team_id=team_id
-                        )
-                        db.session.add(incident)
-                        logger.debug(f"Added escalated incident to session: {incident}")
-                        logger.debug(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
-            
-            logger.debug(f"=== Finished processing {field_prefix} ({inc_type}) ===")
-        
-        # Process all incident types
+        # Process all incidents from unified form section
         import time
         incidents_start_time = time.time()
-        logger.debug("=== PROCESSING INCIDENTS ===")
-        add_detailed_incident('open_incident', 'Open')
-        add_detailed_incident('closed_incident', 'Closed') 
-        add_detailed_incident('priority_incident', 'Priority')
-        add_detailed_incident('handover_incident', 'Handover')
-        add_detailed_incident('escalated_incident', 'Escalated')
+        logger.debug("=== PROCESSING INCIDENTS (unified) ===")
+        add_unified_incident()
         incidents_time = time.time() - incidents_start_time
         logger.debug(f"[DEBUG] Incident processing took {incidents_time:.2f} seconds")
         
