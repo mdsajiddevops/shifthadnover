@@ -23,6 +23,8 @@ __pycache__/
 .env
 .env.local
 .env.production
+.env.domain
+.env.http-only
 
 # Database
 *.db
@@ -71,3 +73,11 @@ local_shifthandover.db
 
 # Local dev helper scripts output
 init_local.sql
+
+# Dev/design artifacts — not part of production source
+archive/
+mockups/
+_dev_cleanup/
+
+# Playwright MCP
+.playwright-mcp/

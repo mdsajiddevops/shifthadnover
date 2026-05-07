@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Run ruff
+        run: ruff check . --select E,F,W --ignore E501 --exclude migrations/,migration/,archive/,mockups/
+        continue-on-error: true
+
+  test:
+    name: Import & smoke test
+    runs-on: ubuntu-latest
+    env:
+      LOCAL_DEVELOPMENT: "true"
+      DATABASE_URL: "sqlite:///test_shifthandover.db"
+      FLASK_SECRET_KEY: "ci-test-secret-key"
+      SECRETS_MASTER_KEY: "ci-test-master-key-32chars-padding"
+      SSO_ENCRYPTION_KEY: "ci-test-sso-encryption-key-32chr"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: App factory smoke test
+        run: python -c "from app import create_app; app = create_app(); print('OK')"
