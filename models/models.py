@@ -498,7 +498,7 @@ class Incident(db.Model):
     priority = db.Column(db.String(16), nullable=False)
     handover = db.Column(db.Text)
     shift_id = db.Column(db.Integer, db.ForeignKey('shift.id'))
-    type = db.Column(db.String(32), nullable=False) # Active, Closed, Priority, Handover
+    type = db.Column(db.String(32), nullable=False) # Open, Closed, Priority, Escalated, Handover
     account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
     # Enhanced fields for detailed incident tracking
