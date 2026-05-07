@@ -133,3 +133,16 @@ See **`DATABASE_TABLES_REFERENCE.md`** for the full table catalogue.
 | `APP_DOMAIN` / `APP_BASE_URL` | OAuth redirect URIs |
 
 Required secret files for local dev (in `secrets/`): `flask_secret_key`, `database_url`, `sso_encryption_key`, `secrets_master_key`, `mysql_password`, `smtp_username`, `smtp_password`.
+
+---
+
+## Repository Structure
+
+This project uses two repositories:
+
+| Repository | Purpose |
+|------------|---------|
+| `git.garage.epam.com/shift-handover-automation/shifthandover_v3` | **Primary** — internal EPAM GitLab. All development, MRs, and CI/CD pipelines run here. |
+| `github.com/mdsajiddevops/shifthadnover` | **Public mirror** — GitHub copy for external visibility. Pushed from the `develop` branch of the primary repo. Do not raise PRs here. |
+
+**All contributions must go through the GitLab repository.** The GitHub repo is a read-only public mirror and is not the development source of truth.

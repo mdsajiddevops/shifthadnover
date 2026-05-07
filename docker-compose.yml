@@ -2,7 +2,6 @@
 # This file uses Docker secrets for secure credential management
 # Works for both local development and production deployment
 
-version: '3.7'
 
 services:
   # MySQL Database Service
