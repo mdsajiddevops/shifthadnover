@@ -185,17 +185,49 @@ docker ps | grep shift-web
 
 ## Rollback Plan
 
+**Production deployments are triggered manually** (`when: manual` in GitLab CI) as a deliberate safety gate for this 24x7 NOC platform. This ensures a human reviews the deploy at the time it fires, not just when the MR was merged.
+
+### Step-by-step rollback
+
 ```bash
+# 1. Identify the last known-good commit
 cd ~/shifthandover_v3/
+git log --oneline -10
+
+# 2. Take a safety backup before rollback (belt-and-suspenders)
+docker exec shift-db mysqldump -u root -prootpassword \
+    --single-transaction shifthandover | gzip > ~/backups/db/pre_rollback_$(date +%Y%m%d_%H%M%S).sql.gz
+
+# 3. Roll back the code
 docker-compose -f docker-compose.prod.yml down
-git checkout e3cba06          # previous prod commit
+git checkout <previous-good-commit>        # e.g. git checkout abc1234
+
+# 4. Rebuild and restart
 docker-compose -f docker-compose.prod.yml up -d --build
 
-# Restore DB if needed (only if columns cause issues — unlikely since they're additive)
-docker exec -i shift-db mysql -u root -prootpassword shifthandover < ~/backup_before_deploy_<timestamp>.sql
+# 5. Verify the app is healthy
+curl -s http://localhost:5000/health
+docker-compose -f docker-compose.prod.yml logs web --tail=50
 ```
 
-> The new columns (`is_resolved`, `resolved_at`, `scheduling_role`, `lead_shift`) are all additive with safe defaults — rolling back the code while leaving them in place is harmless.
+### DB restore (only if schema change caused the failure)
+
+```bash
+# Restore from the pre-deploy backup taken in Step 2 of deployment
+BACKUP=~/backups/db/pre_rollback_<timestamp>.sql.gz
+zcat $BACKUP | docker exec -i shift-db mysql -u root -prootpassword shifthandover
+```
+
+> **Additive columns are safe to leave:** columns like `is_resolved`, `resolved_at`, `scheduling_role`, `lead_shift` are nullable with defaults — rolling back the code while leaving them in the DB is harmless and avoids a DB restore entirely.
+
+### Rollback decision matrix
+
+| Issue | Code rollback | DB restore needed? |
+|-------|--------------|-------------------|
+| App crashes on startup | Yes | No (unless migration ran) |
+| Feature behaves incorrectly | Yes | Rarely |
+| Migration added a bad column | Yes | Yes |
+| Data corruption detected | Yes | Yes — restore immediately |
 
 ---
 

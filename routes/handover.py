@@ -417,7 +417,45 @@ def create_enhanced_incident_assignment(incident_title, incident_description, in
 @handover_bp.route('/api/get_servicenow_incidents', methods=['GET'])
 @login_required
 def get_servicenow_incidents():
-    """Fetch ServiceNow incidents for the current shift to auto-populate handover form"""
+    """Fetch open ServiceNow incidents for auto-populating the handover form.
+    ---
+    tags:
+      - handover
+    security:
+      - SessionCookie: []
+    parameters:
+      - in: query
+        name: shift_type
+        type: string
+        description: Shift code (e.g. Morning, Evening, Night)
+        default: Evening
+      - in: query
+        name: date
+        type: string
+        format: date
+        description: Date in YYYY-MM-DD format (defaults to today)
+    responses:
+      200:
+        description: List of open ServiceNow incidents
+        schema:
+          type: object
+          properties:
+            incidents:
+              type: array
+              items:
+                type: object
+                properties:
+                  number:
+                    type: string
+                  short_description:
+                    type: string
+                  priority:
+                    type: string
+                  state:
+                    type: string
+      503:
+        description: ServiceNow integration not configured
+    """
     try:
         # Get shift parameters
         shift_type = request.args.get('shift_type', 'Evening')  # Default to Evening
@@ -526,6 +564,52 @@ def get_servicenow_incidents():
 @handover_bp.route('/api/get_engineers', methods=['GET'])
 @login_required
 def get_engineers():
+    """Get engineers rostered for a given shift date and type.
+    ---
+    tags:
+      - handover
+    security:
+      - SessionCookie: []
+    parameters:
+      - in: query
+        name: date
+        type: string
+        format: date
+        required: true
+        description: Date in YYYY-MM-DD format
+      - in: query
+        name: shift_type
+        type: string
+        required: true
+        description: Shift code (Morning, Evening, Night)
+      - in: query
+        name: current_shift_type
+        type: string
+        description: Current shift code for next-shift resolution
+      - in: query
+        name: is_next_shift
+        type: boolean
+        default: false
+    responses:
+      200:
+        description: List of engineers on shift
+        schema:
+          type: object
+          properties:
+            engineers:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+                  role:
+                    type: string
+      400:
+        description: Missing or invalid date/shift_type parameter
+    """
     date_str = request.args.get('date')
     shift_type = request.args.get('shift_type')
     current_shift_type = request.args.get('current_shift_type')  # New parameter

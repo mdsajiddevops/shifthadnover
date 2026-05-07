@@ -14,7 +14,42 @@ checkin_bp = Blueprint('checkin', __name__)
 @checkin_bp.route('/api/checkin', methods=['POST'])
 @login_required
 def checkin():
-    """Handle team member check-in"""
+    """Record a shift check-in for the current user.
+    ---
+    tags:
+      - checkin
+    security:
+      - SessionCookie: []
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required: [status]
+          properties:
+            status:
+              type: string
+              enum: [online, oncall, offline]
+            location:
+              type: string
+            notes:
+              type: string
+    responses:
+      200:
+        description: Check-in recorded successfully
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            message:
+              type: string
+      400:
+        description: Invalid status value
+      401:
+        description: Not authenticated
+    """
     try:
         data = request.get_json()
         status = data.get('status')  # 'online', 'oncall', 'offline'
@@ -118,7 +153,33 @@ def checkin():
 @checkin_bp.route('/api/checkin/status', methods=['GET'])
 @login_required
 def get_checkin_status():
-    """Get current user's check-in status"""
+    """Get the current user's check-in status.
+    ---
+    tags:
+      - checkin
+    security:
+      - SessionCookie: []
+    responses:
+      200:
+        description: Current check-in status
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            status:
+              type: string
+              enum: [online, oncall, offline]
+            display_status:
+              type: string
+            last_checkin:
+              type: string
+              format: date-time
+            location:
+              type: string
+      404:
+        description: Team member record not found
+    """
     try:
         team_member = TeamMember.query.filter_by(user_id=current_user.id).first()
         

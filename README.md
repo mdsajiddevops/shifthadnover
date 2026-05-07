@@ -74,10 +74,24 @@ See **`CLAUDE.md`** for full developer reference (running tests, secrets resolut
 
 ## Running Tests
 
-All tests are HTTP integration tests — the app must be running first.
+The test suite has two tiers with different requirements:
+
+### Unit Tests — run automatically in CI (no live app needed)
 
 ```bash
-# Quick sanity (28 tests)
+pytest tests/test_startup_checks.py \
+       tests/test_celery_app.py \
+       tests/test_validators.py \
+       tests/test_rbac_errors.py \
+       tests/test_audit_service.py -v
+```
+
+### Integration Tests — require a running app + database
+
+Start the app first (`docker-compose up` or `python3 app.py`), then:
+
+```bash
+# Quick sanity (28 tests, admin)
 python3 tests/run_tests.py --url http://localhost:5000 --user superadmin --password admin123
 
 # Full pytest suite (37 tests)
@@ -89,6 +103,8 @@ python3 tests/test_admin_activities.py   # 31 tests
 python3 tests/test_handover_workflow.py  # 26 tests (full draft→submit→verify)
 python3 tests/test_change_info.py        # change info dedup + reports
 ```
+
+> **CI coverage:** Unit tests run automatically on every push. Integration tests must be run manually against a local or staging environment before merging to master.
 
 See **`tests/README.md`** for full test documentation.
 

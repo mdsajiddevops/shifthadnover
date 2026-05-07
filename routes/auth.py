@@ -155,6 +155,37 @@ def get_teams():
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
+    """Authenticate a user and create a session.
+    ---
+    tags:
+      - auth
+    parameters:
+      - in: formData
+        name: username
+        type: string
+        required: true
+      - in: formData
+        name: password
+        type: string
+        required: true
+      - in: formData
+        name: account_id
+        type: integer
+        required: true
+      - in: formData
+        name: team_id
+        type: integer
+        required: false
+      - in: formData
+        name: csrf_token
+        type: string
+        required: true
+    responses:
+      302:
+        description: Redirect to dashboard on success, back to login on failure
+      200:
+        description: Login page HTML (GET request)
+    """
     accounts = Account.query.filter_by(is_active=True).all()
     selected_account_id = request.form.get('account_id')
     selected_team_id = request.form.get('team_id')
@@ -274,6 +305,16 @@ def login():
 @auth_bp.route('/logout')
 @login_required
 def logout():
+    """End the current user session.
+    ---
+    tags:
+      - auth
+    security:
+      - SessionCookie: []
+    responses:
+      302:
+        description: Redirect to login page
+    """
     # Clear session token before logging out
     try:
         if current_user.is_authenticated:
