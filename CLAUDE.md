@@ -8,23 +8,28 @@ Multi-team shift handover management web app for NOC/operations teams. Core flow
 
 ## Running the App
 
-**With Docker (standard):**
+**With Docker / Podman (standard):**
 ```bash
 docker-compose up --build
+# or on macOS with Podman:
+podman-compose up --build
 # App at http://localhost:5000, MySQL on 3306
 ```
+
+> Local dev note: `docker-compose.yml` has `command: python app.py` which overrides the Dockerfile CMD (`start.sh`). This intentionally skips Alembic migrations on local start. The prod compose file does not have this override — `start.sh` runs migrations there.
 
 **Without Docker (local dev with SQLite):**
 ```bash
 pip install -r requirements.txt
 export LOCAL_DEVELOPMENT=true
 export DATABASE_URL=sqlite:///local_shifthandover.db
-python app.py
+python3 app.py
 ```
 
-**Production:**
+**Production (GCP VM):**
 ```bash
 docker-compose -f docker-compose.prod.yml up -d
+# See docs/PROD_DEPLOYMENT_GUIDE.md for full step-by-step prod deployment checklist
 ```
 
 ## Database Migrations
@@ -37,36 +42,44 @@ flask db migrate -m "description"
 
 # Apply migrations
 flask db upgrade
-
-# Manual SQL scripts for ad-hoc changes (run directly):
-# add_performance_indexes.sql
-# add_uns_event_id.sql
 ```
 
 `alembic.ini` has a placeholder DB URL (`user:password@db`) — the real URL is injected at runtime by `start.sh`.
+
+Ad-hoc SQL migration scripts live in `scripts/migrations/` (moved from root during cleanup). These are run directly via `mysql` or `docker exec` — they are not Alembic migrations.
+
+**Prod-specific:** The prod DB has no `alembic_version` table by default. After running manual ALTER TABLE statements, insert the head revision manually so `start.sh` doesn't re-run migrations:
+```sql
+CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY);
+INSERT IGNORE INTO alembic_version VALUES ('fix_scheduling_role_nullable');
+```
 
 ## Running Tests
 
 All tests are HTTP integration tests — they require a **running app instance** (Docker or local dev). There is no unit-test layer.
 
-Two runners coexist:
+Five runners coexist — all require a running app instance:
 
 ```bash
-# Custom suite runner (admin sanity checks)
-python tests/run_tests.py --url http://localhost:5000 --user superadmin --password admin123 --verbose
+# 1. Custom sanity suite (28 tests, admin)
+python3 tests/run_tests.py --url http://localhost:5000 --user superadmin --password admin123 --verbose
 
-# pytest (test_application.py only)
+# 2. pytest suite (37 tests)
 pytest tests/test_application.py -v
 
-# Single test
-pytest tests/test_application.py::TestKeyPointsConsistency::test_no_duplicate_keypoints -v
-
-# Standalone scripts (each accepts --url/--user/--password)
-python tests/test_user_activities.py        # 37 tests, any user
-python tests/test_admin_activities.py       # 31 tests, admin only
-python tests/test_handover_workflow.py      # full draft → submit → verify flow
-python tests/test_change_info.py            # change-info dedup + reports
+# 3. Standalone scripts (each accepts --url/--user/--password)
+python3 tests/test_user_activities.py        # 37 tests, any user
+python3 tests/test_admin_activities.py       # 31 tests, admin only
+python3 tests/test_handover_workflow.py      # 26 tests, full draft → submit → verify flow
+python3 tests/test_change_info.py            # change-info dedup + reports
 ```
+
+**Known test credentials (local dev with prod DB import):**
+- `superadmin` / `admin123` — super admin
+- `noc_admin` / `Admin@123` — account admin (test user, created locally)
+- `alice` / `User@123` — regular user (test user, created locally)
+
+**Session token note:** Flask stores one `session_token` per User row. A second login for the same user invalidates the first session. Always use distinct users when two concurrent sessions are needed in tests.
 
 Test config (base URL, default creds, timeouts) lives in `tests/config.py`.
 
@@ -103,7 +116,11 @@ Required secret files for local dev: `flask_secret_key`, `database_url`, `sso_en
 
 ### Collaborative Editing
 
-DB-polling based — no Redis or WebSockets. Models: `HandoverSession`, `SectionLock`, `HandoverChange`, `DraftIncident`, `DraftKeyPoint` in `models/collaboration.py`. Multiple users can co-edit a handover draft by polling for lock state and change deltas.
+SSE-based (Server-Sent Events) — no Redis or WebSockets. Models in `models/collaboration.py`: `HandoverSession`, `SectionLock`, `HandoverChange`, `DraftIncident`, `DraftKeyPoint`, `DraftChangeInfo`, `DraftKBUpdate`. Multiple users can co-edit a handover draft with live presence indicators, field-level typing indicators, and soft locking.
+
+YJS CRDT library is self-hosted (`static/js/yjs.bundle.js`, ~91 KB) — no CDN dependency. Routes: `routes/collaboration.py` (API endpoints) and `routes/collab_sse.py` (SSE stream). See `docs/COLLABORATIVE_EDITING.md` for full architecture.
+
+**Single-process constraint:** The in-memory field state (`_field_states`, `_typing_indicators`) lives inside the Flask process. Deployments must use a single Gunicorn worker — horizontal scaling requires Redis.
 
 ### Session Security
 
@@ -115,7 +132,12 @@ Every request runs `validate_session()` middleware that checks `session_token` a
 
 ### Operator Scripts
 
-`scripts/` holds operator utilities that are not invoked by the app: `db_backup.sh`, `app_backup.sh`, `backup_status.sh` for backups, and `convert_prints_to_logging*.py` are one-off codemods that have already been applied — don't re-run them.
+`scripts/` holds operator utilities not invoked by the app:
+- `db_backup.sh`, `app_backup.sh`, `backup_status.sh` — backup helpers
+- `convert_prints_to_logging*.py` — one-off codemods already applied, don't re-run
+- `scripts/migrations/` — ad-hoc SQL scripts (`add_performance_indexes.sql`, `add_uns_event_id.sql`, `add_session_columns.sql`, etc.)
+
+`archive/` contains old dev/debug scripts (`check_*.py`, `debug_*.py`, shell helpers) preserved for reference — they are not part of the running app.
 
 ## Key Environment Variables
 
@@ -127,10 +149,18 @@ Every request runs `validate_session()` middleware that checks `session_token` a
 | `APP_DOMAIN` / `APP_BASE_URL` | Used for OAuth redirect URIs |
 | `DATABASE_URL` | Override DB connection string |
 
+## Recent Features (CTCOAMSHM-1)
+
+These were added on the `CTCOAMSHM-1-realtime-collab-handover` branch and require 4 new DB columns on prod (see `docs/PROD_DEPLOYMENT_GUIDE.md`):
+
+- **Incident carryforward**: Unresolved `Open`/`Handover` incidents auto-populate the next shift's handover form. Controlled by `incident.is_resolved` (TINYINT, default 0) and `incident.resolved_at` (DATETIME). A 7-day rolling window (via JOIN to `Shift.date`) limits how far back carryforward looks — prevents pre-feature incidents from flooding the form.
+- **Unified incident section**: The 5-card incident layout was replaced by a single Status dropdown section in `templates/handover_form.html`.
+- **Roster scheduler**: `team_member.scheduling_role` (`lead`/`support`) and `team_member.lead_shift` (preferred shift code, e.g. `E`) added to support automated roster generation via `routes/roster_scheduler.py`.
+- **Real-time collaborative editing**: SSE-based co-editing of handover drafts. YJS CRDT bundle is self-hosted at `static/js/yjs.bundle.js`.
+
 ## Known Quirks
 
-- `backup_temp.sql` and `backup_v3.sql` in the repo root are large SQL dumps (7.5MB / 3.7MB) — likely should not be committed.
-- Files named `*(1).py` (e.g., `services/servicenow_service(1).py`, `models/servicenow_models(1).py`) are unintentional duplicate copies — ignore them, edit the un-suffixed file.
 - `base.html` exists **both** at the repo root and in `templates/`. Flask renders from `templates/`; the root copy is stale — don't edit it.
-- The repo root contains many `backup_YYYYMMDD_HHMMSS/` directories and `check_*.py` / `debug_*.py` / `fix_*.py` scripts that show as tracked-deleted in `git status`. Treat them as obsolete — don't extend or revive them.
 - `start.sh` has a hardcoded `userpassword` in the DB readiness wait loop — dev leftover, does not affect production secrets.
+- `migration/` (singular, at root) is a legacy data migration directory — unrelated to `migrations/` (Alembic). Don't confuse the two.
+- SSL cert files (`fullchain.pem`, `private.key`, `star.lab.epam.com.pfx`) are present locally for nginx but are in `.gitignore` — never commit them.

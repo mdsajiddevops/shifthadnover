@@ -58,6 +58,8 @@ incident
 ├── team_id (FK → team)
 ├── description
 ├── assigned_to
+├── is_resolved (TINYINT(1), DEFAULT 0) ← carryforward feature
+├── resolved_at (DATETIME, nullable)    ← carryforward: 72h closed window
 └── escalated_to
 ```
 
@@ -164,6 +166,14 @@ handover_incident_response_log
 | `roster_assignments` | `RosterAssignment` | Roster assignments |
 | `checkin_log` | `CheckInLog` | Check-in/check-out history |
 
+### team_member Columns (Roster Scheduler)
+```
+team_member
+├── ...
+├── scheduling_role (VARCHAR(16), DEFAULT 'support') ← 'lead' or 'support'
+└── lead_shift (VARCHAR(8), DEFAULT 'E')             ← preferred shift code for leads
+```
+
 ### Shift Roster Table Details
 ```
 shift_roster
@@ -262,6 +272,42 @@ leave_request
 
 ---
 
+## 🤝 Collaborative Editing Tables
+
+Created automatically on container start (already present on prod). Defined in `models/collaboration.py`.
+
+| Table Name | Model | Description |
+|------------|-------|-------------|
+| `handover_session` | `HandoverSession` | Active editing sessions per shift |
+| `section_lock` | `SectionLock` | Soft locks on form sections |
+| `handover_change` | `HandoverChange` | Audit trail of every field change |
+| `draft_incident` | `DraftIncident` | Collab draft incident state |
+| `draft_key_point` | `DraftKeyPoint` | Collab draft key point state |
+| `draft_change_info` | `DraftChangeInfo` | Collab draft change info state |
+| `draft_kb_update` | `DraftKBUpdate` | Collab draft KB update state |
+
+---
+
+## 📧 Email Tables
+
+| Table Name | Description |
+|------------|-------------|
+| `email_delivery_log` | All outbound email delivery attempts and status |
+| `team.email_recipients` | Per-team email recipient lists |
+| `team.priority_alert_recipients` | Per-team priority alert recipient lists |
+
+---
+
+## ⚙️ Schema Version Table
+
+| Table Name | Description |
+|------------|-------------|
+| `alembic_version` | Tracks Alembic migration head (single row: `version_num`) |
+
+On fresh prod deployments this table does not exist. After running manual `ALTER TABLE` migrations, insert the head revision so `start.sh` does not re-run them (see `docs/PROD_DEPLOYMENT_GUIDE.md`).
+
+---
+
 ## 🔐 Security & Audit Tables
 
 | Table Name | Model | Description |
@@ -274,7 +320,7 @@ leave_request
 
 ---
 
-## 📊 Total Tables Count: ~40+
+## 📊 Total Tables Count: ~50+
 
 ---
 

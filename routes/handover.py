@@ -3892,12 +3892,18 @@ def handover():
     
     logger.debug(f"[DEBUG] CARRYFORWARD SUMMARY: {len(open_key_points)} key points, {len(change_infos)} change requests, {len(kb_updates)} KB updates")
 
-    # Carryforward: unresolved Open+Handover incidents (no time limit — until explicitly resolved)
-    unresolved_incidents_raw = Incident.query.filter(
+    # Carryforward: unresolved Open+Handover incidents from shifts within the last 7 days.
+    # Cutoff prevents pre-feature incidents (all of which have is_resolved=False by default)
+    # from flooding the form. Users resolve older incidents via the dashboard or form.
+    _carryforward_cutoff = datetime.utcnow().date() - timedelta(days=7)
+    unresolved_incidents_raw = Incident.query.join(
+        Shift, Incident.shift_id == Shift.id
+    ).filter(
         Incident.account_id == current_user.account_id,
         Incident.team_id == query_team_id,
         Incident.type.in_(['Open', 'Handover']),
-        Incident.is_resolved == False
+        Incident.is_resolved == False,
+        Shift.date >= _carryforward_cutoff
     ).order_by(Incident.id.desc()).all()
 
     # Deduplicate by title (keep latest per title)

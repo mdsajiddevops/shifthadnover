@@ -7,11 +7,11 @@ class TestConfig:
     # Base URL for the application
     BASE_URL = "http://localhost:5000"
     
-    # Test user credentials (passwords from seed_test_data.sql)
+    # Test user credentials
     TEST_USERS = {
         "super_admin": {
             "username": "superadmin",
-            "password": "Admin@123"
+            "password": "admin123"
         },
         "account_admin": {
             "username": "noc_admin",
@@ -22,7 +22,7 @@ class TestConfig:
             "password": "User@123"
         }
     }
-    
+
     # Test team/account IDs (update based on your database)
     TEST_ACCOUNT_ID = 1
     TEST_TEAM_ID = 1
