@@ -3067,9 +3067,9 @@ def handover():
                         
             elif inc_type == 'Closed':
                 resolutions = request.form.getlist(f'{field_prefix}_resolution[]')
-                
+
                 logger.debug(f"Closed incident fields - resolutions: {resolutions}")
-                
+
                 for i in range(len(app_names)):
                     if i < len(incident_ids) and (app_names[i].strip() or incident_ids[i].strip()):
                         logger.debug(f"Creating closed incident {i+1}: {app_names[i]} - {incident_ids[i]}")
@@ -3081,9 +3081,20 @@ def handover():
                             shift_id=shift_id_to_use,
                             type='Closed',
                             account_id=account_id,
-                            team_id=team_id
+                            team_id=team_id,
+                            is_resolved=True
                         )
                         db.session.add(incident)
+
+                        # Mark original as resolved if this closed incident was carried forward
+                        if i < len(carried_ids) and carried_ids[i].strip():
+                            try:
+                                src = Incident.query.get(int(carried_ids[i]))
+                                if src:
+                                    src.is_resolved = True
+                                    logger.debug(f"[CARRYFORWARD] Marked source incident {src.id} resolved (moved to Closed)")
+                            except (ValueError, TypeError):
+                                pass
                         logger.debug(f"Added closed incident to session: {incident}")
                         logger.debug(f"🔍 SESSION DEBUG: Session now has {len(db.session.new)} new objects")
                         

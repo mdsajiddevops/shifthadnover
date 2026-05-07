@@ -751,11 +751,16 @@
                                                     </div>
                                                 </div>
                                                 <div class="row mt-2">
-                                                    <div class="col-11">
+                                                    <div class="col-10">
                                                         <label class="form-label">Description</label>
                                                         <textarea class="form-control" name="open_incident_description[]" rows="2" placeholder="Brief description of the open incident">{{ inc.description or '' }}</textarea>
                                                     </div>
-                                                    <div class="col-1 d-flex align-items-end">
+                                                    <div class="col-2 d-flex align-items-end gap-1">
+                                                        <button type="button" class="btn btn-success btn-sm"
+                                                                title="Mark resolved — moves to Closed Incidents section"
+                                                                onclick="markCarriedIncidentResolved(this, {{ inc.id }}, 'open')">
+                                                            <i class="fas fa-check-circle"></i> Resolved
+                                                        </button>
                                                         <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
                                                             <i class="fas fa-trash"></i>
                                                         </button>
@@ -820,6 +825,7 @@
                                 <div class="card-body">
                                     <div id="closed-incidents-container">
                                         <div class="incident-entry mb-3 border p-3 rounded">
+                                            <input type="hidden" name="closed_incident_carried_id[]" value="">
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <label class="form-label">Application Name</label>
@@ -941,11 +947,16 @@
                                                     </div>
                                                 </div>
                                                 <div class="row mt-2">
-                                                    <div class="col-11">
+                                                    <div class="col-10">
                                                         <label class="form-label">Handover Notes & Next Actions</label>
                                                         <textarea class="form-control" name="handover_incident_notes[]" rows="3" placeholder="Important notes for the next shift and specific actions to be taken">{{ inc.handover or inc.description or '' }}</textarea>
                                                     </div>
-                                                    <div class="col-1 d-flex align-items-end">
+                                                    <div class="col-2 d-flex align-items-end gap-1">
+                                                        <button type="button" class="btn btn-success btn-sm"
+                                                                title="Mark resolved — moves to Closed Incidents section"
+                                                                onclick="markCarriedIncidentResolved(this, {{ inc.id }}, 'handover')">
+                                                            <i class="fas fa-check-circle"></i> Resolved
+                                                        </button>
                                                         <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
                                                             <i class="fas fa-trash"></i>
                                                         </button>
@@ -2375,6 +2386,58 @@ document.addEventListener('DOMContentLoaded', function() {
     updateEngineers();
 });
 
+function markCarriedIncidentResolved(btn, carryId, sectionType) {
+    const row = btn.closest('.incident-entry');
+    // Extract data from the row
+    const appInput = row.querySelector(`input[name="${sectionType}_incident_app[]"]`);
+    const idInput  = row.querySelector(`input[name="${sectionType}_incident_id[]"]`);
+    const descEl   = row.querySelector(`textarea[name="${sectionType}_incident_description[]"], textarea[name="${sectionType}_incident_notes[]"]`);
+    const appVal  = appInput  ? appInput.value.trim()  : '';
+    const idVal   = idInput   ? idInput.value.trim()   : '';
+    const descVal = descEl    ? descEl.value.trim()    : '';
+
+    // Remove the carried row so it doesn't also submit as Open/Handover
+    row.style.transition = 'opacity 0.3s';
+    row.style.opacity = '0';
+    setTimeout(() => row.remove(), 300);
+
+    // Add a resolved entry to the Closed Incidents section
+    const closedContainer = document.getElementById('closed-incidents-container');
+    const closedRow = document.createElement('div');
+    closedRow.className = 'incident-entry mb-3 border border-success p-3 rounded';
+    closedRow.innerHTML = `
+        <div class="d-flex align-items-center mb-2">
+            <span class="badge bg-success me-2"><i class="fas fa-check-circle me-1"></i>Resolved — carried from previous shift</span>
+        </div>
+        <input type="hidden" name="closed_incident_carried_id[]" value="${carryId}">
+        <div class="row">
+            <div class="col-md-6">
+                <label class="form-label">Application Name</label>
+                <input type="text" class="form-control" name="closed_incident_app[]" value="${appVal}" placeholder="Application Name">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Incident ID</label>
+                <input type="text" class="form-control" name="closed_incident_id[]" value="${idVal}" placeholder="INC0001234">
+            </div>
+        </div>
+        <div class="row mt-2">
+            <div class="col-11">
+                <label class="form-label">Resolution Summary</label>
+                <textarea class="form-control" name="closed_incident_resolution[]" rows="2" placeholder="Brief summary of how the incident was resolved">${descVal}</textarea>
+            </div>
+            <div class="col-1 d-flex align-items-end">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    closedContainer.appendChild(closedRow);
+
+    // Scroll to Closed Incidents section so engineer sees it landed
+    closedRow.scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+
 function addIncident(type, incidentData = null) {
     let container, incidentHTML;
     
@@ -2429,6 +2492,7 @@ function addIncident(type, incidentData = null) {
             container = document.getElementById('closed-incidents-container');
             incidentHTML = `
                 <div class="incident-entry mb-3 border p-3 rounded">
+                    <input type="hidden" name="closed_incident_carried_id[]" value="">
                     <div class="row">
                         <div class="col-md-6">
                             <label class="form-label">Application Name</label>
