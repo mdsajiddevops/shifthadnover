@@ -824,6 +824,37 @@
                                 </div>
                                 <div class="card-body">
                                     <div id="closed-incidents-container">
+                                        {% for inc in carryforward_closed_incidents %}
+                                        <div class="incident-entry mb-3 border border-success p-3 rounded">
+                                            <div class="d-flex align-items-center mb-2">
+                                                <span class="badge bg-success me-2"><i class="fas fa-check-circle me-1"></i>Resolved — record in this handover</span>
+                                                <small class="text-muted">{{ inc.title }}</small>
+                                            </div>
+                                            <input type="hidden" name="closed_incident_carried_id[]" value="{{ inc.id }}">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Application Name</label>
+                                                    {% set parts = inc.title.split(' - ', 1) %}
+                                                    <input type="text" class="form-control" name="closed_incident_app[]" value="{{ parts[0] if parts|length > 0 else '' }}" placeholder="Application Name">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Incident ID</label>
+                                                    <input type="text" class="form-control" name="closed_incident_id[]" value="{{ parts[1] if parts|length > 1 else '' }}" placeholder="INC0001234">
+                                                </div>
+                                            </div>
+                                            <div class="row mt-2">
+                                                <div class="col-11">
+                                                    <label class="form-label">Resolution Summary</label>
+                                                    <textarea class="form-control" name="closed_incident_resolution[]" rows="2" placeholder="Brief summary of how the incident was resolved">{{ inc.description or '' }}</textarea>
+                                                </div>
+                                                <div class="col-1 d-flex align-items-end">
+                                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.incident-entry').remove()">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
                                         <div class="incident-entry mb-3 border p-3 rounded">
                                             <input type="hidden" name="closed_incident_carried_id[]" value="">
                                             <div class="row">

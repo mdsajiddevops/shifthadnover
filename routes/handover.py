@@ -3039,6 +3039,7 @@ def handover():
                                 src = Incident.query.get(int(carried_ids[i]))
                                 if src:
                                     src.is_resolved = True
+                                    src.resolved_at = datetime.utcnow()
                                     logger.debug(f"[CARRYFORWARD] Marked source incident {src.id} as resolved")
                             except (ValueError, TypeError):
                                 pass
@@ -3092,6 +3093,7 @@ def handover():
                                 src = Incident.query.get(int(carried_ids[i]))
                                 if src:
                                     src.is_resolved = True
+                                    src.resolved_at = datetime.utcnow()
                                     logger.debug(f"[CARRYFORWARD] Marked source incident {src.id} resolved (moved to Closed)")
                             except (ValueError, TypeError):
                                 pass
@@ -3156,6 +3158,7 @@ def handover():
                                 src = Incident.query.get(int(carried_ids[i]))
                                 if src:
                                     src.is_resolved = True
+                                    src.resolved_at = datetime.utcnow()
                                     logger.debug(f"[CARRYFORWARD] Marked source handover incident {src.id} as resolved")
                             except (ValueError, TypeError):
                                 pass
@@ -4009,6 +4012,32 @@ def handover():
     carryforward_handover_incidents = [i for i in _cf_all if i.type == 'Handover']
     logger.debug(f"[DEBUG] Incident carryforward: {len(carryforward_open_incidents)} open, {len(carryforward_handover_incidents)} handover")
 
+    # Closed carryforward: incidents resolved in the last 72 h (dashboard OR form) that
+    # haven't yet been recorded as a Closed entry in any handover.
+    _72h_ago = datetime.utcnow() - timedelta(hours=72)
+    recently_resolved = Incident.query.filter(
+        Incident.account_id == current_user.account_id,
+        Incident.team_id == query_team_id,
+        Incident.type.in_(['Open', 'Handover']),
+        Incident.is_resolved == True,
+        Incident.resolved_at >= _72h_ago
+    ).order_by(Incident.id.desc()).all()
+
+    # Exclude those already acknowledged in a Closed record (same title, same team)
+    _closed_titles = {
+        r[0] for r in db.session.query(Incident.title).filter(
+            Incident.account_id == current_user.account_id,
+            Incident.team_id == query_team_id,
+            Incident.type == 'Closed'
+        ).all()
+    }
+    _cf_closed_map = {}
+    for _inc in recently_resolved:
+        if _inc.title not in _closed_titles and _inc.title not in _cf_closed_map:
+            _cf_closed_map[_inc.title] = _inc
+    carryforward_closed_incidents = list(_cf_closed_map.values())
+    logger.debug(f"[DEBUG] Closed carryforward: {len(carryforward_closed_incidents)} recently-resolved incidents")
+
     # Initialize ServiceNow service to get assignment group configuration for template
     # QUICK FIX: Skip ServiceNow initialization for local development to avoid delays
     try:
@@ -4061,6 +4090,7 @@ def handover():
         escalated_incidents=[],
         carryforward_open_incidents=carryforward_open_incidents,
         carryforward_handover_incidents=carryforward_handover_incidents,
+        carryforward_closed_incidents=carryforward_closed_incidents,
         change_infos=change_infos,
         kb_updates=kb_updates,
         today=handover_date.strftime('%Y-%m-%d'),  # Use adjusted handover_date instead of default_date

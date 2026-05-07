@@ -506,6 +506,7 @@ class Incident(db.Model):
     assigned_to = db.Column(db.String(128))  # Person assigned to handle the incident
     escalated_to = db.Column(db.String(128))  # Person/team escalated to
     is_resolved = db.Column(db.Boolean, default=False, nullable=False, server_default='0')
+    resolved_at = db.Column(db.DateTime, nullable=True)  # When it was marked resolved
 
 
 class ShiftKeyPoint(db.Model):

@@ -1036,6 +1036,7 @@ def resolve_incident(incident_id):
     if incident.account_id != current_user.account_id and current_user.role != 'super_admin':
         return jsonify({'error': 'Forbidden'}), 403
     incident.is_resolved = True
+    incident.resolved_at = datetime.utcnow()
     db.session.commit()
     return jsonify({'status': 'resolved', 'id': incident_id})
 
