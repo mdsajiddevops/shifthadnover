@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShiftHandover — Architecture Diagram</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f0f2f5;
+    color: #1a1a2e;
+    padding: 30px 20px 60px;
+  }
+
+  /* ── Header ── */
+  .page-header {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+  .page-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a1a2e;
+    letter-spacing: 0.5px;
+  }
+  .page-header p {
+    margin-top: 6px;
+    font-size: 13px;
+    color: #6b7280;
+  }
+  .badge {
+    display: inline-block;
+    background: #1e3c72;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-top: 8px;
+    letter-spacing: 0.8px;
+  }
+
+  /* ── Canvas ── */
+  .canvas {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ── Generic layer row ── */
+  .layer {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    padding: 16px 20px;
+    border-radius: 12px;
+    margin-bottom: 4px;
+    position: relative;
+  }
+  .layer-label {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #fff;
+    opacity: 0.85;
+    padding: 4px 0;
+    min-width: 22px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .layer-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .layer-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #fff;
+    opacity: 0.7;
+    margin-bottom: 2px;
+  }
+
+  /* ── Arrow connector ── */
+  .arrow-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 28px;
+    position: relative;
+  }
+  .arrow-row svg { overflow: visible; }
+
+  /* ── Card ── */
+  .card {
+    background: rgba(255,255,255,0.92);
+    border-radius: 8px;
+    padding: 10px 14px;
+    border: 1px solid rgba(255,255,255,0.3);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .card-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .card-icon { font-size: 14px; }
+  .card-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .tag {
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  /* ── Row layout helpers ── */
+  .row { display: flex; gap: 12px; width: 100%; }
+  .col-1 { flex: 1; }
+  .col-2 { flex: 2; }
+  .col-3 { flex: 3; }
+  .col-half { flex: 0 0 calc(50% - 6px); }
+
+  /* ── Layer colour themes ── */
+  .l-client   { background: linear-gradient(135deg, #1e3c72, #2a5298); }
+  .l-proxy    { background: linear-gradient(135deg, #0f4c81, #1a6ba0); }
+  .l-app      { background: linear-gradient(135deg, #1b5e38, #2e7d52); }
+  .l-bg       { background: linear-gradient(135deg, #6a1b9a, #8e24aa); }
+  .l-data     { background: linear-gradient(135deg, #b35c00, #e07800); }
+  .l-external { background: linear-gradient(135deg, #bf360c, #e64a19); }
+  .l-infra    { background: linear-gradient(135deg, #263238, #37474f); }
+  .l-cicd     { background: linear-gradient(135deg, #880e4f, #c2185b); }
+
+  /* Tag colours per layer */
+  .t-client   { background: #dce8ff; color: #1a3c72; }
+  .t-proxy    { background: #cce4f6; color: #0d3f6e; }
+  .t-app      { background: #d4edda; color: #1b5e38; }
+  .t-bg       { background: #f3e5f5; color: #4a148c; }
+  .t-data     { background: #fff3e0; color: #7b3500; }
+  .t-external { background: #fbe9e7; color: #7f2200; }
+  .t-infra    { background: #eceff1; color: #263238; }
+  .t-cicd     { background: #fce4ec; color: #880e4f; }
+  .t-highlight { background: #1e3c72; color: #fff; font-weight: 700; }
+
+  /* ── Legend ── */
+  .legend {
+    max-width: 1200px;
+    margin: 28px auto 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #444;
+  }
+  .legend-dot {
+    width: 14px; height: 14px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  /* ── Data-flow annotation ── */
+  .flow-note {
+    max-width: 1200px;
+    margin: 24px auto 0;
+    background: #fff;
+    border-radius: 10px;
+    padding: 18px 24px;
+    border-left: 4px solid #1e3c72;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .flow-note h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e3c72;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  .flow-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 10px;
+  }
+  .flow-item {
+    font-size: 12px;
+    color: #374151;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    line-height: 1.5;
+  }
+  .flow-item span { color: #1e3c72; font-weight: 700; flex-shrink: 0; }
+
+  @media print {
+    body { background: #fff; padding: 10px; }
+    .canvas { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════ PAGE HEADER -->
+<div class="page-header">
+  <h1>ShiftHandover — System Architecture</h1>
+  <p>Multi-team NOC Shift Handover Management Platform</p>
+  <span class="badge">Flask · MySQL · Redis · Celery · Docker · GCP</span>
+</div>
+
+<div class="canvas">
+
+  <!-- ══════════════ TOP ROW: CLIENT + CI/CD (side by side) -->
+  <div class="row" style="margin-bottom:4px;">
+
+    <!-- Client -->
+    <div class="layer l-client col-2" style="margin-bottom:0;">
+      <div class="layer-label">Client</div>
+      <div class="layer-content">
+        <div class="layer-title">Browser / Client Layer</div>
+        <div class="row">
+          <div class="card col-1">
+            <div class="card-title"><span class="card-icon">🖥️</span> Jinja2 Server-Rendered UI</div>
+            <div class="card-body">
+              <span class="tag t-client">base.html master layout</span>
+              <span class="tag t-client">Dashboard</span>
+              <span class="tag t-client">Handover Forms</span>
+              <span class="tag t-client">Reports</span>
+              <span class="tag t-client">Roster</span>
+              <span class="tag t-client">Admin Panel</span>
+            </div>
+          </div>
+          <div class="card col-1">
+            <div class="card-title"><span class="card-icon">⚡</span> Real-time Collab</div>
+            <div class="card-body">
+              <span class="tag t-highlight">YJS CRDT (self-hosted ~91KB)</span>
+              <span class="tag t-client">SSE Event Streams</span>
+              <span class="tag t-client">Presence Indicators</span>
+              <span class="tag t-client">Field-level Lock UI</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CI/CD -->
+    <div class="layer l-cicd col-1" style="margin-bottom:0;">
+      <div class="layer-label">CI/CD</div>
+      <div class="layer-content">
+        <div class="layer-title">CI / CD Pipelines</div>
+        <div class="row">
+          <div class="card col-1">
+            <div class="card-title"><span class="card-icon">🦊</span> GitLab CI (Primary)</div>
+            <div class="card-body">
+              <span class="tag t-cicd">install</span>
+              <span class="tag t-cicd">lint (ruff)</span>
+              <span class="tag t-cicd">unit-test</span>
+              <span class="tag t-cicd">integration-test</span>
+              <span class="tag t-cicd">security (bandit + pip-audit)</span>
+              <span class="tag t-cicd">build (Docker)</span>
+              <span class="tag t-cicd">deploy-staging</span>
+              <span class="tag t-cicd">deploy-prod (manual)</span>
+            </div>
+          </div>
+          <div class="card col-1">
+            <div class="card-title"><span class="card-icon">🐙</span> GitHub Actions (Mirror)</div>
+            <div class="card-body">
+              <span class="tag t-cicd">lint</span>
+              <span class="tag t-cicd">unit-test</span>
+              <span class="tag t-cicd">integration-test + MySQL</span>
+              <span class="tag t-cicd">security</span>
+              <span class="tag t-cicd">secret-detection (gitleaks)</span>
+              <span class="tag t-cicd">build + GHCR push</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow-row">
+    <svg width="100%" height="28"><line x1="50%" y1="0" x2="50%" y2="20" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/><polygon points="50%,24 calc(50% - 6px),14 calc(50% + 6px),14" fill="#94a3b8"/></svg>
+    <div style="position:absolute;font-size:10px;color:#6b7280;background:#f0f2f5;padding:0 6px;">HTTPS Requests</div>
+  </div>
+
+  <!-- ══════════════ NGINX -->
+  <div class="layer l-proxy">
+    <div class="layer-label">Proxy</div>
+    <div class="layer-content">
+      <div class="layer-title">Reverse Proxy</div>
+      <div class="row">
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">🔀</span> Nginx</div>
+          <div class="card-body">
+            <span class="tag t-highlight">HTTPS Termination</span>
+            <span class="tag t-proxy">SSL/TLS (fullchain.pem)</span>
+            <span class="tag t-proxy">Static File Serving</span>
+            <span class="tag t-proxy">Proxy → Gunicorn :5000</span>
+            <span class="tag t-proxy">FORCE_HTTPS redirect</span>
+            <span class="tag t-proxy">ProxyFix (X-Forwarded-*)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow-row">
+    <svg width="100%" height="28"><line x1="50%" y1="0" x2="50%" y2="20" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/></svg>
+    <div style="position:absolute;font-size:10px;color:#6b7280;background:#f0f2f5;padding:0 6px;">HTTP → Gunicorn (single worker)</div>
+  </div>
+
+  <!-- ══════════════ FLASK APP LAYER -->
+  <div class="layer l-app">
+    <div class="layer-label">Application</div>
+    <div class="layer-content">
+      <div class="layer-title">Flask Application Layer — Python 3.11 / Gunicorn</div>
+
+      <!-- Middleware row -->
+      <div class="row">
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">🛡️</span> Session & Security Middleware</div>
+          <div class="card-body">
+            <span class="tag t-app">validate_session() — every request</span>
+            <span class="tag t-app">session_token DB check → force logout</span>
+            <span class="tag t-app">CSRF protection (Flask-WTF)</span>
+            <span class="tag t-app">Role-based inline enforcement</span>
+            <span class="tag t-app">Prometheus metrics (/metrics)</span>
+            <span class="tag t-app">Swagger UI (/apidocs — Flasgger)</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">🏢</span> Multi-Tenancy Model</div>
+          <div class="card-body">
+            <span class="tag t-highlight">Account → Team → User</span>
+            <span class="tag t-app">UserTeamMembership (many-to-many)</span>
+            <span class="tag t-app">session: selected_account_id</span>
+            <span class="tag t-app">session: selected_team_id</span>
+            <span class="tag t-app">Roles: super_admin › account_admin › team_admin › user</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">🔑</span> Secrets Resolution (3-tier)</div>
+          <div class="card-body">
+            <span class="tag t-app">① /run/secrets/ — Docker secrets (prod)</span>
+            <span class="tag t-app">② ./secrets/ — local files (dev)</span>
+            <span class="tag t-app">③ os.environ — env variables</span>
+            <span class="tag t-app">SecretsManager — Fernet-encrypted DB config</span>
+            <span class="tag t-app">SecureConfigManager — runtime loader</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Routes row -->
+      <div class="card">
+        <div class="card-title"><span class="card-icon">🗺️</span> Routes — ~48 Flask Blueprints</div>
+        <div class="card-body">
+          <span class="tag t-highlight">auth</span>
+          <span class="tag t-app">handover</span>
+          <span class="tag t-app">handover_enhanced</span>
+          <span class="tag t-app">handover_simple</span>
+          <span class="tag t-app">handover_management</span>
+          <span class="tag t-app">handover_upload</span>
+          <span class="tag t-app">dashboard</span>
+          <span class="tag t-app">reports</span>
+          <span class="tag t-app">incidents</span>
+          <span class="tag t-app">incident_assignment</span>
+          <span class="tag t-app">incident_metrics</span>
+          <span class="tag t-app">keypoints</span>
+          <span class="tag t-app">keypoints_enhanced</span>
+          <span class="tag t-app">kb_details</span>
+          <span class="tag t-app">checkin</span>
+          <span class="tag t-app">collaboration</span>
+          <span class="tag t-app">collab_sse</span>
+          <span class="tag t-app">ws_handover</span>
+          <span class="tag t-app">roster</span>
+          <span class="tag t-app">roster_scheduler</span>
+          <span class="tag t-app">roster_upload</span>
+          <span class="tag t-app">manual_roster</span>
+          <span class="tag t-app">team_roster</span>
+          <span class="tag t-app">team</span>
+          <span class="tag t-app">team_simple</span>
+          <span class="tag t-app">team_utils</span>
+          <span class="tag t-app">user_management</span>
+          <span class="tag t-app">user_profile</span>
+          <span class="tag t-app">admin</span>
+          <span class="tag t-app">admin_linking</span>
+          <span class="tag t-app">admin_secrets</span>
+          <span class="tag t-app">admin_uns_email</span>
+          <span class="tag t-app">scheduler</span>
+          <span class="tag t-app">shift_config</span>
+          <span class="tag t-app">shift_swap_leave</span>
+          <span class="tag t-app">shift_allowance</span>
+          <span class="tag t-app">ctask_assignment</span>
+          <span class="tag t-app">escalation_matrix</span>
+          <span class="tag t-app">sso_auth</span>
+          <span class="tag t-app">sso_config</span>
+          <span class="tag t-app">logs</span>
+          <span class="tag t-app">config</span>
+          <span class="tag t-app">email_config</span>
+          <span class="tag t-app">system_health</span>
+          <span class="tag t-app">onboarding</span>
+          <span class="tag t-app">vendor_details</span>
+          <span class="tag t-app">application_details</span>
+          <span class="tag t-app">problem_tickets</span>
+          <span class="tag t-app">assignment_response</span>
+        </div>
+      </div>
+
+      <!-- Services row -->
+      <div class="card">
+        <div class="card-title"><span class="card-icon">⚙️</span> Services — ~28 Business Logic Modules</div>
+        <div class="card-body">
+          <span class="tag t-highlight">email_service</span>
+          <span class="tag t-highlight">servicenow_service</span>
+          <span class="tag t-highlight">roster_scheduler_service</span>
+          <span class="tag t-highlight">audit_service</span>
+          <span class="tag t-app">handover_workflow_service</span>
+          <span class="tag t-app">handover_notification_service</span>
+          <span class="tag t-app">handover_audit_service</span>
+          <span class="tag t-app">handover_enhanced_service</span>
+          <span class="tag t-app">ctask_scheduler</span>
+          <span class="tag t-app">ctask_assignment_service</span>
+          <span class="tag t-app">export_service (CSV/Excel/PDF)</span>
+          <span class="tag t-app">shift_email_service</span>
+          <span class="tag t-app">shift_config_service</span>
+          <span class="tag t-app">shift_timing_service</span>
+          <span class="tag t-app">shift_swap_leave_service</span>
+          <span class="tag t-app">team_access_service</span>
+          <span class="tag t-app">multi_team_service</span>
+          <span class="tag t-app">notification_service</span>
+          <span class="tag t-app">password_reset_service</span>
+          <span class="tag t-app">metrics_collector</span>
+          <span class="tag t-app">worker_status</span>
+          <span class="tag t-app">uns_email_service</span>
+          <span class="tag t-app">roster_scheduler_algo</span>
+          <span class="tag t-app">db_service</span>
+        </div>
+      </div>
+
+      <!-- SSE + In-memory state -->
+      <div class="row">
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">📡</span> SSE Collaborative Editing Engine</div>
+          <div class="card-body">
+            <span class="tag t-highlight">Server-Sent Events (no WebSocket)</span>
+            <span class="tag t-app">HandoverSession · SectionLock</span>
+            <span class="tag t-app">HandoverChange · DraftIncident</span>
+            <span class="tag t-app">DraftKeyPoint · DraftChangeInfo</span>
+            <span class="tag t-app">In-memory _field_states</span>
+            <span class="tag t-app">Typing indicators</span>
+            <span class="tag t-app">⚠️ Single Gunicorn worker required</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">📊</span> Background Scheduler (In-Process)</div>
+          <div class="card-body">
+            <span class="tag t-app">APScheduler (started in app.py)</span>
+            <span class="tag t-app">Email digest jobs</span>
+            <span class="tag t-app">ServiceNow polling</span>
+            <span class="tag t-app">Email delivery retries</span>
+            <span class="tag t-app">⚠️ Single-process constraint</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">🗄️</span> ORM Layer</div>
+          <div class="card-body">
+            <span class="tag t-app">SQLAlchemy (Flask-SQLAlchemy)</span>
+            <span class="tag t-app">Flask-Migrate / Alembic</span>
+            <span class="tag t-app">models.py — core entities</span>
+            <span class="tag t-app">collaboration.py — collab models</span>
+            <span class="tag t-app">SecretsManager — encrypted config</span>
+            <span class="tag t-app">HandoverDraft (Yjs persistence)</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow-row">
+    <svg width="100%" height="28"><line x1="50%" y1="0" x2="50%" y2="20" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/></svg>
+    <div style="position:absolute;font-size:10px;color:#6b7280;background:#f0f2f5;padding:0 6px;">Task dispatch via Redis broker</div>
+  </div>
+
+  <!-- ══════════════ BACKGROUND PROCESSING -->
+  <div class="layer l-bg">
+    <div class="layer-label">Workers</div>
+    <div class="layer-content">
+      <div class="layer-title">Background Processing</div>
+      <div class="row">
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">🔴</span> Redis 7</div>
+          <div class="card-body">
+            <span class="tag t-highlight">Message Broker</span>
+            <span class="tag t-bg">Result Backend</span>
+            <span class="tag t-bg">Port 127.0.0.1:6379</span>
+            <span class="tag t-bg">Health: redis-cli ping</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">👷</span> Celery Worker</div>
+          <div class="card-body">
+            <span class="tag t-highlight">Async Task Execution</span>
+            <span class="tag t-bg">concurrency=2</span>
+            <span class="tag t-bg">Email delivery</span>
+            <span class="tag t-bg">ServiceNow sync</span>
+            <span class="tag t-bg">DLQ handler (ops alerts)</span>
+            <span class="tag t-bg">Max retries: 3 per task</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">⏰</span> Celery Beat</div>
+          <div class="card-body">
+            <span class="tag t-highlight">Periodic Task Scheduler</span>
+            <span class="tag t-bg">Scheduled email digests</span>
+            <span class="tag t-bg">ServiceNow polling (2 min)</span>
+            <span class="tag t-bg">Schedule: /var/celery/celerybeat-schedule</span>
+            <span class="tag t-bg">Named volume (survives restart)</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">📋</span> Celery Tasks</div>
+          <div class="card-body">
+            <span class="tag t-bg">run_ctask_assignment</span>
+            <span class="tag t-bg">send_email_digest</span>
+            <span class="tag t-bg">retry_failed_emails</span>
+            <span class="tag t-bg">poll_servicenow_incidents</span>
+            <span class="tag t-bg">cleanup_expired_drafts</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow-row">
+    <svg width="100%" height="28"><line x1="50%" y1="0" x2="50%" y2="20" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/></svg>
+    <div style="position:absolute;font-size:10px;color:#6b7280;background:#f0f2f5;padding:0 6px;">SQLAlchemy ORM / pymysql</div>
+  </div>
+
+  <!-- ══════════════ DATA LAYER -->
+  <div class="layer l-data">
+    <div class="layer-label">Data</div>
+    <div class="layer-content">
+      <div class="layer-title">Data Layer</div>
+      <div class="row">
+        <div class="card col-2">
+          <div class="card-title"><span class="card-icon">🗃️</span> MySQL 8.0 (Production) · SQLite (Local Dev)</div>
+          <div class="card-body">
+            <span class="tag t-highlight">Core: User · Account · Team · Shift · Incident · ShiftKeyPoint</span>
+            <span class="tag t-data">TeamMember · UserTeamMembership · ShiftRoster</span>
+            <span class="tag t-data">HandoverSession · SectionLock · HandoverChange</span>
+            <span class="tag t-data">DraftIncident · DraftKeyPoint · DraftChangeInfo · HandoverDraft</span>
+            <span class="tag t-data">EmailDeliveryLog · EmailConfiguration</span>
+            <span class="tag t-data">ScheduledShift · PublicHoliday · ShiftCoverageRequirement</span>
+            <span class="tag t-data">AppConfig · EscalationMatrixEntry · SecretsStore</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">🔄</span> Schema Management</div>
+          <div class="card-body">
+            <span class="tag t-highlight">Flask-Migrate / Alembic</span>
+            <span class="tag t-data">migrations/ — authoritative</span>
+            <span class="tag t-data">start.sh → alembic upgrade head</span>
+            <span class="tag t-data">migration/ — legacy data scripts</span>
+            <span class="tag t-data">scripts/migrations/ — ad-hoc SQL</span>
+            <span class="tag t-data">alembic_version table tracks head</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">💾</span> Backup Strategy</div>
+          <div class="card-body">
+            <span class="tag t-data">scripts/db_backup.sh (3×/day cron)</span>
+            <span class="tag t-data">mysqldump --single-transaction</span>
+            <span class="tag t-data">RPO ≤ 8 hours · RTO ≤ 2 hours</span>
+            <span class="tag t-data">7-day retention on prod VM</span>
+            <span class="tag t-data">See: docs/DISASTER_RECOVERY.md</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow-row">
+    <svg width="100%" height="28"><line x1="50%" y1="0" x2="50%" y2="20" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/></svg>
+    <div style="position:absolute;font-size:10px;color:#6b7280;background:#f0f2f5;padding:0 6px;">API calls (REST / SMTP)</div>
+  </div>
+
+  <!-- ══════════════ EXTERNAL SERVICES -->
+  <div class="layer l-external">
+    <div class="layer-label">External</div>
+    <div class="layer-content">
+      <div class="layer-title">External Integrations</div>
+      <div class="row">
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">🎫</span> ServiceNow</div>
+          <div class="card-body">
+            <span class="tag t-highlight">Incident Sync</span>
+            <span class="tag t-external">C-Task polling (2-min interval)</span>
+            <span class="tag t-external">Assignment automation</span>
+            <span class="tag t-external">REST API (OAuth / basic)</span>
+            <span class="tag t-external">Config stored encrypted in DB</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">📧</span> SMTP Email Server</div>
+          <div class="card-body">
+            <span class="tag t-highlight">Flask-Mail</span>
+            <span class="tag t-external">Shift handover notifications</span>
+            <span class="tag t-external">Priority alerts</span>
+            <span class="tag t-external">Schedule published digests</span>
+            <span class="tag t-external">Ops alerts (DLQ failures)</span>
+            <span class="tag t-external">HTML + plain text (Gmail/Outlook safe)</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">🔐</span> EPAM SSO / SAML</div>
+          <div class="card-body">
+            <span class="tag t-highlight">SSO Authentication</span>
+            <span class="tag t-external">SAML 2.0 (pysaml2)</span>
+            <span class="tag t-external">Fernet-encrypted SSO key</span>
+            <span class="tag t-external">Fallback to local auth</span>
+            <span class="tag t-external">APP_DOMAIN / APP_BASE_URL config</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">📡</span> UNS Email / Alerts</div>
+          <div class="card-body">
+            <span class="tag t-external">uns_email_service</span>
+            <span class="tag t-external">flask_uns_email</span>
+            <span class="tag t-external">Admin-configurable recipients</span>
+            <span class="tag t-external">Priority alert routing</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow-row">
+    <svg width="100%" height="28"><line x1="50%" y1="0" x2="50%" y2="20" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/></svg>
+    <div style="position:absolute;font-size:10px;color:#6b7280;background:#f0f2f5;padding:0 6px;">Docker Compose orchestration</div>
+  </div>
+
+  <!-- ══════════════ INFRASTRUCTURE -->
+  <div class="layer l-infra">
+    <div class="layer-label">Infra</div>
+    <div class="layer-content">
+      <div class="layer-title">Infrastructure — GCP VM · Docker Compose</div>
+      <div class="row">
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">☁️</span> GCP Compute VM</div>
+          <div class="card-body">
+            <span class="tag t-infra">IP: 10.82.143.226</span>
+            <span class="tag t-infra">User: shifthandoversajid</span>
+            <span class="tag t-infra">App dir: ~/shifthandover_v3/</span>
+            <span class="tag t-infra">SSH key auth (GCP metadata)</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">🐳</span> Docker Compose Services</div>
+          <div class="card-body">
+            <span class="tag t-highlight">web (Gunicorn Flask)</span>
+            <span class="tag t-infra">db (MySQL 8.0)</span>
+            <span class="tag t-infra">redis (Redis 7 Alpine)</span>
+            <span class="tag t-infra">celery-worker</span>
+            <span class="tag t-infra">celery-beat</span>
+            <span class="tag t-infra">nginx (reverse proxy)</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">🔒</span> Docker Secrets</div>
+          <div class="card-body">
+            <span class="tag t-infra">flask_secret_key</span>
+            <span class="tag t-infra">database_url</span>
+            <span class="tag t-infra">sso_encryption_key</span>
+            <span class="tag t-infra">secrets_master_key</span>
+            <span class="tag t-infra">mysql_password</span>
+            <span class="tag t-infra">smtp_username / smtp_password</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">💿</span> Named Volumes</div>
+          <div class="card-body">
+            <span class="tag t-infra">mysql_data — DB persistence</span>
+            <span class="tag t-infra">app_logs — log files</span>
+            <span class="tag t-infra">uploads_data — file uploads</span>
+            <span class="tag t-infra">celerybeat_data — beat schedule</span>
+          </div>
+        </div>
+        <div class="card col-1">
+          <div class="card-title"><span class="card-icon">📁</span> Repositories</div>
+          <div class="card-body">
+            <span class="tag t-highlight">GitLab (Primary Dev)</span>
+            <span class="tag t-infra">git.garage.epam.com</span>
+            <span class="tag t-infra">GitHub (Public Mirror)</span>
+            <span class="tag t-infra">mdsajiddevops/shifthadnover</span>
+            <span class="tag t-infra">Dependabot security PRs enabled</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end canvas -->
+
+<!-- ══════════════════════ LEGEND -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#1e3c72;"></div> Client / Browser</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#0f4c81;"></div> Nginx Proxy</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1b5e38;"></div> Flask Application</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#6a1b9a;"></div> Celery / Redis</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#b35c00;"></div> MySQL / Data</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#bf360c;"></div> External Services</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#263238;"></div> Infrastructure</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#880e4f;"></div> CI/CD</div>
+</div>
+
+<!-- ══════════════════════ DATA FLOW NOTES -->
+<div class="flow-note">
+  <h3>Key Data Flows</h3>
+  <div class="flow-grid">
+    <div class="flow-item"><span>①</span> User opens browser → Nginx (HTTPS) → Gunicorn → Flask route → Jinja2 template rendered → HTML response</div>
+    <div class="flow-item"><span>②</span> Handover form edit → SSE stream established → YJS CRDT syncs deltas → collab_sse.py broadcasts to all editors in session</div>
+    <div class="flow-item"><span>③</span> Handover submitted → email_service → Celery task queued in Redis → Celery worker sends via Flask-Mail / SMTP</div>
+    <div class="flow-item"><span>④</span> Celery Beat fires every 2 min → ctask_scheduler.py → ServiceNow REST API → incident records upserted in MySQL</div>
+    <div class="flow-item"><span>⑤</span> Login → session_token written to User row → every subsequent request validate_session() checks token → admin can force-logout any user</div>
+    <div class="flow-item"><span>⑥</span> Roster generate → api_generate_schedule → roster_scheduler_algo.py → ScheduledShift rows written → publish notification via Celery</div>
+    <div class="flow-item"><span>⑦</span> Container start → start.sh → alembic upgrade head → Flask app boots → APScheduler starts background jobs → Gunicorn serves</div>
+    <div class="flow-item"><span>⑧</span> GitLab CI merge to master → manual deploy trigger → SSH to GCP VM → git pull → docker-compose prod rebuild → health check</div>
+  </div>
+</div>
+
+<div style="text-align:center;margin-top:24px;font-size:11px;color:#9ca3af;">
+  ShiftHandover Architecture · Generated 2026-05-07 · docs/architecture_diagram.html
+</div>
+
+</body>
+</html>
