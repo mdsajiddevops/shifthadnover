@@ -35,7 +35,40 @@ _pending_broadcasts = {}  # {shift_id: [changes to broadcast]}
 @collaboration_bp.route('/session/join/<int:shift_id>', methods=['POST'])
 @login_required
 def join_session(shift_id):
-    """Join a collaborative editing session for a shift"""
+    """Join or resume a collaborative editing session for a handover shift.
+    ---
+    tags:
+      - collaboration
+    security:
+      - SessionCookie: []
+    parameters:
+      - in: path
+        name: shift_id
+        type: integer
+        required: true
+        description: ID of the shift to collaborate on
+    responses:
+      200:
+        description: Session joined; returns session token and active participants
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            session_token:
+              type: string
+            active_users:
+              type: array
+              items:
+                type: object
+                properties:
+                  user_id:
+                    type: integer
+                  username:
+                    type: string
+      404:
+        description: Shift not found
+    """
     try:
         # Verify shift exists and user has access
         shift = Shift.query.get_or_404(shift_id)

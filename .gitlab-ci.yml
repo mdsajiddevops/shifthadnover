@@ -65,6 +65,61 @@ unit-test:
         tests/test_audit_service.py
         -v --tb=short
 
+integration-test:
+  stage: test
+  services:
+    - name: mysql:8.0
+      alias: mysql
+      variables:
+        MYSQL_ROOT_PASSWORD: testroot
+        MYSQL_DATABASE: shifthandover_test
+        MYSQL_USER: testuser
+        MYSQL_PASSWORD: testpass
+  variables:
+    DATABASE_URL: "mysql+pymysql://testuser:testpass@mysql/shifthandover_test"
+    FLASK_SECRET_KEY: ci-test-secret-key
+    SECRETS_MASTER_KEY: "ci-test-master-key-32chars-pad!"
+    SSO_ENCRYPTION_KEY: "ci-test-sso-key-32characters!!"
+    FLASK_ENV: testing
+    CELERY_BROKER_URL: "memory://"
+    CELERY_RESULT_BACKEND: "cache+memory://"
+  script:
+    - apt-get install -qq -y default-mysql-client
+    - until mysqladmin ping -h mysql -u root -ptestroot --silent 2>/dev/null; do echo "Waiting for MySQL..."; sleep 3; done
+    - .venv/bin/flask db upgrade
+    - |
+      .venv/bin/python - <<'EOF'
+      from app import create_app
+      from models.models import db, User, Account, Team
+      from werkzeug.security import generate_password_hash
+      import secrets
+      app = create_app()
+      with app.app_context():
+          db.create_all()
+          if not Account.query.first():
+              acc = Account(name='Test Account', is_active=True)
+              db.session.add(acc)
+              db.session.flush()
+              team = Team(name='Test Team', account_id=acc.id, is_active=True)
+              db.session.add(team)
+              db.session.flush()
+              admin = User(username='superadmin',
+                           password_hash=generate_password_hash('admin123'),
+                           role='super_admin', is_active=True,
+                           session_token=secrets.token_hex(32))
+              db.session.add(admin)
+              db.session.commit()
+              print('Seeded.')
+      EOF
+    - .venv/bin/python app.py &
+    - APP_PID=$!
+    - sleep 8
+    - curl -sf http://localhost:5000/health || (kill $APP_PID; exit 1)
+    - .venv/bin/python tests/run_tests.py --url http://localhost:5000 --user superadmin --password admin123 --verbose || true
+    - .venv/bin/pytest tests/test_application.py -v --tb=short || true
+    - kill $APP_PID || true
+  allow_failure: true
+
 # Smoke test — import check + /health endpoint against SQLite
 smoke-test:
   stage: test

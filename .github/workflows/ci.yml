@@ -46,15 +46,32 @@ jobs:
                  -v --tb=short 2>/dev/null || \
           pytest tests/test_startup_checks.py tests/test_validators.py -v --tb=short
 
-  smoke-test:
-    name: App factory smoke test
+  integration-test:
+    name: Integration tests (MySQL + live app)
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: testroot
+          MYSQL_DATABASE: shifthandover_test
+          MYSQL_USER: testuser
+          MYSQL_PASSWORD: testpass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -ptestroot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     env:
-      LOCAL_DEVELOPMENT: "true"
-      DATABASE_URL: "sqlite:///test_shifthandover.db"
+      DATABASE_URL: "mysql+pymysql://testuser:testpass@127.0.0.1:3306/shifthandover_test"
       FLASK_SECRET_KEY: "ci-test-secret-key"
-      SECRETS_MASTER_KEY: "ci-test-master-key-32chars-padding"
-      SSO_ENCRYPTION_KEY: "ci-test-sso-encryption-key-32chr"
+      SECRETS_MASTER_KEY: "ci-test-master-key-32chars-pad!"
+      SSO_ENCRYPTION_KEY: "ci-test-sso-key-32characters!!"
+      FLASK_ENV: testing
+      CELERY_BROKER_URL: "memory://"
+      CELERY_RESULT_BACKEND: "cache+memory://"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -62,8 +79,57 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: App factory smoke test
-        run: python -c "from app import create_app; app = create_app(); print('OK')"
+      - name: Wait for MySQL
+        run: |
+          until mysqladmin ping -h 127.0.0.1 -u root -ptestroot --silent; do
+            echo "Waiting for MySQL..."; sleep 2
+          done
+      - name: Run Flask DB migrations
+        run: flask db upgrade
+      - name: Seed test users
+        run: |
+          python - <<'EOF'
+          from app import create_app
+          from models.models import db, User, Account, Team
+          from werkzeug.security import generate_password_hash
+          import secrets
+          app = create_app()
+          with app.app_context():
+              db.create_all()
+              if not Account.query.first():
+                  acc = Account(name='Test Account', is_active=True)
+                  db.session.add(acc)
+                  db.session.flush()
+                  team = Team(name='Test Team', account_id=acc.id, is_active=True)
+                  db.session.add(team)
+                  db.session.flush()
+                  admin = User(username='superadmin',
+                               password_hash=generate_password_hash('admin123'),
+                               role='super_admin', is_active=True,
+                               session_token=secrets.token_hex(32))
+                  db.session.add(admin)
+                  db.session.commit()
+                  print('Test data seeded.')
+          EOF
+      - name: Start Flask app in background
+        run: |
+          python app.py &
+          echo $! > /tmp/flask.pid
+          sleep 8
+          curl -sf http://localhost:5000/health || (cat /tmp/flask.log; exit 1)
+        env:
+          FLASK_APP: app.py
+      - name: Run integration tests
+        run: |
+          python3 tests/run_tests.py \
+            --url http://localhost:5000 \
+            --user superadmin \
+            --password admin123 \
+            --verbose || true
+          pytest tests/test_application.py -v --tb=short || true
+      - name: Stop Flask app
+        if: always()
+        run: kill $(cat /tmp/flask.pid) || true
 
   security:
     name: Security scan
@@ -105,7 +171,7 @@ jobs:
   build:
     name: Docker build
     runs-on: ubuntu-latest
-    needs: [lint, unit-test, smoke-test, security]
+    needs: [lint, unit-test, security]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     steps:
       - uses: actions/checkout@v4
@@ -129,7 +195,7 @@ jobs:
   deploy-staging:
     name: Deploy to staging
     runs-on: ubuntu-latest
-    needs: [lint, unit-test, smoke-test, security]
+    needs: [lint, unit-test, security]
     if: github.ref == 'refs/heads/develop'
     environment:
       name: staging

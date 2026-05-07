@@ -105,7 +105,28 @@ def reports():
 @reports_bp.route('/change-info-reports', methods=['GET'])
 @login_required
 def change_info_reports():
-    """Change Info reports page"""
+    """List change info records for the active team with filters.
+    ---
+    tags:
+      - reports
+    security:
+      - SessionCookie: []
+    parameters:
+      - in: query
+        name: team_id
+        type: integer
+      - in: query
+        name: from_date
+        type: string
+        format: date
+      - in: query
+        name: to_date
+        type: string
+        format: date
+    responses:
+      200:
+        description: Change info report page
+    """
     log_action('View Change Info Reports', 'Accessed change info reports page')
     
     # Get filter parameters
@@ -1183,6 +1204,33 @@ def detailed_shift_report(shift_id):
 @reports_bp.route('/handover-reports', methods=['GET'])
 @login_required
 def handover_reports():
+    """List handover shift reports with filtering and pagination.
+    ---
+    tags:
+      - reports
+    security:
+      - SessionCookie: []
+    parameters:
+      - in: query
+        name: team_id
+        type: integer
+        description: Filter by team (defaults to session team)
+      - in: query
+        name: from_date
+        type: string
+        format: date
+      - in: query
+        name: to_date
+        type: string
+        format: date
+      - in: query
+        name: shift_type
+        type: string
+        enum: [Morning, Evening, Night]
+    responses:
+      200:
+        description: Handover reports page with shift list and incident summary
+    """
     logger.debug(f"🚨 HANDOVER REPORTS ROUTE CALLED 🚨")
     
     # Check database integrity first

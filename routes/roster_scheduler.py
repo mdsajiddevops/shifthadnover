@@ -142,6 +142,42 @@ def roster_scheduler_admin():
 @roster_scheduler_bp.route('/api/roster/schedule')
 @login_required
 def api_get_schedule():
+    """Get the published shift schedule for a team and month.
+    ---
+    tags:
+      - roster
+    security:
+      - SessionCookie: []
+    parameters:
+      - in: query
+        name: year
+        type: integer
+        description: Year (defaults to current year)
+      - in: query
+        name: month
+        type: integer
+        description: Month 1–12 (defaults to current month)
+      - in: query
+        name: team_id
+        type: integer
+        description: Team ID (defaults to session team)
+    responses:
+      200:
+        description: Shift schedule grid for the requested month
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            year:
+              type: integer
+            month:
+              type: integer
+            data:
+              type: object
+      400:
+        description: Invalid team_id
+    """
     account_id, team_id = _current_account_team()
     year, month = _parse_year_month(request)
 
@@ -162,6 +198,37 @@ def api_get_schedule():
 @roster_scheduler_bp.route('/api/roster/generate', methods=['POST'])
 @login_required
 def api_generate_schedule():
+    """Auto-generate a shift schedule for a team and month (admin only).
+    ---
+    tags:
+      - roster
+    security:
+      - SessionCookie: []
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            team_id:
+              type: integer
+            year:
+              type: integer
+            month:
+              type: integer
+            overwrite:
+              type: boolean
+              default: false
+              description: Overwrite existing schedule if present
+    responses:
+      200:
+        description: Schedule generated successfully with synced count
+      400:
+        description: Invalid parameters
+      403:
+        description: Admin role required
+    """
     if not _admin_required():
         return jsonify({'success': False, 'error': 'Admin required'}), 403
 
