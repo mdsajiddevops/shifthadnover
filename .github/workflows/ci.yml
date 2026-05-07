@@ -11,7 +11,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -30,7 +30,7 @@ jobs:
       SECRETS_MASTER_KEY: "ci-test-master-key-32chars-padding"
       SSO_ENCRYPTION_KEY: "ci-test-sso-encryption-key-32chr"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -73,7 +73,7 @@ jobs:
       CELERY_BROKER_URL: "memory://"
       CELERY_RESULT_BACKEND: "cache+memory://"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -135,7 +135,7 @@ jobs:
     name: Security scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -159,7 +159,7 @@ jobs:
     name: Secret detection
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Detect secrets with gitleaks
@@ -174,7 +174,7 @@ jobs:
     needs: [lint, unit-test, security]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build Docker image
         run: docker build -t shifthandover:${{ github.sha }} .
       - name: Log in to GitHub Container Registry
@@ -201,7 +201,7 @@ jobs:
       name: staging
       url: ${{ vars.STAGING_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Deploy to staging via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
