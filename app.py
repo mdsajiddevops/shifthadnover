@@ -344,10 +344,6 @@ app.register_blueprint(config_bp)
 from routes.handover_enhanced_routes import handover_enhanced_bp
 app.register_blueprint(handover_enhanced_bp)
 
-# Register debug blueprint for form troubleshooting
-from routes.debug_form import debug_bp
-app.register_blueprint(debug_bp)
-
 # Register email configuration blueprint
 from routes.email_config_routes import email_config_bp
 app.register_blueprint(email_config_bp)
@@ -375,10 +371,6 @@ app.register_blueprint(logs_bp)
 # Register check-in blueprint for team member status tracking
 from routes.checkin import checkin_bp
 app.register_blueprint(checkin_bp)
-
-# Register test blueprint
-from routes.test_routes import test_bp
-app.register_blueprint(test_bp)
 
 # Register SSO authentication blueprints
 from routes.sso_auth import sso_auth

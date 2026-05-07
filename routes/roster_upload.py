@@ -1,5 +1,6 @@
 
 import logging
+from datetime import datetime
 from flask import session, send_from_directory
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
@@ -373,7 +374,7 @@ def roster_upload():
                 accounts = [Account.query.get(current_user.account_id)] if current_user.account_id else []
                 teams = [Team.query.get(current_user.team_id)] if current_user.team_id else []
             
-            return render_template('shift_roster_upload.html', table_data=table_data, columns=columns, accounts=accounts, teams=teams)
+            return render_template('shift_roster_upload.html', table_data=table_data, columns=columns, accounts=accounts, teams=teams, now=datetime.utcnow())
         except Exception as e:
             logger.error(f"Unexpected error in upload handler: {e}")
             db.session.rollback()
@@ -393,7 +394,63 @@ def roster_upload():
         accounts = [Account.query.get(current_user.account_id)] if current_user.account_id else []
         teams = [Team.query.get(current_user.team_id)] if current_user.team_id else []
     
-    return render_template('shift_roster_upload.html', table_data=table_data, accounts=accounts, teams=teams)
+    return render_template('shift_roster_upload.html', table_data=table_data, accounts=accounts, teams=teams, now=datetime.utcnow())
+
+@roster_upload_bp.route('/roster-delete-month', methods=['POST'])
+@login_required
+@admin_required
+def roster_delete_month():
+    """Delete all roster entries for a given month/year/team. Admins only."""
+    from flask import jsonify
+    try:
+        month = request.form.get('month', type=int)
+        year = request.form.get('year', type=int)
+
+        if not month or not year or not (1 <= month <= 12) or year < 2000:
+            return jsonify({'success': False, 'error': 'Invalid month or year.'}), 400
+
+        # Resolve account_id / team_id based on role (same logic as upload)
+        if current_user.role == 'super_admin':
+            account_id = request.form.get('account_id', type=int)
+            team_id = request.form.get('team_id', type=int)
+            if not account_id or not team_id:
+                return jsonify({'success': False, 'error': 'Please select both Account and Team.'}), 400
+        elif current_user.role == 'account_admin':
+            account_id = current_user.account_id
+            team_id = request.form.get('team_id', type=int)
+            if not team_id:
+                return jsonify({'success': False, 'error': 'Please select a Team.'}), 400
+        else:  # team_admin
+            account_id = current_user.account_id
+            team_id = current_user.team_id
+
+        # Verify account/team ownership for non-super admins
+        if current_user.role == 'account_admin' and account_id != current_user.account_id:
+            return jsonify({'success': False, 'error': 'Access denied.'}), 403
+
+        import calendar
+        from datetime import date
+        first_day = date(year, month, 1)
+        last_day = date(year, month, calendar.monthrange(year, month)[1])
+
+        deleted = ShiftRoster.query.filter(
+            ShiftRoster.account_id == account_id,
+            ShiftRoster.team_id == team_id,
+            ShiftRoster.date >= first_day,
+            ShiftRoster.date <= last_day
+        ).delete(synchronize_session=False)
+
+        db.session.commit()
+        logger.info(f"[ROSTER DELETE] user={current_user.username}, account={account_id}, team={team_id}, month={month}/{year}, deleted={deleted}")
+
+        month_name = first_day.strftime('%B %Y')
+        return jsonify({'success': True, 'deleted': deleted, 'month_name': month_name})
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"[ROSTER DELETE] Error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @roster_upload_bp.route('/download-wide-format-roster')
 @login_required
