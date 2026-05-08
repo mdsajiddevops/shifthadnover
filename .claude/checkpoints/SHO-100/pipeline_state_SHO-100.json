@@ -1,0 +1,258 @@
+{
+  "ticket": "SHO-100",
+  "classification": "Small Feature",
+  "classification_overridden": false,
+  "phase_set": [
+    "requirements",
+    "qa-generate",
+    "architecture",
+    "impl-planning",
+    "implementation",
+    "simplify",
+    "review",
+    "verification",
+    "pr"
+  ],
+  "mode": "gates",
+  "started_at": "2026-05-08T15:48:50Z",
+  "updated_at": "2026-05-08T16:02:19Z",
+  "project_hash": "7f3e900c",
+  "current_phase": "impl-planning",
+  "phases": {
+    "requirements": {
+      "status": "completed",
+      "model": "claude-sonnet-4-6",
+      "started_at": "2026-05-08T15:49:22Z",
+      "completed_at": "2026-05-08T15:56:57Z",
+      "duration_ms": 455000,
+      "user_wait_ms": 0,
+      "active_duration_ms": 455000,
+      "active_wallclock_time_taken": "7m 35s",
+      "iterations": 1,
+      "tokens_used": {
+        "cache_creation": 2776641,
+        "cache_read": 75851578,
+        "input": 1141,
+        "output": 773741,
+        "total": 79403101,
+        "cost_usd": 44.7774
+      }
+    },
+    "qa-generate": {
+      "status": "completed",
+      "model": "claude-sonnet-4-6",
+      "started_at": "2026-05-08T15:56:57Z",
+      "completed_at": "2026-05-08T16:02:19Z",
+      "duration_ms": 224978,
+      "user_wait_ms": 0,
+      "active_duration_ms": 224978,
+      "active_wallclock_time_taken": "3m 45s",
+      "iterations": 1,
+      "branch": null,
+      "tests_generated": 22,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": 47115,
+        "cost_usd": null
+      }
+    },
+    "architecture": {
+      "status": "completed",
+      "model": "claude-sonnet-4-6",
+      "started_at": "2026-05-08T15:56:57Z",
+      "completed_at": "2026-05-08T16:02:19Z",
+      "duration_ms": 322000,
+      "user_wait_ms": 0,
+      "active_duration_ms": 322000,
+      "active_wallclock_time_taken": "5m 22s",
+      "iterations": 1,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "design-review": {
+      "status": "skipped",
+      "model": "claude-sonnet-4-6",
+      "started_at": null,
+      "completed_at": null,
+      "duration_ms": null,
+      "user_wait_ms": 0,
+      "active_duration_ms": null,
+      "active_wallclock_time_taken": null,
+      "iterations": 0,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "impl-planning": {
+      "status": "in_progress",
+      "model": "claude-sonnet-4-6",
+      "started_at": "2026-05-08T16:02:19Z",
+      "completed_at": null,
+      "duration_ms": null,
+      "user_wait_ms": 0,
+      "active_duration_ms": null,
+      "active_wallclock_time_taken": null,
+      "iterations": 0,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "implementation": {
+      "status": "pending",
+      "model": "claude-sonnet-4-6",
+      "started_at": null,
+      "completed_at": null,
+      "duration_ms": null,
+      "user_wait_ms": 0,
+      "active_duration_ms": null,
+      "active_wallclock_time_taken": null,
+      "iterations": 0,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "simplify": {
+      "status": "pending",
+      "model": "claude-haiku-4-5-20251001",
+      "started_at": null,
+      "completed_at": null,
+      "duration_ms": null,
+      "user_wait_ms": 0,
+      "active_duration_ms": null,
+      "active_wallclock_time_taken": null,
+      "iterations": 0,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "review": {
+      "status": "pending",
+      "model": "claude-sonnet-4-6",
+      "started_at": null,
+      "completed_at": null,
+      "duration_ms": null,
+      "user_wait_ms": 0,
+      "active_duration_ms": null,
+      "active_wallclock_time_taken": null,
+      "iterations": 0,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "verification": {
+      "status": "pending",
+      "model": "claude-sonnet-4-6",
+      "started_at": null,
+      "completed_at": null,
+      "duration_ms": null,
+      "user_wait_ms": 0,
+      "active_duration_ms": null,
+      "active_wallclock_time_taken": null,
+      "iterations": 0,
+      "implementation_sha": null,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "qa-verify": {
+      "status": "skipped",
+      "model": "claude-sonnet-4-6",
+      "started_at": null,
+      "completed_at": null,
+      "duration_ms": null,
+      "user_wait_ms": 0,
+      "active_duration_ms": null,
+      "active_wallclock_time_taken": null,
+      "iterations": 0,
+      "api_passed": 0,
+      "api_total": 0,
+      "ui_passed": 0,
+      "ui_total": 0,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "risk": {
+      "status": "skipped",
+      "model": "claude-sonnet-4-6",
+      "started_at": null,
+      "completed_at": null,
+      "duration_ms": null,
+      "user_wait_ms": 0,
+      "active_duration_ms": null,
+      "active_wallclock_time_taken": null,
+      "iterations": 0,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "pr": {
+      "status": "pending",
+      "model": "claude-sonnet-4-6",
+      "started_at": null,
+      "completed_at": null,
+      "duration_ms": null,
+      "user_wait_ms": 0,
+      "active_duration_ms": null,
+      "active_wallclock_time_taken": null,
+      "iterations": 0,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    }
+  }
+}
