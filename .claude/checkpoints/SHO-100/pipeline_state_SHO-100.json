@@ -15,9 +15,9 @@
   ],
   "mode": "gates",
   "started_at": "2026-05-08T15:48:50Z",
-  "updated_at": "2026-05-08T16:14:04Z",
+  "updated_at": "2026-05-08T16:15:00Z",
   "project_hash": "7f3e900c",
-  "current_phase": "pr",
+  "current_phase": "completed",
   "phases": {
     "requirements": {
       "status": "completed",
@@ -236,15 +236,15 @@
       }
     },
     "pr": {
-      "status": "pending",
+      "status": "completed",
       "model": "claude-sonnet-4-6",
-      "started_at": null,
-      "completed_at": null,
-      "duration_ms": null,
+      "started_at": "2026-05-08T16:14:04Z",
+      "completed_at": "2026-05-08T16:15:00Z",
+      "duration_ms": 56000,
       "user_wait_ms": 0,
-      "active_duration_ms": null,
-      "active_wallclock_time_taken": null,
-      "iterations": 0,
+      "active_duration_ms": 56000,
+      "active_wallclock_time_taken": "0m 56s",
+      "iterations": 1,
       "tokens_used": {
         "cache_creation": null,
         "cache_read": null,
