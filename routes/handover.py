@@ -917,7 +917,7 @@ def edit_handover(shift_id):
         elif shift.account_id != current_user.account_id:
             flash('You do not have permission to edit this handover form.')
             return redirect(url_for('dashboard.dashboard'))
-        elif not current_user.is_member_of_team(shift.team_id, account_id=current_user.account_id):
+        elif not current_user.is_member_of_team(shift.team_id, account_id=current_user.account_id) and current_user.team_id != shift.team_id:
             flash('You do not have permission to edit this handover form.')
             return redirect(url_for('dashboard.dashboard'))
         # If we reach here, user is in same account and same team - allow editing
@@ -926,9 +926,9 @@ def edit_handover(shift_id):
         if shift.account_id != current_user.account_id:
             flash('You do not have permission to edit this handover form.')
             return redirect(url_for('dashboard.dashboard'))
-        
+
         # Check team access - user must belong to the handover's team
-        if not current_user.is_member_of_team(shift.team_id, account_id=current_user.account_id):
+        if not current_user.is_member_of_team(shift.team_id, account_id=current_user.account_id) and current_user.team_id != shift.team_id:
             flash('You do not have permission to edit this handover form.')
             return redirect(url_for('dashboard.dashboard'))
     # 🔧 CRITICAL FIX: For edit mode, include team members from the handover's team

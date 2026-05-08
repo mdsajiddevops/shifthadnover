@@ -717,7 +717,17 @@
                                         Incidents
                                         <span class="badge bg-secondary ms-1" id="incidents-count-badge">0</span>
                                     </h6>
-                                    <small class="text-muted fst-italic">Set Status per row to categorise each incident</small>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <small class="text-muted fst-italic">Set Status per row to categorise each incident</small>
+                                        <button type="button" id="collab-incident-refresh-badge"
+                                            class="btn btn-sm btn-warning align-items-center gap-1"
+                                            style="display:none;font-size:0.78rem;"
+                                            data-count="0" data-pending-temp-ids="[]"
+                                            onclick="loadOthersIncidents()">
+                                            <i class="fas fa-sync-alt"></i>
+                                            <span id="collab-incident-refresh-text">0 new incidents added</span>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="card-body p-3">
                                     <div id="incidents-container">
@@ -1263,7 +1273,26 @@
 // Enhanced Accordion Functionality
 document.addEventListener('DOMContentLoaded', function() {
     // Init unified incidents badge and field visibility
-    document.querySelectorAll('#incidents-container .incident-entry').forEach(row => updateIncidentFields(row));
+    document.querySelectorAll('#incidents-container .incident-entry').forEach(row => {
+        updateIncidentFields(row);
+        // Assign temp-ids and wire duplicate-check blur to existing (carryforward) rows
+        if (!row.dataset.collabTempId) {
+            row.dataset.collabTempId = 'inc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+        }
+        const idInput = row.querySelector('input[name="incident_id[]"]');
+        if (idInput && !idInput.dataset.collabBlurWired) {
+            idInput.dataset.collabBlurWired = '1';
+            idInput.addEventListener('blur', function() { checkIncidentDuplicate(this); });
+            idInput.addEventListener('input', function() { clearIncidentDuplicateWarning(this); });
+            // Ensure warning div exists
+            if (!idInput.parentElement.querySelector('.collab-incident-warning')) {
+                const w = document.createElement('div');
+                w.className = 'collab-incident-warning';
+                w.style.display = 'none';
+                idInput.parentElement.appendChild(w);
+            }
+        }
+    });
     updateIncidentCountBadge();
 
     // Add section counters to accordion headers
@@ -2353,12 +2382,18 @@ function updateIncidentFields(row) {
     }
 }
 
+function generateIncidentTempId() {
+    return 'inc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+}
+
 function addUnifiedIncident(incidentData) {
     const container = document.getElementById('incidents-container');
     if (!container) return;
 
+    const tempId = generateIncidentTempId();
     const newRow = document.createElement('div');
     newRow.className = 'incident-entry mb-3 border p-3 rounded';
+    newRow.dataset.collabTempId = tempId;
     newRow.innerHTML = `
         <input type="hidden" name="incident_carried_id[]" value="">
         <div class="row g-2">
@@ -2368,7 +2403,9 @@ function addUnifiedIncident(incidentData) {
             </div>
             <div class="col-md-2">
                 <label class="form-label small mb-1">Incident ID</label>
-                <input type="text" class="form-control form-control-sm" name="incident_id[]" placeholder="INC0001234">
+                <input type="text" class="form-control form-control-sm" name="incident_id[]" placeholder="INC0001234"
+                    onblur="checkIncidentDuplicate(this)" oninput="clearIncidentDuplicateWarning(this)">
+                <div class="collab-incident-warning" style="display:none;"></div>
             </div>
             <div class="col-md-4">
                 <label class="form-label small mb-1">Short Description</label>
@@ -3846,20 +3883,20 @@ function setupFormSubmissionHandling() {
         
         // SUBMIT BUTTON - Set action to 'submit' and submit form
         if (submitBtn) {
-            submitBtn.addEventListener('click', function(e) {
+            submitBtn.addEventListener('click', async function(e) {
                 console.log('🔵 SUBMIT BUTTON CLICKED - setting action to submit');
                 e.preventDefault();
-                
+
                 // 🔧 STRICT VALIDATION FOR FINAL SUBMISSION
                 console.log('🔴 Running strict validation for FINAL submission...');
-                
+
                 let validationErrors = [];
-                
+
                 // Validate Key Points
                 if (!validateKeyPointsBeforeSubmission()) {
                     validationErrors.push('Key points validation failed');
                 }
-                
+
                 // Validate Change Info
                 if (!validateChangeDateTime()) {
                     validationErrors.push('Change date/time validation failed');
@@ -3867,29 +3904,35 @@ function setupFormSubmissionHandling() {
                 if (!validateChangeNumbers()) {
                     validationErrors.push('Duplicate change numbers found');
                 }
-                
+
                 // Validate KB Updates
                 if (!validateKBNumbers()) {
                     validationErrors.push('Duplicate KB numbers found');
                 }
-                
+
                 if (validationErrors.length > 0) {
                     console.error('❌ BLOCKING FINAL SUBMISSION - Validation failed:');
                     validationErrors.forEach(error => console.error('   - ' + error));
                     alert('Cannot submit form due to validation errors:\n\n• ' + validationErrors.join('\n• ') + '\n\nPlease fix these issues before submitting.');
                     return false;
                 }
-                
+
+                // Collaborative incident duplicate check (non-blocking modal)
+                if (typeof validateIncidentDuplicatesBeforeSubmit === 'function') {
+                    const canProceed = await validateIncidentDuplicatesBeforeSubmit();
+                    if (!canProceed) return;
+                }
+
                 if (hiddenActionField) {
                     hiddenActionField.value = 'submit';
                     console.log('✅ Hidden field set to: submit');
                 }
-                
+
                 // Show loading state
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Submitting...';
                 draftBtn.disabled = true;
-                
+
                 // Submit the form
                 console.log('📤 Submitting form as FINAL');
                 form.submit();
@@ -5012,6 +5055,203 @@ function showUploadSuccessMessage(totalEntries) {
         btn.classList.remove('collapsed');
     });
 }
+
+// ============================================================================
+// Incident Collaboration: Duplicate Detection
+// ============================================================================
+
+/**
+ * Called onblur of incident_id[] inputs.
+ * Saves the row as a draft and checks if another user already entered this ID.
+ */
+async function checkIncidentDuplicate(input) {
+    const val = (input.value || '').trim();
+    if (!val) return;
+
+    // Only run when collaboration is active
+    if (!window.collabInstance || !window.collabInstance.isConnected) return;
+    const shiftId = window.collabInstance.shiftId;
+    if (!shiftId) return;
+
+    const row = input.closest('.incident-entry');
+    if (!row) return;
+
+    // Ensure row has a temp_id
+    if (!row.dataset.collabTempId) {
+        row.dataset.collabTempId = generateIncidentTempId();
+    }
+
+    // Save this incident as a draft in parallel with the duplicate check
+    saveDraftIncident(row, shiftId).catch(() => {});
+
+    try {
+        const resp = await fetch(`/api/collaboration/incident/check?shift_id=${shiftId}&incident_id=${encodeURIComponent(val)}`);
+        const data = await resp.json();
+        if (!data.success) return;
+
+        const warningDiv = input.parentElement.querySelector('.collab-incident-warning');
+        if (!warningDiv) return;
+
+        if (data.duplicate) {
+            warningDiv.style.display = 'block';
+            warningDiv.innerHTML = `
+                <span class="text-warning small">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    <strong>${escapeHtml(val)}</strong> was already entered by <strong>${escapeHtml(data.added_by)}</strong>.
+                    <a href="#" class="ms-1 text-muted small" onclick="clearIncidentDuplicateWarning(this.closest('.collab-incident-warning').previousElementSibling); return false;">Keep mine anyway</a>
+                </span>`;
+            input.classList.add('border-warning');
+        } else {
+            warningDiv.style.display = 'none';
+            input.classList.remove('border-warning');
+        }
+    } catch (e) {
+        // Silent fail — don't disrupt the user experience
+    }
+}
+
+function clearIncidentDuplicateWarning(input) {
+    if (!input) return;
+    const warningDiv = input.parentElement?.querySelector('.collab-incident-warning');
+    if (warningDiv) {
+        warningDiv.style.display = 'none';
+    }
+    input.classList.remove('border-warning');
+}
+
+/**
+ * Save the incident row as a draft to the collaboration API.
+ */
+async function saveDraftIncident(row, shiftId) {
+    if (!shiftId) return;
+    const tempId = row.dataset.collabTempId;
+    if (!tempId) return;
+
+    const incidentId = row.querySelector('input[name="incident_id[]"]')?.value || '';
+    const appName = row.querySelector('input[name="incident_app[]"]')?.value || '';
+    const title = row.querySelector('input[name="incident_short_desc[]"]')?.value || '';
+    const status = row.querySelector('select[name="incident_status[]"]')?.value || 'Open';
+    const priority = row.querySelector('select[name="incident_priority[]"]')?.value || 'Medium';
+    const assignedTo = row.querySelector('select[name="incident_assigned[]"]')?.value || '';
+    const escalatedTo = row.querySelector('input[name="incident_escalated_to[]"]')?.value || '';
+    const notes = row.querySelector('textarea[name="incident_notes[]"]')?.value || '';
+
+    await fetch('/api/collaboration/incident/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            shift_id: shiftId,
+            temp_id: tempId,
+            incident_id: incidentId,
+            app_name: appName,
+            title: title,
+            status: status,
+            priority: priority,
+            assigned_to: assignedTo,
+            escalated_to: escalatedTo,
+            notes: notes
+        })
+    });
+}
+
+/**
+ * Pre-submit validation: check all incident IDs against others' drafts.
+ * Returns true if safe to submit, false if user should review conflicts.
+ */
+async function validateIncidentDuplicatesBeforeSubmit() {
+    if (!window.collabInstance || !window.collabInstance.isConnected) return true;
+    const shiftId = window.collabInstance.shiftId;
+    if (!shiftId) return true;
+
+    const myIds = Array.from(document.querySelectorAll('#incidents-container input[name="incident_id[]"]'))
+        .map(el => el.value.trim())
+        .filter(Boolean);
+
+    if (myIds.length === 0) return true;
+
+    try {
+        const resp = await fetch(`/api/collaboration/incidents/others?shift_id=${shiftId}`);
+        const data = await resp.json();
+        if (!data.success) return true;
+
+        const otherIncidents = data.incidents || [];
+        const conflicts = [];
+        for (const myId of myIds) {
+            const match = otherIncidents.find(inc => inc.incident_id && inc.incident_id.trim() === myId);
+            if (match) {
+                conflicts.push({ incident_id: myId, added_by: match.created_by_name || 'Teammate' });
+            }
+        }
+
+        if (conflicts.length === 0) return true;
+
+        return showIncidentConflictModal(conflicts);
+    } catch (e) {
+        return true; // On error, allow submission
+    }
+}
+
+/**
+ * Show the pre-submit conflict modal and return a Promise<boolean>.
+ */
+function showIncidentConflictModal(conflicts) {
+    return new Promise((resolve) => {
+        const existing = document.getElementById('incidentConflictModal');
+        if (existing) existing.remove();
+
+        const rows = conflicts.map(c =>
+            `<tr><td><code>${escapeHtml(c.incident_id)}</code></td><td>${escapeHtml(c.added_by)}</td></tr>`
+        ).join('');
+
+        const modal = document.createElement('div');
+        modal.id = 'incidentConflictModal';
+        modal.className = 'modal fade';
+        modal.setAttribute('tabindex', '-1');
+        modal.innerHTML = `
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-warning text-dark">
+                        <h5 class="modal-title">
+                            <i class="fas fa-exclamation-triangle me-2"></i>Duplicate Incident IDs Detected
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>The following incident IDs were already entered by a teammate. Submitting will create duplicate entries.</p>
+                        <table class="table table-sm table-bordered">
+                            <thead><tr><th>Incident ID</th><th>Also entered by</th></tr></thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                        <p class="text-muted small mb-0">You can still submit — confirm below or go back and remove duplicates.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                            onclick="document.getElementById('incidentConflictModal')._resolveCallback(false)">
+                            <i class="fas fa-arrow-left me-1"></i>Go Back &amp; Review
+                        </button>
+                        <button type="button" class="btn btn-warning"
+                            onclick="document.getElementById('incidentConflictModal')._resolveCallback(true)">
+                            <i class="fas fa-check me-1"></i>Submit Anyway
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+
+        document.body.appendChild(modal);
+        modal._resolveCallback = (result) => {
+            modal._resolved = true;
+            bsModal.hide();
+            modal.addEventListener('hidden.bs.modal', () => { modal.remove(); resolve(result); }, { once: true });
+        };
+        const bsModal = new bootstrap.Modal(modal, { backdrop: 'static' });
+        modal.addEventListener('hidden.bs.modal', () => {
+            // If dismissed via X or backdrop (not buttons), treat as "go back"
+            if (!modal._resolved) { resolve(false); modal.remove(); }
+        }, { once: true });
+        bsModal.show();
+    });
+}
+
 
 </script>
 {% endblock %}

@@ -83,7 +83,7 @@ To use: include 'partials/collaborative_handover.html' in your template
 </div>
 
 <!-- Enhanced Collaboration JavaScript (v2) -->
-<script src="{{ url_for('static', filename='js/collaborative_handover_v2.js') }}?v=2.7"></script>
+<script src="{{ url_for('static', filename='js/collaborative_handover_v2.js') }}?v=2.9"></script>
 
 <script>
 // Global collaboration instance
@@ -167,7 +167,10 @@ async function initializeCollaborationV2(shiftId) {
         
         // Setup beforeunload handler
         window.addEventListener('beforeunload', handlePageUnload);
-        
+
+        // Start incident polling (duplicate detection approach)
+        startIncidentPolling(shiftId);
+
         showCollabToast('Collaboration mode enabled - changes sync live!', 'success');
         
     } catch (error) {
@@ -178,14 +181,16 @@ async function initializeCollaborationV2(shiftId) {
 
 /**
  * Setup live input tracking - broadcast changes as users type
+ * Incidents are excluded from live-sync; they use polling + duplicate detection instead.
  */
 function setupLiveInputTracking() {
     const form = document.getElementById('handover-form');
     if (!form || !window.collabInstance) return;
-    
-    // Track all input fields
-    const inputs = form.querySelectorAll('input[type="text"], textarea, select');
-    
+
+    // Track all input fields EXCEPT those inside #incidents-container
+    const inputs = Array.from(form.querySelectorAll('input[type="text"], textarea, select'))
+        .filter(el => !el.closest('#incidents-container'));
+
     inputs.forEach((input, index) => {
         // Assign a unique ID if not present
         if (!input.dataset.collabId) {
@@ -258,14 +263,10 @@ function setupLiveInputTracking() {
 }
 
 /**
- * Observe for dynamically added form entries
+ * Observe for dynamically added form entries (incidents excluded from live-sync)
  */
 function observeDynamicEntries() {
     const containers = [
-        '#open-incidents-container',
-        '#closed-incidents-container', 
-        '#priority-incidents-container',
-        '#handover-incidents-container',
         '#keypoints-container',
         '#changes-container',
         '#kbupdates-container'
@@ -354,10 +355,7 @@ function getFieldInfo(input) {
     if (!container) return null;
     
     const containerMap = {
-        'open-incidents-container': 'incident_open',
-        'closed-incidents-container': 'incident_closed',
-        'priority-incidents-container': 'incident_priority',
-        'handover-incidents-container': 'incident_handover',
+        'incidents-container': 'incident',
         'keypoints-container': 'keypoint',
         'changes-container': 'changeinfo',
         'kbupdates-container': 'kbupdate'
@@ -496,26 +494,176 @@ function addCollaborationToggle() {
     headerActions.insertBefore(toggleDiv, headerActions.firstChild);
 }
 
+// ============================================================================
+// Incident polling: check for new incidents added by other users every 30s
+// ============================================================================
+let _incidentPollTimer = null;
+let _knownOtherTempIds = new Set(); // temp_ids we've already shown to this user
+
+function startIncidentPolling(shiftId) {
+    if (_incidentPollTimer) clearInterval(_incidentPollTimer);
+    // First call: silently seed _knownOtherTempIds (don't show badge for pre-existing incidents)
+    seedKnownIncidents(shiftId).then(() => {
+        _incidentPollTimer = setInterval(() => pollForOthersIncidents(shiftId), 30000);
+    });
+}
+
+async function seedKnownIncidents(shiftId) {
+    try {
+        const resp = await fetch(`/api/collaboration/incidents/others?shift_id=${shiftId}`);
+        const data = await resp.json();
+        if (data.success) {
+            (data.incidents || []).forEach(inc => _knownOtherTempIds.add(inc.temp_id));
+        }
+    } catch (e) { /* silent */ }
+}
+
+function stopIncidentPolling() {
+    if (_incidentPollTimer) {
+        clearInterval(_incidentPollTimer);
+        _incidentPollTimer = null;
+    }
+}
+
+async function pollForOthersIncidents(shiftId) {
+    if (!window.collabInstance || !window.collabInstance.isConnected) return;
+    try {
+        const resp = await fetch(`/api/collaboration/incidents/others?shift_id=${shiftId}`);
+        const data = await resp.json();
+        if (!data.success) return;
+
+        const newIncidents = (data.incidents || []).filter(
+            inc => !_knownOtherTempIds.has(inc.temp_id)
+        );
+
+        if (newIncidents.length === 0) return;
+
+        // Update the refresh badge
+        const badge = document.getElementById('collab-incident-refresh-badge');
+        if (badge) {
+            const currentCount = parseInt(badge.dataset.count || '0', 10);
+            const total = currentCount + newIncidents.length;
+            badge.dataset.count = String(total);
+            badge.dataset.pendingTempIds = JSON.stringify(
+                [...JSON.parse(badge.dataset.pendingTempIds || '[]'), ...newIncidents.map(i => i.temp_id)]
+            );
+            const textEl = document.getElementById('collab-incident-refresh-text');
+            if (textEl) textEl.textContent = `${total} new incident${total > 1 ? 's' : ''} added`;
+            badge.style.display = 'inline-flex';
+        }
+    } catch (e) {
+        // Silent fail — network error during poll
+    }
+}
+
+/**
+ * Load others' incidents and append to #incidents-container
+ * Called when user clicks the Refresh button.
+ */
+async function loadOthersIncidents() {
+    if (!window.collabInstance) return;
+    const shiftId = window.collabInstance.shiftId;
+    if (!shiftId) return;
+
+    const badge = document.getElementById('collab-incident-refresh-badge');
+    const pendingIds = JSON.parse(badge?.dataset?.pendingTempIds || '[]');
+
+    if (pendingIds.length === 0) return;
+
+    try {
+        const resp = await fetch(`/api/collaboration/incidents/others?shift_id=${shiftId}`);
+        const data = await resp.json();
+        if (!data.success) return;
+
+        const toLoad = (data.incidents || []).filter(inc => pendingIds.includes(inc.temp_id));
+
+        toLoad.forEach(inc => {
+            // Mark as known so we don't show the badge again for these
+            _knownOtherTempIds.add(inc.temp_id);
+            appendOthersIncident(inc);
+        });
+
+        // Reset badge
+        if (badge) {
+            badge.style.display = 'none';
+            badge.dataset.count = '0';
+            badge.dataset.pendingTempIds = '[]';
+        }
+
+        if (toLoad.length > 0) {
+            showCollabToast(`Loaded ${toLoad.length} incident${toLoad.length > 1 ? 's' : ''} from teammates`, 'success');
+        }
+    } catch (e) {
+        showCollabToast('Failed to load incidents: ' + e.message, 'error');
+    }
+}
+
+/**
+ * Append another user's incident to the form as a read-only attributed row.
+ */
+function appendOthersIncident(inc) {
+    const container = document.getElementById('incidents-container');
+    if (!container || typeof addUnifiedIncident === 'undefined') return;
+
+    // Check if an incident with this incident_id is already in the form
+    const existingInputs = container.querySelectorAll('input[name="incident_id[]"]');
+    for (const input of existingInputs) {
+        if (input.value && inc.incident_id && input.value.trim() === inc.incident_id.trim()) {
+            return; // Already present
+        }
+    }
+
+    // Use the existing addUnifiedIncident function to create the row
+    const incidentData = {
+        app_name: inc.app_name || '',
+        id: inc.incident_id || '',
+        short_desc: inc.title || '',
+        notes: inc.description || '',
+        priority: inc.priority || 'Medium',
+        status: inc.incident_type || 'Open'
+    };
+    addUnifiedIncident(incidentData);
+
+    // Style the last added row as teammate's entry
+    const rows = container.querySelectorAll('.incident-entry');
+    const lastRow = rows[rows.length - 1];
+    if (lastRow) {
+        lastRow.dataset.collabTempId = inc.temp_id;
+        lastRow.dataset.collabFromUser = inc.created_by_name || 'Teammate';
+        lastRow.style.borderLeftColor = '#6f42c1';
+        lastRow.style.borderLeftWidth = '4px';
+
+        const attribution = document.createElement('div');
+        attribution.className = 'small text-muted mb-2';
+        attribution.style.color = '#6f42c1';
+        attribution.innerHTML = `<i class="fas fa-user-circle me-1"></i>Added by <strong>${escapeHtml(inc.created_by_name || 'Teammate')}</strong>`;
+        lastRow.insertBefore(attribution, lastRow.firstChild);
+    }
+}
+
+// ============================================================================
+
 /**
  * Toggle collaboration on/off
  */
 async function toggleCollaboration() {
     const shiftId = {% if shift %}{{ shift.id }}{% else %}null{% endif %};
-    
+
     if (!shiftId) {
         showCollabToast('Please save as draft first to enable collaboration', 'warning');
         return;
     }
-    
+
     const label = document.getElementById('collab-toggle-label');
     const panel = document.getElementById('collab-panel');
     const btn = document.getElementById('collab-toggle-btn');
-    
+
     if (window.collabInstance && window.collabInstance.isConnected) {
         // Disconnect
         try {
             btn.disabled = true;
             label.textContent = 'Leaving...';
+            stopIncidentPolling();
             await window.collabInstance.leave();
             window.collabInstance = null;
             panel.style.display = 'none';

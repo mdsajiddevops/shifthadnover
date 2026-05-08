@@ -614,42 +614,34 @@ def is_tab_enabled(tab_name):
     """
     try:
         from models.team_feature_config import TeamFeatureConfig
+        from models.app_config import AppConfig
         from flask_login import current_user
-        
+
         # Get user's account and team IDs if authenticated
         account_id = None
         team_id = None
-        
+
         if current_user.is_authenticated:
-            # Fetch fresh user data to avoid stale session issues
             from models.models import User
             fresh_user = User.query.get(current_user.id)
             if fresh_user:
                 account_id = fresh_user.account_id
                 team_id = fresh_user.team_id
-        
-        # Check feature status with hierarchy
+
+        # Use AppConfig as the global default so system configuration page
+        # toggles take effect when no team/account override exists.
+        global_default = AppConfig.get_config(tab_name, 'true').lower() == 'true'
+
         return TeamFeatureConfig.get_feature_status(
             feature_key=tab_name,
             account_id=account_id,
             team_id=team_id,
-            default=True  # Default to enabled if no config found
+            default=global_default
         )
     except Exception as e:
-        # Fallback to default values if database not available
         import logging
-        logger = logging.getLogger(__name__)
-        logger.warning(f"Error checking tab status for {tab_name}: {e}")
-        
-        enabled_tabs = {
-            'tab_kb_articles': True,
-            'tab_vendor_details': True,
-            'tab_applications': True,
-            'tab_change_management': True,
-            'tab_problem_tickets': True,
-            'tab_post_mortems': True
-        }
-        return enabled_tabs.get(tab_name, True)
+        logging.getLogger(__name__).warning(f"Error checking tab status for {tab_name}: {e}")
+        return True
 
 @app.template_filter('safe_engineer_name')
 def safe_engineer_name(engineer):

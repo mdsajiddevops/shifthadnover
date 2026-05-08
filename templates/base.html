@@ -189,7 +189,7 @@
         </button>
         
         <!-- Sidebar Content -->
-        <div class="sidebar-content">
+        <div class="sidebar-content" id="sidebarContent">
             <!-- Operations Section -->
             <div class="nav-section">
                 <div class="section-title">
@@ -349,7 +349,7 @@
                     </a>
                 </div>
                 {% endif %}
-                {% if is_tab_enabled('tab_shift_management') %}
+                {% if current_user.role == 'super_admin' and is_tab_enabled('tab_shift_management') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/shift-management') else '' }}" href="/shift-management/dashboard" data-tooltip="Shift Management">
                         <i class="nav-icon bi bi-calendar-week"></i>
@@ -376,36 +376,44 @@
                     </a>
                 </div>
                 {% if current_user.role == 'super_admin' %}
+                {% if is_tab_enabled('tab_active_sessions') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/active-sessions') else '' }}" href="/admin/active-sessions" data-tooltip="Active Sessions">
                         <i class="nav-icon bi bi-people-fill"></i>
                         <span class="nav-text">Active Sessions</span>
                     </a>
                 </div>
+                {% endif %}
+                {% if is_tab_enabled('tab_user_team_linking') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/user-team-linking') else '' }}" href="/admin/user-team-linking" data-tooltip="User-Team Linking">
                         <i class="nav-icon bi bi-link-45deg"></i>
                         <span class="nav-text">User-Team Linking</span>
                     </a>
                 </div>
+                {% endif %}
+                {% if is_tab_enabled('tab_email_monitoring') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/email-monitoring') else '' }}" href="/admin/email-monitoring" data-tooltip="Email Monitoring">
                         <i class="nav-icon bi bi-envelope-check"></i>
                         <span class="nav-text">Email Monitoring</span>
                     </a>
                 </div>
+                {% endif %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/incident-metrics') else '' }}" href="/admin/incident-metrics" data-tooltip="Incident Metrics">
                         <i class="nav-icon bi bi-graph-up-arrow"></i>
                         <span class="nav-text">Incident Metrics</span>
                     </a>
                 </div>
+                {% if is_tab_enabled('tab_manual_roster') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/manual-roster') else '' }}" href="/admin/manual-roster" data-tooltip="Manual Roster Entry">
                         <i class="nav-icon bi bi-calendar-plus"></i>
                         <span class="nav-text">Manual Roster</span>
                     </a>
                 </div>
+                {% endif %}
                 {% if is_tab_enabled('tab_roster_scheduler') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/roster-scheduler') else '' }}" href="/admin/roster-scheduler" data-tooltip="Roster Scheduler Settings">
@@ -420,13 +428,15 @@
                         <span class="nav-text">System Health</span>
                     </a>
                 </div>
-                {% endif %}
+                {% if is_tab_enabled('tab_incident_response_logs') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/incident-response-logs') else '' }}" href="{{ url_for('user_profile.admin_incident_response_logs') }}" data-tooltip="Incident Response Logs">
                         <i class="nav-icon bi bi-clipboard-data"></i>
                         <span class="nav-text">Incident Response Logs</span>
                     </a>
                 </div>
+                {% endif %}
+                {% endif %}
                 {% if current_user.role == 'super_admin' %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/admin/configuration') else '' }}" href="/admin/configuration" data-tooltip="System Configuration">
@@ -533,7 +543,15 @@
             </div>
             {% endif %}
         </div>
-        
+        <script>
+        // Restore sidebar scroll before paint to prevent visible jump
+        (function() {
+            var el = document.getElementById('sidebarContent');
+            var pos = localStorage.getItem('sidebarScrollTop');
+            if (el && pos) { el.scrollTop = parseInt(pos, 10); }
+        })();
+        </script>
+
         <!-- Enhanced User Profile -->
         {% if current_user.is_authenticated %}
         <div class="sidebar-user-profile" onclick="toggleUserDropdown(event)">
@@ -880,6 +898,20 @@
                 }, 200);
             }
             
+            // Persist sidebar scroll position across page navigations
+            const sidebarContent = document.getElementById('sidebarContent');
+            if (sidebarContent) {
+                // Scroll position already restored by inline script above;
+                // just wire up the save-on-scroll listener here.
+                let _scrollTimer;
+                sidebarContent.addEventListener('scroll', function() {
+                    clearTimeout(_scrollTimer);
+                    _scrollTimer = setTimeout(function() {
+                        localStorage.setItem('sidebarScrollTop', sidebarContent.scrollTop);
+                    }, 80);
+                });
+            }
+
             // Mobile sidebar functionality
             function handleMobile() {
                 if (window.innerWidth <= 768) {
