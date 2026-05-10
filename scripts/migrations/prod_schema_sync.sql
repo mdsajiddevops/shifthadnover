@@ -7,7 +7,9 @@
 -- Run BEFORE deploying the new code.
 --
 -- Usage (on the prod VM):
---   docker exec shift-db mysql -u root -prootpassword shifthandover < prod_schema_sync.sql
+--   docker-compose -f docker-compose.prod.yml exec -T db \
+--     mysql -u root -p"$(cat ./secrets/mysql_root_password)" shift_handover \
+--     < scripts/migrations/prod_schema_sync.sql
 -- =============================================================================
 
 SET NAMES utf8mb4;
