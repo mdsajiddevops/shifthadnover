@@ -18,7 +18,7 @@ from utils.validators import (
 
 class TestHandoverFieldValidation(unittest.TestCase):
     def test_empty_shift_date_returns_error(self):
-        errors = validate_handover_fields({'shift_date': '', 'shift_type': 'D', 'submitted_by': 'Alice'})
+        errors = validate_handover_fields({'shift_date': '', 'shift_type': 'Evening', 'submitted_by': 'Alice'})
         self.assertIn('shift_date', errors)
 
     def test_none_shift_type_returns_error(self):
@@ -31,8 +31,13 @@ class TestHandoverFieldValidation(unittest.TestCase):
         self.assertIn('X', errors['shift_type'])
 
     def test_valid_input_returns_empty_dict(self):
-        errors = validate_handover_fields({'shift_date': '2026-01-01', 'shift_type': 'D', 'submitted_by': 'Alice'})
+        errors = validate_handover_fields({'shift_date': '2026-01-01', 'shift_type': 'Evening', 'submitted_by': 'Alice'})
         self.assertEqual(errors, {})
+
+    def test_all_valid_shift_types_pass(self):
+        for shift in ('Morning', 'Evening', 'Late Evening', 'Night', 'General', 'OnShore', 'OffShore'):
+            errors = validate_handover_fields({'shift_date': '2026-01-01', 'shift_type': shift, 'submitted_by': 'Alice'})
+            self.assertNotIn('shift_type', errors, f"Expected '{shift}' to be valid")
 
 
 class TestIncidentFieldValidation(unittest.TestCase):

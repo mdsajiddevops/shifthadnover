@@ -59,8 +59,10 @@
                 <option value="Closed" {% if status_filter=='Closed' %}selected{% endif %}>✅ Closed</option>
             </select>
             
-            <input type="date" name="date" id="date" class="filter-input-modern" 
-                   value="{{ date_filter or date.today().strftime('%Y-%m-%d') }}" style="min-width: 150px;">
+            <input type="date" name="date_from" id="date_from" class="filter-input-modern"
+                   value="{{ date_from }}" placeholder="From" style="min-width: 140px;">
+            <input type="date" name="date_to" id="date_to" class="filter-input-modern"
+                   value="{{ date_to }}" placeholder="To" style="min-width: 140px;">
             
             <div class="ms-auto d-flex gap-2">
                 <button type="submit" class="btn btn-primary px-4" style="border-radius: 10px;">
@@ -73,8 +75,8 @@
         </form>
         
         <!-- Active Filters Summary -->
-        {% if selected_team_id or status_filter != 'all' or date_filter %}
-        <div class="d-flex gap-2 mt-3 pt-3 border-top">
+        {% if selected_team_id or status_filter != 'all' or date_from or date_to %}
+        <div class="d-flex gap-2 mt-3 pt-3 border-top flex-wrap">
             <small class="text-muted">Active:</small>
             {% if selected_team_id %}
             <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill">
@@ -86,9 +88,14 @@
                 <i class="bi bi-flag me-1"></i>{{ status_filter }}
             </span>
             {% endif %}
-            {% if date_filter %}
+            {% if date_from %}
             <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill">
-                <i class="bi bi-calendar me-1"></i>{{ date_filter }}
+                <i class="bi bi-calendar me-1"></i>From {{ date_from }}
+            </span>
+            {% endif %}
+            {% if date_to %}
+            <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill">
+                <i class="bi bi-calendar me-1"></i>To {{ date_to }}
             </span>
             {% endif %}
         </div>
@@ -156,7 +163,8 @@
                     </div>
                     <form method="post" action="{{ url_for('keypoints.update_keypoint_status', key_point_id=kp.id) }}" class="d-flex align-items-center gap-2">
                         <input type="hidden" name="filter_status" value="{{ request.args.get('status', '') }}">
-                        <input type="hidden" name="filter_date" value="{{ request.args.get('date', '') }}">
+                        <input type="hidden" name="filter_date_from" value="{{ request.args.get('date_from', '') }}">
+                        <input type="hidden" name="filter_date_to" value="{{ request.args.get('date_to', '') }}">
                         <input type="hidden" name="filter_team_id" value="{{ request.args.get('team_id', '') }}">
                         <select name="new_status" class="status-select-modern">
                             <option value="Open" {% if kp.status == 'Open' %}selected{% endif %}>Open</option>
@@ -315,7 +323,7 @@
             </div>
             <h4 class="text-muted mb-3">No Key Points Found</h4>
             <p class="text-muted mb-0">
-                {% if status_filter != 'all' or date_filter %}
+                {% if status_filter != 'all' or date_from or date_to %}
                 Try adjusting your filters to see more key points.
                 {% else %}
                 Key points will appear here once they are created in shift handovers.

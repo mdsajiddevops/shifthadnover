@@ -342,23 +342,27 @@ class User(db.Model, UserMixin):
     def get_team_names(self, account_id=None, separator=', '):
         """Get comma-separated list of team names"""
         memberships = self.get_teams(account_id=account_id)
-        teams = [Team.query.get(m.team_id) for m in memberships]
-        team_names = [t.name for t in teams if t]
+        team_ids = [m.team_id for m in memberships]
+        if not team_ids:
+            return ''
+        teams_by_id = {t.id: t for t in Team.query.filter(Team.id.in_(team_ids)).all()}
+        team_names = [teams_by_id[m.team_id].name for m in memberships if m.team_id in teams_by_id]
         return separator.join(team_names)
-    
+
     @property
     def all_teams_display(self):
         """Display all teams user belongs to with primary indication"""
-        # Don't use caching for now to ensure fresh data
         try:
             memberships = self.get_teams()
+            team_ids = [m.team_id for m in memberships]
+            if not team_ids:
+                return 'No Teams'
+            teams_by_id = {t.id: t for t in Team.query.filter(Team.id.in_(team_ids)).all()}
             teams_info = []
             for membership in memberships:
-                team = Team.query.get(membership.team_id)
+                team = teams_by_id.get(membership.team_id)
                 if team:
-                    name = team.name
-                    if membership.is_primary:
-                        name += " (Primary)"
+                    name = team.name + (' (Primary)' if membership.is_primary else '')
                     teams_info.append(name)
             return '; '.join(teams_info) if teams_info else 'No Teams'
         except Exception as e:

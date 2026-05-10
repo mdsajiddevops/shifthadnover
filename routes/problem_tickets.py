@@ -126,7 +126,22 @@ def get_problem_tickets():
             )
         
         tickets = query.order_by(ProblemTicket.created_at.desc()).all()
-        
+
+        # Batch-load task counts to avoid 2N COUNT queries
+        from sqlalchemy import func
+        ticket_ids = [t.id for t in tickets]
+        if ticket_ids:
+            _total_counts = dict(db.session.query(ProblemTask.problem_id, func.count(ProblemTask.id))
+                .filter(ProblemTask.problem_id.in_(ticket_ids))
+                .group_by(ProblemTask.problem_id).all())
+            _open_counts = dict(db.session.query(ProblemTask.problem_id, func.count(ProblemTask.id))
+                .filter(ProblemTask.problem_id.in_(ticket_ids),
+                        ProblemTask.status.in_(['Open', 'In Progress', 'Pending']))
+                .group_by(ProblemTask.problem_id).all())
+        else:
+            _total_counts = {}
+            _open_counts = {}
+
         return jsonify({
             'success': True,
             'tickets': [{
@@ -145,8 +160,8 @@ def get_problem_tickets():
                 'created_date': t.created_date.isoformat() if t.created_date else None,
                 'target_resolution_date': t.target_resolution_date.isoformat() if t.target_resolution_date else None,
                 'actual_resolution_date': t.actual_resolution_date.isoformat() if t.actual_resolution_date else None,
-                'ptask_count': t.ptask_count,
-                'open_ptask_count': t.open_ptask_count,
+                'ptask_count': _total_counts.get(t.id, 0),
+                'open_ptask_count': _open_counts.get(t.id, 0),
                 'created_at': t.created_at.isoformat() if t.created_at else None
             } for t in tickets]
         })

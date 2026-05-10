@@ -577,10 +577,15 @@ async function loadOthersIncidents() {
 
         const toLoad = (data.incidents || []).filter(inc => pendingIds.includes(inc.temp_id));
 
+        let added = 0;
+        let skipped = 0;
         toLoad.forEach(inc => {
-            // Mark as known so we don't show the badge again for these
             _knownOtherTempIds.add(inc.temp_id);
-            appendOthersIncident(inc);
+            if (appendOthersIncident(inc)) {
+                added++;
+            } else {
+                skipped++;
+            }
         });
 
         // Reset badge
@@ -590,8 +595,11 @@ async function loadOthersIncidents() {
             badge.dataset.pendingTempIds = '[]';
         }
 
-        if (toLoad.length > 0) {
-            showCollabToast(`Loaded ${toLoad.length} incident${toLoad.length > 1 ? 's' : ''} from teammates`, 'success');
+        if (added > 0) {
+            showCollabToast(`Loaded ${added} incident${added > 1 ? 's' : ''} from teammates`, 'success');
+        }
+        if (skipped > 0) {
+            showCollabToast(`${skipped} incident${skipped > 1 ? 's' : ''} already in your form`, 'info');
         }
     } catch (e) {
         showCollabToast('Failed to load incidents: ' + e.message, 'error');
@@ -603,13 +611,13 @@ async function loadOthersIncidents() {
  */
 function appendOthersIncident(inc) {
     const container = document.getElementById('incidents-container');
-    if (!container || typeof addUnifiedIncident === 'undefined') return;
+    if (!container || typeof addUnifiedIncident === 'undefined') return false;
 
     // Check if an incident with this incident_id is already in the form
     const existingInputs = container.querySelectorAll('input[name="incident_id[]"]');
     for (const input of existingInputs) {
         if (input.value && inc.incident_id && input.value.trim() === inc.incident_id.trim()) {
-            return; // Already present
+            return false; // Already present
         }
     }
 
@@ -630,6 +638,7 @@ function appendOthersIncident(inc) {
     if (lastRow) {
         lastRow.dataset.collabTempId = inc.temp_id;
         lastRow.dataset.collabFromUser = inc.created_by_name || 'Teammate';
+        lastRow.style.borderLeftStyle = 'solid';
         lastRow.style.borderLeftColor = '#6f42c1';
         lastRow.style.borderLeftWidth = '4px';
 
@@ -638,7 +647,10 @@ function appendOthersIncident(inc) {
         attribution.style.color = '#6f42c1';
         attribution.innerHTML = `<i class="fas fa-user-circle me-1"></i>Added by <strong>${escapeHtml(inc.created_by_name || 'Teammate')}</strong>`;
         lastRow.insertBefore(attribution, lastRow.firstChild);
+
+        lastRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
+    return true;
 }
 
 // ============================================================================

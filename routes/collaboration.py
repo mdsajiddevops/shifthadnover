@@ -296,8 +296,8 @@ def event_stream(shift_id):
                         yield f"data: {json.dumps({'type': 'change', 'data': change.to_dict()})}\n\n"
                     last_change_id = max(last_change_id, change.id)
 
-                # Send active users update every 5 seconds
-                if (datetime.utcnow() - last_check).seconds >= 5:
+                # Send active users update every 30 seconds
+                if (datetime.utcnow() - last_check).seconds >= 30:
                     active_sessions = HandoverSession.get_active_users(shift_id)
                     locks = SectionLock.get_locks_for_shift(shift_id)
                     yield f"data: {json.dumps({'type': 'presence', 'active_users': [s.to_dict() for s in active_sessions], 'locks': [l.to_dict() for l in locks]})}\n\n"
@@ -1316,8 +1316,8 @@ def event_stream_v2(shift_id):
                         yield f"data: {json.dumps({'type': 'change', 'data': change.to_dict()})}\n\n"
                     last_change_id = max(last_change_id, change.id)
 
-                # Send presence update every 3 seconds
-                if (datetime.utcnow() - last_presence_update).total_seconds() >= 3:
+                # Send presence update every 15 seconds
+                if (datetime.utcnow() - last_presence_update).total_seconds() >= 15:
                     active_sessions = HandoverSession.get_active_users(shift_id)
                     locks = SectionLock.get_locks_for_shift(shift_id)
                     typing = _typing_indicators.get(shift_id, {})
