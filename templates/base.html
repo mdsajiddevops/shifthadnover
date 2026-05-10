@@ -317,6 +317,14 @@
                     </a>
                 </div>
                 {% endif %}
+                {% if current_user.role in ['super_admin', 'account_admin', 'team_admin'] %}
+                <div class="modern-nav-item">
+                    <a class="modern-nav-link {{ 'active' if is_nav_active('/webhook/admin') else '' }}" href="/webhook/admin" data-tooltip="Webhook — Assignment Groups">
+                        <i class="nav-icon bi bi-plug"></i>
+                        <span class="nav-text">Webhook Config</span>
+                    </a>
+                </div>
+                {% endif %}
                 {% if is_tab_enabled('tab_escalation_matrix') %}
                 <div class="modern-nav-item">
                     <a class="modern-nav-link {{ 'active' if is_nav_active('/escalation-matrix') else '' }}" href="/escalation-matrix" data-tooltip="Escalation Matrix">

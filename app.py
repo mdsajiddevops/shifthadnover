@@ -595,6 +595,10 @@ app.register_blueprint(handover_upload_bp)
 from routes.problem_tickets import problem_tickets_bp
 app.register_blueprint(problem_tickets_bp)
 
+# Register webhook blueprint (Power Automate incident integration)
+from routes.webhook import webhook_bp
+app.register_blueprint(webhook_bp)
+
 # Register collaborative handover blueprint for real-time multi-user editing
 from routes.collaboration import collaboration_bp
 app.register_blueprint(collaboration_bp)

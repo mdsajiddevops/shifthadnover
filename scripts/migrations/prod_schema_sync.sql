@@ -681,6 +681,80 @@ CALL add_column_if_missing('scheduled_shifts', 'created_by_id', 'INT NULL');
 CALL add_column_if_missing('email_delivery_log', 'uns_event_id', 'VARCHAR(100) NULL');
 
 -- =============================================================================
+-- SECTION 2b: WEBHOOK TABLES (new feature — assignment group routing)
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS `webhook_token` (
+  `id`         int NOT NULL AUTO_INCREMENT,
+  `token`      varchar(128) NOT NULL,
+  `label`      varchar(64)  DEFAULT 'power_automate',
+  `is_active`  tinyint(1)   NOT NULL DEFAULT '1',
+  `created_at` datetime     DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `token` (`token`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `webhook_incident` (
+  `id`               int NOT NULL AUTO_INCREMENT,
+  `incident_id`      varchar(64)  NOT NULL,
+  `application`      varchar(128) DEFAULT NULL,
+  `title`            varchar(256) DEFAULT NULL,
+  `priority`         varchar(32)  DEFAULT NULL,
+  `status`           varchar(32)  DEFAULT NULL,
+  `description`      text,
+  `assigned_to`      varchar(128) DEFAULT NULL,
+  `escalated_to`     varchar(128) DEFAULT NULL,
+  `assignment_group` varchar(128) DEFAULT NULL,
+  `category`         varchar(128) DEFAULT NULL,
+  `resolution_notes` text,
+  `account_id`       int          DEFAULT NULL,
+  `team_id`          int          DEFAULT NULL,
+  `source`           varchar(64)  DEFAULT 'power_automate',
+  `routing_status`   varchar(16)  NOT NULL DEFAULT 'routed',
+  `is_active`        tinyint(1)   NOT NULL DEFAULT '1',
+  `raw_payload`      text,
+  `occurred_at`      datetime     DEFAULT NULL,
+  `resolved_at`      datetime     DEFAULT NULL,
+  `last_updated_at`  datetime     DEFAULT NULL,
+  `received_at`      datetime     DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_wi_incident_id`      (`incident_id`),
+  KEY `idx_wi_assignment_group` (`assignment_group`),
+  KEY `idx_wi_occurred_at`      (`occurred_at`),
+  KEY `idx_wi_team_active`      (`team_id`, `is_active`),
+  CONSTRAINT `webhook_incident_ibfk_1` FOREIGN KEY (`account_id`) REFERENCES `account` (`id`),
+  CONSTRAINT `webhook_incident_ibfk_2` FOREIGN KEY (`team_id`)    REFERENCES `team`    (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Add new columns if table existed before this feature
+CALL add_column_if_missing('webhook_incident', 'escalated_to',     'VARCHAR(128) NULL');
+CALL add_column_if_missing('webhook_incident', 'assignment_group', 'VARCHAR(128) NULL');
+CALL add_column_if_missing('webhook_incident', 'category',         'VARCHAR(128) NULL');
+CALL add_column_if_missing('webhook_incident', 'resolution_notes', 'TEXT NULL');
+CALL add_column_if_missing('webhook_incident', 'routing_status',   'VARCHAR(16) NOT NULL DEFAULT ''routed''');
+CALL add_column_if_missing('webhook_incident', 'occurred_at',      'DATETIME NULL');
+CALL add_column_if_missing('webhook_incident', 'resolved_at',      'DATETIME NULL');
+CALL add_column_if_missing('webhook_incident', 'last_updated_at',  'DATETIME NULL');
+
+CREATE TABLE IF NOT EXISTS `team_assignment_group` (
+  `id`               int NOT NULL AUTO_INCREMENT,
+  `team_id`          int          NOT NULL,
+  `account_id`       int          NOT NULL,
+  `assignment_group` varchar(128) NOT NULL,
+  `description`      varchar(256) DEFAULT NULL,
+  `is_active`        tinyint(1)   NOT NULL DEFAULT '1',
+  `created_at`       datetime     DEFAULT CURRENT_TIMESTAMP,
+  `created_by_id`    int          DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_account_assignment_group` (`account_id`, `assignment_group`),
+  KEY `team_id`       (`team_id`),
+  KEY `created_by_id` (`created_by_id`),
+  CONSTRAINT `tag_ibfk_1` FOREIGN KEY (`team_id`)       REFERENCES `team`    (`id`),
+  CONSTRAINT `tag_ibfk_2` FOREIGN KEY (`account_id`)    REFERENCES `account` (`id`),
+  CONSTRAINT `tag_ibfk_3` FOREIGN KEY (`created_by_id`) REFERENCES `user`    (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================================================
 -- SECTION 3: ALEMBIC VERSION — tells Flask-Migrate not to re-run migrations
 -- =============================================================================
 

@@ -495,6 +495,67 @@ class Shift(db.Model):
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
     additional_notes = db.Column(db.Text, nullable=True)  # Additional notes for the handover
 
+class WebhookIncident(db.Model):
+    """Stores incoming incidents pushed via Power Automate webhook (upserted by incident_id)."""
+    __tablename__ = 'webhook_incident'
+
+    id               = db.Column(db.Integer, primary_key=True)
+    incident_id      = db.Column(db.String(64),  nullable=False, index=True)
+    application      = db.Column(db.String(128), nullable=True)
+    title            = db.Column(db.String(256), nullable=True)
+    priority         = db.Column(db.String(32),  nullable=True)
+    status           = db.Column(db.String(32),  nullable=True)
+    description      = db.Column(db.Text,        nullable=True)
+    assigned_to      = db.Column(db.String(128), nullable=True)
+    escalated_to     = db.Column(db.String(128), nullable=True)
+    assignment_group = db.Column(db.String(128), nullable=True, index=True)
+    category         = db.Column(db.String(128), nullable=True)
+    resolution_notes = db.Column(db.Text,        nullable=True)
+    account_id       = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=True)
+    team_id          = db.Column(db.Integer, db.ForeignKey('team.id'),    nullable=True)
+    source           = db.Column(db.String(64),  default='power_automate')
+    routing_status   = db.Column(db.String(16),  default='routed', nullable=False)
+    is_active        = db.Column(db.Boolean,     default=True, nullable=False)
+    raw_payload      = db.Column(db.Text,        nullable=True)
+    occurred_at      = db.Column(db.DateTime,    nullable=True, index=True)
+    resolved_at      = db.Column(db.DateTime,    nullable=True)
+    last_updated_at  = db.Column(db.DateTime,    nullable=True)
+    received_at      = db.Column(db.DateTime,    default=db.func.current_timestamp())
+
+
+class WebhookToken(db.Model):
+    """Stores the shared secret token used to authenticate webhook calls."""
+    __tablename__ = 'webhook_token'
+
+    id         = db.Column(db.Integer, primary_key=True)
+    token      = db.Column(db.String(128), unique=True, nullable=False)
+    label      = db.Column(db.String(64),  default='power_automate')
+    is_active  = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+
+class TeamAssignmentGroup(db.Model):
+    """Maps ServiceNow assignment group names to teams for webhook routing."""
+    __tablename__ = 'team_assignment_group'
+
+    id               = db.Column(db.Integer, primary_key=True)
+    team_id          = db.Column(db.Integer, db.ForeignKey('team.id'),    nullable=False)
+    account_id       = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
+    assignment_group = db.Column(db.String(128), nullable=False)
+    description      = db.Column(db.String(256), nullable=True)
+    is_active        = db.Column(db.Boolean, default=True, nullable=False)
+    created_at       = db.Column(db.DateTime, default=db.func.current_timestamp())
+    created_by_id    = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    team       = db.relationship('Team', backref='webhook_assignment_groups', lazy='joined')
+    account    = db.relationship('Account', backref='webhook_assignment_groups', lazy='joined')
+    created_by = db.relationship('User', foreign_keys=[created_by_id], lazy='joined')
+
+    __table_args__ = (
+        db.UniqueConstraint('account_id', 'assignment_group', name='uq_account_assignment_group'),
+    )
+
+
 class Incident(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(512), nullable=False)

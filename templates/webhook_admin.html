@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% block title %}Webhook Integration — Assignment Groups{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="row mb-3">
+    <div class="col">
+      <h4 class="mb-0"><i class="bi bi-plug me-2"></i>Power Automate Webhook Integration</h4>
+      <p class="text-muted small mt-1">Configure which ServiceNow assignment groups route to which teams, and manage your webhook token.</p>
+    </div>
+  </div>
+
+  <div class="row g-4">
+
+    <!-- LEFT: Assignment group mapping -->
+    <div class="col-lg-8">
+
+      <!-- Unrouted alert -->
+      {% if unrouted_count > 0 %}
+      <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" id="unrouted-alert">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <div>
+          <strong>{{ unrouted_count }} unrouted incident{{ 's' if unrouted_count != 1 else '' }}</strong> arrived with an unknown assignment group.
+          <a href="#unrouted-panel" class="alert-link ms-1">View and fix →</a>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Add new mapping -->
+      <div class="card mb-4">
+        <div class="card-header"><strong>Add Assignment Group Mapping</strong></div>
+        <div class="card-body">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+              <label class="form-label small">ServiceNow Assignment Group <span class="text-danger">*</span></label>
+              <input type="text" id="newGroupName" class="form-control form-control-sm" placeholder="e.g. NOC-APAC-L1">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small">Team <span class="text-danger">*</span></label>
+              <select id="newGroupTeam" class="form-select form-select-sm">
+                <option value="">— select team —</option>
+                {% for t in teams %}
+                <option value="{{ t.id }}" data-account="{{ t.account_id }}">{{ t.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small">Description (optional)</label>
+              <input type="text" id="newGroupDesc" class="form-control form-control-sm" placeholder="e.g. APAC L1 support">
+            </div>
+            <div class="col-md-2">
+              <button class="btn btn-primary btn-sm w-100" onclick="addGroup()">
+                <i class="bi bi-plus-lg me-1"></i>Add
+              </button>
+            </div>
+          </div>
+          <div id="addGroupError" class="text-danger small mt-2" style="display:none;"></div>
+        </div>
+      </div>
+
+      <!-- Existing mappings table -->
+      <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong>Active Mappings</strong>
+          <button class="btn btn-outline-secondary btn-sm" onclick="loadGroups()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <div id="groupsTableWrap">
+            <table class="table table-sm table-hover mb-0" id="groupsTable">
+              <thead class="table-light">
+                <tr>
+                  <th>Assignment Group</th>
+                  <th>Team</th>
+                  <th>Description</th>
+                  <th>Added</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="groupsBody">
+                <tr><td colspan="5" class="text-center text-muted py-3"><span class="spinner-border spinner-border-sm"></span> Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Unrouted incidents panel -->
+      <div class="card" id="unrouted-panel">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong>Unrouted Incidents <span class="badge bg-warning text-dark ms-1" id="unrouted-count-badge">{{ unrouted_count }}</span></strong>
+          <button class="btn btn-outline-secondary btn-sm" onclick="loadUnrouted()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <div id="unrouted-wrap">
+            {% if unrouted_count == 0 %}
+            <p class="text-muted text-center py-3 mb-0"><i class="bi bi-check-circle me-1 text-success"></i>No unrouted incidents — all good.</p>
+            {% else %}
+            <p class="text-muted small px-3 pt-2">Add a mapping above for the assignment group shown, then click <strong>Reroute</strong> to assign it to the correct team.</p>
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light">
+                <tr><th>Incident ID</th><th>Assignment Group</th><th>Title</th><th>Received</th><th></th></tr>
+              </thead>
+              <tbody id="unrouted-body">
+                <tr><td colspan="5" class="text-center text-muted py-3"><span class="spinner-border spinner-border-sm"></span> Loading…</td></tr>
+              </tbody>
+            </table>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /col-lg-8 -->
+
+    <!-- RIGHT: Token + Power Automate guide -->
+    <div class="col-lg-4">
+
+      <!-- Token card -->
+      <div class="card mb-4">
+        <div class="card-header"><strong><i class="bi bi-key me-1"></i>Webhook Token</strong></div>
+        <div class="card-body">
+          <p class="small text-muted">Copy this token into your Power Automate HTTP action as the <code>X-Webhook-Token</code> header value.</p>
+          <div class="input-group input-group-sm mb-2">
+            <input type="password" id="tokenDisplay" class="form-control font-monospace" value="{{ token }}" readonly>
+            <button class="btn btn-outline-secondary" onclick="toggleToken()" title="Show/hide"><i class="bi bi-eye" id="tokenEyeIcon"></i></button>
+            <button class="btn btn-outline-primary" onclick="copyToken()" title="Copy"><i class="bi bi-clipboard"></i></button>
+          </div>
+          <button class="btn btn-sm btn-outline-danger w-100" onclick="rotateToken()">
+            <i class="bi bi-arrow-repeat me-1"></i>Rotate Token
+          </button>
+          <div id="tokenMsg" class="text-success small mt-1" style="display:none;"></div>
+        </div>
+      </div>
+
+      <!-- Power Automate setup guide -->
+      <div class="card">
+        <div class="card-header"><strong><i class="bi bi-lightning me-1"></i>Power Automate Setup</strong></div>
+        <div class="card-body small">
+
+          <p class="fw-semibold mb-1">Step 1 — Trigger</p>
+          <p class="text-muted">Add trigger: <em>"When a new email arrives (V3)"</em><br>
+          Filter subject to: <code>INC</code> (or your ServiceNow prefix)</p>
+
+          <p class="fw-semibold mb-1">Step 2 — Parse email body</p>
+          <p class="text-muted">Add <em>"Initialize variable"</em> actions to extract fields using these expressions:</p>
+          <ul class="mb-2 ps-3 text-muted">
+            <li><code>incident_id</code> — regex on subject: <code>[A-Z]+\d+</code></li>
+            <li><code>assignment_group</code> — parse line after "Assignment group:"</li>
+            <li><code>priority</code> — parse line after "Priority:"</li>
+            <li><code>status</code> — parse line after "State:" or "Status:"</li>
+            <li><code>assigned_to</code> — parse line after "Assigned to:"</li>
+            <li><code>occurred_at</code> — parse line after "Opened:" → ISO 8601</li>
+            <li><code>description</code> — parse line after "Description:"</li>
+            <li><code>resolution_notes</code> — parse line after "Resolution notes:"</li>
+          </ul>
+
+          <p class="fw-semibold mb-1">Step 3 — HTTP action</p>
+          <ul class="mb-0 ps-3 text-muted">
+            <li><strong>Method:</strong> POST</li>
+            <li><strong>URL:</strong> <code>https://10.82.143.226/api/webhook/incidents</code></li>
+            <li><strong>Header:</strong> <code>X-Webhook-Token: &lt;token above&gt;</code></li>
+            <li><strong>Header:</strong> <code>Content-Type: application/json</code></li>
+            <li><strong>Body:</strong> JSON with the variables from Step 2</li>
+          </ul>
+        </div>
+      </div>
+
+    </div><!-- /col-lg-4 -->
+  </div><!-- /row -->
+</div>
+
+<script>
+const CSRF_HEADERS = { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+
+// ── Assignment groups ────────────────────────────────────────────────────────
+
+async function loadGroups() {
+  const resp = await fetch('/api/webhook/assignment-groups');
+  const data = await resp.json();
+  const tbody = document.getElementById('groupsBody');
+  if (!data.success || !data.groups.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No mappings configured yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.groups.map(g => `
+    <tr id="grp-row-${g.id}">
+      <td><code>${escHtml(g.assignment_group)}</code></td>
+      <td>${escHtml(g.team_name)}</td>
+      <td class="text-muted">${escHtml(g.description)}</td>
+      <td class="text-muted">${escHtml(g.created_at)}</td>
+      <td>
+        <button class="btn btn-outline-danger btn-sm" onclick="deleteGroup(${g.id})">
+          <i class="bi bi-trash"></i>
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+async function addGroup() {
+  const name    = document.getElementById('newGroupName').value.trim();
+  const teamSel = document.getElementById('newGroupTeam');
+  const team_id = teamSel.value;
+  const desc    = document.getElementById('newGroupDesc').value.trim();
+  const errEl   = document.getElementById('addGroupError');
+
+  errEl.style.display = 'none';
+  if (!name || !team_id) { errEl.textContent = 'Assignment group and team are required.'; errEl.style.display = ''; return; }
+
+  const account_id = teamSel.selectedOptions[0]?.dataset.account;
+  const resp = await fetch('/api/webhook/assignment-groups', {
+    method: 'POST', headers: CSRF_HEADERS,
+    body: JSON.stringify({ assignment_group: name, team_id: parseInt(team_id), account_id: parseInt(account_id), description: desc }),
+  });
+  const data = await resp.json();
+  if (!data.success) { errEl.textContent = data.error; errEl.style.display = ''; return; }
+  document.getElementById('newGroupName').value = '';
+  document.getElementById('newGroupDesc').value = '';
+  teamSel.value = '';
+  loadGroups();
+}
+
+async function deleteGroup(id) {
+  if (!confirm('Remove this assignment group mapping?')) return;
+  const resp = await fetch(`/api/webhook/assignment-groups/${id}`, { method: 'DELETE', headers: CSRF_HEADERS });
+  const data = await resp.json();
+  if (data.success) document.getElementById(`grp-row-${id}`)?.remove();
+}
+
+// ── Unrouted incidents ────────────────────────────────────────────────────────
+
+async function loadUnrouted() {
+  const resp = await fetch('/api/webhook/incidents/unrouted');
+  const data = await resp.json();
+  const badge = document.getElementById('unrouted-count-badge');
+  if (badge) badge.textContent = data.count || 0;
+  if (!data.success || !data.incidents.length) return;
+
+  const tbody = document.getElementById('unrouted-body');
+  if (!tbody) return;
+  tbody.innerHTML = data.incidents.map(i => `
+    <tr id="ur-row-${i.id}">
+      <td><code>${escHtml(i.incident_id)}</code></td>
+      <td><span class="badge bg-secondary">${escHtml(i.assignment_group)}</span></td>
+      <td class="text-muted">${escHtml(i.title)}</td>
+      <td class="text-muted">${escHtml(i.received_at)}</td>
+      <td>
+        <button class="btn btn-outline-primary btn-sm" onclick="reroute(${i.id})">
+          <i class="bi bi-arrow-right-circle me-1"></i>Reroute
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+async function reroute(id) {
+  const resp = await fetch(`/api/webhook/incidents/${id}/reroute`, { method: 'POST', headers: CSRF_HEADERS });
+  const data = await resp.json();
+  if (data.success) {
+    document.getElementById(`ur-row-${id}`)?.remove();
+    const badge = document.getElementById('unrouted-count-badge');
+    if (badge) badge.textContent = Math.max(0, parseInt(badge.textContent) - 1);
+  } else {
+    alert(data.error);
+  }
+}
+
+// ── Token management ─────────────────────────────────────────────────────────
+
+function toggleToken() {
+  const inp  = document.getElementById('tokenDisplay');
+  const icon = document.getElementById('tokenEyeIcon');
+  if (inp.type === 'password') { inp.type = 'text'; icon.className = 'bi bi-eye-slash'; }
+  else { inp.type = 'password'; icon.className = 'bi bi-eye'; }
+}
+
+function copyToken() {
+  const val = document.getElementById('tokenDisplay').value;
+  navigator.clipboard.writeText(val).then(() => {
+    const msg = document.getElementById('tokenMsg');
+    msg.textContent = 'Copied to clipboard!';
+    msg.style.display = '';
+    setTimeout(() => { msg.style.display = 'none'; }, 2500);
+  });
+}
+
+async function rotateToken() {
+  if (!confirm('Rotate the webhook token? You must update Power Automate with the new token immediately.')) return;
+  const resp = await fetch('/api/webhook/token/regenerate', { method: 'POST', headers: CSRF_HEADERS });
+  const data = await resp.json();
+  if (data.success) {
+    document.getElementById('tokenDisplay').value = data.token;
+    const msg = document.getElementById('tokenMsg');
+    msg.textContent = 'Token rotated. Update Power Automate now!';
+    msg.style.display = '';
+  }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Boot
+document.addEventListener('DOMContentLoaded', () => {
+  loadGroups();
+  {% if unrouted_count > 0 %}loadUnrouted();{% endif %}
+});
+</script>
+{% endblock %}

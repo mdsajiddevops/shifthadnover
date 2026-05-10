@@ -730,6 +730,38 @@
                                     </div>
                                 </div>
                                 <div class="card-body p-3">
+
+                            <!-- ServiceNow import panel -->
+                            <div class="card border-primary mb-3" id="snow-import-panel">
+                                <div class="card-header bg-primary bg-opacity-10 d-flex justify-content-between align-items-center py-2">
+                                    <span class="fw-semibold text-primary small">
+                                        <i class="bi bi-plug me-1"></i>ServiceNow Incidents (this shift)
+                                        <span class="badge bg-primary ms-1" id="snow-count-badge" style="display:none;"></span>
+                                    </span>
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-primary py-0" onclick="fetchSnowIncidents()" id="snow-load-btn">
+                                            <i class="bi bi-arrow-clockwise me-1"></i>Load
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-success py-0" onclick="importAllSnow()" id="snow-import-all-btn" style="display:none;">
+                                            <i class="bi bi-download me-1"></i>Import All
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-link py-0 text-muted" onclick="toggleSnowPanel()">
+                                            <i class="bi bi-chevron-up" id="snow-chevron"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="snow-panel-body">
+                                    <div id="snow-loading" class="text-center py-2 text-muted small" style="display:none;">
+                                        <span class="spinner-border spinner-border-sm me-1"></span>Fetching incidents…
+                                    </div>
+                                    <div id="snow-empty" class="text-center py-2 text-muted small" style="display:none;">
+                                        No ServiceNow incidents found for this shift window.
+                                    </div>
+                                    <div id="snow-error" class="text-danger small px-3 py-2" style="display:none;"></div>
+                                    <div id="snow-list" class="list-group list-group-flush" style="max-height:280px;overflow-y:auto;"></div>
+                                </div>
+                            </div>
+
                                     <div id="incidents-container">
                             <!-- carryforward: open -->
                             {% if carryforward_open_incidents or carryforward_handover_incidents or carryforward_closed_incidents %}
@@ -2480,8 +2512,8 @@ function populateUnifiedIncidentRow(row, incident) {
     const escalatedInput= row.querySelector('input[name="incident_escalated_to[]"]');
     const notesTextarea = row.querySelector('textarea[name="incident_notes[]"]');
 
-    if (appInput) appInput.value = incident.app_name || incident.assignment_group || '';
-    if (idInput) idInput.value = incident.id || incident.number || '';
+    if (appInput) appInput.value = incident.application || incident.app_name || incident.assignment_group || '';
+    if (idInput) idInput.value = incident.incident_id || incident.id || incident.number || '';
     if (shortDescInput) shortDescInput.value = incident.short_desc || incident.description || incident.title || '';
     if (notesTextarea) notesTextarea.value = incident.notes || incident.resolution || '';
     if (escalatedInput) escalatedInput.value = incident.escalated_to || '';
@@ -5251,6 +5283,175 @@ function showIncidentConflictModal(conflicts) {
         bsModal.show();
     });
 }
+
+
+// =============================================================================
+// ServiceNow webhook import panel
+// =============================================================================
+
+let _snowPanelOpen = true;
+let _snowIncidents = [];   // cache of last-fetched incidents
+
+function toggleSnowPanel() {
+    const body    = document.getElementById('snow-panel-body');
+    const chevron = document.getElementById('snow-chevron');
+    _snowPanelOpen = !_snowPanelOpen;
+    body.style.display    = _snowPanelOpen ? '' : 'none';
+    chevron.className     = _snowPanelOpen ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+}
+
+async function fetchSnowIncidents() {
+    const dateEl  = document.getElementById('handover_date');
+    const shiftEl = document.getElementById('current_shift_type');
+    if (!dateEl || !dateEl.value) return;
+
+    const shiftDate  = dateEl.value;
+    const shiftType  = (shiftEl ? shiftEl.value : '') || '';
+
+    // Derive start/end from shift type (falls back to full day if unknown)
+    const windows = {
+        'Morning': ['06:30', '15:30'], 'Day': ['06:30', '15:30'],
+        'Evening': ['15:00', '00:00'], 'Night': ['22:00', '07:00'],
+    };
+    const [shiftStart, shiftEnd] = windows[shiftType] || ['00:00', '23:59'];
+
+    const teamId = document.getElementById('team_id')?.value ||
+                   '{{ current_user.team_id or "" }}';
+
+    const loadBtn = document.getElementById('snow-load-btn');
+    loadBtn.disabled = true;
+    _setSnowState('loading');
+
+    try {
+        const params = new URLSearchParams({ date: shiftDate, shift_start: shiftStart, shift_end: shiftEnd });
+        if (teamId) params.set('team_id', teamId);
+
+        const resp = await fetch('/api/webhook/incidents?' + params);
+        const data = await resp.json();
+
+        if (!data.success) { _setSnowState('error', data.error || 'Failed to load'); return; }
+
+        _snowIncidents = data.incidents || [];
+        _renderSnowList(_snowIncidents);
+
+        const badge = document.getElementById('snow-count-badge');
+        if (_snowIncidents.length > 0) {
+            badge.textContent = _snowIncidents.length;
+            badge.style.display = '';
+            document.getElementById('snow-import-all-btn').style.display = '';
+        } else {
+            badge.style.display = 'none';
+            document.getElementById('snow-import-all-btn').style.display = 'none';
+            _setSnowState('empty');
+        }
+    } catch (e) {
+        _setSnowState('error', 'Network error: ' + e.message);
+    } finally {
+        loadBtn.disabled = false;
+    }
+}
+
+function _setSnowState(state, msg) {
+    ['loading', 'empty', 'error', 'list'].forEach(s => {
+        const el = document.getElementById('snow-' + s);
+        if (el) el.style.display = (s === state) ? '' : 'none';
+    });
+    if (state === 'error' && msg) {
+        document.getElementById('snow-error').textContent = msg;
+    }
+}
+
+function _renderSnowList(incidents) {
+    const list = document.getElementById('snow-list');
+    if (!incidents.length) { _setSnowState('empty'); return; }
+    _setSnowState('list');
+    list.innerHTML = incidents.map((inc, idx) => {
+        const isResolved  = inc.is_resolved;
+        const badgeCls    = isResolved ? 'bg-success' : (inc.priority === 'Critical' ? 'bg-danger' : 'bg-warning text-dark');
+        const statusLabel = isResolved ? 'Resolved' : inc.status;
+        const timeLabel   = isResolved
+            ? `${inc.occurred_at} → ${inc.resolved_at}`
+            : `Opened: ${inc.occurred_at}`;
+        return `
+        <div class="list-group-item list-group-item-action py-2 px-3" id="snow-item-${inc.id}">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <span class="badge ${badgeCls} me-1">${_esc(statusLabel)}</span>
+                    <code class="small">${_esc(inc.incident_id)}</code>
+                    <span class="ms-2 small fw-semibold">${_esc(inc.title)}</span>
+                    ${inc.priority ? `<span class="badge bg-light text-dark border ms-1">${_esc(inc.priority)}</span>` : ''}
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary py-0 flex-shrink-0 ms-2"
+                        onclick="importSnowIncident(${idx})">
+                    <i class="bi bi-download me-1"></i>Import
+                </button>
+            </div>
+            <div class="text-muted" style="font-size:0.78rem;margin-top:2px;">
+                ${_esc(inc.assignment_group) ? `<span class="me-2">Group: ${_esc(inc.assignment_group)}</span>` : ''}
+                ${_esc(inc.assigned_to) ? `<span class="me-2">Assigned: ${_esc(inc.assigned_to)}</span>` : ''}
+                <span>${_esc(timeLabel)}</span>
+            </div>
+            ${inc.description ? `<div class="text-muted" style="font-size:0.78rem;">${_esc(inc.description.substring(0,120))}${inc.description.length > 120 ? '…' : ''}</div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function importSnowIncident(idx) {
+    const inc = _snowIncidents[idx];
+    if (!inc) return;
+
+    // Map ServiceNow status to form incident status
+    const statusMap = {
+        'resolved': 'Closed', 'closed': 'Closed',
+        'active': 'Open', 'new': 'Open', 'in progress': 'Open',
+        'on hold': 'Handover', 'escalated': 'Escalated',
+    };
+    const formStatus = statusMap[(inc.status || '').toLowerCase()] || 'Open';
+
+    addUnifiedIncident({
+        incident_id:   inc.incident_id,
+        application:   inc.application || inc.assignment_group || '',
+        short_desc:    inc.title,
+        priority:      inc.priority || 'Medium',
+        status:        formStatus,
+        assigned_to:   inc.assigned_to || '',
+        escalated_to:  inc.escalated_to || '',
+        notes:         [
+            inc.description || '',
+            inc.resolution_notes ? 'Resolution: ' + inc.resolution_notes : '',
+        ].filter(Boolean).join('\n'),
+    });
+
+    // Dismiss from the panel and mark inactive
+    fetch(`/api/webhook/incidents/${inc.id}/dismiss`, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    document.getElementById(`snow-item-${inc.id}`)?.remove();
+    _snowIncidents.splice(idx, 1);
+
+    const badge = document.getElementById('snow-count-badge');
+    if (badge) badge.textContent = _snowIncidents.length || '';
+    if (!_snowIncidents.length) {
+        _setSnowState('empty');
+        document.getElementById('snow-import-all-btn').style.display = 'none';
+    }
+}
+
+function importAllSnow() {
+    // Iterate a stable copy; importSnowIncident mutates the array
+    [..._snowIncidents].forEach((_, idx) => importSnowIncident(0));
+}
+
+function _esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Auto-load on form open
+document.addEventListener('DOMContentLoaded', () => {
+    const dateEl = document.getElementById('handover_date');
+    if (dateEl && dateEl.value) {
+        // Small delay so the rest of the form initialises first
+        setTimeout(fetchSnowIncidents, 800);
+    }
+});
 
 
 </script>
