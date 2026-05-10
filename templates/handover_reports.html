@@ -1092,8 +1092,12 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label"><i class="bi bi-calendar3 me-1"></i>Date</label>
-                    <input type="date" name="date" class="form-control" value="{{ date_filter }}">
+                    <label class="form-label"><i class="bi bi-calendar3 me-1"></i>From</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label"><i class="bi bi-calendar3 me-1"></i>To</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label"><i class="bi bi-clock me-1"></i>Shift</label>
@@ -1120,15 +1124,15 @@
                     <span class="fw-semibold text-secondary">Export Reports:</span>
                 </div>
                 <div class="export-buttons d-flex gap-2">
-                    <a href="{{ url_for('reports.export_handover_bulk', format='csv', account_id=request.args.get('account_id', ''), team_id=request.args.get('team_id', ''), date=request.args.get('date', ''), shift_type=request.args.get('shift_type', '')) }}" 
+                    <a href="{{ url_for('reports.export_handover_bulk', format='csv', account_id=request.args.get('account_id', ''), team_id=request.args.get('team_id', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), shift_type=request.args.get('shift_type', '')) }}" 
                        class="btn btn-export btn-export-csv" title="Export as CSV">
                         <i class="bi bi-filetype-csv me-1"></i>CSV
                     </a>
-                    <a href="{{ url_for('reports.export_handover_bulk', format='excel', account_id=request.args.get('account_id', ''), team_id=request.args.get('team_id', ''), date=request.args.get('date', ''), shift_type=request.args.get('shift_type', '')) }}" 
+                    <a href="{{ url_for('reports.export_handover_bulk', format='excel', account_id=request.args.get('account_id', ''), team_id=request.args.get('team_id', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), shift_type=request.args.get('shift_type', '')) }}" 
                        class="btn btn-export btn-export-excel" title="Export as Excel">
                         <i class="bi bi-file-earmark-excel me-1"></i>Excel
                     </a>
-                    <a href="{{ url_for('reports.export_handover_bulk', format='pdf', account_id=request.args.get('account_id', ''), team_id=request.args.get('team_id', ''), date=request.args.get('date', ''), shift_type=request.args.get('shift_type', '')) }}" 
+                    <a href="{{ url_for('reports.export_handover_bulk', format='pdf', account_id=request.args.get('account_id', ''), team_id=request.args.get('team_id', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), shift_type=request.args.get('shift_type', '')) }}" 
                        class="btn btn-export btn-export-pdf" title="Export as PDF">
                         <i class="bi bi-file-earmark-pdf me-1"></i>PDF
                     </a>

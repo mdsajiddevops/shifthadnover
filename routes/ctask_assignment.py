@@ -18,6 +18,18 @@ logger = logging.getLogger(__name__)
 # Global instance to maintain state across requests
 ctask_assignment_service = CTaskAssignmentService()
 
+
+@ctask_assignment_bp.errorhandler(400)
+def handle_400(exc):
+    """Return structured JSON for bad request errors (T-020 / REQ-016)."""
+    return jsonify({'success': False, 'error': str(exc), 'status': 400}), 400
+
+
+@ctask_assignment_bp.errorhandler(403)
+def handle_403(exc):
+    """Return structured JSON identifying the missing privilege (T-020 / REQ-017)."""
+    return jsonify({'success': False, 'error': str(exc), 'status': 403}), 403
+
 def feature_required(feature_name):
     """Decorator to check if a feature is enabled"""
     def decorator(f):

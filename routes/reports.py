@@ -105,11 +105,33 @@ def reports():
 @reports_bp.route('/change-info-reports', methods=['GET'])
 @login_required
 def change_info_reports():
-    """Change Info reports page"""
+    """List change info records for the active team with filters.
+    ---
+    tags:
+      - reports
+    security:
+      - SessionCookie: []
+    parameters:
+      - in: query
+        name: team_id
+        type: integer
+      - in: query
+        name: from_date
+        type: string
+        format: date
+      - in: query
+        name: to_date
+        type: string
+        format: date
+    responses:
+      200:
+        description: Change info report page
+    """
     log_action('View Change Info Reports', 'Accessed change info reports page')
-    
+
     # Get filter parameters
-    date_filter = request.args.get('date')
+    date_from = request.args.get('date_from') or request.args.get('date')
+    date_to = request.args.get('date_to')
     account_id_filter = request.args.get('account_id')
     team_id_filter = request.args.get('team_id')
     app_filter = request.args.get('app_name')
@@ -191,18 +213,22 @@ def change_info_reports():
         else:
             # Fallback to team access service filtering
             query = TeamAccessService.apply_team_filter(query, ShiftChangeInfo)
-    
+
     # Apply filters
-    if date_filter:
+    if date_from:
         try:
-            date_obj = datetime.strptime(date_filter, '%Y-%m-%d').date()
-            query = query.filter(Shift.date == date_obj)
+            query = query.filter(Shift.date >= datetime.strptime(date_from, '%Y-%m-%d').date())
         except ValueError:
             pass
-    
+    if date_to:
+        try:
+            query = query.filter(Shift.date <= datetime.strptime(date_to, '%Y-%m-%d').date())
+        except ValueError:
+            pass
+
     if account_id_filter and current_user.role == 'super_admin':
         query = query.filter(ShiftChangeInfo.account_id == account_id_filter)
-    
+
     if team_id_filter and current_user.role in ['super_admin', 'account_admin'] and not all_teams_selected:
         if selected_team_id:
             query = query.filter(ShiftChangeInfo.team_id == selected_team_id)
@@ -235,7 +261,8 @@ def change_info_reports():
                          change_infos=change_infos,
                          accounts=accounts,
                          teams=teams,
-                         date_filter=date_filter,
+                         date_from=date_from or '',
+                         date_to=date_to or '',
                          account_id_filter=account_id_filter,
                          team_id_filter=team_id_filter,
                          selected_team_id=selected_team_id,
@@ -395,8 +422,9 @@ def kb_update_reports():
 @reports_bp.route('/handover-reports/export/bulk', methods=['GET'])
 @login_required
 def export_handover_bulk():
-    log_action('Export Reports', f'Format: {request.args.get("format")}, Filters: account_id={request.args.get("account_id")}, team_id={request.args.get("team_id")}, date={request.args.get("date")}, shift_type={request.args.get("shift_type")}')
-    date_filter = request.args.get('date')
+    log_action('Export Reports', f'Format: {request.args.get("format")}, Filters: account_id={request.args.get("account_id")}, team_id={request.args.get("team_id")}, date_from={request.args.get("date_from")}, date_to={request.args.get("date_to")}, shift_type={request.args.get("shift_type")}')
+    date_from = request.args.get('date_from') or request.args.get('date')
+    date_to = request.args.get('date_to')
     shift_type_filter = request.args.get('shift_type')
     account_id = request.args.get('account_id')
     team_id = request.args.get('team_id')
@@ -441,11 +469,15 @@ def export_handover_bulk():
         if current_user.account_id:
             query = query.filter_by(account_id=current_user.account_id)
     
-    # Apply date and shift type filters
-    if date_filter:
+    # Apply date range and shift type filters
+    if date_from:
         try:
-            date_obj = datetime.strptime(date_filter, '%Y-%m-%d').date()
-            query = query.filter_by(date=date_obj)
+            query = query.filter(Shift.date >= datetime.strptime(date_from, '%Y-%m-%d').date())
+        except Exception:
+            pass
+    if date_to:
+        try:
+            query = query.filter(Shift.date <= datetime.strptime(date_to, '%Y-%m-%d').date())
         except Exception:
             pass
     if shift_type_filter:
@@ -464,35 +496,89 @@ def export_handover_bulk():
     keypoint_rows = []
     change_rows = []
     kb_rows = []
-    
-    for shift in shifts:
-        incidents = Incident.query.filter_by(shift_id=shift.id).all()
-        key_points = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
-        # 🔧 FIX: Query change_infos and kb_updates by date/team/account with deduplication
-        from datetime import timedelta
-        raw_change_infos = ShiftChangeInfo.query.filter(
-            ShiftChangeInfo.account_id == shift.account_id,
-            ShiftChangeInfo.team_id == shift.team_id,
-            ShiftChangeInfo.created_at >= shift.date,
-            ShiftChangeInfo.created_at < shift.date + timedelta(days=1),
+
+    # Batch-load incidents, key points, and teams to avoid N+1 queries
+    from collections import defaultdict
+    if shifts:
+        _export_shift_ids = [s.id for s in shifts]
+        _export_team_ids = list({s.team_id for s in shifts if s.team_id})
+        _export_incidents_map = defaultdict(list)
+        for _inc in Incident.query.filter(Incident.shift_id.in_(_export_shift_ids)).all():
+            _export_incidents_map[_inc.shift_id].append(_inc)
+        _export_kps_map = defaultdict(list)
+        for _kp in ShiftKeyPoint.query.filter(ShiftKeyPoint.shift_id.in_(_export_shift_ids)).all():
+            _export_kps_map[_kp.shift_id].append(_kp)
+        _export_teams_by_id = {t.id: t for t in Team.query.filter(Team.id.in_(_export_team_ids)).all()} if _export_team_ids else {}
+        _export_kp_eng_ids = {kp.responsible_engineer_id for kps in _export_kps_map.values() for kp in kps if kp.responsible_engineer_id}
+        _export_engineers_by_id = {tm.id: tm for tm in TeamMember.query.filter(TeamMember.id.in_(_export_kp_eng_ids)).all()} if _export_kp_eng_ids else {}
+        # Batch ShiftChangeInfo and ShiftKBUpdate for entire date range
+        from datetime import timedelta as _td
+        _export_acct_ids = list({s.account_id for s in shifts if s.account_id})
+        _export_ci_team_ids = list({s.team_id for s in shifts if s.team_id})
+        _min_date = min(s.date for s in shifts)
+        _max_date = max(s.date for s in shifts)
+        _raw_all_cis = ShiftChangeInfo.query.filter(
+            ShiftChangeInfo.account_id.in_(_export_acct_ids),
+            ShiftChangeInfo.team_id.in_(_export_ci_team_ids),
+            ShiftChangeInfo.created_at >= _min_date,
+            ShiftChangeInfo.created_at < _max_date + _td(days=1),
             ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
         ).order_by(ShiftChangeInfo.id.desc()).all()
-        # Deduplicate by change_number
+        _export_ci_by_key = defaultdict(list)
+        for _ci in _raw_all_cis:
+            if _ci.created_at:
+                _export_ci_by_key[(_ci.account_id, _ci.team_id, _ci.created_at.date())].append(_ci)
+        _raw_all_kbs = ShiftKBUpdate.query.filter(
+            ShiftKBUpdate.account_id.in_(_export_acct_ids),
+            ShiftKBUpdate.team_id.in_(_export_ci_team_ids),
+            ShiftKBUpdate.created_at >= _min_date,
+            ShiftKBUpdate.created_at < _max_date + _td(days=1),
+            ShiftKBUpdate.status != 'Published'
+        ).order_by(ShiftKBUpdate.id.desc()).all()
+        _export_kb_by_key = defaultdict(list)
+        for _kb in _raw_all_kbs:
+            if _kb.created_at:
+                _export_kb_by_key[(_kb.account_id, _kb.team_id, _kb.created_at.date())].append(_kb)
+        # Batch HandoverRequest for submitter lookups (avoids N LIKE queries on audit_log)
+        from models.handover_enhanced import HandoverRequest as _ExportHR
+        _export_all_hrs = _ExportHR.query.filter(
+            _ExportHR.account_id.in_(_export_acct_ids),
+            _ExportHR.team_id.in_(_export_ci_team_ids),
+            _ExportHR.shift_date >= _min_date,
+            _ExportHR.shift_date <= _max_date
+        ).all()
+        _export_hr_map = {
+            (_hr.shift_date, _hr.current_shift_type, _hr.account_id, _hr.team_id): _hr
+            for _hr in _export_all_hrs
+        }
+        _export_hr_user_ids = {_hr.created_by_id for _hr in _export_all_hrs if _hr.created_by_id}
+        _export_hr_users = {u.id: u for u in User.query.filter(User.id.in_(_export_hr_user_ids)).all()} if _export_hr_user_ids else {}
+    else:
+        _export_incidents_map = defaultdict(list)
+        _export_kps_map = defaultdict(list)
+        _export_teams_by_id = {}
+        _export_engineers_by_id = {}
+        _export_ci_by_key = defaultdict(list)
+        _export_kb_by_key = defaultdict(list)
+        _export_hr_map = {}
+        _export_hr_users = {}
+    _export_ci_kb_eng_cache = {}
+
+    for shift in shifts:
+        incidents = _export_incidents_map.get(shift.id, [])
+        key_points = _export_kps_map.get(shift.id, [])
+
+        # Use pre-batched CI/KB data grouped by (account_id, team_id, date)
+        _ci_key = (shift.account_id, shift.team_id, shift.date)
+        raw_change_infos = _export_ci_by_key.get(_ci_key, [])
         change_map = {}
         for ci in raw_change_infos:
             key = ci.change_number.strip().lower() if ci.change_number else f"{ci.app_name}_{ci.description[:30] if ci.description else ''}"
             if key not in change_map:
                 change_map[key] = ci
         change_infos = list(change_map.values())
-        
-        raw_kb_updates = ShiftKBUpdate.query.filter(
-            ShiftKBUpdate.account_id == shift.account_id,
-            ShiftKBUpdate.team_id == shift.team_id,
-            ShiftKBUpdate.created_at >= shift.date,
-            ShiftKBUpdate.created_at < shift.date + timedelta(days=1),
-            ShiftKBUpdate.status != 'Published'
-        ).order_by(ShiftKBUpdate.id.desc()).all()
-        # Deduplicate by kb_number
+
+        raw_kb_updates = _export_kb_by_key.get(_ci_key, [])
         kb_map = {}
         for kb in raw_kb_updates:
             key = kb.kb_number.strip().lower() if kb.kb_number else f"{kb.app_name}_{kb.description[:30] if kb.description else ''}"
@@ -503,27 +589,16 @@ def export_handover_bulk():
         # Get team name
         team_name = ''
         if shift.team_id:
-            team = Team.query.get(shift.team_id)
+            team = _export_teams_by_id.get(shift.team_id)
             if team:
                 team_name = team.name
         
-        # Find who submitted this handover
+        # Find who submitted this handover (using pre-batched HandoverRequest)
         submitted_by = 'Unknown'
-        audit_entry = AuditLog.query.filter(
-            AuditLog.action.like('%Create Handover%'),
-            AuditLog.details.like(f'%Shift: {shift.current_shift_type}%'),
-            AuditLog.details.like(f'%Date: {shift.date}%')
-        ).first()
-        
-        if audit_entry:
-            if audit_entry.user_id:
-                user = User.query.get(audit_entry.user_id)
-                if user:
-                    submitted_by = user.display_name
-                else:
-                    submitted_by = audit_entry.username or 'Unknown User'
-            else:
-                submitted_by = audit_entry.username or 'Unknown User'
+        _export_hr = _export_hr_map.get((shift.date, shift.current_shift_type, shift.account_id, shift.team_id))
+        if _export_hr and _export_hr.created_by_id:
+            _export_u = _export_hr_users.get(_export_hr.created_by_id)
+            submitted_by = (_export_u.display_name or _export_u.username) if _export_u else f'User ID: {_export_hr.created_by_id}'
         
         # Summary row
         summary_rows.append({
@@ -558,7 +633,7 @@ def export_handover_bulk():
         for idx, kp in enumerate(key_points, 1):
             responsible_name = 'N/A'
             if kp.responsible_engineer_id:
-                engineer = TeamMember.query.get(kp.responsible_engineer_id)
+                engineer = _export_engineers_by_id.get(kp.responsible_engineer_id)
                 if engineer:
                     responsible_name = engineer.name
             
@@ -585,10 +660,12 @@ def export_handover_bulk():
         for idx, ci in enumerate(change_infos, 1):
             responsible_name = 'N/A'
             if ci.responsible_engineer_id:
-                engineer = TeamMember.query.get(ci.responsible_engineer_id)
+                if ci.responsible_engineer_id not in _export_ci_kb_eng_cache:
+                    _export_ci_kb_eng_cache[ci.responsible_engineer_id] = TeamMember.query.get(ci.responsible_engineer_id)
+                engineer = _export_ci_kb_eng_cache[ci.responsible_engineer_id]
                 if engineer:
                     responsible_name = engineer.name
-            
+
             change_rows.append({
                 'Date': shift.date.strftime('%Y-%m-%d') if shift.date else '',
                 'Shift': f"{shift.current_shift_type} → {shift.next_shift_type}",
@@ -601,15 +678,17 @@ def export_handover_bulk():
                 'Status': ci.status or 'N/A',
                 'Responsible Engineer': responsible_name
             })
-        
+
         # Detailed KB update rows
         for idx, kb in enumerate(kb_updates, 1):
             responsible_name = 'N/A'
             if kb.responsible_engineer_id:
-                engineer = TeamMember.query.get(kb.responsible_engineer_id)
+                if kb.responsible_engineer_id not in _export_ci_kb_eng_cache:
+                    _export_ci_kb_eng_cache[kb.responsible_engineer_id] = TeamMember.query.get(kb.responsible_engineer_id)
+                engineer = _export_ci_kb_eng_cache[kb.responsible_engineer_id]
                 if engineer:
                     responsible_name = engineer.name
-            
+
             kb_rows.append({
                 'Date': shift.date.strftime('%Y-%m-%d') if shift.date else '',
                 'Shift': f"{shift.current_shift_type} → {shift.next_shift_type}",
@@ -1183,30 +1262,43 @@ def detailed_shift_report(shift_id):
 @reports_bp.route('/handover-reports', methods=['GET'])
 @login_required
 def handover_reports():
-    logger.debug(f"🚨 HANDOVER REPORTS ROUTE CALLED 🚨")
-    
-    # Check database integrity first
-    total_shifts = Shift.query.count()
-    total_incidents = Incident.query.count()
-    total_key_points = ShiftKeyPoint.query.count()
-    logger.debug(f"🔍 Database totals: {total_shifts} shifts, {total_incidents} incidents, {total_key_points} key points")
-    
-    # Show some sample records
-    if total_incidents > 0:
-        sample_incidents = Incident.query.limit(3).all()
-        for inc in sample_incidents:
-            logger.debug(f"🔍 Sample Incident: ID={inc.id}, shift_id={inc.shift_id}, title='{inc.title}'")
-    
-    if total_key_points > 0:
-        sample_kps = ShiftKeyPoint.query.limit(3).all()
-        for kp in sample_kps:
-            logger.debug(f"🔍 Sample KeyPoint: ID={kp.id}, shift_id={kp.shift_id}, desc='{kp.description[:50]}'")
-    
+    """List handover shift reports with filtering and pagination.
+    ---
+    tags:
+      - reports
+    security:
+      - SessionCookie: []
+    parameters:
+      - in: query
+        name: team_id
+        type: integer
+        description: Filter by team (defaults to session team)
+      - in: query
+        name: from_date
+        type: string
+        format: date
+      - in: query
+        name: to_date
+        type: string
+        format: date
+      - in: query
+        name: shift_type
+        type: string
+        enum: [Morning, Evening, Night]
+    responses:
+      200:
+        description: Handover reports page with shift list and incident summary
+    """
     try:
         # Default filters
-        log_action('View Reports Tab', f'Filters: account_id={request.args.get("account_id")}, team_id={request.args.get("team_id")}, date={request.args.get("date")}, shift_type={request.args.get("shift_type")}')
-        date_filter = request.args.get('date')
+        log_action('View Reports Tab', f'Filters: account_id={request.args.get("account_id")}, team_id={request.args.get("team_id")}, date_from={request.args.get("date_from")}, date_to={request.args.get("date_to")}, shift_type={request.args.get("shift_type")}')
+        date_from = request.args.get('date_from') or request.args.get('date')
+        date_to = request.args.get('date_to')
         shift_type_filter = request.args.get('shift_type')
+        # Default to last 30 days when no date filter is set, to prevent loading all historical shifts
+        if not date_from and not date_to:
+            from datetime import timedelta
+            date_from = (datetime.utcnow().date() - timedelta(days=30)).strftime('%Y-%m-%d')
         account_id = None
         team_id = None
         selected_team_id = None
@@ -1345,19 +1437,23 @@ def handover_reports():
                 else:
                     query = query.filter(Shift.team_id == -1)
                     logger.debug(f"🔍 REGULAR_USER: No primary team available")
-        if date_filter:
+        if date_from:
             try:
-                date_obj = datetime.strptime(date_filter, '%Y-%m-%d').date()
-                query = query.filter_by(date=date_obj)  # 🔧 FIXED: Use date column
-                logger.debug(f"🔍 Filtering by date: {date_obj}")
+                query = query.filter(Shift.date >= datetime.strptime(date_from, '%Y-%m-%d').date())
+                logger.debug(f"🔍 Filtering by date_from: {date_from}")
             except Exception:
-                logger.debug(f"🔍 Invalid date filter: {date_filter}")
-                pass
+                logger.debug(f"🔍 Invalid date_from: {date_from}")
+        if date_to:
+            try:
+                query = query.filter(Shift.date <= datetime.strptime(date_to, '%Y-%m-%d').date())
+                logger.debug(f"🔍 Filtering by date_to: {date_to}")
+            except Exception:
+                logger.debug(f"🔍 Invalid date_to: {date_to}")
         if shift_type_filter:
             query = query.filter_by(current_shift_type=shift_type_filter)
             logger.debug(f"🔍 Filtering by shift_type: {shift_type_filter}")
-        
-        logger.debug(f"🔍 Final query filters applied: account_id={account_id}, team_id={team_id}, date={date_filter}, shift_type={shift_type_filter}")
+
+        logger.debug(f"🔍 Final query filters applied: account_id={account_id}, team_id={team_id}, date_from={date_from}, date_to={date_to}, shift_type={shift_type_filter}")
         
         # Show both sent and draft handovers in reports
         query = query.filter(Shift.status.in_(['sent', 'draft']))
@@ -1374,45 +1470,119 @@ def handover_reports():
             logger.debug(f"🔍 Shift ID: {shift.id}, Date: {shift.date}, Type: {shift.current_shift_type}, Submitted: {shift.submitted_at}")
         
         shift_data = []
+
+        # Batch-load incidents, direct key points, and teams to avoid N+1 queries
+        from collections import defaultdict as _dd
+        if shifts:
+            _hr_shift_ids = [s.id for s in shifts]
+            _hr_team_ids = list({s.team_id for s in shifts if s.team_id})
+            _hr_incidents_map = _dd(list)
+            for _inc in Incident.query.filter(Incident.shift_id.in_(_hr_shift_ids)).all():
+                _hr_incidents_map[_inc.shift_id].append(_inc)
+            _hr_direct_kps_map = _dd(list)
+            for _kp in ShiftKeyPoint.query.filter(ShiftKeyPoint.shift_id.in_(_hr_shift_ids)).all():
+                _hr_direct_kps_map[_kp.shift_id].append(_kp)
+            _hr_teams_by_id = {t.id: t for t in Team.query.filter(Team.id.in_(_hr_team_ids)).all()} if _hr_team_ids else {}
+            _hr_shifts_by_id = {s.id: s for s in shifts}
+            # Batch ShiftChangeInfo and ShiftKBUpdate for entire date range
+            from datetime import timedelta as _hr_td
+            _hr_acct_ids = list({s.account_id for s in shifts if s.account_id})
+            _hr_ci_team_ids = list({s.team_id for s in shifts if s.team_id})
+            _hr_min_date = min(s.date for s in shifts)
+            _hr_max_date = max(s.date for s in shifts)
+            _hr_raw_cis = ShiftChangeInfo.query.filter(
+                ShiftChangeInfo.account_id.in_(_hr_acct_ids),
+                ShiftChangeInfo.team_id.in_(_hr_ci_team_ids),
+                ShiftChangeInfo.created_at >= _hr_min_date,
+                ShiftChangeInfo.created_at < _hr_max_date + _hr_td(days=1),
+                ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
+            ).order_by(ShiftChangeInfo.id.desc()).all()
+            _hr_ci_by_key = _dd(list)
+            for _ci in _hr_raw_cis:
+                if _ci.created_at:
+                    _hr_ci_by_key[(_ci.account_id, _ci.team_id, _ci.created_at.date())].append(_ci)
+            _hr_raw_kbs = ShiftKBUpdate.query.filter(
+                ShiftKBUpdate.account_id.in_(_hr_acct_ids),
+                ShiftKBUpdate.team_id.in_(_hr_ci_team_ids),
+                ShiftKBUpdate.created_at >= _hr_min_date,
+                ShiftKBUpdate.created_at < _hr_max_date + _hr_td(days=1),
+                ShiftKBUpdate.status != 'Published'
+            ).order_by(ShiftKBUpdate.id.desc()).all()
+            _hr_kb_by_key = _dd(list)
+            for _kb in _hr_raw_kbs:
+                if _kb.created_at:
+                    _hr_kb_by_key[(_kb.account_id, _kb.team_id, _kb.created_at.date())].append(_kb)
+            # Batch HandoverRequest for submitter lookups (avoids N per-shift queries)
+            from models.handover_enhanced import HandoverRequest as _HrHR
+            _hr_all_hrs = _HrHR.query.filter(
+                _HrHR.account_id.in_(_hr_acct_ids),
+                _HrHR.team_id.in_(_hr_ci_team_ids),
+                _HrHR.shift_date >= _hr_min_date,
+                _HrHR.shift_date <= _hr_max_date
+            ).all()
+            _hr_hr_map = {
+                (_hr.shift_date, _hr.current_shift_type, _hr.account_id, _hr.team_id): _hr
+                for _hr in _hr_all_hrs
+            }
+            _hr_hr_user_ids = {_hr.created_by_id for _hr in _hr_all_hrs if _hr.created_by_id}
+            _hr_hr_users = {u.id: u for u in User.query.filter(User.id.in_(_hr_hr_user_ids)).all()} if _hr_hr_user_ids else {}
+            # Pre-build newer-closed KP lookup to avoid per-KP queries in draft/sent fallback branches
+            # Maps (description, jira_id) -> max id of any Closed KP with that description+jira_id
+            _hr_closed_kps = ShiftKeyPoint.query.filter(
+                ShiftKeyPoint.status == 'Closed',
+                ShiftKeyPoint.account_id.in_(_hr_acct_ids),
+                ShiftKeyPoint.team_id.in_(_hr_ci_team_ids)
+            ).with_entities(ShiftKeyPoint.id, ShiftKeyPoint.description, ShiftKeyPoint.jira_id).all()
+            _hr_closed_max = {}
+            for _ckp in _hr_closed_kps:
+                _ckey = (_ckp.description, _ckp.jira_id)
+                if _ckey not in _hr_closed_max or _ckp.id > _hr_closed_max[_ckey]:
+                    _hr_closed_max[_ckey] = _ckp.id
+        else:
+            _hr_incidents_map = _dd(list)
+            _hr_direct_kps_map = _dd(list)
+            _hr_teams_by_id = {}
+            _hr_shifts_by_id = {}
+            _hr_ci_by_key = _dd(list)
+            _hr_kb_by_key = _dd(list)
+            _hr_hr_map = {}
+            _hr_hr_users = {}
+            _hr_closed_max = {}
+        _hr_tm_cache = {}
+
         for shift in shifts:
-            incidents = Incident.query.filter_by(shift_id=shift.id).all()
-            # ✨ REPORTS FIX: Show comprehensive key points for handovers
+            incidents = _hr_incidents_map.get(shift.id, [])
             # For DRAFT handovers: Show all relevant key points (direct + active from team)
             # For SENT handovers: Show what was active at time of submission
-            
+
             # First get key points directly associated with this shift
-            direct_key_points = ShiftKeyPoint.query.filter_by(shift_id=shift.id).all()
-            
+            direct_key_points = _hr_direct_kps_map.get(shift.id, [])
+
             if shift.status == 'draft':
                 # DRAFT: Show all relevant active key points from the same team
-                logger.debug(f"🔍 REPORTS DRAFT: Shift {shift.id} is draft, showing all active key points")
                 active_key_points = ShiftKeyPoint.query.filter(
                     ShiftKeyPoint.account_id == shift.account_id,
                     ShiftKeyPoint.team_id == shift.team_id,
                     ShiftKeyPoint.status.in_(['Open', 'In Progress']),
-                    ShiftKeyPoint.shift_id != shift.id  # Exclude current shift's key points to avoid duplicates
+                    ShiftKeyPoint.shift_id != shift.id
                 ).all()
-                
+
                 # Combine direct key points with active ones from other shifts
                 all_key_points = direct_key_points + active_key_points
-                
-                # Apply SAME submission filtering as dashboard first
+
+                # Filter out KPs where a newer Closed version exists (use pre-built lookup)
                 filtered_kps = []
                 for kp in all_key_points:
-                    kp_shift = Shift.query.get(kp.shift_id)
+                    if kp.shift_id not in _hr_shifts_by_id:
+                        _hr_shifts_by_id[kp.shift_id] = Shift.query.get(kp.shift_id)
+                    kp_shift = _hr_shifts_by_id.get(kp.shift_id)
                     if kp_shift and kp_shift.status == 'sent':
-                        # Check if there's a newer version that closed this key point
-                        newer_closed = ShiftKeyPoint.query.filter(
-                            ShiftKeyPoint.description == kp.description,
-                            ShiftKeyPoint.jira_id == kp.jira_id,
-                            ShiftKeyPoint.status == 'Closed',
-                            ShiftKeyPoint.id > kp.id
-                        ).first()
-                        if newer_closed:
+                        max_closed_id = _hr_closed_max.get((kp.description, kp.jira_id), -1)
+                        if max_closed_id > kp.id:
                             continue
                     filtered_kps.append(kp)
-                
-                # Apply SAME deduplication logic as dashboard
+
+                # Deduplicate by (description, jira_id), keeping highest id
                 kp_map = {}
                 for kp in filtered_kps:
                     if kp.status == 'Closed':
@@ -1421,38 +1591,31 @@ def handover_reports():
                     key = (kp.description, normalized_jira)
                     if key not in kp_map or kp.id > kp_map[key].id:
                         kp_map[key] = kp
-                
+
                 key_points = list(kp_map.values())
-                logger.debug(f"🔍 REPORTS DRAFT: Combined {len(direct_key_points)} direct + {len(active_key_points)} active = {len(key_points)} total key points")
-                
+
             else:
                 # SENT: Show direct key points, fallback to active ones if none exist
                 key_points = direct_key_points
                 if len(key_points) == 0:
-                    # Fallback for sent handovers with no direct key points - apply same deduplication
+                    # Fallback: load active KPs from team, filter with pre-built closed lookup
                     active_key_points = ShiftKeyPoint.query.filter(
                         ShiftKeyPoint.account_id == shift.account_id,
                         ShiftKeyPoint.team_id == shift.team_id,
                         ShiftKeyPoint.status.in_(['Open', 'In Progress'])
                     ).order_by(ShiftKeyPoint.id.desc()).limit(10).all()
-                    
-                    # Apply SAME submission filtering as dashboard first
+
                     filtered_kps = []
                     for kp in active_key_points:
-                        kp_shift = Shift.query.get(kp.shift_id)
+                        if kp.shift_id not in _hr_shifts_by_id:
+                            _hr_shifts_by_id[kp.shift_id] = Shift.query.get(kp.shift_id)
+                        kp_shift = _hr_shifts_by_id.get(kp.shift_id)
                         if kp_shift and kp_shift.status == 'sent':
-                            # Check if there's a newer version that closed this key point
-                            newer_closed = ShiftKeyPoint.query.filter(
-                                ShiftKeyPoint.description == kp.description,
-                                ShiftKeyPoint.jira_id == kp.jira_id,
-                                ShiftKeyPoint.status == 'Closed',
-                                ShiftKeyPoint.id > kp.id
-                            ).first()
-                            if newer_closed:
+                            max_closed_id = _hr_closed_max.get((kp.description, kp.jira_id), -1)
+                            if max_closed_id > kp.id:
                                 continue
                         filtered_kps.append(kp)
-                    
-                    # Apply SAME deduplication logic as dashboard
+
                     kp_map = {}
                     for kp in filtered_kps:
                         if kp.status == 'Closed':
@@ -1461,22 +1624,8 @@ def handover_reports():
                         key = (kp.description, normalized_jira)
                         if key not in kp_map or kp.id > kp_map[key].id:
                             kp_map[key] = kp
-                    
+
                     key_points = list(kp_map.values())
-                    logger.debug(f"🔍 REPORTS SENT: Using {len(active_key_points)} active key points (deduplicated to {len(key_points)}) as fallback")
-            
-            logger.debug(f"🔍 REPORTS SHIFT {shift.id}: Found {len(incidents)} incidents, {len(key_points)} key points")
-            
-            # Debug key points details with status breakdown
-            status_counts = {'Open': 0, 'In Progress': 0, 'Closed': 0}
-            for kp in key_points:
-                status_counts[kp.status] = status_counts.get(kp.status, 0) + 1
-                logger.debug(f"  📋 REPORTS KP {kp.id}: '{kp.description[:30]}...' - Status: {kp.status} - Responsible: {kp.responsible_engineer_id}")
-            
-            logger.debug(f"  📊 REPORTS Status breakdown for shift {shift.id}: {status_counts}")
-            
-            if len(key_points) == 0:
-                logger.debug(f"  ⚠️  REPORTS WARNING: No key points found for shift {shift.id}")
             
             # Get detailed incident information
             incidents_data = []
@@ -1504,8 +1653,10 @@ def handover_reports():
                 try:
                     engineer = None
                     if kp.responsible_engineer_id:
-                        engineer = TeamMember.query.get(kp.responsible_engineer_id)
-                    
+                        if kp.responsible_engineer_id not in _hr_tm_cache:
+                            _hr_tm_cache[kp.responsible_engineer_id] = TeamMember.query.get(kp.responsible_engineer_id)
+                        engineer = _hr_tm_cache[kp.responsible_engineer_id]
+
                     kp_data = {
                         'description': kp.description,
                         'status': kp.status,
@@ -1529,61 +1680,16 @@ def handover_reports():
                     key_points_data.append(kp_data)
                     logger.debug(f"  ⚠️  REPORTS Added KP {kp.id} with error to template data")
             
-            # 🔧 FIX: Find who submitted this handover from HandoverRequest table (more accurate)
+            # Find who submitted this handover using pre-batched HandoverRequest map
             submitted_by = 'Unknown'
-            try:
-                # Import here to avoid circular imports
-                from models.handover_enhanced import HandoverRequest
-                
-                # Find the corresponding handover request with exact matching
-                handover_req = HandoverRequest.query.filter_by(
-                    shift_date=shift.date,
-                    current_shift_type=shift.current_shift_type,
-                    account_id=shift.account_id,
-                    team_id=shift.team_id
-                ).first()
-                
-                if handover_req and handover_req.created_by_id:
-                    user = User.query.get(handover_req.created_by_id)
-                    if user:
-                        submitted_by = user.display_name or user.username
-                        logger.debug(f"🔍 REPORTS: Found accurate submitter: {submitted_by} (ID: {user.id}) for shift {shift.id}")
-                    else:
-                        submitted_by = f'User ID: {handover_req.created_by_id}'
-                        logger.debug(f"🔍 REPORTS: User not found for ID: {handover_req.created_by_id}")
-                else:
-                    logger.debug(f"🔍 REPORTS: No HandoverRequest found for shift {shift.id}, trying audit log fallback...")
-                    # Fallback to audit log with more specific matching
-                    from models.audit_log import AuditLog
-                    audit_entry = AuditLog.query.filter(
-                        AuditLog.action.like('%Create Handover%'),
-                        AuditLog.details.like(f'%Team: {shift.team_id}%'),
-                        AuditLog.details.like(f'%Account: {shift.account_id}%'),
-                        AuditLog.details.like(f'%Date: {shift.date}%')
-                    ).first()
-                    
-                    if audit_entry and audit_entry.user_id:
-                        user = User.query.get(audit_entry.user_id)
-                        if user:
-                            submitted_by = user.display_name or user.username
-                            logger.debug(f"🔍 REPORTS: Fallback audit submitter: {submitted_by} for shift {shift.id}")
-                        else:
-                            submitted_by = audit_entry.username or 'Unknown User'
-                    
-            except Exception as e:
-                logger.debug(f"🚨 Error finding submitter for shift {shift.id}: {e}")
-                submitted_by = 'Unknown'
+            _hr_req = _hr_hr_map.get((shift.date, shift.current_shift_type, shift.account_id, shift.team_id))
+            if _hr_req and _hr_req.created_by_id:
+                _hr_u = _hr_hr_users.get(_hr_req.created_by_id)
+                submitted_by = (_hr_u.display_name or _hr_u.username) if _hr_u else f'User ID: {_hr_req.created_by_id}'
             
-            # Get Change Info and KB Updates for this date/team with deduplication
-            from datetime import timedelta
-            raw_change_infos = ShiftChangeInfo.query.filter(
-                ShiftChangeInfo.account_id == shift.account_id,
-                ShiftChangeInfo.team_id == shift.team_id,
-                ShiftChangeInfo.created_at >= shift.date,
-                ShiftChangeInfo.created_at < shift.date + timedelta(days=1),
-                ~ShiftChangeInfo.status.in_(['Completed', 'Cancelled', 'Implemented'])
-            ).order_by(ShiftChangeInfo.id.desc()).all()
-            # Deduplicate by change_number
+            # Get Change Info and KB Updates from pre-batched dicts
+            _hr_date_key = (shift.account_id, shift.team_id, shift.date)
+            raw_change_infos = _hr_ci_by_key.get(_hr_date_key, [])
             change_map = {}
             for ci in raw_change_infos:
                 key = ci.change_number.strip().lower() if ci.change_number else f"{ci.app_name}_{ci.description[:30] if ci.description else ''}"
@@ -1594,8 +1700,10 @@ def handover_reports():
             for change_info in change_infos:
                 engineer = None
                 if change_info.responsible_engineer_id:
-                    engineer = TeamMember.query.get(change_info.responsible_engineer_id)
-                
+                    if change_info.responsible_engineer_id not in _hr_tm_cache:
+                        _hr_tm_cache[change_info.responsible_engineer_id] = TeamMember.query.get(change_info.responsible_engineer_id)
+                    engineer = _hr_tm_cache[change_info.responsible_engineer_id]
+
                 change_infos_data.append({
                     'app_name': change_info.app_name,
                     'change_number': change_info.change_number,
@@ -1604,16 +1712,8 @@ def handover_reports():
                     'responsible': engineer.name if engineer else 'N/A',
                     'status': change_info.status  # Include status for display in reports
                 })
-            
-            # 🔧 FIX: Query KB updates by date/team/account with deduplication
-            raw_kb_updates = ShiftKBUpdate.query.filter(
-                ShiftKBUpdate.account_id == shift.account_id,
-                ShiftKBUpdate.team_id == shift.team_id,
-                ShiftKBUpdate.created_at >= shift.date,
-                ShiftKBUpdate.created_at < shift.date + timedelta(days=1),
-                ShiftKBUpdate.status != 'Published'
-            ).order_by(ShiftKBUpdate.id.desc()).all()
-            # Deduplicate by kb_number
+
+            raw_kb_updates = _hr_kb_by_key.get(_hr_date_key, [])
             kb_map = {}
             for kb in raw_kb_updates:
                 key = kb.kb_number.strip().lower() if kb.kb_number else f"{kb.app_name}_{kb.description[:30] if kb.description else ''}"
@@ -1624,8 +1724,10 @@ def handover_reports():
             for kb_update in kb_updates:
                 engineer = None
                 if kb_update.responsible_engineer_id:
-                    engineer = TeamMember.query.get(kb_update.responsible_engineer_id)
-                
+                    if kb_update.responsible_engineer_id not in _hr_tm_cache:
+                        _hr_tm_cache[kb_update.responsible_engineer_id] = TeamMember.query.get(kb_update.responsible_engineer_id)
+                    engineer = _hr_tm_cache[kb_update.responsible_engineer_id]
+
                 kb_updates_data.append({
                     'app_name': kb_update.app_name,
                     'kb_number': kb_update.kb_number,
@@ -1635,7 +1737,7 @@ def handover_reports():
                 })
 
             # Get team name for display
-            team = Team.query.get(shift.team_id) if shift.team_id else None
+            team = _hr_teams_by_id.get(shift.team_id) if shift.team_id else None
             shift_team_name = team.name if team else 'Unknown'
             
             # Create serializable shift data instead of passing the model object
@@ -1774,7 +1876,8 @@ def handover_reports():
             grouped_shift_data=grouped_shift_data,
             ordered_date_keys=ordered_date_keys,
             stats=stats,
-            date_filter=date_filter or '',
+            date_from=date_from or '',
+            date_to=date_to or '',
             shift_type_filter=shift_type_filter or '',
             accounts=accounts,
             teams=teams,
@@ -1792,7 +1895,8 @@ def handover_reports():
             shift_data=[],
             stats={},
             error=f"Error loading reports: {str(e)}",
-            date_filter='',
+            date_from='',
+            date_to='',
             shift_type_filter='',
             accounts=[],
             teams=[],

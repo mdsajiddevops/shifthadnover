@@ -7,6 +7,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_mail import Mail
 from flask_migrate import Migrate
+from flasgger import Swagger
+from prometheus_flask_exporter import PrometheusMetrics
 from config import Config
 import os
 import time
@@ -94,6 +96,16 @@ app.config.from_object(Config)
 
 # Setup logging FIRST before any other operations
 app_logger = setup_logging(app)
+
+# Bind Celery to the Flask app context so tasks can access db.session safely.
+# The ContextTask in celery_app.py lazily wraps each task call in app_context().
+# Updating celery.conf with app.config propagates Flask config to the worker.
+try:
+    from celery_app import celery as _celery
+    _celery.conf.update(app.config)
+    app_logger.info("Celery-Flask context binding applied.")
+except Exception as _celery_exc:
+    app_logger.warning("Celery binding skipped: %s", _celery_exc)
 
 # Configure ProxyFix for nginx reverse proxy only in production
 # This fixes URL generation behind nginx proxy
@@ -206,7 +218,164 @@ from models.servicenow_config import ServiceNowConfig  # Import ServiceNow confi
 from models.team_shift_timing_config import TeamShiftTimingConfig  # Import team shift timing config model
 from models.escalation_matrix import EscalationMatrixEntry  # Import escalation matrix model
 from models.collaboration import HandoverSession, SectionLock, HandoverChange, DraftIncident, DraftKeyPoint  # Collaborative editing models
+from models.roster_scheduler_models import ShiftCoverageRequirement, PublicHoliday, ScheduledShift  # Roster scheduler models
+from models.handover_draft import HandoverDraft  # Yjs draft persistence (CTCOAMSHM-7)
 db.init_app(app)
+
+# API docs — available at /apidocs
+Swagger(app, template={
+    'swagger': '2.0',
+    'info': {
+        'title': 'ShiftHandover API',
+        'version': '2.0.0',
+        'description': (
+            'REST API for the ShiftHandover multi-team NOC operations platform. '
+            'All endpoints require an authenticated session (cookie-based). '
+            'The app uses Flask blueprints — ~45 route modules covering handovers, '
+            'incidents, rosters, reports, collaboration, and admin functions.'
+        ),
+    },
+    'basePath': '/',
+    'consumes': ['application/json'],
+    'produces': ['application/json'],
+    'securityDefinitions': {
+        'SessionCookie': {
+            'type': 'apiKey',
+            'name': 'session',
+            'in': 'cookie',
+            'description': 'Flask session cookie — obtained by POST /login',
+        }
+    },
+    'security': [{'SessionCookie': []}],
+    'tags': [
+        {'name': 'auth', 'description': 'Login, logout, SSO'},
+        {'name': 'handover', 'description': 'Create, submit, and manage shift handover forms'},
+        {'name': 'incidents', 'description': 'Incident tracking and carryforward'},
+        {'name': 'roster', 'description': 'Shift roster management and scheduler'},
+        {'name': 'reports', 'description': 'Handover and incident reports'},
+        {'name': 'collaboration', 'description': 'Real-time collaborative editing (SSE + YJS)'},
+        {'name': 'admin', 'description': 'User, team, and account administration'},
+        {'name': 'checkin', 'description': 'Shift check-in / check-out'},
+    ],
+    'paths': {
+        '/login': {
+            'post': {
+                'tags': ['auth'],
+                'summary': 'Authenticate user',
+                'parameters': [{'in': 'formData', 'name': 'username', 'type': 'string', 'required': True},
+                               {'in': 'formData', 'name': 'password', 'type': 'string', 'required': True},
+                               {'in': 'formData', 'name': 'csrf_token', 'type': 'string', 'required': True}],
+                'responses': {'302': {'description': 'Redirect to dashboard on success'}},
+            }
+        },
+        '/logout': {
+            'get': {
+                'tags': ['auth'],
+                'summary': 'End session',
+                'responses': {'302': {'description': 'Redirect to login page'}},
+            }
+        },
+        '/api/handovers': {
+            'get': {
+                'tags': ['handover'],
+                'summary': 'List handover records for the active team',
+                'parameters': [
+                    {'in': 'query', 'name': 'team_id', 'type': 'integer'},
+                    {'in': 'query', 'name': 'date', 'type': 'string', 'format': 'date'},
+                ],
+                'responses': {'200': {'description': 'Array of handover records'}},
+            }
+        },
+        '/api/incidents': {
+            'get': {
+                'tags': ['incidents'],
+                'summary': 'List incidents for the active team',
+                'responses': {'200': {'description': 'Array of incident objects'}},
+            },
+            'post': {
+                'tags': ['incidents'],
+                'summary': 'Create a new incident',
+                'parameters': [{'in': 'body', 'name': 'body', 'schema': {
+                    'type': 'object',
+                    'properties': {
+                        'title': {'type': 'string'},
+                        'description': {'type': 'string'},
+                        'status': {'type': 'string', 'enum': ['Open', 'In Progress', 'Resolved', 'Closed']},
+                        'priority': {'type': 'string', 'enum': ['P1', 'P2', 'P3', 'P4']},
+                    },
+                    'required': ['title', 'status'],
+                }}],
+                'responses': {'201': {'description': 'Incident created'}},
+            },
+        },
+        '/api/roster/upload': {
+            'post': {
+                'tags': ['roster'],
+                'summary': 'Upload roster CSV/Excel for a team and month',
+                'consumes': ['multipart/form-data'],
+                'parameters': [
+                    {'in': 'formData', 'name': 'file', 'type': 'file', 'required': True},
+                    {'in': 'formData', 'name': 'team_id', 'type': 'integer', 'required': True},
+                    {'in': 'formData', 'name': 'year', 'type': 'integer', 'required': True},
+                    {'in': 'formData', 'name': 'month', 'type': 'integer', 'required': True},
+                ],
+                'responses': {'200': {'description': 'Upload result with synced count'}},
+            }
+        },
+        '/api/checkin': {
+            'post': {
+                'tags': ['checkin'],
+                'summary': 'Check in for current shift',
+                'responses': {'200': {'description': 'Check-in recorded'}},
+            }
+        },
+        '/api/checkout': {
+            'post': {
+                'tags': ['checkin'],
+                'summary': 'Check out from current shift',
+                'responses': {'200': {'description': 'Check-out recorded'}},
+            }
+        },
+        '/collab/session/{handover_id}': {
+            'get': {
+                'tags': ['collaboration'],
+                'summary': 'Join or resume a collaborative editing session',
+                'parameters': [{'in': 'path', 'name': 'handover_id', 'type': 'integer', 'required': True}],
+                'responses': {'200': {'description': 'Session info and active participants'}},
+            }
+        },
+        '/collab/sse/{handover_id}': {
+            'get': {
+                'tags': ['collaboration'],
+                'summary': 'SSE stream for real-time collaborative editing events',
+                'parameters': [{'in': 'path', 'name': 'handover_id', 'type': 'integer', 'required': True}],
+                'produces': ['text/event-stream'],
+                'responses': {'200': {'description': 'Continuous SSE event stream'}},
+            }
+        },
+        '/health': {
+            'get': {
+                'tags': ['admin'],
+                'summary': 'Health check — returns 200 if app is running',
+                'security': [],
+                'responses': {'200': {'description': 'OK'}},
+            }
+        },
+        '/metrics': {
+            'get': {
+                'tags': ['admin'],
+                'summary': 'Prometheus metrics endpoint',
+                'security': [],
+                'produces': ['text/plain'],
+                'responses': {'200': {'description': 'Prometheus exposition format metrics'}},
+            }
+        },
+    },
+})
+
+# Prometheus metrics — available at /metrics
+PrometheusMetrics(app)
+
 login_manager = LoginManager(app)
 login_manager.login_view = 'auth.login'  # Redirect to login page for unauthenticated users
 login_manager.login_message = 'Please log in to access this page.'
@@ -335,6 +504,9 @@ app.register_blueprint(keypoints_bp)
 from routes.ctask_assignment import ctask_assignment_bp
 app.register_blueprint(ctask_assignment_bp)
 
+from routes.scheduler import scheduler_bp
+app.register_blueprint(scheduler_bp)
+
 # Register config blueprint for admin configuration
 from routes.config import config_bp
 app.register_blueprint(config_bp)
@@ -342,10 +514,6 @@ app.register_blueprint(config_bp)
 # Register enhanced handover blueprint
 from routes.handover_enhanced_routes import handover_enhanced_bp
 app.register_blueprint(handover_enhanced_bp)
-
-# Register debug blueprint for form troubleshooting
-from routes.debug_form import debug_bp
-app.register_blueprint(debug_bp)
 
 # Register email configuration blueprint
 from routes.email_config_routes import email_config_bp
@@ -374,10 +542,6 @@ app.register_blueprint(logs_bp)
 # Register check-in blueprint for team member status tracking
 from routes.checkin import checkin_bp
 app.register_blueprint(checkin_bp)
-
-# Register test blueprint
-from routes.test_routes import test_bp
-app.register_blueprint(test_bp)
 
 # Register SSO authentication blueprints
 from routes.sso_auth import sso_auth
@@ -417,6 +581,9 @@ app.register_blueprint(incident_metrics_bp)
 from routes.manual_roster import manual_roster_bp
 app.register_blueprint(manual_roster_bp)
 
+from routes.roster_scheduler import roster_scheduler_bp
+app.register_blueprint(roster_scheduler_bp)
+
 from routes.system_health import system_health_bp
 app.register_blueprint(system_health_bp)
 
@@ -432,6 +599,13 @@ app.register_blueprint(problem_tickets_bp)
 from routes.collaboration import collaboration_bp
 app.register_blueprint(collaboration_bp)
 
+# Initialise flask-sock and register WebSocket handover relay (CTCOAMSHM-7).
+# Routes in routes/ws_handover.py are decorated with @sock.route(...)  which
+# stores them in the Sock object; init_app registers them on the Flask app.
+from services.sock_instance import sock
+import routes.ws_handover  # noqa: F401 — side-effect: registers @sock.route handlers
+sock.init_app(app)
+
 # Add template global functions
 @app.template_global()
 def is_tab_enabled(tab_name):
@@ -440,42 +614,34 @@ def is_tab_enabled(tab_name):
     """
     try:
         from models.team_feature_config import TeamFeatureConfig
+        from models.app_config import AppConfig
         from flask_login import current_user
-        
+
         # Get user's account and team IDs if authenticated
         account_id = None
         team_id = None
-        
+
         if current_user.is_authenticated:
-            # Fetch fresh user data to avoid stale session issues
             from models.models import User
             fresh_user = User.query.get(current_user.id)
             if fresh_user:
                 account_id = fresh_user.account_id
                 team_id = fresh_user.team_id
-        
-        # Check feature status with hierarchy
+
+        # Use AppConfig as the global default so system configuration page
+        # toggles take effect when no team/account override exists.
+        global_default = AppConfig.get_config(tab_name, 'true').lower() == 'true'
+
         return TeamFeatureConfig.get_feature_status(
             feature_key=tab_name,
             account_id=account_id,
             team_id=team_id,
-            default=True  # Default to enabled if no config found
+            default=global_default
         )
     except Exception as e:
-        # Fallback to default values if database not available
         import logging
-        logger = logging.getLogger(__name__)
-        logger.warning(f"Error checking tab status for {tab_name}: {e}")
-        
-        enabled_tabs = {
-            'tab_kb_articles': True,
-            'tab_vendor_details': True,
-            'tab_applications': True,
-            'tab_change_management': True,
-            'tab_problem_tickets': True,
-            'tab_post_mortems': True
-        }
-        return enabled_tabs.get(tab_name, True)
+        logging.getLogger(__name__).warning(f"Error checking tab status for {tab_name}: {e}")
+        return True
 
 @app.template_filter('safe_engineer_name')
 def safe_engineer_name(engineer):
@@ -710,26 +876,8 @@ def initialize_services():
             except Exception as e:
                 app_logger.warning(f"Could not initialize configurations: {e}")
         
-        # Check if CTask assignment feature is enabled
-        # Only initialize CTask scheduler in production and not during worker preload
-        # Note: os is already imported at module level
-        if os.environ.get('FLASK_ENV') == 'production' and not os.environ.get('GUNICORN_PRELOAD'):
-            try:
-                from models.app_config import AppConfig
-                if AppConfig.is_enabled('feature_ctask_assignment'):
-                    # Start the CTask assignment scheduler automatically (non-blocking)
-                    from services.ctask_scheduler import start_ctask_scheduler, get_scheduler_status
-                    
-                    # Quick check if scheduler is already running
-                    status = get_scheduler_status()
-                    if not status['running']:
-                        app_logger.info("Auto-starting CTask assignment scheduler...")
-                        start_ctask_scheduler()
-                        app_logger.warning("CTask assignment service started but ServiceNow not configured")
-                    else:
-                        app_logger.info("CTask assignment scheduler already running")
-            except Exception as e:
-                app_logger.warning(f"CTask scheduler initialization skipped: {e}")
+        # CTask background jobs are now handled by Celery workers (see tasks.py + celery_app.py).
+        # Start the celery worker and beat scheduler via docker-compose — do not start in-process.
                 
         _services_initialized = True  # Mark as initialized
                 

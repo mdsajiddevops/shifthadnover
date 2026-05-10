@@ -287,30 +287,41 @@ When enabled:
 - [ ] User A edits incidents, User B edits keypoints - no conflicts
 - [ ] User A edits Open Incidents, User B edits Closed Incidents - no conflicts
 
-## Files Modified
+## Files
 
 ### Backend
-- `routes/collaboration.py` - All collaboration API endpoints
-- `models/collaboration.py` - Database models (HandoverSession, SectionLock, HandoverChange)
-- `migrations/create_collaboration_tables.sql` - Database migration
+- `routes/collaboration.py` — All collaboration API endpoints (join/leave/field-update/lock/typing)
+- `routes/collab_sse.py` — SSE stream endpoint (`/api/collaboration/stream/<shift_id>`)
+- `models/collaboration.py` — DB models: `HandoverSession`, `SectionLock`, `HandoverChange`, `DraftIncident`, `DraftKeyPoint`, `DraftChangeInfo`, `DraftKBUpdate`
 
 ### Frontend
-- `static/js/collaborative_handover_v2.js` - Client-side collaboration logic
-- `static/css/collaborative_handover.css` - Visual indicators and animations
-- `templates/partials/collaborative_handover.html` - UI partial for collaboration panel
+- `static/js/yjs.bundle.js` — Self-hosted YJS CRDT bundle (~91 KB, no CDN dependency)
+- `static/js/yjs-sse-provider.js` — Custom YJS SSE provider
+- `static/js/collaborative_handover_v2.js` — Main client-side collaboration logic
+- `static/js/collaboration.js` — Collab UI wiring
+- `static/css/collaborative_handover.css` — Visual indicators and animations
+- `templates/partials/collaborative_handover.html` — UI partial for collaboration panel
+
+### App Registration
+- `app.py` — Registers `collaboration_bp` and `collab_sse_bp` blueprints
 
 ## Deployment
 
-The application runs on Docker:
-
 ```bash
-# Rebuild and deploy
-docker-compose down
-docker-compose build --no-cache web
-docker-compose up -d
+# Local (Docker or Podman)
+docker-compose up --build
+# or
+podman-compose up --build
 
-# Check logs
-docker-compose logs -f web
+# Production — see docs/PROD_DEPLOYMENT_GUIDE.md
+docker-compose -f docker-compose.prod.yml down
+docker-compose -f docker-compose.prod.yml up -d --build
+docker-compose -f docker-compose.prod.yml logs -f web
+```
+
+**Important:** `static/js/yjs.bundle.js` must be present after `git pull`. Verify with:
+```bash
+ls -lh static/js/yjs.bundle.js   # expected: ~91 KB
 ```
 
 Access the application at: http://localhost:5000

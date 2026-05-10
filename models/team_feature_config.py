@@ -148,6 +148,7 @@ class TeamFeatureConfig(db.Model):
             ('tab_roster_upload', 'Roster Upload', 'Team Management'),
             ('tab_team_details', 'Team Details', 'Team Management'),
             ('tab_oncall_dashboard', 'On-Call Dashboard', 'Team Management'),
+            ('tab_roster_scheduler', 'Roster Scheduler', 'Team Management'),
             
             # Tools tabs
             ('tab_servicenow', 'ServiceNow Integration', 'Tools'),

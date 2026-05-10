@@ -1,87 +1,59 @@
 #!/bin/bash
+# Startup script for Shift Handover Application (COMP-001).
+#
+# Sequence:
+#   1. startup_checks.py — validates secrets and DB reachability (REQ-014).
+#      Non-zero exit aborts here; Gunicorn is never started.
+#   2. Alembic migrations — applies any pending schema changes.
+#   3. exec gunicorn — replaces this shell as PID 1 for clean signal handling.
+#
+# REQ-001: startup is defined here, not in the application module.
+# REQ-002: Gunicorn is the WSGI server; parameters come from gunicorn.conf.py.
 
-# Startup script for Shift Handover Application
-echo "🚀 Starting Shift Handover Application..."
+set -e
 
-# Wait for database to be ready
-echo "⏳ Waiting for database connection..."
-python << EOF
-import time
-import pymysql
-import os
+echo "Starting Shift Handover Application..."
 
-max_attempts = 30
-attempt = 0
+# ── 1. Pre-flight checks (secrets + DB reachability) ────────────────────────
+python startup_checks.py
 
-while attempt < max_attempts:
+# ── 2. Database migrations ───────────────────────────────────────────────────
+echo "Initialising database schema..."
+python - <<'PYEOF'
+import os, sys
+
+if os.environ.get('LOCAL_DEVELOPMENT', '').lower() == 'true':
+    db_url = os.environ.get('DATABASE_URL', 'sqlite:///local_shifthandover.db')
+else:
+    # Read from Docker secret (already validated by startup_checks.py).
     try:
-        connection = pymysql.connect(
-            host='shift-db',
-            user='user',
-            password='userpassword',
-            database="shifthandover",
-            charset='utf8mb4'
-        )
-        connection.close()
-        print("✅ Database connection successful!")
-        break
-    except Exception as e:
-        attempt += 1
-        print(f"🔄 Database connection attempt {attempt}/{max_attempts}: {str(e)}")
-        time.sleep(2)
+        db_url = open('/run/secrets/database_url').read().strip()
+    except OSError:
+        db_url = os.environ.get('DATABASE_URL', '')
 
-if attempt >= max_attempts:
-    print("❌ Failed to connect to database after 30 attempts")
-    exit(1)
-EOF
+if not db_url:
+    print('ERROR: DATABASE_URL unavailable for migration step.', file=sys.stderr)
+    sys.exit(1)
 
-# Initialize database schema if needed
-echo "🔧 Initializing database schema..."
-python << EOF
 try:
-    import os
-    from sqlalchemy import create_engine, text
     from alembic.config import Config
     from alembic import command
-    
-    # Connect to database
-    database_url = os.environ.get('DATABASE_URL', 'mysql+pymysql://user:userpassword@shift-db/shifthandover')
-    engine = create_engine(database_url)
-    
-    # Test connection
-    with engine.connect() as conn:
-        conn.execute(text("SELECT 1"))
-        print("✅ Database connection successful!")
-        
-    # Initialize Alembic if not already done
-    try:
-        if os.path.exists('alembic.ini'):
-            alembic_cfg = Config('alembic.ini')
-            alembic_cfg.set_main_option('sqlalchemy.url', database_url)
-            
-            # Try to run migrations
-            command.upgrade(alembic_cfg, 'head')
-            print("✅ Database migrations applied successfully!")
-        else:
-            print("⚠️ alembic.ini not found, creating tables manually...")
-            # Fallback to creating tables directly
-            from app import app, db
-            with app.app_context():
-                db.create_all()
-                print("✅ Database tables created!")
-                
-    except Exception as e:
-        print(f"⚠️ Migration attempt failed, creating tables manually: {str(e)}")
+
+    if os.path.exists('alembic.ini'):
+        alembic_cfg = Config('alembic.ini')
+        alembic_cfg.set_main_option('sqlalchemy.url', db_url)
+        command.upgrade(alembic_cfg, 'head')
+        print('Database migrations applied successfully!')
+    else:
         from app import app, db
         with app.app_context():
             db.create_all()
-            print("✅ Database schema initialized manually")
-            
-except Exception as e:
-    print(f"❌ Database initialization failed: {str(e)}")
-    print("🔄 Continuing without database initialization...")
-EOF
+        print('Database tables created via SQLAlchemy create_all.')
+except Exception as exc:
+    print(f'WARNING: Database initialisation failed: {exc}')
+    print('Continuing without migration — manual intervention may be required.')
+PYEOF
 
-# Start Flask application
-echo "🌟 Starting Flask application on port 5000..."
-exec python app.py
+# ── 3. Launch WSGI server ────────────────────────────────────────────────────
+echo "Starting Flask application via Gunicorn on port 5000..."
+exec gunicorn --config gunicorn.conf.py app:app

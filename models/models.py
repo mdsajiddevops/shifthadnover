@@ -86,7 +86,7 @@ class ShiftRoster(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
     team_member_id = db.Column(db.Integer, db.ForeignKey('team_member.id'), nullable=False)
-    shift_code = db.Column(db.String(8), nullable=True)  # E, D, N, G, LE, VL, HL, CO, or blank
+    shift_code = db.Column(db.String(10), nullable=True)  # E, D, N, G, LE, VL, HL, CO, D/OCN, E/OCN, N/OCN, or blank
     account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
 
@@ -342,23 +342,27 @@ class User(db.Model, UserMixin):
     def get_team_names(self, account_id=None, separator=', '):
         """Get comma-separated list of team names"""
         memberships = self.get_teams(account_id=account_id)
-        teams = [Team.query.get(m.team_id) for m in memberships]
-        team_names = [t.name for t in teams if t]
+        team_ids = [m.team_id for m in memberships]
+        if not team_ids:
+            return ''
+        teams_by_id = {t.id: t for t in Team.query.filter(Team.id.in_(team_ids)).all()}
+        team_names = [teams_by_id[m.team_id].name for m in memberships if m.team_id in teams_by_id]
         return separator.join(team_names)
-    
+
     @property
     def all_teams_display(self):
         """Display all teams user belongs to with primary indication"""
-        # Don't use caching for now to ensure fresh data
         try:
             memberships = self.get_teams()
+            team_ids = [m.team_id for m in memberships]
+            if not team_ids:
+                return 'No Teams'
+            teams_by_id = {t.id: t for t in Team.query.filter(Team.id.in_(team_ids)).all()}
             teams_info = []
             for membership in memberships:
-                team = Team.query.get(membership.team_id)
+                team = teams_by_id.get(membership.team_id)
                 if team:
-                    name = team.name
-                    if membership.is_primary:
-                        name += " (Primary)"
+                    name = team.name + (' (Primary)' if membership.is_primary else '')
                     teams_info.append(name)
             return '; '.join(teams_info) if teams_info else 'No Teams'
         except Exception as e:
@@ -410,6 +414,11 @@ class TeamMember(db.Model):
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)  # Active/Inactive status
     
+    # Scheduler role: 'lead' always gets E on weekdays / OFF on weekends; 'support' follows rotation
+    scheduling_role = db.Column(db.String(16), default='support', nullable=False, server_default='support')
+    # Shift code assigned to leads on weekdays (default 'E', configurable per member)
+    lead_shift = db.Column(db.String(8), default='E', nullable=True)
+
     # Check-in status fields
     availability_status = db.Column(db.String(32), default='offline')  # offline, oncall, online
     last_checkin = db.Column(db.DateTime, nullable=True)
@@ -493,13 +502,15 @@ class Incident(db.Model):
     priority = db.Column(db.String(16), nullable=False)
     handover = db.Column(db.Text)
     shift_id = db.Column(db.Integer, db.ForeignKey('shift.id'))
-    type = db.Column(db.String(32), nullable=False) # Active, Closed, Priority, Handover
+    type = db.Column(db.String(32), nullable=False) # Open, Closed, Priority, Escalated, Handover
     account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
     # Enhanced fields for detailed incident tracking
     description = db.Column(db.Text)  # Detailed description/notes/resolution
     assigned_to = db.Column(db.String(128))  # Person assigned to handle the incident
     escalated_to = db.Column(db.String(128))  # Person/team escalated to
+    is_resolved = db.Column(db.Boolean, default=False, nullable=False, server_default='0')
+    resolved_at = db.Column(db.DateTime, nullable=True)  # When it was marked resolved
 
 
 class ShiftKeyPoint(db.Model):

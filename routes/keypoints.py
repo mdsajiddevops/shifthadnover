@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_login import login_required, current_user
 from models.models import ShiftKeyPoint, ShiftKeyPointUpdate, db
+from utils.validation import validate_form, validate_required, validate_max_length, format_error_response
 from sqlalchemy import func
 from datetime import date
 import logging
@@ -23,7 +24,16 @@ def edit_keypoint(key_point_id):
     
     if request.method == 'POST':
         new_description = request.form.get('description', '').strip()
-        
+
+        _kp_errors = validate_form([
+            (validate_required, new_description, 'description'),
+            (validate_max_length, new_description, 'description', 2000),
+        ])
+        if _kp_errors:
+            for _err in _kp_errors:
+                flash(_err['message'], 'danger')
+            return redirect(url_for('keypoints.keypoints'))
+
         if not new_description:
             flash('Description is required.', 'danger')
             return redirect(url_for('keypoints.keypoints'))
@@ -75,8 +85,18 @@ def edit_keypoint(key_point_id):
 def edit_keypoint_update(update_id):
     update = ShiftKeyPointUpdate.query.get_or_404(update_id)
     if request.method == 'POST':
-        update_text = request.form.get('update_text')
+        update_text = request.form.get('update_text', '').strip()
         update_date = request.form.get('update_date')
+
+        _upd_errors = validate_form([
+            (validate_required, update_text, 'update_text'),
+            (validate_max_length, update_text, 'update_text', 2000),
+        ])
+        if _upd_errors:
+            for _err in _upd_errors:
+                flash(_err['message'], 'danger')
+            return render_template('edit_keypoint_update.html', update=update)
+
         if update_text:
             update.update_text = update_text
             if update_date:
@@ -160,8 +180,10 @@ def update_keypoint_status(key_point_id):
     filter_params = {}
     if request.form.get('filter_status'):
         filter_params['status'] = request.form.get('filter_status')
-    if request.form.get('filter_date'):
-        filter_params['date'] = request.form.get('filter_date')
+    if request.form.get('filter_date_from'):
+        filter_params['date_from'] = request.form.get('filter_date_from')
+    if request.form.get('filter_date_to'):
+        filter_params['date_to'] = request.form.get('filter_date_to')
     if request.form.get('filter_team_id'):
         filter_params['team_id'] = request.form.get('filter_team_id')
     
@@ -174,7 +196,8 @@ def keypoints():
     from services.team_access_service import TeamAccessService
     
     status_filter = request.args.get('status', 'all')
-    date_filter = request.args.get('date')
+    date_from = request.args.get('date_from') or request.args.get('date')
+    date_to = request.args.get('date_to')
     account_id = None
     team_id = None
     accounts = []
@@ -267,28 +290,36 @@ def keypoints():
     
     # Get all key points (before status filtering) to properly handle closed status
     all_key_points = query.all()
-    
-    # 🔧 FIX: For each key point, check if there's a NEWER version with "Closed" status
-    # If so, exclude this key point from results (it has been resolved)
+
+    # Pre-build a set of (desc_lower, account_id, team_id) values that have a NEWER Closed version.
+    # This replaces N per-KP queries with a single batch query.
+    _acct_ids = list({kp.account_id for kp in all_key_points})
+    _team_ids_kp = list({kp.team_id for kp in all_key_points})
+    if _acct_ids and _team_ids_kp:
+        closed_kps = ShiftKeyPoint.query.filter(
+            ShiftKeyPoint.status == 'Closed',
+            ShiftKeyPoint.account_id.in_(_acct_ids),
+            ShiftKeyPoint.team_id.in_(_team_ids_kp)
+        ).with_entities(ShiftKeyPoint.id, ShiftKeyPoint.description, ShiftKeyPoint.account_id, ShiftKeyPoint.team_id).all()
+    else:
+        closed_kps = []
+    # closed_max_id[(desc_lower, acct, team)] = max id of any Closed KP with that description
+    closed_max_id = {}
+    for ckp in closed_kps:
+        key = (ckp.description.lower() if ckp.description else '', ckp.account_id, ckp.team_id)
+        if key not in closed_max_id or ckp.id > closed_max_id[key]:
+            closed_max_id[key] = ckp.id
+
+    # Filter key points using the pre-built lookup (no per-KP DB queries)
     filtered_key_points = []
     for kp in all_key_points:
-        # Skip if already Closed and we're filtering for Open/In Progress
         if status_filter != 'all' and kp.status != status_filter:
             continue
-            
-        # Check if this key point has been closed in a newer entry (CASE-INSENSITIVE matching)
-        newer_closed = ShiftKeyPoint.query.filter(
-            func.lower(ShiftKeyPoint.description) == kp.description.lower(),
-            ShiftKeyPoint.status == 'Closed',
-            ShiftKeyPoint.id > kp.id,
-            ShiftKeyPoint.account_id == kp.account_id,
-            ShiftKeyPoint.team_id == kp.team_id
-        ).first()
-        
-        if newer_closed:
-            logger.debug(f"🔧 KEYPOINTS: Excluding key point ID {kp.id} - found newer closed version ID {newer_closed.id}")
+        desc_key = (kp.description.lower() if kp.description else '', kp.account_id, kp.team_id)
+        max_closed_id = closed_max_id.get(desc_key, -1)
+        if max_closed_id > kp.id:
+            logger.debug(f"🔧 KEYPOINTS: Excluding key point ID {kp.id} - found newer closed version ID {max_closed_id}")
             continue
-            
         filtered_key_points.append(kp)
     
     # Deduplicate key points by description, keeping the most recent one
@@ -304,59 +335,92 @@ def keypoints():
     # Populate submitted_by_name and original_created_date for key points
     from models.handover_enhanced import HandoverRequest
     from models.models import User, Shift
-    
+
+    # Batch-load shifts needed for submitted_by lookups
+    _kp_shift_ids = list({kp.shift_id for kp in key_points if kp.shift_id and not kp.created_by})
+    _kp_shifts_by_id = {s.id: s for s in Shift.query.filter(Shift.id.in_(_kp_shift_ids)).all()} if _kp_shift_ids else {}
+
+    # Batch-load HandoverRequests for all needed shifts (avoids N per-KP queries)
+    _kp_hr_lookup = {}
+    if _kp_shifts_by_id:
+        _kp_shift_objs = list(_kp_shifts_by_id.values())
+        _kp_hr_acct_ids = list({s.account_id for s in _kp_shift_objs if s.account_id})
+        _kp_hr_team_ids = list({s.team_id for s in _kp_shift_objs if s.team_id})
+        if _kp_hr_acct_ids and _kp_hr_team_ids:
+            _kp_hr_min = min(s.date for s in _kp_shift_objs)
+            _kp_hr_max = max(s.date for s in _kp_shift_objs)
+            for _hr in HandoverRequest.query.filter(
+                HandoverRequest.account_id.in_(_kp_hr_acct_ids),
+                HandoverRequest.team_id.in_(_kp_hr_team_ids),
+                HandoverRequest.shift_date >= _kp_hr_min,
+                HandoverRequest.shift_date <= _kp_hr_max
+            ).all():
+                _kp_hr_lookup[(_hr.shift_date, _hr.current_shift_type, _hr.account_id, _hr.team_id)] = _hr
+    _kp_user_cache = {}
+
+    # Batch-load oldest shift date per (description, account_id, team_id) with one GROUP BY query
+    _kp_desc_list = list({kp.description for kp in key_points if kp.description})
+    if _kp_desc_list:
+        oldest_rows = db.session.query(
+            ShiftKeyPoint.description,
+            ShiftKeyPoint.account_id,
+            ShiftKeyPoint.team_id,
+            func.min(Shift.date).label('oldest_date')
+        ).join(Shift, ShiftKeyPoint.shift_id == Shift.id).filter(
+            ShiftKeyPoint.description.in_(_kp_desc_list)
+        ).group_by(
+            ShiftKeyPoint.description, ShiftKeyPoint.account_id, ShiftKeyPoint.team_id
+        ).all()
+        _oldest_date_map = {(r.description, r.account_id, r.team_id): r.oldest_date for r in oldest_rows}
+    else:
+        _oldest_date_map = {}
+
     for kp in key_points:
-        kp.submitted_by_name = None  # Default
-        kp.original_created_date = None  # The earliest date this key point was created
-        
-        # 🔧 FIX: Find the OLDEST shift date for key points with the same description
-        # This handles carried-forward key points correctly
-        try:
-            oldest_kp = ShiftKeyPoint.query.filter_by(
-                description=kp.description,
-                account_id=kp.account_id,
-                team_id=kp.team_id
-            ).join(Shift).order_by(Shift.date.asc()).first()
-            
-            if oldest_kp and oldest_kp.shift and oldest_kp.shift.date:
-                kp.original_created_date = oldest_kp.shift.date
-                logger.debug(f"🔧 KEYPOINTS: KP {kp.id} original date: {kp.original_created_date}")
-        except Exception as e:
-            logger.debug(f"🔧 KEYPOINTS: Error finding original date for KP {kp.id}: {e}")
-        
+        kp.submitted_by_name = None
+        kp.original_created_date = _oldest_date_map.get((kp.description, kp.account_id, kp.team_id))
+
         if not kp.created_by and kp.shift_id:
             try:
-                # Find the HandoverRequest for this shift to get the submitter
-                shift = Shift.query.get(kp.shift_id)
+                shift = _kp_shifts_by_id.get(kp.shift_id)
                 if shift:
-                    handover_req = HandoverRequest.query.filter_by(
-                        shift_date=shift.date,
-                        current_shift_type=shift.current_shift_type,
-                        account_id=shift.account_id,
-                        team_id=shift.team_id
-                    ).first()
+                    handover_req = _kp_hr_lookup.get((shift.date, shift.current_shift_type, shift.account_id, shift.team_id))
                     if handover_req and handover_req.created_by_id:
-                        user = User.query.get(handover_req.created_by_id)
+                        uid = handover_req.created_by_id
+                        if uid not in _kp_user_cache:
+                            _kp_user_cache[uid] = User.query.get(uid)
+                        user = _kp_user_cache[uid]
                         if user:
                             kp.submitted_by_name = user.display_name or user.username
             except Exception as e:
                 logger.debug(f"🔧 KEYPOINTS: Error getting submitter for KP {kp.id}: {e}")
-    
-    updates_by_kp = {}
-    for kp in key_points:
-        updates_query = ShiftKeyPointUpdate.query.filter_by(key_point_id=kp.id)
-        if date_filter:
-            updates_query = updates_query.filter_by(update_date=date.fromisoformat(date_filter))
-        updates_by_kp[kp.id] = updates_query.order_by(ShiftKeyPointUpdate.update_date.desc()).all()
-    
-    return render_template('keypoints_updates.html', 
-                         key_points=key_points, 
-                         updates_by_kp=updates_by_kp, 
-                         status_filter=status_filter, 
-                         date_filter=date_filter, 
-                         accounts=accounts, 
-                         teams=teams, 
-                         selected_account_id=filter_account_id, 
+
+    # Batch-load all updates for all key points in one query, then group by key_point_id
+    kp_ids = [kp.id for kp in key_points]
+    updates_by_kp = {kp.id: [] for kp in key_points}
+    if kp_ids:
+        updates_q = ShiftKeyPointUpdate.query.filter(ShiftKeyPointUpdate.key_point_id.in_(kp_ids))
+        if date_from:
+            try:
+                updates_q = updates_q.filter(ShiftKeyPointUpdate.update_date >= date.fromisoformat(date_from))
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                updates_q = updates_q.filter(ShiftKeyPointUpdate.update_date <= date.fromisoformat(date_to))
+            except ValueError:
+                pass
+        for upd in updates_q.order_by(ShiftKeyPointUpdate.update_date.desc()).all():
+            updates_by_kp[upd.key_point_id].append(upd)
+
+    return render_template('keypoints_updates.html',
+                         key_points=key_points,
+                         updates_by_kp=updates_by_kp,
+                         status_filter=status_filter,
+                         date_from=date_from or '',
+                         date_to=date_to or '',
+                         accounts=accounts,
+                         teams=teams,
+                         selected_account_id=filter_account_id,
                          selected_team_id=selected_team_id,
                          team_filter_context=team_filter_context,
                          date=date)
@@ -364,8 +428,25 @@ def keypoints():
 @keypoints_bp.route('/keypoints/update/<int:key_point_id>', methods=['POST'])
 @login_required
 def add_keypoint_update(key_point_id):
-    update_text = request.form.get('update_text')
+    update_text = request.form.get('update_text', '').strip()
     update_date = request.form.get('update_date') or date.today().isoformat()
+
+    _add_upd_errors = validate_form([
+        (validate_required, update_text, 'update_text'),
+        (validate_max_length, update_text, 'update_text', 2000),
+    ])
+    if _add_upd_errors:
+        for _err in _add_upd_errors:
+            flash(_err['message'], 'danger')
+        filter_params = {}
+        if request.form.get('filter_status'):
+            filter_params['status'] = request.form.get('filter_status')
+        if request.form.get('filter_date'):
+            filter_params['date'] = request.form.get('filter_date')
+        if request.form.get('filter_team_id'):
+            filter_params['team_id'] = request.form.get('filter_team_id')
+        return redirect(url_for('keypoints.keypoints', **filter_params))
+
     if update_text:
         update = ShiftKeyPointUpdate(
             key_point_id=key_point_id,
@@ -383,8 +464,10 @@ def add_keypoint_update(key_point_id):
     filter_params = {}
     if request.form.get('filter_status'):
         filter_params['status'] = request.form.get('filter_status')
-    if request.form.get('filter_date'):
-        filter_params['date'] = request.form.get('filter_date')
+    if request.form.get('filter_date_from'):
+        filter_params['date_from'] = request.form.get('filter_date_from')
+    if request.form.get('filter_date_to'):
+        filter_params['date_to'] = request.form.get('filter_date_to')
     if request.form.get('filter_team_id'):
         filter_params['team_id'] = request.form.get('filter_team_id')
     

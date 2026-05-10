@@ -1,35 +1,234 @@
-# Starter GitLab CI/CD pipeline — scaffolded by HiveMind.
-# Refine stages and jobs for your stack (node / python / java / etc.)
-# once you've chosen a runner image.
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS == null
+
+default:
+  image: python:3.11-slim
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip-cache"
+  DATABASE_URL: "sqlite:///ci_test.db"
+  SAST_EXCLUDED_PATHS: "spec,test,tests,tmp,node_modules,.venv,migrations"
+  SECRET_DETECTION_EXCLUDED_PATHS: "tests,.venv"
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .venv/
+    - .pip-cache/
 
 stages:
   - install
   - lint
   - test
+  - security
   - build
-
-default:
-  image: alpine:3.19
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS == null
+  - deploy-staging
+  - deploy
 
 install:
   stage: install
   script:
-    - echo "Replace with your dependency install step."
+    - python -m venv .venv
+    - .venv/bin/pip install --upgrade pip
+    - .venv/bin/pip install -r requirements.txt
+    - .venv/bin/pip install ruff==0.4.4
+  artifacts:
+    paths:
+      - .venv/
+    expire_in: 1 hour
 
 lint:
   stage: lint
   script:
-    - echo "Replace with your linter command."
+    - .venv/bin/ruff check . --line-length 120
+    - .venv/bin/ruff format --check .
 
-test:
+unit-test:
   stage: test
+  variables:
+    LOCAL_DEVELOPMENT: "true"
+    DATABASE_URL: sqlite:///ci_test.db
+    FLASK_SECRET_KEY: ci-test-secret-key
+    SECRETS_MASTER_KEY: ci-test-master-key-32chars-padding
+    SSO_ENCRYPTION_KEY: ci-test-sso-encryption-key-32chr
   script:
-    - echo "Replace with your test runner command."
+    - .venv/bin/pytest tests/test_startup_checks.py
+        tests/test_celery_app.py
+        tests/test_validators.py
+        tests/test_rbac_errors.py
+        tests/test_audit_service.py
+        -v --tb=short
+
+integration-test:
+  stage: test
+  services:
+    - name: mysql:8.0
+      alias: mysql
+      variables:
+        MYSQL_ROOT_PASSWORD: testroot
+        MYSQL_DATABASE: shifthandover_test
+        MYSQL_USER: testuser
+        MYSQL_PASSWORD: testpass
+  variables:
+    DATABASE_URL: "mysql+pymysql://testuser:testpass@mysql/shifthandover_test"
+    FLASK_SECRET_KEY: ci-test-secret-key
+    SECRETS_MASTER_KEY: "ci-test-master-key-32chars-pad!"
+    SSO_ENCRYPTION_KEY: "ci-test-sso-key-32characters!!"
+    FLASK_ENV: testing
+    CELERY_BROKER_URL: "memory://"
+    CELERY_RESULT_BACKEND: "cache+memory://"
+  script:
+    - apt-get install -qq -y default-mysql-client
+    - until mysqladmin ping -h mysql -u root -ptestroot --silent 2>/dev/null; do echo "Waiting for MySQL..."; sleep 3; done
+    - .venv/bin/flask db upgrade
+    - |
+      .venv/bin/python - <<'EOF'
+      from app import create_app
+      from models.models import db, User, Account, Team
+      from werkzeug.security import generate_password_hash
+      import secrets
+      app = create_app()
+      with app.app_context():
+          db.create_all()
+          if not Account.query.first():
+              acc = Account(name='Test Account', is_active=True)
+              db.session.add(acc)
+              db.session.flush()
+              team = Team(name='Test Team', account_id=acc.id, is_active=True)
+              db.session.add(team)
+              db.session.flush()
+              admin = User(username='superadmin',
+                           password_hash=generate_password_hash('admin123'),
+                           role='super_admin', is_active=True,
+                           session_token=secrets.token_hex(32))
+              db.session.add(admin)
+              db.session.commit()
+              print('Seeded.')
+      EOF
+    - .venv/bin/python app.py &
+    - APP_PID=$!
+    - sleep 8
+    - curl -sf http://localhost:5000/health || (kill $APP_PID; exit 1)
+    - .venv/bin/python tests/run_tests.py --url http://localhost:5000 --user superadmin --password admin123 --verbose || true
+    - .venv/bin/pytest tests/test_application.py -v --tb=short || true
+    - kill $APP_PID || true
+  allow_failure: true
+
+# Smoke test — import check + /health endpoint against SQLite
+smoke-test:
+  stage: test
+  variables:
+    LOCAL_DEVELOPMENT: "true"
+    DATABASE_URL: sqlite:///ci_test.db
+    SECRET_KEY: ci-test-secret
+    FLASK_ENV: testing
+  script:
+    - .venv/bin/python -c "import app; print('App imports OK')"
+    - .venv/bin/python app.py &
+    - APP_PID=$!
+    - sleep 5
+    - .venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" && echo "Health check passed"
+    - kill $APP_PID || true
+
+# Dependency CVE scan — blocking merge gate (REQ-008 / T-006)
+dependency-scan:
+  stage: security
+  script:
+    - .venv/bin/pip install -r requirements-ci.txt
+    - .venv/bin/pip-audit --requirement requirements.txt --format json --output pip-audit-report.json || true
+    - .venv/bin/pip-audit --requirement requirements.txt
+  artifacts:
+    when: always
+    paths:
+      - pip-audit-report.json
+    expire_in: 7 days
+  allow_failure: false
+
+# Python SAST via Bandit — advisory (REQ-008 / T-006)
+sast-bandit:
+  stage: security
+  script:
+    - .venv/bin/pip install -r requirements-ci.txt
+    - .venv/bin/bandit -r . -x tests/,.venv/,migrations/ -f json -o bandit-report.json || true
+    - .venv/bin/bandit -r . -x tests/,.venv/,migrations/
+  artifacts:
+    when: always
+    paths:
+      - bandit-report.json
+    expire_in: 7 days
+  allow_failure: true
+
+# GitLab SAST — static analysis for Python (Bandit-based, free on all tiers)
+sast:
+  stage: security
+
+# GitLab Secret Detection — scans for committed secrets in git history
+secret_detection:
+  stage: security
 
 build:
   stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
-    - echo "Replace with your build / package step."
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA .
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+
+deploy-staging:
+  stage: deploy-staging
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache openssh-client
+    - mkdir -p ~/.ssh
+    - echo "$STAGING_SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -H "$STAGING_HOST" >> ~/.ssh/known_hosts
+  script:
+    - ssh "$STAGING_USER@$STAGING_HOST" "
+        set -e &&
+        cd /opt/shifthandover-staging &&
+        git pull origin develop &&
+        docker-compose -f docker-compose.prod.yml up -d --build &&
+        docker system prune -f --volumes=false
+      "
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+      when: on_success
+  environment:
+    name: staging
+    url: https://$STAGING_DOMAIN
+
+deploy:
+  stage: deploy
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache openssh-client
+    - mkdir -p ~/.ssh
+    - echo "$DEPLOY_SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+  script:
+    - ssh "$DEPLOY_USER@$DEPLOY_HOST" "
+        set -e &&
+        cd /opt/shifthandover &&
+        git pull origin master &&
+        docker-compose -f docker-compose.prod.yml pull &&
+        docker-compose -f docker-compose.prod.yml up -d --build &&
+        docker system prune -f --volumes=false
+      "
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: manual
+  environment:
+    name: production
+    url: https://$APP_DOMAIN

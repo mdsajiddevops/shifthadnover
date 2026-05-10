@@ -3,6 +3,7 @@ from flask_login import login_required, current_user
 from sqlalchemy import func
 from models.models import TeamMember, Account, Team, User, db
 from services.team_access_service import TeamAccessService
+from utils.validation import validate_form, validate_required, validate_max_length, format_error_response
 import logging
 logger = logging.getLogger(__name__)
 
@@ -95,11 +96,24 @@ def team_details(team_id=None):
                     email = request.form.get('email', '').strip()
                     contact_number = request.form.get('contact_number', '').strip()
                     role = request.form.get('role', '').strip()
-                    
+
+                    _add_member_errors = validate_form([
+                        (validate_required, name, 'name'),
+                        (validate_required, email, 'email'),
+                        (validate_max_length, name, 'name', 255),
+                        (validate_max_length, email, 'email', 255),
+                        (validate_max_length, contact_number, 'contact_number', 50),
+                        (validate_max_length, role, 'role', 255),
+                    ])
+                    if _add_member_errors:
+                        for _err in _add_member_errors:
+                            flash(_err['message'], 'error')
+                        return redirect(url_for('team.team_details', team_id=team_id))
+
                     if not name or not email:
                         flash('Name and email are required.', 'error')
                         return redirect(url_for('team.team_details', team_id=team_id))
-                    
+
                     # Check if member already exists (case-insensitive email match
                     # to prevent duplicate rows like 'Eloy_Leyva@epam.com' vs 'eloy_leyva@epam.com'
                     # under case-sensitive DB collations).
@@ -131,10 +145,28 @@ def team_details(team_id=None):
                     if member_id:
                         member = TeamMember.query.get(int(member_id))
                         if member and member.team_id == team_id:
-                            member.name = request.form.get('edit_name', member.name).strip()
-                            member.email = request.form.get('edit_email', member.email).strip()
-                            member.contact_number = request.form.get('edit_contact', member.contact_number).strip()
-                            member.role = request.form.get('edit_role', member.role).strip()
+                            _edit_name = request.form.get('edit_name', member.name).strip()
+                            _edit_email = request.form.get('edit_email', member.email).strip()
+                            _edit_contact = request.form.get('edit_contact', member.contact_number or '').strip()
+                            _edit_role = request.form.get('edit_role', member.role or '').strip()
+
+                            _edit_member_errors = validate_form([
+                                (validate_required, _edit_name, 'name'),
+                                (validate_required, _edit_email, 'email'),
+                                (validate_max_length, _edit_name, 'name', 255),
+                                (validate_max_length, _edit_email, 'email', 255),
+                                (validate_max_length, _edit_contact, 'contact_number', 50),
+                                (validate_max_length, _edit_role, 'role', 255),
+                            ])
+                            if _edit_member_errors:
+                                for _err in _edit_member_errors:
+                                    flash(_err['message'], 'error')
+                                return redirect(url_for('team.team_details', team_id=team_id))
+
+                            member.name = _edit_name
+                            member.email = _edit_email
+                            member.contact_number = _edit_contact
+                            member.role = _edit_role
                             db.session.commit()
                             logger.info(f"[TEAM_DETAILS] Updated member {member.name} by {current_user.username}")
                             flash(f'Team member {member.name} updated successfully!', 'success')

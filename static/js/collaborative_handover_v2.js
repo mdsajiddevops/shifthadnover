@@ -828,22 +828,16 @@ class CollaborativeHandoverV2 {
     findFieldElement(sectionType, itemId, fieldName) {
         // Build selector based on section type and field name
         const containerMap = {
-            'incident_open': '#open-incidents-container',
-            'incident_closed': '#closed-incidents-container',
-            'incident_priority': '#priority-incidents-container',
-            'incident_handover': '#handover-incidents-container',
+            'incident': '#incidents-container',
             'keypoint': '#keypoints-container',
             'change': '#changes-container',
             'changeinfo': '#changes-container',
             'kbupdate': '#kbupdates-container'
         };
-        
+
         // Map section types to field name prefixes used in the form
         const fieldPrefixMap = {
-            'incident_open': 'open_incident',
-            'incident_closed': 'closed_incident',
-            'incident_priority': 'priority_incident',
-            'incident_handover': 'handover_incident',
+            'incident': 'incident',
             'keypoint': 'keypoint',
             'change': 'change',
             'changeinfo': 'change',
@@ -1127,10 +1121,7 @@ class CollaborativeHandoverV2 {
      */
     findSectionElement(sectionType, itemId) {
         const containerMap = {
-            'incident_open': '#open-incidents-container',
-            'incident_closed': '#closed-incidents-container',
-            'incident_priority': '#priority-incidents-container',
-            'incident_handover': '#handover-incidents-container',
+            'incident': '#incidents-container',
             'keypoint': '#keypoints-container',
             'change': '#changes-container',
             'changeinfo': '#changes-container',
@@ -1171,10 +1162,7 @@ class CollaborativeHandoverV2 {
      */
     addItemToDOM(sectionType, itemId, data, userName) {
         const containerMap = {
-            'incident_open': { container: '#open-incidents-container', addFn: 'addIncident', type: 'open' },
-            'incident_closed': { container: '#closed-incidents-container', addFn: 'addIncident', type: 'closed' },
-            'incident_priority': { container: '#priority-incidents-container', addFn: 'addIncident', type: 'priority' },
-            'incident_handover': { container: '#handover-incidents-container', addFn: 'addIncident', type: 'handover' },
+            'incident': { container: '#incidents-container', addFn: 'addUnifiedIncident' },
             'keypoint': { container: '#keypoints-container', addFn: 'addKeyPoint' },
             'changeinfo': { container: '#changes-container', addFn: 'addChangeInfo' },
             'kbupdate': { container: '#kbupdates-container', addFn: 'addKBUpdate' }
@@ -1415,10 +1403,7 @@ class CollaborativeHandoverV2 {
      */
     getSectionLabel(sectionType) {
         const labels = {
-            'incident_open': 'open incident',
-            'incident_closed': 'closed incident',
-            'incident_priority': 'priority incident',
-            'incident_handover': 'handover incident',
+            'incident': 'incident',
             'keypoint': 'key point',
             'change': 'change',
             'kbupdate': 'KB update'

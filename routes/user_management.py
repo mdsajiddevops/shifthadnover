@@ -4,6 +4,7 @@ from flask_login import login_required, current_user
 from models.models import db, User, Account, Team, UserTeamMembership
 from werkzeug.security import generate_password_hash
 from services.audit_service import log_action
+from utils.validation import validate_form, validate_required, validate_max_length, format_error_response
 import logging
 
 
@@ -270,9 +271,18 @@ def user_management():
                 flash('Account not found.')
             return redirect(url_for('user_mgmt.user_management'))
         elif action == 'add_account' and current_user.role == 'super_admin':
-            account_name = request.form.get('account_name')
+            account_name = request.form.get('account_name', '').strip()
             logger.debug(f"[DEBUG] Add Account: account_name={account_name}")
-            
+
+            _acct_errors = validate_form([
+                (validate_required, account_name, 'account_name'),
+                (validate_max_length, account_name, 'account_name', 255),
+            ])
+            if _acct_errors:
+                for _err in _acct_errors:
+                    flash(_err['message'], 'error')
+                return redirect(url_for('user_mgmt.user_management'))
+
             if account_name:
                 existing_account = Account.query.filter_by(name=account_name).first()
                 if existing_account:
@@ -298,10 +308,19 @@ def user_management():
             return redirect(url_for('user_mgmt.user_management'))
             
         elif action == 'add_team' and (current_user.role == 'super_admin' or current_user.role == 'account_admin'):
-            team_name = request.form.get('team_name')
+            team_name = request.form.get('team_name', '').strip()
             account_id = request.form.get('account_id', type=int)
             logger.debug(f"[DEBUG] Add Team: team_name={team_name}, account_id={account_id}")
-            
+
+            _team_errors = validate_form([
+                (validate_required, team_name, 'team_name'),
+                (validate_max_length, team_name, 'team_name', 255),
+            ])
+            if _team_errors:
+                for _err in _team_errors:
+                    flash(_err['message'], 'error')
+                return redirect(url_for('user_mgmt.user_management'))
+
             if team_name and account_id:
                 # Check permission
                 if current_user.role == 'account_admin' and account_id != current_user.account_id:
@@ -350,18 +369,31 @@ def user_management():
                 if can_edit:
                     try:
                         # Get form data
-                        new_username = request.form.get('username')
-                        new_email = request.form.get('email')
+                        new_username = request.form.get('username', '').strip()
+                        new_email = request.form.get('email', '').strip()
                         new_role = request.form.get('role')
                         new_account_id = request.form.get('account_id', type=int)
                         new_team_id = request.form.get('team_id', type=int) if request.form.get('team_id') else None
                         new_password = request.form.get('new_password')  # Fixed: was 'password', now 'new_password'
                         new_first_name = request.form.get('first_name', '').strip()
                         new_last_name = request.form.get('last_name', '').strip()
-                        
+
                         logger.debug(f"[DEBUG] Edit form data: username={new_username}, email={new_email}, role={new_role}, account_id={new_account_id}, team_id={new_team_id}, first_name={new_first_name}, last_name={new_last_name}, password={'***' if new_password else 'None'}")
                         logger.debug(f"[DEBUG] Current user values: team_id={user.team_id}, account_id={user.account_id}")
-                        
+
+                        # Validate required and length constraints before any DB operations
+                        _edit_user_errors = validate_form([
+                            (validate_required, new_username, 'username'),
+                            (validate_max_length, new_username, 'username', 255),
+                            (validate_max_length, new_email, 'email', 255),
+                            (validate_max_length, new_first_name, 'first_name', 255),
+                            (validate_max_length, new_last_name, 'last_name', 255),
+                        ])
+                        if _edit_user_errors:
+                            for _err in _edit_user_errors:
+                                flash(_err['message'])
+                            return redirect(url_for('user_mgmt.user_management'))
+
                         # Validate required fields
                         if not new_username:
                             flash('Username is required.')
@@ -466,16 +498,32 @@ def user_management():
             return redirect(url_for('user_mgmt.user_management'))
         
         elif action == 'add':
-            username = request.form.get('username')
-            password = request.form.get('password')
-            email = request.form.get('email')
-            role = request.form.get('role')
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '').strip()
+            email = request.form.get('email', '').strip()
+            role = request.form.get('role', '').strip()
             account_id = request.form.get('account_id', type=int)
             team_id = request.form.get('team_id', type=int)
             first_name = request.form.get('first_name', '').strip()
             last_name = request.form.get('last_name', '').strip()
             debug_msgs = []
             debug_msgs.append(f"[DEBUG] Add User: username={username}, email={email}, role={role}, account_id={account_id}, team_id={team_id}, first_name={first_name}, last_name={last_name}")
+
+            _add_user_errors = validate_form([
+                (validate_required, username, 'username'),
+                (validate_required, password, 'password'),
+                (validate_required, email, 'email'),
+                (validate_required, role, 'role'),
+                (validate_max_length, username, 'username', 255),
+                (validate_max_length, email, 'email', 255),
+                (validate_max_length, first_name, 'first_name', 255),
+                (validate_max_length, last_name, 'last_name', 255),
+            ])
+            if _add_user_errors:
+                for _err in _add_user_errors:
+                    flash(_err['message'])
+                return redirect(url_for('user_mgmt.user_management'))
+
             try:
                 if username and password and email and role and account_id:
                     existing_user = User.query.filter_by(username=username).first()
@@ -744,26 +792,28 @@ def user_management():
             return redirect(url_for('user_mgmt.user_management'))
     
     # Enhanced user data with team memberships for display
+    # Batch-load all memberships and teams for the user list
+    user_ids = [u.id for u in users]
+    all_memberships = UserTeamMembership.query.filter(
+        UserTeamMembership.user_id.in_(user_ids),
+        UserTeamMembership.is_active == True
+    ).all() if user_ids else []
+    memberships_by_user = {}
+    for m in all_memberships:
+        memberships_by_user.setdefault(m.user_id, []).append(m)
+    _team_ids_needed = list({m.team_id for m in all_memberships})
+    _teams_for_users = {t.id: t for t in Team.query.filter(Team.id.in_(_team_ids_needed)).all()} if _team_ids_needed else {}
+
     users_with_teams = []
     for user in users:
-        # Use direct UserTeamMembership query instead of problematic user.get_teams()
-        team_memberships = UserTeamMembership.query.filter_by(
-            user_id=user.id, 
-            is_active=True
-        ).all()
-        
-        # Build display string manually since all_teams_display might also be broken
+        team_memberships = memberships_by_user.get(user.id, [])
         teams_display_list = []
         for membership in team_memberships:
-            team = db.session.get(Team, membership.team_id)
+            team = _teams_for_users.get(membership.team_id)
             if team:
-                team_str = team.name
-                if membership.is_primary:
-                    team_str += " (Primary)"
+                team_str = team.name + (' (Primary)' if membership.is_primary else '')
                 teams_display_list.append(team_str)
-        
         teams_display = "; ".join(teams_display_list) if teams_display_list else "No Teams"
-        
         user_data = {
             'user': user,
             'team_memberships': team_memberships,

@@ -1,0 +1,504 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.rsa-container { max-width: 1100px; margin: 0 auto; }
+
+.rsa-hero {
+    background: linear-gradient(135deg, #e8f0fe 0%, #d4e4fc 50%, #c5d9f8 100%);
+    border-radius: 16px; padding: 1.5rem 2rem; margin-bottom: 1.5rem;
+    border: 1px solid #b8d0f0;
+}
+.rsa-hero h2 { color: #1e3c72; font-weight: 700; margin-bottom: .25rem; }
+.rsa-hero p  { color: #4a6fa5; margin-bottom: 0; }
+
+.rsa-card {
+    background: #fff; border-radius: 12px; padding: 1.25rem 1.5rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,.08); border: 1px solid #e8eef3;
+    margin-bottom: 1.5rem;
+}
+.rsa-card h5 { font-size:.95rem; font-weight:700; color:#1e3c72; margin-bottom:1rem; }
+
+.role-badge-lead    { background:#1a1030; color:#a78bfa; border:1px solid #3d2a6e;
+                      padding:2px 8px; border-radius:4px; font-size:.7rem; font-weight:700; }
+.role-badge-support { background:#e3f2fd; color:#1565c0; border:1px solid #90caf9;
+                      padding:2px 8px; border-radius:4px; font-size:.7rem; font-weight:700; }
+</style>
+
+<div class="rsa-container">
+    <!-- Hero -->
+    <div class="rsa-hero">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+                <h2><i class="bi bi-gear me-2"></i>Roster Scheduler — Settings</h2>
+                <p>Configure coverage requirements, public holidays, and member scheduling roles.</p>
+            </div>
+            <a href="/roster-scheduler" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-arrow-left me-1"></i>Back to Roster
+            </a>
+        </div>
+    </div>
+
+    <!-- Team selector -->
+    <div class="rsa-card">
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Team</label>
+                <select id="teamSelect" class="form-select form-select-sm" style="min-width:200px">
+                    {% for t in teams %}
+                    <option value="{{ t.id }}" {% if t.id == team_id %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-primary" id="btnLoadTeam">Load</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Coverage Requirements -->
+    <div class="rsa-card">
+        <h5><i class="bi bi-list-check me-2"></i>Coverage Requirements</h5>
+        <p class="small text-muted mb-3">
+            Set how many people are needed per shift code each day.
+            Use <code>*</code> to fill remaining slots automatically.
+        </p>
+        <div class="table-responsive mb-3">
+            <table class="table table-sm table-bordered" id="reqTable">
+                <thead class="table-light">
+                    <tr><th>Shift Code</th><th>Required Count</th><th></th></tr>
+                </thead>
+                <tbody id="reqBody">
+                    <tr><td colspan="3" class="text-muted small text-center">Select a team above.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <form id="addReqForm" class="row g-2">
+            <div class="col-auto">
+                <select class="form-select form-select-sm" id="newReqCode" style="min-width:140px">
+                    <option value="D">D — Day</option>
+                    <option value="E">E — Evening</option>
+                    <option value="N">N — Night</option>
+                    <option value="OCN">OCN — On-Call Night</option>
+                    <option value="WMO">WMO — Weekend Morning</option>
+                    <option value="WEO">WEO — Weekend Evening</option>
+                    <option value="OS">OS — OnShore</option>
+                    <option value="OF">OF — OffShore</option>
+                    <option value="LE">LE — Late Evening</option>
+                    <option value="G">G — General/Flex</option>
+                    <option value="VL">VL — Vacation Leave</option>
+                    <option value="SL">SL — Sick Leave</option>
+                    <option value="HL">HL — Holiday Leave</option>
+                    <option value="CO">CO — Comp Off</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <input type="text" class="form-control form-control-sm" id="newReqCount"
+                       placeholder="1 or *" style="width:90px" value="1">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-success">Add / Update</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Public Holidays -->
+    <div class="rsa-card">
+        <h5><i class="bi bi-calendar-event me-2"></i>Public Holidays</h5>
+        <p class="small text-muted mb-3">
+            Holidays apply across the account. Affected days are auto-marked as <strong>HL</strong>.
+        </p>
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-auto">
+                <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Year</label>
+                <select id="holYear" class="form-select form-select-sm">
+                    {% for y in range(current_year - 1, current_year + 3) %}
+                    <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-secondary" id="btnLoadHolidays">Load Holidays</button>
+            </div>
+        </div>
+        <div class="table-responsive mb-3">
+            <table class="table table-sm table-bordered">
+                <thead class="table-light">
+                    <tr><th>Date</th><th>Name</th><th></th></tr>
+                </thead>
+                <tbody id="holBody">
+                    <tr><td colspan="3" class="text-muted small text-center">Select a year above.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <form id="addHolForm" class="row g-2">
+            <div class="col-auto">
+                <input type="date" class="form-control form-control-sm" id="newHolDate">
+            </div>
+            <div class="col-auto">
+                <input type="text" class="form-control form-control-sm" id="newHolName"
+                       placeholder="Holiday name" style="min-width:200px">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-success">Add Holiday</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Member Scheduling Roles -->
+    <div class="rsa-card">
+        <h5><i class="bi bi-people me-2"></i>Member Scheduling Roles</h5>
+        <p class="small text-muted mb-3">
+            <strong>Lead</strong> members always get Evening shift on weekdays and Off on weekends.
+            <strong>Support</strong> members follow the rotation.
+        </p>
+        <div id="memberList" class="text-muted small">Select a team above to manage roles.</div>
+    </div>
+
+    <!-- Shift Timings Configuration -->
+    <div class="rsa-card">
+        <h5><i class="bi bi-clock me-2"></i>Shift Timings</h5>
+        <p class="small text-muted mb-3">
+            Define start and end times for each shift code. These timings are used to automatically
+            detect who is <strong>currently on shift</strong> on the dashboard. Overnight shifts
+            (e.g. N: 22:00–06:00) are handled automatically.
+        </p>
+
+        <div id="timingList" class="mb-3">
+            <p class="text-muted small">Select a team above to view shift timings.</p>
+        </div>
+
+        <!-- Add / Edit form -->
+        <div id="timingFormWrap" style="display:none">
+            <hr class="my-3">
+            <p class="small fw-semibold mb-2">Add / Update Timing</p>
+            <div class="row g-2 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Shift Code</label>
+                    <select id="tCode" class="form-select form-select-sm" style="min-width:150px">
+                        <option value="D">D — Day</option>
+                        <option value="E">E — Evening</option>
+                        <option value="N">N — Night</option>
+                        <option value="OCN">OCN — On-Call Night</option>
+                        <option value="LE">LE — Late Evening</option>
+                        <option value="G">G — General / Flex</option>
+                        <option value="WMO">WMO — Weekend Morning</option>
+                        <option value="WEO">WEO — Weekend Evening</option>
+                        <option value="OS">OS — OnShore</option>
+                        <option value="OF">OF — OffShore</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Shift Name</label>
+                    <input type="text" id="tName" class="form-control form-control-sm" placeholder="e.g. Evening Shift" style="min-width:160px">
+                </div>
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Start Time</label>
+                    <input type="time" id="tStart" class="form-control form-control-sm">
+                </div>
+                <div class="col-auto">
+                    <label class="form-label small mb-1">End Time</label>
+                    <input type="time" id="tEnd" class="form-control form-control-sm">
+                </div>
+                <div class="col-auto">
+                    <button type="button" class="btn btn-sm btn-success" id="btnAddTiming">
+                        <i class="bi bi-plus-circle me-1"></i>Add
+                    </button>
+                </div>
+            </div>
+            <div class="mt-2">
+                <button type="button" class="btn btn-xs btn-outline-secondary btn-sm" id="btnLoadDefaults">
+                    <i class="bi bi-magic me-1"></i>Load standard defaults (D / E / N / LE / G)
+                </button>
+            </div>
+            <div id="timingMsg" class="small mt-2" style="display:none"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function(){
+    let currentTeamId = parseInt(document.getElementById('teamSelect').value) || 0;
+    const ACCOUNT_ID = {{ account_id or 'null' }};
+
+    /* ── Coverage Requirements ── */
+    function loadReqs(teamId) {
+        fetch(`/api/roster/coverage-requirements?team_id=${teamId}`)
+        .then(r => r.json())
+        .then(function(res){
+            if (!res.success) return;
+            const tbody = document.getElementById('reqBody');
+            if (!res.data.length) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-muted small text-center">No requirements set. Defaults will be used.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = res.data.map(function(r){
+                return `<tr>
+                    <td><strong>${r.shift_code}</strong></td>
+                    <td>${r.required_count}</td>
+                    <td><button class="btn btn-xs btn-outline-danger" style="font-size:.7rem;padding:1px 6px"
+                        onclick="deleteReq(${r.id})">Remove</button></td>
+                </tr>`;
+            }).join('');
+        });
+    }
+
+    window.deleteReq = function(id) {
+        if (!confirm('Remove this requirement?')) return;
+        fetch(`/api/roster/coverage-requirements/${id}`, {method:'DELETE'})
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success) loadReqs(currentTeamId);
+        });
+    };
+
+    document.getElementById('addReqForm').addEventListener('submit', function(e){
+        e.preventDefault();
+        const code  = document.getElementById('newReqCode').value;
+        const count = document.getElementById('newReqCount').value.trim();
+        if (!count) return;
+        fetch('/api/roster/coverage-requirements', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({team_id: currentTeamId, shift_code: code, required_count: count})
+        })
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success) {
+                loadReqs(currentTeamId);
+                document.getElementById('newReqCount').value = '1';
+            } else {
+                alert('Error: ' + res.error);
+            }
+        });
+    });
+
+    /* ── Public Holidays ── */
+    function loadHolidays() {
+        const year = document.getElementById('holYear').value;
+        fetch(`/api/roster/holidays?year=${year}`)
+        .then(r => r.json())
+        .then(function(res){
+            const tbody = document.getElementById('holBody');
+            if (!res.success || !res.data.length) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-muted small text-center">No holidays configured for this year.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = res.data.map(function(h){
+                return `<tr>
+                    <td>${h.date}</td>
+                    <td>${h.name}</td>
+                    <td><button class="btn btn-xs btn-outline-danger" style="font-size:.7rem;padding:1px 6px"
+                        onclick="deleteHoliday(${h.id})">Remove</button></td>
+                </tr>`;
+            }).join('');
+        });
+    }
+
+    window.deleteHoliday = function(id) {
+        if (!confirm('Remove this holiday?')) return;
+        fetch(`/api/roster/holidays/${id}`, {method:'DELETE'})
+        .then(r => r.json())
+        .then(function(res){ if (res.success) loadHolidays(); });
+    };
+
+    document.getElementById('btnLoadHolidays').addEventListener('click', loadHolidays);
+
+    document.getElementById('addHolForm').addEventListener('submit', function(e){
+        e.preventDefault();
+        const d = document.getElementById('newHolDate').value;
+        const n = document.getElementById('newHolName').value.trim();
+        if (!d || !n) { alert('Please enter both date and name.'); return; }
+        fetch('/api/roster/holidays', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({date: d, name: n})
+        })
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success) {
+                loadHolidays();
+                document.getElementById('newHolDate').value = '';
+                document.getElementById('newHolName').value = '';
+            } else {
+                alert('Error: ' + res.error);
+            }
+        });
+    });
+
+    /* ── Members ── */
+    function loadMembers(teamId) {
+        fetch(`/api/roster/members?team_id=${teamId}`)
+        .then(r => r.json())
+        .then(function(res){
+            const container = document.getElementById('memberList');
+            if (!res.success || !res.data.length) {
+                container.innerHTML = '<p class="text-muted small">No active members found for this team.</p>';
+                return;
+            }
+            container.innerHTML = '<div class="row g-2">' +
+                res.data.map(function(m){
+                    const isLead = m.scheduling_role === 'lead';
+                    return `<div class="col-md-6 col-lg-4">
+                        <div class="d-flex align-items-center justify-content-between
+                                    border rounded px-3 py-2" style="font-size:.85rem">
+                            <span>${m.name}</span>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-xs ${isLead ? 'btn-primary' : 'btn-outline-secondary'}"
+                                    style="font-size:.65rem;padding:2px 7px"
+                                    onclick="setRole(${m.id},'lead',this)">Lead</button>
+                                <button class="btn btn-xs ${!isLead ? 'btn-primary' : 'btn-outline-secondary'}"
+                                    style="font-size:.65rem;padding:2px 7px"
+                                    onclick="setRole(${m.id},'support',this)">Support</button>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('') +
+            '</div>';
+        });
+    }
+
+    window.setRole = function(memberId, role, btn) {
+        fetch(`/api/roster/members/${memberId}/role`, {
+            method:'PUT',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({scheduling_role: role})
+        })
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success) loadMembers(currentTeamId);
+            else alert('Error: ' + res.error);
+        });
+    };
+
+    /* ── Shift Timings ── */
+    const TIMING_COLOURS = {
+        D:'#1a73e8', E:'#f57c00', N:'#7b1fa2', OCN:'#006064',
+        LE:'#c2185b', G:'#2e7d32', WMO:'#f0a830', WEO:'#ff7c98',
+        OS:'#2e7d32', OF:'#00838f',
+    };
+
+    function loadTimings(teamId) {
+        document.getElementById('timingFormWrap').style.display = 'block';
+        fetch(`/team-shift-timings/team/${teamId}`)
+        .then(r => r.json())
+        .then(function(data) {
+            const list = document.getElementById('timingList');
+            const configs = data.shift_configs || data || [];
+            if (!configs.length) {
+                list.innerHTML = '<p class="text-muted small mb-0">No timings configured yet. Add one below or load defaults.</p>';
+                return;
+            }
+            list.innerHTML = `
+                <table class="table table-sm table-bordered" style="font-size:.82rem">
+                    <thead><tr><th>Code</th><th>Shift Name</th><th>Start</th><th>End</th><th>Type</th><th></th></tr></thead>
+                    <tbody>
+                    ${configs.map(function(c) {
+                        const col = TIMING_COLOURS[c.shift_code] || '#555';
+                        const overnight = c.is_overnight_shift ? '<span class="badge bg-secondary" style="font-size:.65rem">overnight</span>' : '';
+                        return `<tr>
+                            <td><span style="background:${col};color:#fff;padding:2px 7px;border-radius:4px;font-size:.72rem;font-weight:700">${c.shift_code}</span></td>
+                            <td>${c.shift_name}</td>
+                            <td>${c.start_time || ''}</td>
+                            <td>${c.end_time || ''}</td>
+                            <td>${overnight || '<span class="text-muted" style="font-size:.7rem">same-day</span>'}</td>
+                            <td><button class="btn btn-outline-danger" style="font-size:.65rem;padding:1px 6px"
+                                onclick="deleteTiming(${c.id})">Remove</button></td>
+                        </tr>`;
+                    }).join('')}
+                    </tbody>
+                </table>`;
+        })
+        .catch(function() {
+            document.getElementById('timingList').innerHTML = '<p class="text-danger small">Failed to load timings.</p>';
+        });
+    }
+
+    // Auto-fill shift name when code changes
+    const CODE_NAMES = {
+        D:'Day Shift', E:'Evening Shift', N:'Night Shift', OCN:'On-Call Night',
+        LE:'Late Evening', G:'General / Flex', WMO:'Weekend Morning',
+        WEO:'Weekend Evening', OS:'OnShore', OF:'OffShore'
+    };
+    const CODE_DEFAULTS = {
+        D:['06:00','14:00'], E:['14:00','22:00'], N:['22:00','06:00'],
+        OCN:['22:00','06:00'], LE:['18:00','03:00'], G:['09:00','18:00'],
+        WMO:['06:00','14:00'], WEO:['14:00','22:00'],
+        OS:['08:00','17:00'], OF:['20:00','05:00']
+    };
+    document.getElementById('tCode').addEventListener('change', function(){
+        const code = this.value;
+        document.getElementById('tName').value = CODE_NAMES[code] || '';
+        const def = CODE_DEFAULTS[code];
+        if (def) { document.getElementById('tStart').value = def[0]; document.getElementById('tEnd').value = def[1]; }
+    });
+
+    document.getElementById('btnAddTiming').addEventListener('click', function(){
+        const msgEl = document.getElementById('timingMsg');
+        const code  = document.getElementById('tCode').value;
+        const name  = document.getElementById('tName').value.trim() || CODE_NAMES[code] || code;
+        const start = document.getElementById('tStart').value;
+        const end   = document.getElementById('tEnd').value;
+        if (!start || !end) {
+            msgEl.textContent = 'Please enter start and end times.';
+            msgEl.className = 'small mt-2 text-danger'; msgEl.style.display = 'block'; return;
+        }
+        fetch('/team-shift-timings/create', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({team_id: currentTeamId, account_id: {{ account_id or 1 }},
+                shift_code: code, shift_name: name, start_time: start, end_time: end,
+                color_code: TIMING_COLOURS[code] || '#007bff', order_index: 0})
+        })
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success || res.id || res.shift_code) {
+                msgEl.textContent = 'Timing saved.';
+                msgEl.className = 'small mt-2 text-success'; msgEl.style.display = 'block';
+                loadTimings(currentTeamId);
+            } else {
+                msgEl.textContent = res.error || res.message || 'Failed to save.';
+                msgEl.className = 'small mt-2 text-danger'; msgEl.style.display = 'block';
+            }
+        });
+    });
+
+    window.deleteTiming = function(id) {
+        if (!confirm('Remove this timing?')) return;
+        fetch(`/team-shift-timings/${id}`, {method:'DELETE'})
+        .then(r => r.json())
+        .then(function(res){ if (res.success || res.message) loadTimings(currentTeamId); });
+    };
+
+    document.getElementById('btnLoadDefaults').addEventListener('click', function(){
+        if (!currentTeamId) return;
+        if (!confirm('This will add default D/E/N/LE/G timings for this team. Continue?')) return;
+        fetch('/team-shift-timings/create-defaults', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({team_id: currentTeamId, account_id: {{ account_id or 1 }}, shift_pattern: 'extended'})
+        })
+        .then(r => r.json())
+        .then(function(){ loadTimings(currentTeamId); });
+    });
+
+/* ── Load All ── */
+    function loadAll(teamId) {
+        currentTeamId = teamId;
+        loadReqs(teamId);
+        loadMembers(teamId);
+        loadTimings(teamId);
+    }
+
+    document.getElementById('btnLoadTeam').addEventListener('click', function(){
+        const tid = parseInt(document.getElementById('teamSelect').value);
+        if (tid) loadAll(tid);
+    });
+
+    // Auto-load current team
+    if (currentTeamId) {
+        loadAll(currentTeamId);
+        loadHolidays();
+    }
+})();
+</script>
+{% endblock %}

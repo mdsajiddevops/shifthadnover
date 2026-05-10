@@ -285,6 +285,24 @@
     </div>
     {% endif %}
 
+    <!-- Worker Status Widget (COMP-011) -->
+    <div class="row mb-3">
+        <div class="col-12">
+            {% if worker_status and worker_status.available %}
+            <div class="worker-stats alert alert-success py-2 mb-0" role="status">
+                <i class="bi bi-cpu me-1"></i>
+                Background workers: <strong>{{ worker_status.worker_count }}</strong> &nbsp;|&nbsp;
+                Active tasks: <strong>{{ worker_status.active_tasks }}</strong>
+            </div>
+            {% elif worker_status %}
+            <div class="worker-stats worker-stats--degraded alert alert-secondary py-2 mb-0" role="status">
+                <i class="bi bi-cpu me-1"></i>
+                Worker instrumentation unavailable
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
     <!-- Modern Glass-Morphism Statistics Cards -->
     <div class="row g-4 mb-4">
         <div class="col-lg-3 col-md-6">
@@ -348,7 +366,7 @@
                 {% if open_incidents %}
                     <div class="incidents-list">
                         {% for incident in open_incidents[:5] %}
-                        <div class="modern-incident-item">
+                        <div class="modern-incident-item" id="dashboard-incident-{{ incident.id }}">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div class="flex-grow-1">
                                     <div class="incident-title">{{ incident.title }}</div>
@@ -368,6 +386,13 @@
                                         {{ incident.assigned_to }}
                                     </div>
                                     {% endif %}
+                                </div>
+                                <div class="ms-2 flex-shrink-0">
+                                    <button class="btn btn-sm btn-outline-success"
+                                            title="Mark resolved — will stop carrying forward into new handover forms"
+                                            onclick="resolveIncident({{ incident.id }}, this)">
+                                        <i class="bi bi-check-circle"></i> Resolve
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -402,7 +427,14 @@
                                 <span class="shift-status-indicator shift-active"></span>
                                 <span class="engineer-name">
                                     {{ engineer|safe_engineer_name }}
-                                    {% if not engineer.is_primary_shift %}<span class="text-muted"> ({{ engineer.display_shift_code }})</span>{% endif %}
+                                    {% set sc = engineer.display_shift_code %}
+                                    {% if sc %}
+                                        {% if '/' in sc %}
+                                            <span class="shift-badge sb-combined">{{ sc }}</span>
+                                        {% else %}
+                                            <span class="shift-badge sb-{{ sc }}">{{ sc }}</span>
+                                        {% endif %}
+                                    {% endif %}
                                 </span>
                             </div>
                             {% endfor %}
@@ -421,7 +453,14 @@
                                 <span class="shift-status-indicator shift-upcoming"></span>
                                 <span class="engineer-name">
                                     {{ engineer|safe_engineer_name }}
-                                    {% if not engineer.is_primary_shift %}<span class="text-muted"> ({{ engineer.display_shift_code }})</span>{% endif %}
+                                    {% set sc = engineer.display_shift_code %}
+                                    {% if sc %}
+                                        {% if '/' in sc %}
+                                            <span class="shift-badge sb-combined">{{ sc }}</span>
+                                        {% else %}
+                                            <span class="shift-badge sb-{{ sc }}">{{ sc }}</span>
+                                        {% endif %}
+                                    {% endif %}
                                 </span>
                             </div>
                             {% endfor %}
@@ -919,6 +958,28 @@
     </script>
 
     <style>
+        /* Shift code badges */
+        .shift-badge {
+            display: inline-block; padding: 1px 6px; border-radius: 4px;
+            font-size: .65rem; font-weight: 700; color: #fff;
+            vertical-align: middle; margin-left: 4px; letter-spacing: .3px;
+        }
+        .sb-D   { background: #1a73e8; }
+        .sb-E   { background: #f57c00; }
+        .sb-N   { background: #7b1fa2; }
+        .sb-OCN { background: #006064; }
+        .sb-LE  { background: #c2185b; }
+        .sb-G   { background: #2e7d32; }
+        .sb-WMO { background: #f0a830; }
+        .sb-WEO { background: #ff7c98; }
+        .sb-OS  { background: #2e7d32; }
+        .sb-OF  { background: #00838f; }
+        .sb-VL  { background: #c62828; }
+        .sb-SL  { background: #ad1457; }
+        .sb-HL  { background: #6a1b9a; }
+        .sb-CO  { background: #4e342e; }
+        .sb-combined { background: #43a047; } /* E/OCN etc */
+
         /* Additional CSS for enhanced animations */
         .fadeInUp {
             animation: fadeInUp 0.8s ease-out forwards;
@@ -1626,6 +1687,28 @@
                 });
             }
         });
+    </script>
+    <script>
+    function resolveIncident(incidentId, btn) {
+        if (!confirm('Mark this incident as resolved? It will no longer carry forward into new handover forms.')) return;
+        btn.disabled = true;
+        fetch('/api/incidents/' + incidentId + '/resolve', {method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'}})
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'resolved') {
+                    const card = document.getElementById('dashboard-incident-' + incidentId);
+                    if (card) {
+                        card.style.transition = 'opacity 0.4s';
+                        card.style.opacity = '0';
+                        setTimeout(() => card.remove(), 400);
+                    }
+                } else {
+                    btn.disabled = false;
+                    alert('Failed to resolve incident.');
+                }
+            })
+            .catch(() => { btn.disabled = false; alert('Network error.'); });
+    }
     </script>
 </div>
 {% endblock %}

@@ -2,7 +2,6 @@
 # This file uses Docker secrets for secure credential management
 # Works for both local development and production deployment
 
-version: '3.7'
 
 services:
   # MySQL Database Service
@@ -62,7 +61,7 @@ services:
   web:
     build: .
     restart: unless-stopped
-    command: python app.py
+    command: bash start.sh
     
     volumes:
       - .:/app
@@ -90,12 +89,16 @@ services:
       # - SSO_ENCRYPTION_KEY from /run/secrets/sso_encryption_key  
       # - SECRETS_MASTER_KEY from /run/secrets/secrets_master_key
       
-      # Email Configuration (basic settings, credentials from database)
-      SMTP_SERVER: smtp.gmail.com
-      SMTP_PORT: 587
+      # Email Configuration — override via .env or environment to switch providers
+      SMTP_SERVER: ${MAIL_SERVER:-smtp.gmail.com}
+      SMTP_PORT: ${MAIL_PORT:-587}
       
       # Force use of database configuration for app settings
       USE_DATABASE_CONFIG: "true"
+
+      # Celery broker / backend for scheduler status queries (REQ-004/REQ-013)
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
       
     secrets:
       - flask_secret_key
@@ -122,6 +125,64 @@ services:
     read_only: false
     tmpfs:
       - /tmp
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  celery-worker:
+    build: .
+    restart: unless-stopped
+    # REQ-003: all background job execution delegated exclusively to Celery.
+    # celery_app.py reads CELERY_BROKER_URL / CELERY_RESULT_BACKEND from env.
+    command: celery -A celery_app worker --loglevel=info --concurrency=2
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      FLASK_ENV: production
+    secrets:
+      - flask_secret_key
+      - database_url
+      - sso_encryption_key
+      - secrets_master_key
+      - smtp_username
+      - smtp_password
+      - mysql_user_password
+    depends_on:
+      - db
+      - redis
+    security_opt:
+      - no-new-privileges:true
+
+  celery-beat:
+    build: .
+    restart: unless-stopped
+    # REQ-005: Beat runs as a single process — each job executes exactly once
+    # per interval regardless of HTTP worker count (native deduplication).
+    command: celery -A celery_app beat --loglevel=info --schedule=/var/celery/celerybeat-schedule
+    volumes:
+      - celerybeat_data:/var/celery
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      FLASK_ENV: production
+    secrets:
+      - flask_secret_key
+      - database_url
+      - sso_encryption_key
+      - secrets_master_key
+      - mysql_user_password
+    depends_on:
+      - redis
+    security_opt:
+      - no-new-privileges:true
 
 # Docker Secrets Configuration
 # These secrets must be created before deployment
@@ -162,4 +223,6 @@ volumes:
   app_logs:
     driver: local
   uploads_data:
+    driver: local
+  celerybeat_data:
     driver: local

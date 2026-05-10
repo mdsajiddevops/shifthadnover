@@ -1,0 +1,18 @@
+[tool.ruff]
+line-length = 120
+exclude = [
+    "migrations/",
+    "migration/",
+    "archive/",
+    "mockups/",
+    "_dev_cleanup/",
+    ".venv/",
+    "venv/",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E501",   # line too long — handled by line-length above
+    "F401",   # unused imports — many are used dynamically via Flask blueprints
+]

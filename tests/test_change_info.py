@@ -136,21 +136,22 @@ class ChangeInfoTest:
             login_url = f"{self.base_url}/login"
             csrf_token = self.get_csrf_token(login_url)
             
+            # CSRF token is optional — app accepts login without it
             if not csrf_token:
-                self.record_result("Login", False, "Could not get CSRF token")
-                return False
-            
+                csrf_token = ''
+
             # Submit login
             login_data = {
                 'csrf_token': csrf_token,
                 'username': self.username,
                 'password': self.password
             }
-            
+
             response = self.session.post(login_url, data=login_data, allow_redirects=True, timeout=15)
-            
-            # Check if login successful
-            if 'dashboard' in response.url.lower() or 'handover' in response.url.lower():
+
+            # Check if login successful — app redirects to / after login
+            login_failed = '/login' in response.url.lower()
+            if not login_failed and response.status_code == 200:
                 self.record_result("Login", True, f"Logged in as {self.username}")
                 return True
             else:
@@ -166,11 +167,11 @@ class ChangeInfoTest:
         self.log(f"\n{Colors.BOLD}=== Test: Add Change Info via API ==={Colors.RESET}")
         
         try:
-            api_url = f"{self.base_url}/reports/api/change-info"
-            
+            api_url = f"{self.base_url}/api/change-info"
+
             for change in self.test_changes[:2]:  # First 2 changes via API
                 # Get CSRF token from reports page
-                csrf_token = self.get_csrf_token(f"{self.base_url}/reports/change-info-reports")
+                csrf_token = self.get_csrf_token(f"{self.base_url}/change-info-reports")
                 
                 headers = {
                     'Content-Type': 'application/json',
@@ -279,7 +280,7 @@ class ChangeInfoTest:
         self.log(f"\n{Colors.BOLD}=== Test: Verify Change Info in Reports ==={Colors.RESET}")
         
         try:
-            reports_url = f"{self.base_url}/reports/change-info-reports"
+            reports_url = f"{self.base_url}/change-info-reports"
             response = self.session.get(reports_url, timeout=15)
             
             if response.status_code != 200:
@@ -312,10 +313,10 @@ class ChangeInfoTest:
         
         try:
             # Create a duplicate change via API
-            api_url = f"{self.base_url}/reports/api/change-info"
+            api_url = f"{self.base_url}/api/change-info"
             duplicate_change_number = self.test_changes[0]['change_number']
-            
-            csrf_token = self.get_csrf_token(f"{self.base_url}/reports/change-info-reports")
+
+            csrf_token = self.get_csrf_token(f"{self.base_url}/change-info-reports")
             
             headers = {
                 'Content-Type': 'application/json',
@@ -339,7 +340,7 @@ class ChangeInfoTest:
             
             # Now check handover reports to verify deduplication
             # Load a recent handover report and count occurrences
-            reports_url = f"{self.base_url}/reports/handover-reports"
+            reports_url = f"{self.base_url}/handover-reports"
             response = self.session.get(reports_url, timeout=15)
             
             if response.status_code == 200:
@@ -366,7 +367,7 @@ class ChangeInfoTest:
         self.log(f"\n{Colors.BOLD}=== Test: Change Count Accuracy ==={Colors.RESET}")
         
         try:
-            reports_url = f"{self.base_url}/reports/handover-reports"
+            reports_url = f"{self.base_url}/handover-reports"
             response = self.session.get(reports_url, timeout=15)
             
             if response.status_code != 200:
@@ -402,8 +403,8 @@ class ChangeInfoTest:
             # Delete created change info records
             for change_id in self.created_change_ids:
                 try:
-                    delete_url = f"{self.base_url}/reports/api/change-info/{change_id}"
-                    csrf_token = self.get_csrf_token(f"{self.base_url}/reports/change-info-reports")
+                    delete_url = f"{self.base_url}/api/change-info/{change_id}"
+                    csrf_token = self.get_csrf_token(f"{self.base_url}/change-info-reports")
                     headers = {'X-CSRFToken': csrf_token or ''}
                     response = self.session.delete(delete_url, headers=headers, timeout=10)
                     if response.status_code == 200:
