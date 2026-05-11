@@ -52,6 +52,13 @@ class AppConfig(db.Model):
             ('tab_change_management', 'false', 'Enable/Disable Change Management tab', 'tabs'),
             ('tab_problem_tickets', 'false', 'Enable/Disable Problem Tickets tab', 'tabs'),
             ('tab_post_mortems', 'false', 'Enable/Disable Post-mortems tab', 'tabs'),
+            # Super Admin Only Tabs
+            ('tab_manual_roster', 'true', 'Enable/Disable Manual Roster tab (super admin only)', 'tabs'),
+            ('tab_incident_response_logs', 'true', 'Enable/Disable Incident Response Logs tab (super admin only)', 'tabs'),
+            ('tab_shift_management', 'true', 'Enable/Disable Shift Management tab (super admin only)', 'tabs'),
+            ('tab_active_sessions', 'true', 'Enable/Disable Active Sessions tab (super admin only)', 'tabs'),
+            ('tab_user_team_linking', 'true', 'Enable/Disable User-Team Linking tab (super admin only)', 'tabs'),
+            ('tab_email_monitoring', 'true', 'Enable/Disable Email Monitoring tab (super admin only)', 'tabs'),
             # System Features
             ('feature_servicenow_integration', 'true', 'Enable/Disable ServiceNow Integration page and features', 'features'),
             ('feature_ctask_assignment', 'true', 'Enable/Disable CTask Assignment dashboard page', 'features'),

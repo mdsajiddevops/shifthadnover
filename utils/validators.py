@@ -49,7 +49,7 @@ def validate_handover_fields(data: dict) -> dict:
     _require(errors, data, 'submitted_by', 'Submitter name')
 
     shift_type = data.get('shift_type', '')
-    valid_shifts = {'D', 'E', 'LE', 'N', 'G', 'OS', 'OF'}
+    valid_shifts = {'Morning', 'Evening', 'Late Evening', 'Night', 'General', 'OnShore', 'OffShore'}
     if shift_type and shift_type not in valid_shifts:
         errors['shift_type'] = (
             f"Shift type '{shift_type}' is not valid. "

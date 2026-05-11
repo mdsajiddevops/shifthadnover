@@ -216,3 +216,38 @@ These were added on the `CTCOAMSHM-1-realtime-collab-handover` branch and requir
 - `start.sh` has a hardcoded `userpassword` in the DB readiness wait loop — dev leftover, does not affect production secrets.
 - `migration/` (singular, at root) is a legacy data migration directory — unrelated to `migrations/` (Alembic). Don't confuse the two.
 - SSL cert files (`fullchain.pem`, `private.key`, `star.lab.epam.com.pfx`) are present locally for nginx but are in `.gitignore` — never commit them.
+
+<!-- SDLC Plugin Context Start -->
+## SDLC Pipeline Context
+
+### Organisation Identity
+- **Name:** EPAM Systems (`epam`)
+- **Short:** EPAM
+- **Namespace:** `@epam`
+- **Contact domain:** epam.com
+
+### Tech Stack
+- **Language:** Python 3.10+
+- **Framework:** Flask + SQLAlchemy + Celery
+- **Cloud:** GCP (GCE VM with Docker containers)
+- **CI/CD:** None configured (manual deployment via `docker-compose.prod.yml`)
+- **Monorepo tool:** None
+- **Feature flags:** DB-backed via `AppConfig` model (no external flag system)
+
+### Ticket Conventions
+- **System:** Jira
+- **Prefix:** `SHO` (e.g., `SHO-123`)
+- **Branch naming:** `feature/SHO-<number>-<short-description>`
+- **PR naming:** `SHO-<number>: <description>`
+
+### Project Context
+- **Industry:** IT Operations / NOC
+- **Description:** Multi-team shift handover web app with incident tracking and roster management
+- **Org reference files:** `.claude/sdlc/org-*.md` — stack patterns, security, test patterns, review checklists, risk catalog, services catalog
+
+### SDLC Plugin Reference
+Org context files live in `.claude/sdlc/`. Skills resolve context in this order (per `shared-rules.md` Rule 0):
+1. Project-side `.claude/sdlc/org-*.md` (this repo)
+2. Plugin-side `references/org-*.md` (generic fallback)
+3. Inline interview (if no file found)
+<!-- SDLC Plugin Context End -->

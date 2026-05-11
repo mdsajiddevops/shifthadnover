@@ -367,29 +367,24 @@ def dashboard():
             
             logger.debug(f"[DEBUG] Dashboard: Found {len(raw_incidents)} raw incidents from handover")
             
-            # 🔧 ENHANCED LOGIC: Filter out incidents that were closed in newer handovers
-            open_incidents = []
-            for incident in raw_incidents:
-                # Check if this incident was closed in any newer shift
-                newer_closed_incident = Incident.query.filter(
+            # Batch: find all titles closed in newer shifts (used for both open and priority incidents)
+            _newer_closed_titles = {
+                row.title for row in db.session.query(Incident.title).filter(
                     Incident.account_id == filter_account_id,
                     Incident.team_id == filter_team_id,
-                    Incident.shift_id > target_handover.id,  # Only newer shifts
-                    Incident.title == incident.title,  # Same incident
-                    Incident.type == 'Closed',  # Closed type
-                    Incident.status == 'Resolved'  # Resolved status
-                ).first()
-                
-                if not newer_closed_incident:
-                    # This incident was not closed in a newer handover, so show it
-                    open_incidents.append(incident)
-                    logger.debug(f"[DEBUG] Dashboard: Including incident '{incident.title}' (type: {incident.type}, priority: {incident.priority})")
-                else:
-                    logger.debug(f"[DEBUG] Dashboard: Incident '{incident.title}' was closed in shift {newer_closed_incident.shift_id}, not showing")
+                    Incident.shift_id > target_handover.id,
+                    Incident.type == 'Closed',
+                    Incident.status == 'Resolved'
+                ).all()
+            }
+            open_incidents = [inc for inc in raw_incidents if inc.title not in _newer_closed_titles]
+            for incident in open_incidents:
+                logger.debug(f"[DEBUG] Dashboard: Including incident '{incident.title}' (type: {incident.type}, priority: {incident.priority})")
         else:
             logger.debug(f"[DEBUG] Dashboard: No handover found TO {current_shift_type} shift")
             open_incidents = []
-            
+            _newer_closed_titles = set()
+
     elif filter_account_id:
         # Account admin logic - get previous shift handover for the account
         def get_account_previous_shift_handover(current_shift, today_date, account_id):
@@ -437,21 +432,19 @@ def dashboard():
                 Incident.status != 'Closed'
             ).all()
             
-            open_incidents = []
-            for incident in raw_incidents:
-                newer_closed_incident = Incident.query.filter(
+            _b2_closed_titles = {
+                row.title for row in db.session.query(Incident.title).filter(
                     Incident.account_id == filter_account_id,
                     Incident.shift_id > target_handover.id,
-                    Incident.title == incident.title,
                     Incident.type == 'Closed',
                     Incident.status == 'Resolved'
-                ).first()
-                
-                if not newer_closed_incident:
-                    open_incidents.append(incident)
+                ).all()
+            }
+            open_incidents = [inc for inc in raw_incidents if inc.title not in _b2_closed_titles]
         else:
             open_incidents = []
-            
+            _b2_closed_titles = set()
+
     else:
         # For super admin, get previous shift handovers from all accounts/teams (not old handovers)
         def get_super_admin_previous_shift_handovers(current_shift, today_date):
@@ -489,27 +482,31 @@ def dashboard():
             
         target_handovers = get_super_admin_previous_shift_handovers(current_shift_type, today)
         
-        open_incidents = []
-        for shift in target_handovers:
-            # 🔧 FIXED: Only include Open and Handover incidents for super admin recent handover section
-            raw_incidents = Incident.query.filter(
-                Incident.shift_id == shift.id,
-                Incident.type.in_(['Open', 'Handover']),  # Only Open and Handover incidents
+        if target_handovers:
+            _sa_handover_ids = [s.id for s in target_handovers]
+            _sa_raw = Incident.query.filter(
+                Incident.shift_id.in_(_sa_handover_ids),
+                Incident.type.in_(['Open', 'Handover']),
                 Incident.status != 'Closed'
             ).all()
-            
-            for incident in raw_incidents:
-                newer_closed_incident = Incident.query.filter(
-                    Incident.account_id == incident.account_id,
-                    Incident.team_id == incident.team_id,
-                    Incident.shift_id > shift.id,
-                    Incident.title == incident.title,
+            if _sa_raw:
+                _sa_min_shift = min(_sa_handover_ids)
+                _sa_closed_rows = db.session.query(
+                    Incident.account_id, Incident.team_id, Incident.title
+                ).filter(
+                    Incident.shift_id > _sa_min_shift,
                     Incident.type == 'Closed',
                     Incident.status == 'Resolved'
-                ).first()
-                
-                if not newer_closed_incident:
-                    open_incidents.append(incident)
+                ).all()
+                _sa_closed_set = {(r.account_id, r.team_id, r.title) for r in _sa_closed_rows}
+                open_incidents = [
+                    inc for inc in _sa_raw
+                    if (inc.account_id, inc.team_id, inc.title) not in _sa_closed_set
+                ]
+            else:
+                open_incidents = []
+        else:
+            open_incidents = []
     # Enhanced current shift engineers with multiple shift codes
     logger.debug(f"[DEBUG] *** ENHANCED CURRENT SHIFT ENGINEERS CALCULATION ***")
     logger.debug(f"[DEBUG] Current shift type: {current_shift_type}, Primary shift code: {current_shift_code}")
@@ -599,33 +596,47 @@ def dashboard():
             ShiftKeyPoint.team_id == filter_team_id
         ).order_by(ShiftKeyPoint.id.desc())
         
-        logger.debug(f"[DASHBOARD DEBUG] Total key points for team: {all_kps_query.count()}")
-        
         # Filter to only Open/In Progress status
         all_prev_kps = all_kps_query.filter(
             ShiftKeyPoint.status.in_(['Open', 'In Progress'])
         ).all()
-        
+
         logger.debug(f"[DASHBOARD DEBUG] Open/In Progress key points: {len(all_prev_kps)}")
         
-        # Additional check: exclude key points from shifts that have been submitted with 'Closed' status
+        # Batch Shift lookup to avoid per-KP query
+        _b1_shift_ids = list({kp.shift_id for kp in all_prev_kps})
+        _b1_shifts = {s.id: s for s in Shift.query.filter(Shift.id.in_(_b1_shift_ids)).all()} if _b1_shift_ids else {}
+
+        # Batch newer_closed check: pre-build max closed-id per (desc_lower, jira_id)
+        _b1_sent_ids = [kp.id for kp in all_prev_kps
+                        if _b1_shifts.get(kp.shift_id) and _b1_shifts[kp.shift_id].status == 'sent']
+        if _b1_sent_ids:
+            _b1_closed_kps = db.session.query(
+                ShiftKeyPoint.description, ShiftKeyPoint.jira_id, ShiftKeyPoint.id
+            ).filter(
+                ShiftKeyPoint.status == 'Closed',
+                ShiftKeyPoint.account_id == filter_account_id,
+                ShiftKeyPoint.team_id == filter_team_id,
+                ShiftKeyPoint.id > min(_b1_sent_ids)
+            ).all()
+            _b1_closed_max = {}
+            for _ckp in _b1_closed_kps:
+                _key = ((_ckp.description or '').lower(), _ckp.jira_id)
+                if _key not in _b1_closed_max or _ckp.id > _b1_closed_max[_key]:
+                    _b1_closed_max[_key] = _ckp.id
+        else:
+            _b1_closed_max = {}
+
         filtered_kps = []
         for kp in all_prev_kps:
-            # Check if this key point's shift was submitted and this key point was marked closed
-            shift = Shift.query.get(kp.shift_id)
+            shift = _b1_shifts.get(kp.shift_id)
             if shift and shift.status == 'sent':
-                # This is from a submitted handover - check if there's a newer version that closed this key point (CASE-INSENSITIVE)
-                newer_closed = ShiftKeyPoint.query.filter(
-                    func.lower(ShiftKeyPoint.description) == kp.description.lower(),
-                    ShiftKeyPoint.jira_id == kp.jira_id,
-                    ShiftKeyPoint.status == 'Closed',
-                    ShiftKeyPoint.id > kp.id
-                ).first()
-                if newer_closed:
-                    logger.debug(f"[DASHBOARD DEBUG] Excluding key point ID {kp.id} - found newer closed version ID {newer_closed.id}")
+                _desc_key = ((kp.description or '').lower(), kp.jira_id)
+                if _b1_closed_max.get(_desc_key, -1) > kp.id:
+                    logger.debug(f"[DASHBOARD DEBUG] Excluding key point ID {kp.id} - found newer closed version")
                     continue
             filtered_kps.append(kp)
-        
+
         all_prev_kps = filtered_kps
         logger.debug(f"[DASHBOARD DEBUG] After submission filtering: {len(all_prev_kps)} key points remain")
         
@@ -642,30 +653,25 @@ def dashboard():
         
         logger.debug(f"[DASHBOARD DEBUG] After deduplication: {len(kp_map)} unique key points")
         
-        # Attach assigned user info to each key point
-        open_key_points = []
+        # Batch TeamMember and User lookups
         from models.models import TeamMember, User
+        _b1_eng_ids = {kp.responsible_engineer_id for kp in kp_map.values() if kp.responsible_engineer_id}
+        _b1_eng_by_id = {tm.id: tm for tm in TeamMember.query.filter(TeamMember.id.in_(_b1_eng_ids)).all()} if _b1_eng_ids else {}
+        _b1_user_ids = {tm.user_id for tm in _b1_eng_by_id.values() if tm.user_id}
+        _b1_user_by_id = {u.id: u for u in User.query.filter(User.id.in_(_b1_user_ids)).all()} if _b1_user_ids else {}
+
+        open_key_points = []
         for kp in kp_map.values():
             assigned_user = None
-            logger.debug(f"[DASHBOARD DEBUG] Processing key point ID {kp.id}: {kp.description[:30]}...")
-            logger.debug(f"[DASHBOARD DEBUG] responsible_engineer_id: {kp.responsible_engineer_id}")
-            
             if kp.responsible_engineer_id:
-                team_member = TeamMember.query.get(kp.responsible_engineer_id)
-                logger.debug(f"[DASHBOARD DEBUG] Team member found: {team_member.name if team_member else 'None'}")
-                
+                team_member = _b1_eng_by_id.get(kp.responsible_engineer_id)
                 if team_member:
-                    # Prefer linked user if available, else fallback to team member name
                     if team_member.user_id:
-                        user = User.query.get(team_member.user_id)
-                        assigned_user = user.username if user else team_member.name
-                        logger.debug(f"[DASHBOARD DEBUG] Using user: {assigned_user}")
+                        u = _b1_user_by_id.get(team_member.user_id)
+                        assigned_user = u.username if u else team_member.name
                     else:
                         assigned_user = team_member.name
-                        logger.debug(f"[DASHBOARD DEBUG] Using team member name: {assigned_user}")
-            
             kp.assigned_to_display = assigned_user or "Unassigned"
-            logger.debug(f"[DASHBOARD DEBUG] Final assigned_to_display: {kp.assigned_to_display}")
             open_key_points.append(kp)
         
         # Get priority incidents ONLY Priority type from the target handover
@@ -680,25 +686,11 @@ def dashboard():
                 Incident.status != 'Closed'
             ).all()
             
-            # Apply same closure filtering logic
-            filtered_priority_incidents = []
-            for incident in priority_incidents:
-                newer_closed_incident = Incident.query.filter(
-                    Incident.account_id == filter_account_id,
-                    Incident.team_id == filter_team_id,
-                    Incident.shift_id > target_handover.id,
-                    Incident.title == incident.title,
-                    Incident.type == 'Closed',
-                    Incident.status == 'Resolved'
-                ).first()
-                
-                if not newer_closed_incident:
-                    filtered_priority_incidents.append(incident)
-            
-            priority_incidents = filtered_priority_incidents
+            # Reuse the _newer_closed_titles set already built above
+            priority_incidents = [inc for inc in priority_incidents if inc.title not in _newer_closed_titles]
         else:
             priority_incidents = []
-            
+
     elif filter_account_id:
         # 🔧 ENHANCED: Check if regular user should get team-level filtering
         if current_user.role not in ['super_admin', 'account_admin'] and filter_team_id:
@@ -708,30 +700,43 @@ def dashboard():
                 ShiftKeyPoint.team_id == filter_team_id
             ).order_by(ShiftKeyPoint.id.desc())
             
-            logger.debug(f"[DASHBOARD DEBUG] Team-level filtering for regular user - Total key points for team: {all_kps_query.count()}")
-            
             # Filter to only Open/In Progress status
             all_prev_kps = all_kps_query.filter(
                 ShiftKeyPoint.status.in_(['Open', 'In Progress'])
             ).all()
-            
+
             logger.debug(f"[DASHBOARD DEBUG] Open/In Progress key points: {len(all_prev_kps)}")
             
-            # Additional check: exclude key points from shifts that have been submitted with 'Closed' status
+            # Batch Shift lookup to avoid per-KP query
+            _b2a_shift_ids = list({kp.shift_id for kp in all_prev_kps})
+            _b2a_shifts = {s.id: s for s in Shift.query.filter(Shift.id.in_(_b2a_shift_ids)).all()} if _b2a_shift_ids else {}
+
+            _b2a_sent_ids = [kp.id for kp in all_prev_kps
+                             if _b2a_shifts.get(kp.shift_id) and _b2a_shifts[kp.shift_id].status == 'sent']
+            if _b2a_sent_ids:
+                _b2a_closed_kps = db.session.query(
+                    ShiftKeyPoint.description, ShiftKeyPoint.jira_id, ShiftKeyPoint.id
+                ).filter(
+                    ShiftKeyPoint.status == 'Closed',
+                    ShiftKeyPoint.account_id == filter_account_id,
+                    ShiftKeyPoint.team_id == filter_team_id,
+                    ShiftKeyPoint.id > min(_b2a_sent_ids)
+                ).all()
+                _b2a_closed_max = {}
+                for _ckp in _b2a_closed_kps:
+                    _key = ((_ckp.description or '').lower(), _ckp.jira_id)
+                    if _key not in _b2a_closed_max or _ckp.id > _b2a_closed_max[_key]:
+                        _b2a_closed_max[_key] = _ckp.id
+            else:
+                _b2a_closed_max = {}
+
             filtered_kps = []
             for kp in all_prev_kps:
-                # Check if this key point's shift was submitted and this key point was marked closed
-                shift = Shift.query.get(kp.shift_id)
+                shift = _b2a_shifts.get(kp.shift_id)
                 if shift and shift.status == 'sent':
-                    # This is from a submitted handover - check if there's a newer version that closed this key point
-                    newer_closed = ShiftKeyPoint.query.filter(
-                        ShiftKeyPoint.description == kp.description,
-                        ShiftKeyPoint.jira_id == kp.jira_id,
-                        ShiftKeyPoint.status == 'Closed',
-                        ShiftKeyPoint.id > kp.id
-                    ).first()
-                    if newer_closed:
-                        logger.debug(f"[DASHBOARD DEBUG] Excluding key point ID {kp.id} - found newer closed version ID {newer_closed.id}")
+                    _desc_key = ((kp.description or '').lower(), kp.jira_id)
+                    if _b2a_closed_max.get(_desc_key, -1) > kp.id:
+                        logger.debug(f"[DASHBOARD DEBUG] Excluding key point ID {kp.id} - found newer closed version")
                         continue
                 filtered_kps.append(kp)
             
@@ -749,55 +754,60 @@ def dashboard():
                 if key not in kp_map or kp.id > kp_map[key].id:
                     kp_map[key] = kp
             
-            # Convert to list and attach assigned user info
-            open_key_points = []
+            # Batch TeamMember and User lookups
             from models.models import TeamMember, User
+            _b2a_eng_ids = {kp.responsible_engineer_id for kp in kp_map.values() if kp.responsible_engineer_id}
+            _b2a_eng_by_id = {tm.id: tm for tm in TeamMember.query.filter(TeamMember.id.in_(_b2a_eng_ids)).all()} if _b2a_eng_ids else {}
+            _b2a_user_ids = {tm.user_id for tm in _b2a_eng_by_id.values() if tm.user_id}
+            _b2a_user_by_id = {u.id: u for u in User.query.filter(User.id.in_(_b2a_user_ids)).all()} if _b2a_user_ids else {}
+
+            open_key_points = []
             for kp in kp_map.values():
                 assigned_user = None
                 if kp.responsible_engineer_id:
-                    team_member = TeamMember.query.get(kp.responsible_engineer_id)
+                    team_member = _b2a_eng_by_id.get(kp.responsible_engineer_id)
                     if team_member:
                         if team_member.user_id:
-                            user = User.query.get(team_member.user_id)
-                            assigned_user = user.username if user else team_member.name
+                            u = _b2a_user_by_id.get(team_member.user_id)
+                            assigned_user = u.username if u else team_member.name
                         else:
                             assigned_user = team_member.name
                 kp.assigned_to_display = assigned_user or "Unassigned"
                 open_key_points.append(kp)
-                
+
             logger.debug(f"[DASHBOARD DEBUG] Final deduplicated key points for team: {len(open_key_points)}")
         else:
-            # Account admin or super admin - show account-level filtering
-            # 🔧 FIXED: Get ALL key points first, then deduplicate, then filter by status
-            # This ensures we find the latest key point even if it's closed
-            all_key_points = ShiftKeyPoint.query.filter_by(account_id=filter_account_id).all()
-            
-            # Apply deduplication logic: keep only the latest (by id) for each (description, jira_id) pair
-            kp_map = {}
-            for kp in all_key_points:
-                key = (kp.description, kp.jira_id)
-                if key not in kp_map or kp.id > kp_map[key].id:
-                    kp_map[key] = kp
-            
-            # Filter to only show Open and In Progress after deduplication
-            # Attach assigned user info to each key point
-            open_key_points = []
+            # Account admin: SQL-level deduplication scoped to this account
+            _b2b_latest_id_subq = db.session.query(
+                func.max(ShiftKeyPoint.id).label('max_id')
+            ).filter(ShiftKeyPoint.account_id == filter_account_id).group_by(
+                ShiftKeyPoint.description, ShiftKeyPoint.jira_id
+            ).subquery()
+
+            _open_kps_b2b = ShiftKeyPoint.query.join(
+                _b2b_latest_id_subq, ShiftKeyPoint.id == _b2b_latest_id_subq.c.max_id
+            ).filter(ShiftKeyPoint.status.in_(['Open', 'In Progress'])).all()
+
             from models.models import TeamMember, User
-            for kp in kp_map.values():
-                if kp.status in ['Open', 'In Progress']:
-                    assigned_user = None
-                    if kp.responsible_engineer_id:
-                        team_member = TeamMember.query.get(kp.responsible_engineer_id)
-                        if team_member:
-                            # Prefer linked user if available, else fallback to team member name
-                            if team_member.user_id:
-                                user = User.query.get(team_member.user_id)
-                                assigned_user = user.username if user else team_member.name
-                            else:
-                                assigned_user = team_member.name
-                    kp.assigned_to_display = assigned_user or "Unassigned"
-                    open_key_points.append(kp)
-        
+            _b2b_eng_ids = {kp.responsible_engineer_id for kp in _open_kps_b2b if kp.responsible_engineer_id}
+            _b2b_eng_by_id = {tm.id: tm for tm in TeamMember.query.filter(TeamMember.id.in_(_b2b_eng_ids)).all()} if _b2b_eng_ids else {}
+            _b2b_user_ids = {tm.user_id for tm in _b2b_eng_by_id.values() if tm.user_id}
+            _b2b_user_by_id = {u.id: u for u in User.query.filter(User.id.in_(_b2b_user_ids)).all()} if _b2b_user_ids else {}
+
+            open_key_points = []
+            for kp in _open_kps_b2b:
+                assigned_user = None
+                if kp.responsible_engineer_id:
+                    team_member = _b2b_eng_by_id.get(kp.responsible_engineer_id)
+                    if team_member:
+                        if team_member.user_id:
+                            u = _b2b_user_by_id.get(team_member.user_id)
+                            assigned_user = u.username if u else team_member.name
+                        else:
+                            assigned_user = team_member.name
+                kp.assigned_to_display = assigned_user or "Unassigned"
+                open_key_points.append(kp)
+
         # Get priority incidents for account-level filtering (both cases need this)
         # 🔧 FIXED: Only show Priority incidents in account admin view
         if target_handover:
@@ -808,76 +818,62 @@ def dashboard():
                 Incident.status != 'Closed'
             ).all()
             
-            # Apply same closure filtering logic
-            filtered_priority_incidents = []
-            for incident in priority_incidents:
-                newer_closed_incident = Incident.query.filter(
-                    Incident.account_id == filter_account_id,
-                    Incident.shift_id > target_handover.id,
-                    Incident.title == incident.title,
-                    Incident.type == 'Closed',
-                    Incident.status == 'Resolved'
-                ).first()
-                
-                if not newer_closed_incident:
-                    filtered_priority_incidents.append(incident)
-            
-            priority_incidents = filtered_priority_incidents
+            priority_incidents = [inc for inc in priority_incidents if inc.title not in _b2_closed_titles]
         else:
             priority_incidents = []
     else:
-        # 🔧 FIXED: For super admin without filters, get ALL key points first, then deduplicate, then filter
-        all_key_points = ShiftKeyPoint.query.all()
-        
-        # Apply deduplication logic: keep only the latest (by id) for each (description, jira_id) pair
-        kp_map = {}
-        for kp in all_key_points:
-            key = (kp.description, kp.jira_id)
-            if key not in kp_map or kp.id > kp_map[key].id:
-                kp_map[key] = kp
-        
-        # Filter to only show Open and In Progress after deduplication
-        # Attach assigned user info to each key point
-        open_key_points = []
+        # Super admin: SQL-level deduplication — avoids loading all 4K+ KP rows into Python
+        _b3_latest_id_subq = db.session.query(
+            func.max(ShiftKeyPoint.id).label('max_id')
+        ).group_by(ShiftKeyPoint.description, ShiftKeyPoint.jira_id).subquery()
+
+        _open_kps_b3 = ShiftKeyPoint.query.join(
+            _b3_latest_id_subq, ShiftKeyPoint.id == _b3_latest_id_subq.c.max_id
+        ).filter(ShiftKeyPoint.status.in_(['Open', 'In Progress'])).all()
+
         from models.models import TeamMember, User
-        for kp in kp_map.values():
-            if kp.status in ['Open', 'In Progress']:
-                assigned_user = None
-                if kp.responsible_engineer_id:
-                    team_member = TeamMember.query.get(kp.responsible_engineer_id)
-                    if team_member:
-                        # Prefer linked user if available, else fallback to team member name
-                        if team_member.user_id:
-                            user = User.query.get(team_member.user_id)
-                            assigned_user = user.username if user else team_member.name
-                        else:
-                            assigned_user = team_member.name
-                kp.assigned_to_display = assigned_user or "Unassigned"
-                open_key_points.append(kp)
-        
-        # Get priority incidents ONLY from target handovers (not all active incidents)
-        priority_incidents = []
-        for shift in target_handovers:
-            # 🔧 FIXED: Get only Priority incidents from each target handover for super admin
-            shift_priority_incidents = Incident.query.filter(
-                Incident.shift_id == shift.id,
-                Incident.type == 'Priority',  # Only Priority incidents
+        _b3_eng_ids = {kp.responsible_engineer_id for kp in _open_kps_b3 if kp.responsible_engineer_id}
+        _b3_eng_by_id = {tm.id: tm for tm in TeamMember.query.filter(TeamMember.id.in_(_b3_eng_ids)).all()} if _b3_eng_ids else {}
+        _b3_user_ids = {tm.user_id for tm in _b3_eng_by_id.values() if tm.user_id}
+        _b3_user_by_id = {u.id: u for u in User.query.filter(User.id.in_(_b3_user_ids)).all()} if _b3_user_ids else {}
+
+        open_key_points = []
+        for kp in _open_kps_b3:
+            assigned_user = None
+            if kp.responsible_engineer_id:
+                team_member = _b3_eng_by_id.get(kp.responsible_engineer_id)
+                if team_member:
+                    if team_member.user_id:
+                        u = _b3_user_by_id.get(team_member.user_id)
+                        assigned_user = u.username if u else team_member.name
+                    else:
+                        assigned_user = team_member.name
+            kp.assigned_to_display = assigned_user or "Unassigned"
+            open_key_points.append(kp)
+
+        # Get priority incidents from target handovers with batch newer_closed check
+        if target_handovers:
+            _b3_handover_ids = [s.id for s in target_handovers]
+            _b3_all_priority = Incident.query.filter(
+                Incident.shift_id.in_(_b3_handover_ids),
+                Incident.type == 'Priority',
                 Incident.status != 'Closed'
             ).all()
-            
-            # Apply closure filtering
-            for incident in shift_priority_incidents:
-                newer_closed_incident = Incident.query.filter(
-                    Incident.account_id == incident.account_id,
-                    Incident.team_id == incident.team_id,
-                    Incident.shift_id > shift.id,
-                    Incident.title == incident.title,
-                    Incident.type == 'Closed',
-                    Incident.status == 'Resolved'
-                ).first()
-                
-                if not newer_closed_incident:
-                    priority_incidents.append(incident)
+            _b3_min_shift = min(_b3_handover_ids)
+            _b3_closed_rows = db.session.query(
+                Incident.account_id, Incident.team_id, Incident.title
+            ).filter(
+                Incident.shift_id > _b3_min_shift,
+                Incident.type == 'Closed',
+                Incident.status == 'Resolved'
+            ).all()
+            _b3_closed_set = {(r.account_id, r.team_id, r.title) for r in _b3_closed_rows}
+            priority_incidents = [
+                inc for inc in _b3_all_priority
+                if (inc.account_id, inc.team_id, inc.title) not in _b3_closed_set
+            ]
+        else:
+            priority_incidents = []
 
     # Chart logic
     range_opt = request.args.get('range', '7d')
@@ -903,32 +899,30 @@ def dashboard():
         to_date = today
 
     date_list = [(from_date + timedelta(days=i)) for i in range((to_date - from_date).days + 1)]
-    open_counts = []
-    closed_counts = []
-    handover_counts = []
-    priority_counts = []
-    for d in date_list:
-        base_incident_query = db.session.query(Incident).join(Shift, Incident.shift_id == Shift.id)
-        if current_user.role not in ['super_admin', 'admin']:
-            if current_user.role == 'account_admin':
-                base_incident_query = base_incident_query.filter(Incident.account_id == current_user.account_id)
-            else:
-                # Regular users - use multi-team filtering
-                base_incident_query = apply_team_filtering(
-                    base_incident_query,
-                    Incident,
-                    current_user,
-                    selected_team_id=filter_team_id,
-                    account_id=current_user.account_id
-                )
-        open_c = base_incident_query.filter(Incident.type=='Open', Shift.date==d).count()
-        closed_c = base_incident_query.filter(Incident.type=='Closed', Shift.date==d).count()
-        handover_c = base_incident_query.filter(Incident.type=='Handover', Shift.date==d).count()
-        priority_c = base_incident_query.filter(Incident.type=='Priority', Shift.date==d).count()
-        open_counts.append(open_c)
-        closed_counts.append(closed_c)
-        handover_counts.append(handover_c)
-        priority_counts.append(priority_c)
+
+    # Single GROUP BY query instead of 4 × len(date_list) queries
+    _chart_q = db.session.query(
+        Shift.date, Incident.type, func.count(Incident.id).label('cnt')
+    ).join(Shift, Incident.shift_id == Shift.id).filter(
+        Shift.date.between(from_date, to_date)
+    )
+    if current_user.role not in ['super_admin', 'admin']:
+        if current_user.role == 'account_admin':
+            _chart_q = _chart_q.filter(Incident.account_id == current_user.account_id)
+        else:
+            _chart_q = apply_team_filtering(
+                _chart_q, Incident, current_user,
+                selected_team_id=filter_team_id,
+                account_id=current_user.account_id
+            )
+    _chart_counts = {}
+    for _row in _chart_q.group_by(Shift.date, Incident.type).all():
+        _chart_counts[(_row.date, _row.type)] = _row.cnt
+
+    open_counts = [_chart_counts.get((d, 'Open'), 0) for d in date_list]
+    closed_counts = [_chart_counts.get((d, 'Closed'), 0) for d in date_list]
+    handover_counts = [_chart_counts.get((d, 'Handover'), 0) for d in date_list]
+    priority_counts = [_chart_counts.get((d, 'Priority'), 0) for d in date_list]
 
     x_dates = [d.strftime('%Y-%m-%d') for d in date_list]
     trace_open = go.Bar(x=x_dates, y=open_counts, name='Open Incidents', marker_color='#3498db')

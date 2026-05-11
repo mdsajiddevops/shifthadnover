@@ -1,0 +1,258 @@
+{
+  "ticket": "SHO-100",
+  "classification": "Small Feature",
+  "classification_overridden": false,
+  "phase_set": [
+    "requirements",
+    "qa-generate",
+    "architecture",
+    "impl-planning",
+    "implementation",
+    "simplify",
+    "review",
+    "verification",
+    "pr"
+  ],
+  "mode": "gates",
+  "started_at": "2026-05-08T15:48:50Z",
+  "updated_at": "2026-05-08T16:15:00Z",
+  "project_hash": "7f3e900c",
+  "current_phase": "completed",
+  "phases": {
+    "requirements": {
+      "status": "completed",
+      "model": "claude-sonnet-4-6",
+      "started_at": "2026-05-08T15:49:22Z",
+      "completed_at": "2026-05-08T15:56:57Z",
+      "duration_ms": 455000,
+      "user_wait_ms": 0,
+      "active_duration_ms": 455000,
+      "active_wallclock_time_taken": "7m 35s",
+      "iterations": 1,
+      "tokens_used": {
+        "cache_creation": 2776641,
+        "cache_read": 75851578,
+        "input": 1141,
+        "output": 773741,
+        "total": 79403101,
+        "cost_usd": 44.7774
+      }
+    },
+    "qa-generate": {
+      "status": "completed",
+      "model": "claude-sonnet-4-6",
+      "started_at": "2026-05-08T15:56:57Z",
+      "completed_at": "2026-05-08T16:02:19Z",
+      "duration_ms": 224978,
+      "user_wait_ms": 0,
+      "active_duration_ms": 224978,
+      "active_wallclock_time_taken": "3m 45s",
+      "iterations": 1,
+      "branch": null,
+      "tests_generated": 22,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": 47115,
+        "cost_usd": null
+      }
+    },
+    "architecture": {
+      "status": "completed",
+      "model": "claude-sonnet-4-6",
+      "started_at": "2026-05-08T15:56:57Z",
+      "completed_at": "2026-05-08T16:02:19Z",
+      "duration_ms": 322000,
+      "user_wait_ms": 0,
+      "active_duration_ms": 322000,
+      "active_wallclock_time_taken": "5m 22s",
+      "iterations": 1,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "design-review": {
+      "status": "skipped",
+      "model": "claude-sonnet-4-6",
+      "started_at": null,
+      "completed_at": null,
+      "duration_ms": null,
+      "user_wait_ms": 0,
+      "active_duration_ms": null,
+      "active_wallclock_time_taken": null,
+      "iterations": 0,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "impl-planning": {
+      "status": "completed",
+      "model": "claude-sonnet-4-6",
+      "started_at": "2026-05-08T16:02:19Z",
+      "completed_at": "2026-05-08T16:08:33Z",
+      "duration_ms": 374000,
+      "user_wait_ms": 0,
+      "active_duration_ms": 374000,
+      "active_wallclock_time_taken": "6m 14s",
+      "iterations": 1,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "implementation": {
+      "status": "completed",
+      "model": "claude-sonnet-4-6",
+      "started_at": "2026-05-08T15:30:00Z",
+      "completed_at": "2026-05-08T15:48:50Z",
+      "duration_ms": 1130000,
+      "user_wait_ms": 0,
+      "active_duration_ms": 1130000,
+      "active_wallclock_time_taken": "18m 50s",
+      "iterations": 1,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "simplify": {
+      "status": "completed",
+      "model": "claude-haiku-4-5-20251001",
+      "started_at": "2026-05-08T16:08:33Z",
+      "completed_at": "2026-05-08T16:10:31Z",
+      "duration_ms": 118000,
+      "user_wait_ms": 0,
+      "active_duration_ms": 118000,
+      "active_wallclock_time_taken": "1m 58s",
+      "iterations": 1,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "review": {
+      "status": "completed",
+      "model": "claude-sonnet-4-6",
+      "started_at": "2026-05-08T16:10:31Z",
+      "completed_at": "2026-05-08T16:14:04Z",
+      "duration_ms": 213000,
+      "user_wait_ms": 0,
+      "active_duration_ms": 213000,
+      "active_wallclock_time_taken": "3m 33s",
+      "iterations": 1,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "verification": {
+      "status": "completed",
+      "model": "claude-sonnet-4-6",
+      "started_at": "2026-05-08T16:10:31Z",
+      "completed_at": "2026-05-08T16:14:04Z",
+      "duration_ms": 213000,
+      "user_wait_ms": 0,
+      "active_duration_ms": 213000,
+      "active_wallclock_time_taken": "3m 33s",
+      "iterations": 1,
+      "implementation_sha": "3f80cb7",
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "qa-verify": {
+      "status": "skipped",
+      "model": "claude-sonnet-4-6",
+      "started_at": null,
+      "completed_at": null,
+      "duration_ms": null,
+      "user_wait_ms": 0,
+      "active_duration_ms": null,
+      "active_wallclock_time_taken": null,
+      "iterations": 0,
+      "api_passed": 0,
+      "api_total": 0,
+      "ui_passed": 0,
+      "ui_total": 0,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "risk": {
+      "status": "skipped",
+      "model": "claude-sonnet-4-6",
+      "started_at": null,
+      "completed_at": null,
+      "duration_ms": null,
+      "user_wait_ms": 0,
+      "active_duration_ms": null,
+      "active_wallclock_time_taken": null,
+      "iterations": 0,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    },
+    "pr": {
+      "status": "completed",
+      "model": "claude-sonnet-4-6",
+      "started_at": "2026-05-08T16:14:04Z",
+      "completed_at": "2026-05-08T16:15:00Z",
+      "duration_ms": 56000,
+      "user_wait_ms": 0,
+      "active_duration_ms": 56000,
+      "active_wallclock_time_taken": "0m 56s",
+      "iterations": 1,
+      "tokens_used": {
+        "cache_creation": null,
+        "cache_read": null,
+        "input": null,
+        "output": null,
+        "total": null,
+        "cost_usd": null
+      }
+    }
+  }
+}

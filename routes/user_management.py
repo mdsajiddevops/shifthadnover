@@ -792,26 +792,28 @@ def user_management():
             return redirect(url_for('user_mgmt.user_management'))
     
     # Enhanced user data with team memberships for display
+    # Batch-load all memberships and teams for the user list
+    user_ids = [u.id for u in users]
+    all_memberships = UserTeamMembership.query.filter(
+        UserTeamMembership.user_id.in_(user_ids),
+        UserTeamMembership.is_active == True
+    ).all() if user_ids else []
+    memberships_by_user = {}
+    for m in all_memberships:
+        memberships_by_user.setdefault(m.user_id, []).append(m)
+    _team_ids_needed = list({m.team_id for m in all_memberships})
+    _teams_for_users = {t.id: t for t in Team.query.filter(Team.id.in_(_team_ids_needed)).all()} if _team_ids_needed else {}
+
     users_with_teams = []
     for user in users:
-        # Use direct UserTeamMembership query instead of problematic user.get_teams()
-        team_memberships = UserTeamMembership.query.filter_by(
-            user_id=user.id, 
-            is_active=True
-        ).all()
-        
-        # Build display string manually since all_teams_display might also be broken
+        team_memberships = memberships_by_user.get(user.id, [])
         teams_display_list = []
         for membership in team_memberships:
-            team = db.session.get(Team, membership.team_id)
+            team = _teams_for_users.get(membership.team_id)
             if team:
-                team_str = team.name
-                if membership.is_primary:
-                    team_str += " (Primary)"
+                team_str = team.name + (' (Primary)' if membership.is_primary else '')
                 teams_display_list.append(team_str)
-        
         teams_display = "; ".join(teams_display_list) if teams_display_list else "No Teams"
-        
         user_data = {
             'user': user,
             'team_memberships': team_memberships,

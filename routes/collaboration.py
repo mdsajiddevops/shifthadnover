@@ -25,7 +25,16 @@ collaboration_bp = Blueprint('collaboration', __name__, url_prefix='/api/collabo
 # In-memory stores for real-time collaboration (consider Redis for multi-process)
 _field_states = {}  # {shift_id: {field_key: {value, version, user_id, timestamp}}}
 _typing_indicators = {}  # {shift_id: {field_key: {user_id, user_name, timestamp}}}
-_pending_broadcasts = {}  # {shift_id: [changes to broadcast]}
+_pending_broadcasts = {}  # {shift_id: {user_id: [broadcasts]}} — per-user queues
+_active_sse_users = {}   # {shift_id: set(user_ids)} — currently streaming users
+
+
+def _queue_broadcast(shift_id, sender_user_id, broadcast):
+    """Add a broadcast to every OTHER user's per-user queue."""
+    recipients = _active_sse_users.get(shift_id, set())
+    for uid in recipients:
+        if uid != sender_user_id:
+            _pending_broadcasts.setdefault(shift_id, {}).setdefault(uid, []).append(broadcast)
 
 
 # ============================================================================
@@ -95,26 +104,18 @@ def join_session(shift_id):
             )
             db.session.add(session)
             db.session.commit()
-            
-            # Broadcast user join event
-            if shift_id not in _pending_broadcasts:
-                _pending_broadcasts[shift_id] = []
+
             user_display = current_user.display_name or current_user.username
-            _pending_broadcasts[shift_id].append({
+            active_sessions_for_broadcast = HandoverSession.get_active_users(shift_id)
+            _queue_broadcast(shift_id, current_user.id, {
                 'type': 'user_joined',
                 'user': {'user_id': current_user.id, 'username': current_user.username, 'user_name': user_display},
-                'active_users': None  # Will be populated below
+                'active_users': [s.to_dict() for s in active_sessions_for_broadcast]
             })
-        
-        # Get all active users
+
+        # Get all active users (for the join response)
         active_sessions = HandoverSession.get_active_users(shift_id)
         active_users = [s.to_dict() for s in active_sessions]
-        
-        # Update the broadcast with active users
-        if shift_id in _pending_broadcasts:
-            for broadcast in _pending_broadcasts[shift_id]:
-                if broadcast.get('type') == 'user_joined' and broadcast.get('active_users') is None:
-                    broadcast['active_users'] = active_users
         
         # Get current locks
         locks = SectionLock.get_locks_for_shift(shift_id)
@@ -185,10 +186,8 @@ def leave_session(shift_id):
         active_users = [s.to_dict() for s in active_sessions]
         
         # Broadcast user left event
-        if shift_id not in _pending_broadcasts:
-            _pending_broadcasts[shift_id] = []
         user_display = current_user.display_name or current_user.username
-        _pending_broadcasts[shift_id].append({
+        _queue_broadcast(shift_id, current_user.id, {
             'type': 'user_left',
             'user': {'user_id': current_user.id, 'username': current_user.username, 'user_name': user_display},
             'active_users': active_users
@@ -275,71 +274,46 @@ def event_stream(shift_id):
     def generate():
         last_change_id = int(request.args.get('last_change_id', 0))
         last_check = datetime.utcnow()
-        user_id = current_user.id  # Store user ID before entering generator
-        
-        # Send initial connection confirmation
-        yield f"data: {json.dumps({'type': 'connected', 'shift_id': shift_id})}\n\n"
-        
-        while True:
-            try:
-                # Check for pending broadcasts (field updates, typing indicators)
-                if shift_id in _pending_broadcasts and _pending_broadcasts[shift_id]:
-                    broadcasts = _pending_broadcasts[shift_id].copy()
-                    _pending_broadcasts[shift_id] = []
-                    
-                    for broadcast in broadcasts:
-                        # Handle different broadcast structures:
-                        # - field_update/typing: user_id in broadcast['data']
-                        # - user_joined/left: user_id in broadcast['user']
-                        broadcast_user_id = broadcast.get('data', {}).get('user_id')
-                        if broadcast_user_id is None:
-                            broadcast_user_id = broadcast.get('user', {}).get('user_id')
-                        
-                        # Don't send changes back to the user who made them
-                        if broadcast_user_id != user_id:
-                            logger.info(f"[SSE] Sending {broadcast.get('type')} to user {user_id} (from user {broadcast_user_id})")
-                            yield f"data: {json.dumps(broadcast)}\n\n"
-                        else:
-                            logger.debug(f"[SSE] Skipping own broadcast type={broadcast.get('type')} for user {user_id}")
-                
+        user_id = current_user.id
+
+        # Register this user as an active SSE recipient
+        _active_sse_users.setdefault(shift_id, set()).add(user_id)
+
+        try:
+            yield f"data: {json.dumps({'type': 'connected', 'shift_id': shift_id})}\n\n"
+
+            while True:
+                # Drain this user's personal broadcast queue
+                user_queue = _pending_broadcasts.get(shift_id, {})
+                if user_id in user_queue:
+                    for broadcast in user_queue.pop(user_id):
+                        yield f"data: {json.dumps(broadcast)}\n\n"
+
                 # Check for new changes in database
                 new_changes = HandoverChange.get_unsynced_changes(shift_id, last_change_id)
-                
                 for change in new_changes:
-                    # Don't send changes back to the user who made them
                     if change.user_id != user_id:
-                        event_data = {
-                            'type': 'change',
-                            'data': change.to_dict()
-                        }
-                        yield f"data: {json.dumps(event_data)}\n\n"
+                        yield f"data: {json.dumps({'type': 'change', 'data': change.to_dict()})}\n\n"
                     last_change_id = max(last_change_id, change.id)
-                
-                # Send active users update every 5 seconds
-                if (datetime.utcnow() - last_check).seconds >= 5:
+
+                # Send active users update every 30 seconds
+                if (datetime.utcnow() - last_check).seconds >= 30:
                     active_sessions = HandoverSession.get_active_users(shift_id)
                     locks = SectionLock.get_locks_for_shift(shift_id)
-                    
-                    event_data = {
-                        'type': 'presence',
-                        'active_users': [s.to_dict() for s in active_sessions],
-                        'locks': [l.to_dict() for l in locks]
-                    }
-                    yield f"data: {json.dumps(event_data)}\n\n"
+                    yield f"data: {json.dumps({'type': 'presence', 'active_users': [s.to_dict() for s in active_sessions], 'locks': [l.to_dict() for l in locks]})}\n\n"
                     last_check = datetime.utcnow()
-                
-                # Small delay to prevent CPU spinning
-                time.sleep(0.5)  # Reduced from 1 second for faster updates
-                
-                # Send keepalive
+
+                time.sleep(0.5)
                 yield ": keepalive\n\n"
-                
-            except GeneratorExit:
-                break
-            except Exception as e:
-                logger.error(f"SSE error: {e}")
-                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-                break
+
+        except GeneratorExit:
+            pass
+        except Exception as e:
+            logger.error(f"SSE error: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        finally:
+            _active_sse_users.get(shift_id, set()).discard(user_id)
+            _pending_broadcasts.get(shift_id, {}).pop(user_id, None)
     
     response = Response(
         stream_with_context(generate()),
@@ -1138,13 +1112,6 @@ def _get_last_change_id(shift_id):
 # Live Field Updates (Real-time sync as users type)
 # ============================================================================
 
-# In-memory store for field states and typing indicators
-# In production, consider using Redis for multi-process support
-_field_states = {}  # {shift_id: {field_key: {value, version, user_id, timestamp}}}
-_typing_indicators = {}  # {shift_id: {field_key: {user_id, user_name, timestamp}}}
-_pending_broadcasts = {}  # {shift_id: [changes]}
-
-
 @collaboration_bp.route('/field/update', methods=['POST'])
 @login_required
 def update_field():
@@ -1217,10 +1184,7 @@ def update_field():
         }
         
         # Queue for broadcast (don't store to database for every keystroke - too heavy)
-        if shift_id not in _pending_broadcasts:
-            _pending_broadcasts[shift_id] = []
-        
-        broadcast_data = {
+        _queue_broadcast(shift_id, current_user.id, {
             'type': 'field_update',
             'data': {
                 'section_type': section_type,
@@ -1232,8 +1196,7 @@ def update_field():
                 'user_name': user_display_name,
                 'timestamp': datetime.utcnow().isoformat()
             }
-        }
-        _pending_broadcasts[shift_id].append(broadcast_data)
+        })
         
         logger.info(f"[COLLAB] Field update queued: {field_key} by {current_user.username}, value length: {len(str(value))}")
         
@@ -1282,10 +1245,7 @@ def typing_indicator():
             _typing_indicators[shift_id].pop(field_key, None)
         
         # Queue for broadcast
-        if shift_id not in _pending_broadcasts:
-            _pending_broadcasts[shift_id] = []
-        
-        _pending_broadcasts[shift_id].append({
+        _queue_broadcast(shift_id, current_user.id, {
             'type': 'typing',
             'data': {
                 'section_type': section_type,
@@ -1331,74 +1291,59 @@ def event_stream_v2(shift_id):
     
     def generate():
         last_change_id = int(request.args.get('last_change_id', 0))
-        last_broadcast_check = datetime.utcnow()
         last_presence_update = datetime.utcnow()
-        
-        # Send initial connection confirmation
-        yield f"data: {json.dumps({'type': 'connected', 'shift_id': shift_id, 'user_id': current_user.id})}\n\n"
-        
-        while True:
-            try:
-                # Check for pending broadcasts (field updates, typing indicators)
-                if shift_id in _pending_broadcasts and _pending_broadcasts[shift_id]:
-                    broadcasts = _pending_broadcasts[shift_id]
-                    _pending_broadcasts[shift_id] = []
-                    
+        user_id = current_user.id
+
+        # Register this user as an active SSE recipient
+        _active_sse_users.setdefault(shift_id, set()).add(user_id)
+
+        try:
+            # Send initial connection confirmation
+            yield f"data: {json.dumps({'type': 'connected', 'shift_id': shift_id, 'user_id': user_id})}\n\n"
+
+            while True:
+                # Drain this user's personal broadcast queue
+                user_queue = _pending_broadcasts.get(shift_id, {})
+                if user_id in user_queue:
+                    broadcasts = user_queue.pop(user_id)
                     for broadcast in broadcasts:
-                        # Handle different broadcast structures:
-                        # - field_update/typing: user_id in broadcast['data']
-                        # - user_joined/left: user_id in broadcast['user']
-                        broadcast_user_id = broadcast.get('data', {}).get('user_id')
-                        if broadcast_user_id is None:
-                            broadcast_user_id = broadcast.get('user', {}).get('user_id')
-                        
-                        # Don't send to the user who made the change
-                        if broadcast_user_id != current_user.id:
-                            yield f"data: {json.dumps(broadcast)}\n\n"
-                
+                        yield f"data: {json.dumps(broadcast)}\n\n"
+
                 # Check for database changes (add/update/delete operations)
                 new_changes = HandoverChange.get_unsynced_changes(shift_id, last_change_id)
-                
                 for change in new_changes:
-                    if change.user_id != current_user.id:
-                        event_data = {
-                            'type': 'change',
-                            'data': change.to_dict()
-                        }
-                        yield f"data: {json.dumps(event_data)}\n\n"
+                    if change.user_id != user_id:
+                        yield f"data: {json.dumps({'type': 'change', 'data': change.to_dict()})}\n\n"
                     last_change_id = max(last_change_id, change.id)
-                
-                # Send presence update every 3 seconds
-                if (datetime.utcnow() - last_presence_update).total_seconds() >= 3:
+
+                # Send presence update every 15 seconds
+                if (datetime.utcnow() - last_presence_update).total_seconds() >= 15:
                     active_sessions = HandoverSession.get_active_users(shift_id)
                     locks = SectionLock.get_locks_for_shift(shift_id)
                     typing = _typing_indicators.get(shift_id, {})
-                    
+
                     # Clean up old typing indicators (older than 5 seconds)
                     cutoff = (datetime.utcnow() - timedelta(seconds=5)).isoformat()
                     typing = {k: v for k, v in typing.items() if v.get('timestamp', '') > cutoff}
-                    
-                    event_data = {
-                        'type': 'presence',
-                        'active_users': [s.to_dict() for s in active_sessions],
-                        'locks': [l.to_dict() for l in locks],
-                        'typing_indicators': typing
-                    }
-                    yield f"data: {json.dumps(event_data)}\n\n"
+
+                    yield f"data: {json.dumps({'type': 'presence', 'active_users': [s.to_dict() for s in active_sessions], 'locks': [l.to_dict() for l in locks], 'typing_indicators': typing})}\n\n"
                     last_presence_update = datetime.utcnow()
-                
+
                 # Small delay
                 time.sleep(0.5)
-                
+
                 # Keepalive
                 yield ": keepalive\n\n"
-                
-            except GeneratorExit:
-                break
-            except Exception as e:
-                logger.error(f"SSE v2 error: {e}")
-                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-                break
+
+        except GeneratorExit:
+            pass
+        except Exception as e:
+            logger.error(f"SSE v2 error: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        finally:
+            # Deregister user from active SSE set and clean up their queue
+            _active_sse_users.get(shift_id, set()).discard(user_id)
+            _pending_broadcasts.get(shift_id, {}).pop(user_id, None)
     
     response = Response(
         stream_with_context(generate()),
@@ -1485,3 +1430,112 @@ def persist_draft(shift_id):
         db.session.rollback()
         logger.error(f"Error persisting draft: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
+# Incident Collaboration: Duplicate Detection & Draft Sharing
+# ============================================================================
+
+@collaboration_bp.route('/incident/save', methods=['POST'])
+@login_required
+def save_draft_incident():
+    """Save or update the current user's draft incident row."""
+    try:
+        data = request.get_json() or {}
+        shift_id = data.get('shift_id')
+        temp_id = data.get('temp_id', '').strip()
+
+        if not shift_id or not temp_id:
+            return jsonify({'success': False, 'error': 'Missing shift_id or temp_id'}), 400
+
+        Shift.query.get_or_404(shift_id)
+
+        draft = DraftIncident.query.filter_by(shift_id=shift_id, temp_id=temp_id).first()
+
+        if draft:
+            if draft.created_by_id != current_user.id:
+                return jsonify({'success': False, 'error': 'Not your incident'}), 403
+            draft.incident_id = data.get('incident_id') or draft.incident_id
+            draft.app_name = data.get('app_name') or draft.app_name
+            draft.title = data.get('title') or draft.title
+            draft.incident_type = data.get('status') or draft.incident_type or 'Open'
+            draft.priority = data.get('priority') or draft.priority
+            draft.assigned_to = data.get('assigned_to') or draft.assigned_to
+            draft.escalated_to = data.get('escalated_to') or draft.escalated_to
+            draft.description = data.get('notes') or draft.description
+            draft.updated_by_id = current_user.id
+            draft.version = (draft.version or 1) + 1
+        else:
+            draft = DraftIncident(
+                shift_id=shift_id,
+                temp_id=temp_id,
+                incident_id=data.get('incident_id', ''),
+                app_name=data.get('app_name', ''),
+                title=data.get('title', ''),
+                incident_type=data.get('status', 'Open') or 'Open',
+                priority=data.get('priority', 'Medium'),
+                assigned_to=data.get('assigned_to', ''),
+                escalated_to=data.get('escalated_to', ''),
+                description=data.get('notes', ''),
+                created_by_id=current_user.id
+            )
+            db.session.add(draft)
+
+        db.session.commit()
+        return jsonify({'success': True, 'temp_id': temp_id})
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error saving draft incident: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@collaboration_bp.route('/incident/check', methods=['GET'])
+@login_required
+def check_incident_duplicate():
+    """Check if an incident ID was already entered by another user in this shift's draft."""
+    shift_id = request.args.get('shift_id', type=int)
+    incident_id = (request.args.get('incident_id') or '').strip()
+
+    if not shift_id or not incident_id:
+        return jsonify({'success': False, 'error': 'Missing params'}), 400
+
+    existing = DraftIncident.query.filter(
+        DraftIncident.shift_id == shift_id,
+        DraftIncident.incident_id == incident_id,
+        DraftIncident.created_by_id != current_user.id
+    ).first()
+
+    if existing:
+        creator_name = 'Unknown'
+        if existing.created_by:
+            creator_name = existing.created_by.display_name or existing.created_by.username
+        return jsonify({
+            'success': True,
+            'duplicate': True,
+            'added_by': creator_name,
+            'added_by_id': existing.created_by_id
+        })
+
+    return jsonify({'success': True, 'duplicate': False})
+
+
+@collaboration_bp.route('/incidents/others', methods=['GET'])
+@login_required
+def get_others_incidents():
+    """Get all draft incidents added by other users for this shift."""
+    shift_id = request.args.get('shift_id', type=int)
+
+    if not shift_id:
+        return jsonify({'success': False, 'error': 'Missing shift_id'}), 400
+
+    incidents = DraftIncident.query.filter(
+        DraftIncident.shift_id == shift_id,
+        DraftIncident.created_by_id != current_user.id
+    ).all()
+
+    return jsonify({
+        'success': True,
+        'incidents': [i.to_dict() for i in incidents],
+        'count': len(incidents)
+    })

@@ -54,6 +54,7 @@ CALL add_index_if_not_exists('shift', 'idx_shift_date', 'date');
 CALL add_index_if_not_exists('shift', 'idx_shift_team_date', 'team_id, date');
 CALL add_index_if_not_exists('shift', 'idx_shift_status', 'status');
 CALL add_index_if_not_exists('shift', 'idx_shift_account_team', 'account_id, team_id');
+CALL add_index_if_not_exists('shift', 'idx_shift_team_status_date', 'team_id, status, date');
 
 -- =============================================================
 -- 2. ShiftKeyPoint indexes (key points page, dashboard, handover form)
@@ -89,6 +90,7 @@ CALL add_index_if_not_exists('team_member', 'idx_member_team_active', 'team_id, 
 -- =============================================================
 CALL add_index_if_not_exists('user', 'idx_user_activity', 'last_activity');
 CALL add_index_if_not_exists('user', 'idx_user_account_active', 'account_id, is_active');
+CALL add_index_if_not_exists('user', 'idx_user_session_token', 'session_token');
 
 -- =============================================================
 -- 7. ShiftChangeInfo indexes

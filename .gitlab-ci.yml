@@ -218,14 +218,35 @@ deploy:
     - chmod 600 ~/.ssh/id_rsa
     - ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
   script:
-    - ssh "$DEPLOY_USER@$DEPLOY_HOST" "
-        set -e &&
-        cd /opt/shifthandover &&
-        git pull origin master &&
-        docker-compose -f docker-compose.prod.yml pull &&
-        docker-compose -f docker-compose.prod.yml up -d --build &&
+    - |
+      ssh "$DEPLOY_USER@$DEPLOY_HOST" bash -s << 'ENDSSH'
+        set -e
+        cd /opt/shifthandover
+
+        # 1. Pull latest code
+        git pull origin master
+
+        # 2. Ensure DB container is running before migration
+        docker-compose -f docker-compose.prod.yml up -d db
+        echo "Waiting for DB to be ready..."
+        until docker-compose -f docker-compose.prod.yml exec -T db \
+          mysqladmin ping -u root -p"$(cat ./secrets/mysql_root_password)" --silent 2>/dev/null; do
+          sleep 3
+        done
+
+        # 3. Run idempotent schema sync (additive only — never drops columns or data).
+        #    Fails loudly before new code starts if there is a problem.
+        docker-compose -f docker-compose.prod.yml exec -T db \
+          mysql -u root -p"$(cat ./secrets/mysql_root_password)" shift_handover \
+          < scripts/migrations/prod_schema_sync.sql
+        echo "Schema sync complete."
+
+        # 4. Rebuild and restart all services with the new code
+        docker-compose -f docker-compose.prod.yml up -d --build
+
+        # 5. Prune dangling images (keep volumes intact)
         docker system prune -f --volumes=false
-      "
+      ENDSSH
   rules:
     - if: $CI_COMMIT_BRANCH == "master"
       when: manual

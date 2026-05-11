@@ -90,7 +90,6 @@ class HandoverSession(db.Model):
     @classmethod
     def get_active_users(cls, shift_id):
         """Get all active users editing a specific shift"""
-        cls.cleanup_stale_sessions()
         return cls.query.filter_by(shift_id=shift_id, is_active=True).all()
 
 
@@ -204,7 +203,6 @@ class SectionLock(db.Model):
     @classmethod
     def get_locks_for_shift(cls, shift_id):
         """Get all active locks for a shift"""
-        cls.cleanup_expired()
         return cls.query.filter_by(shift_id=shift_id).filter(cls.expires_at > datetime.utcnow()).all()
 
 

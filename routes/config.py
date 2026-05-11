@@ -24,15 +24,23 @@ def admin_configuration():
         
         # Define all possible configuration keys that should be processed
         all_config_keys = [
+            # Navigation Tabs
             'tab_kb_articles',
-            'tab_vendor_details', 
+            'tab_vendor_details',
             'tab_applications',
             'tab_change_management',
             'tab_problem_tickets',
             'tab_post_mortems',
             'tab_shift_management',
+            # Super Admin Only Tabs
+            'tab_manual_roster',
+            'tab_incident_response_logs',
+            'tab_active_sessions',
+            'tab_user_team_linking',
+            'tab_email_monitoring',
+            # System Features
             'feature_servicenow_integration',
-            'feature_ctask_assignment'
+            'feature_ctask_assignment',
         ]
         
         # Process each configuration key - this ensures unchecked boxes are set to 'false'

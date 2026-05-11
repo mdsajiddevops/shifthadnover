@@ -3,7 +3,7 @@ Team Access Service - Manages multi-team access and filtering for users
 """
 
 from flask_login import current_user
-from flask import session
+from flask import session, g
 from models.models import UserTeamMembership, Team, Account
 
 
@@ -12,35 +12,51 @@ class TeamAccessService:
     
     @staticmethod
     def get_user_team_ids(user=None, account_id=None):
-        """Get all team IDs for the current user or specified user"""
+        """Get all team IDs for the current user or specified user.
+
+        Results are cached on Flask g for the lifetime of the request so that
+        repeated calls (e.g. from get_engineers_for_shift and chart filtering)
+        only hit the DB once.
+        """
         if user is None:
             user = current_user
-            
+
         if not user or not user.is_authenticated:
             return []
-            
+
+        # Request-scoped cache — avoids repeated Team.query.all() per request
+        _cache_attr = f'_team_ids_{getattr(user, "id", "anon")}_{account_id}'
+        try:
+            cached = getattr(g, _cache_attr, None)
+            if cached is not None:
+                return cached
+        except RuntimeError:
+            pass  # Outside request context (e.g. tests) — skip cache
+
         # Super admin has access to all teams
         if user.role == 'super_admin':
             query = Team.query.filter_by(is_active=True)
             if account_id:
                 query = query.filter_by(account_id=account_id)
-            return [team.id for team in query.all()]
-        
+            result = [team.id for team in query.all()]
         # Account admin has access to all teams in their account
-        if user.role == 'account_admin' and user.account_id:
+        elif user.role == 'account_admin' and user.account_id:
             account_filter = account_id if account_id else user.account_id
             teams = Team.query.filter_by(account_id=account_filter, is_active=True).all()
-            return [team.id for team in teams]
-        
-        # Regular users: get teams from UserTeamMembership
-        user_teams = user.get_teams(account_id=account_id, active_only=True)
-        team_ids = [membership.team_id for membership in user_teams]
-        
-        # Fallback: if no team memberships but user has team_id, include it
-        if not team_ids and user.team_id and (not account_id or user.account_id == account_id):
-            team_ids = [user.team_id]
-            
-        return team_ids
+            result = [team.id for team in teams]
+        else:
+            # Regular users: get teams from UserTeamMembership
+            user_teams = user.get_teams(account_id=account_id, active_only=True)
+            result = [membership.team_id for membership in user_teams]
+            # Fallback: if no team memberships but user has team_id, include it
+            if not result and user.team_id and (not account_id or user.account_id == account_id):
+                result = [user.team_id]
+
+        try:
+            setattr(g, _cache_attr, result)
+        except RuntimeError:
+            pass
+        return result
     
     @staticmethod
     def get_user_accounts():

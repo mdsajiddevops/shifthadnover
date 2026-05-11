@@ -917,7 +917,7 @@ def edit_handover(shift_id):
         elif shift.account_id != current_user.account_id:
             flash('You do not have permission to edit this handover form.')
             return redirect(url_for('dashboard.dashboard'))
-        elif not current_user.is_member_of_team(shift.team_id, account_id=current_user.account_id):
+        elif not current_user.is_member_of_team(shift.team_id, account_id=current_user.account_id) and current_user.team_id != shift.team_id:
             flash('You do not have permission to edit this handover form.')
             return redirect(url_for('dashboard.dashboard'))
         # If we reach here, user is in same account and same team - allow editing
@@ -926,9 +926,9 @@ def edit_handover(shift_id):
         if shift.account_id != current_user.account_id:
             flash('You do not have permission to edit this handover form.')
             return redirect(url_for('dashboard.dashboard'))
-        
+
         # Check team access - user must belong to the handover's team
-        if not current_user.is_member_of_team(shift.team_id, account_id=current_user.account_id):
+        if not current_user.is_member_of_team(shift.team_id, account_id=current_user.account_id) and current_user.team_id != shift.team_id:
             flash('You do not have permission to edit this handover form.')
             return redirect(url_for('dashboard.dashboard'))
     # 🔧 CRITICAL FIX: For edit mode, include team members from the handover's team
@@ -1162,11 +1162,11 @@ def edit_handover(shift_id):
             if inc_id not in existing_ids:
                 mutable_form.add('incident_id[]',          inc_id)
                 mutable_form.add('incident_app[]',         draft_inc.app_name or '')
-                mutable_form.add('incident_short_desc[]',  draft_inc.description or '')
+                mutable_form.add('incident_short_desc[]',  draft_inc.title or '')
                 mutable_form.add('incident_status[]',      inc_type)
                 mutable_form.add('incident_priority[]',    draft_inc.priority or 'Medium')
-                mutable_form.add('incident_assigned[]',    str(draft_inc.assigned_to_id) if draft_inc.assigned_to_id else '')
-                mutable_form.add('incident_escalated_to[]', str(draft_inc.escalated_to_id) if draft_inc.escalated_to_id else '')
+                mutable_form.add('incident_assigned[]',    draft_inc.assigned_to or '')
+                mutable_form.add('incident_escalated_to[]', draft_inc.escalated_to or '')
                 mutable_form.add('incident_notes[]',       draft_inc.description or '')
                 mutable_form.add('incident_carried_id[]',  '')
                 logger.debug(f"🔄 MERGED draft incident: {inc_id} ({inc_type}) from user {draft_inc.created_by_id}")
