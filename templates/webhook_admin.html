@@ -2,14 +2,25 @@
 {% block title %}Webhook Integration — Assignment Groups{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-  <div class="row mb-3">
-    <div class="col">
-      <h4 class="mb-0"><i class="bi bi-plug me-2"></i>Power Automate Webhook Integration</h4>
-      <p class="text-muted small mt-1">Configure which ServiceNow assignment groups route to which teams, and manage your webhook token.</p>
+<!-- Page Header -->
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h1 class="page-title"><i class="bi bi-plug me-2"></i>Webhook Integration</h1>
+      <p class="page-subtitle mb-0">Configure ServiceNow assignment group routing and manage your Power Automate webhook token.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-light text-danger px-3 py-2">
+        <i class="bi bi-shield-exclamation me-1"></i>Super Admin Only
+      </span>
+      <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-light">
+        <i class="bi bi-arrow-left me-1"></i>Back
+      </a>
     </div>
   </div>
+</div>
 
+<div class="container-fluid px-0">
   <div class="row g-4">
 
     <!-- LEFT: Assignment group mapping -->
@@ -27,7 +38,7 @@
       {% endif %}
 
       <!-- Add new mapping -->
-      <div class="card mb-4">
+      <div class="card shadow-sm mb-4">
         <div class="card-header"><strong>Add Assignment Group Mapping</strong></div>
         <div class="card-body">
           <div class="row g-2 align-items-end">
@@ -59,7 +70,7 @@
       </div>
 
       <!-- Existing mappings table -->
-      <div class="card mb-4">
+      <div class="card shadow-sm mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
           <strong>Active Mappings</strong>
           <button class="btn btn-outline-secondary btn-sm" onclick="loadGroups()">
@@ -87,7 +98,7 @@
       </div>
 
       <!-- Unrouted incidents panel -->
-      <div class="card" id="unrouted-panel">
+      <div class="card shadow-sm" id="unrouted-panel">
         <div class="card-header d-flex justify-content-between align-items-center">
           <strong>Unrouted Incidents <span class="badge bg-warning text-dark ms-1" id="unrouted-count-badge">{{ unrouted_count }}</span></strong>
           <button class="btn btn-outline-secondary btn-sm" onclick="loadUnrouted()">
@@ -119,7 +130,7 @@
     <div class="col-lg-4">
 
       <!-- Token card -->
-      <div class="card mb-4">
+      <div class="card shadow-sm mb-4">
         <div class="card-header"><strong><i class="bi bi-key me-1"></i>Webhook Token</strong></div>
         <div class="card-body">
           <p class="small text-muted">Copy this token into your Power Automate HTTP action as the <code>X-Webhook-Token</code> header value.</p>
@@ -136,7 +147,7 @@
       </div>
 
       <!-- Power Automate setup guide -->
-      <div class="card">
+      <div class="card shadow-sm">
         <div class="card-header"><strong><i class="bi bi-lightning me-1"></i>Power Automate Setup</strong></div>
         <div class="card-body small">
 
@@ -170,7 +181,7 @@
 
     </div><!-- /col-lg-4 -->
   </div><!-- /row -->
-</div>
+</div><!-- /container-fluid px-0 -->
 
 <script>
 const CSRF_HEADERS = { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
