@@ -247,7 +247,9 @@ def get_webhook_incidents():
         shift_start_str = request.args.get('shift_start')
         shift_end_str   = request.args.get('shift_end')
 
-        query = WebhookIncident.query.filter_by(is_active=True)
+        # No is_active filter here — incidents stay queryable regardless of dismiss state.
+        # is_active=False only hides incidents from the admin unrouted panel.
+        query = WebhookIncident.query
         if team_id:
             query = query.filter_by(team_id=team_id)
         if account_id:

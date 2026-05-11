@@ -4129,6 +4129,19 @@ def handover():
     is_admin = current_user.role in ['super_admin', 'account_admin', 'team_admin']
     user_shift_info['is_admin'] = is_admin
     
+    # Auto-redirect to an existing draft so collaboration always starts immediately.
+    # Only redirect when we have enough context to match a specific draft.
+    if default_team_id and detected_current_shift:
+        existing_draft = Shift.query.filter_by(
+            team_id=default_team_id,
+            account_id=current_user.account_id,
+            date=handover_date,
+            current_shift_type=detected_current_shift,
+            status='draft'
+        ).first()
+        if existing_draft:
+            return redirect(url_for('handover.edit_handover', shift_id=existing_draft.id))
+
     # Always show at least one blank row for new key point entry in the form
     return render_template('handover_form.html',
         team_members=team_members,

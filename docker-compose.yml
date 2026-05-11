@@ -76,6 +76,7 @@ services:
       FLASK_ENV: production
       FLASK_APP: app.py
       FLASK_DEBUG: 0
+      TEMPLATES_AUTO_RELOAD: 1
       
       # Database Configuration (uses Docker secrets)
       DATABASE_URL_FILE: /run/secrets/database_url

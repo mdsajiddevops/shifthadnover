@@ -126,6 +126,24 @@
 .handover-accordion .accordion-header {
     margin-bottom: 0;
 }
+
+/* Incident sequence badge — inline in card header, no absolute positioning */
+.incident-seq-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 20px;
+    flex-shrink: 0;
+    letter-spacing: .2px;
+}
+.incident-seq-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #e9ecef;
+}
 </style>
 {% endblock %}
 
@@ -474,6 +492,15 @@
                     <!-- Flash messages are rendered in base.html - no duplicate needed here -->
                     
                     <form method="POST" action="{% if is_edit_mode %}/handover/edit/{{ shift.id }}{% else %}/handover{% endif %}" id="handover-form">
+                        {% if not is_edit_mode %}
+                        <div class="alert alert-info d-flex align-items-center gap-2 mb-3" id="collab-new-form-notice">
+                          <i class="bi bi-people-fill fs-5"></i>
+                          <div>
+                            <strong>Real-time collaboration activates after saving a draft.</strong>
+                            Click <em>Save as Draft</em> to let your team co-edit this handover simultaneously.
+                          </div>
+                        </div>
+                        {% endif %}
                         <!-- Basic Information -->
                         <div class="row mb-4">
                             <div class="col-md-6">
@@ -1326,6 +1353,34 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     updateIncidentCountBadge();
+
+    // Wire blur duplicate-check to pre-loaded Change Info and KB number inputs
+    document.querySelectorAll('input[name="change_number[]"]').forEach(function(el) {
+        if (!el.dataset.changeDupWired) {
+            el.dataset.changeDupWired = '1';
+            el.addEventListener('blur', function() { checkChangeDuplicate(this); });
+            el.addEventListener('input', function() { clearChangeDuplicateWarning(this); });
+            if (!el.parentElement.querySelector('.change-dup-warning')) {
+                const w = document.createElement('div');
+                w.className = 'change-dup-warning text-warning small mt-1';
+                w.style.display = 'none';
+                el.parentElement.appendChild(w);
+            }
+        }
+    });
+    document.querySelectorAll('input[name="kb_number[]"]').forEach(function(el) {
+        if (!el.dataset.kbDupWired) {
+            el.dataset.kbDupWired = '1';
+            el.addEventListener('blur', function() { checkKBDuplicate(this); });
+            el.addEventListener('input', function() { clearKBDuplicateWarning(this); });
+            if (!el.parentElement.querySelector('.kb-dup-warning')) {
+                const w = document.createElement('div');
+                w.className = 'kb-dup-warning text-warning small mt-1';
+                w.style.display = 'none';
+                el.parentElement.appendChild(w);
+            }
+        }
+    });
 
     // Add section counters to accordion headers
     updateSectionCounters();
@@ -2427,6 +2482,9 @@ function addUnifiedIncident(incidentData) {
     newRow.className = 'incident-entry mb-3 border p-3 rounded';
     newRow.dataset.collabTempId = tempId;
     newRow.innerHTML = `
+        <div class="incident-seq-header">
+            <span class="incident-seq-badge badge bg-primary">#?</span>
+        </div>
         <input type="hidden" name="incident_carried_id[]" value="">
         <div class="row g-2">
             <div class="col-md-3">
@@ -2557,6 +2615,30 @@ function populateUnifiedIncidents(incidents) {
     updateIncidentCountBadge();
 }
 
+function renumberIncidents() {
+    const container = document.getElementById('incidents-container');
+    if (!container) return;
+    container.querySelectorAll('.incident-entry').forEach((row, idx) => {
+        let badge = row.querySelector('.incident-seq-badge');
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'incident-seq-badge badge bg-primary';
+            // For server-rendered carryforward rows: prepend to existing header flex row
+            const existingHeader = row.querySelector('.d-flex.align-items-center');
+            if (existingHeader) {
+                existingHeader.insertBefore(badge, existingHeader.firstChild);
+            } else {
+                // No header row — create one
+                const hdr = document.createElement('div');
+                hdr.className = 'incident-seq-header';
+                hdr.appendChild(badge);
+                row.insertBefore(hdr, row.firstChild);
+            }
+        }
+        badge.textContent = '#' + (idx + 1);
+    });
+}
+
 function updateIncidentCountBadge() {
     const container = document.getElementById('incidents-container');
     const badge = document.getElementById('incidents-count-badge');
@@ -2564,6 +2646,7 @@ function updateIncidentCountBadge() {
     const count = container.querySelectorAll('.incident-entry').length;
     badge.textContent = count;
     badge.className = count > 0 ? 'badge bg-primary ms-1' : 'badge bg-secondary ms-1';
+    renumberIncidents();
 }
 
 // Legacy stub kept so any remaining old references don't throw errors
@@ -3070,7 +3153,9 @@ function addChangeInfo() {
                 </div>
                 <div class="col-md-2 mb-2">
                     <label class="form-label">Change Number</label>
-                    <input type="text" class="form-control" name="change_number[]" placeholder="CHG000123">
+                    <input type="text" class="form-control" name="change_number[]" placeholder="CHG000123"
+                           onblur="checkChangeDuplicate(this)" oninput="clearChangeDuplicateWarning(this)">
+                    <div class="change-dup-warning text-warning small mt-1" style="display:none;"></div>
                 </div>
                 <div class="col-md-3 mb-2">
                     <label class="form-label">Description</label>
@@ -3148,7 +3233,9 @@ function addKBUpdate() {
                 </div>
                 <div class="col-md-2 mb-2">
                     <label class="form-label">KB Number</label>
-                    <input type="text" class="form-control" name="kb_number[]" placeholder="KB000123">
+                    <input type="text" class="form-control" name="kb_number[]" placeholder="KB000123"
+                           onblur="checkKBDuplicate(this)" oninput="clearKBDuplicateWarning(this)">
+                    <div class="kb-dup-warning text-warning small mt-1" style="display:none;"></div>
                 </div>
                 <div class="col-md-4 mb-2">
                     <label class="form-label">Description</label>
@@ -3339,25 +3426,85 @@ function validateChangeDateTime() {
 }
 
 function validateChangeNumbers() {
-    const changeNumbers = Array.from(document.querySelectorAll('input[name="change_number[]"]')).map(input => input.value.trim()).filter(val => val);
-    const duplicates = changeNumbers.filter((item, index) => changeNumbers.indexOf(item) !== index);
-    
-    if (duplicates.length > 0) {
-        alert(`Duplicate change numbers found: ${duplicates.join(', ')}`);
-        return false;
-    }
-    return true;
+    const inputs = Array.from(document.querySelectorAll('input[name="change_number[]"]'));
+    const values = inputs.map(el => el.value.trim().toLowerCase()).filter(v => v);
+    const dupeSet = new Set(values.filter((v, i) => values.indexOf(v) !== i));
+    let valid = true;
+    inputs.forEach(el => {
+        const v = el.value.trim().toLowerCase();
+        const warn = el.parentElement.querySelector('.change-dup-warning');
+        if (v && dupeSet.has(v)) {
+            if (warn) { warn.textContent = `⚠ Duplicate change number "${el.value.trim()}" in this form.`; warn.style.display = ''; }
+            el.classList.add('is-invalid');
+            valid = false;
+        } else {
+            if (warn) warn.style.display = 'none';
+            el.classList.remove('is-invalid');
+        }
+    });
+    return valid;
 }
 
 function validateKBNumbers() {
-    const kbNumbers = Array.from(document.querySelectorAll('input[name="kb_number[]"]')).map(input => input.value.trim()).filter(val => val);
-    const duplicates = kbNumbers.filter((item, index) => kbNumbers.indexOf(item) !== index);
-    
-    if (duplicates.length > 0) {
-        alert(`Duplicate KB numbers found: ${duplicates.join(', ')}`);
-        return false;
+    const inputs = Array.from(document.querySelectorAll('input[name="kb_number[]"]'));
+    const values = inputs.map(el => el.value.trim().toLowerCase()).filter(v => v);
+    const dupeSet = new Set(values.filter((v, i) => values.indexOf(v) !== i));
+    let valid = true;
+    inputs.forEach(el => {
+        const v = el.value.trim().toLowerCase();
+        const warn = el.parentElement.querySelector('.kb-dup-warning');
+        if (v && dupeSet.has(v)) {
+            if (warn) { warn.textContent = `⚠ Duplicate KB number "${el.value.trim()}" in this form.`; warn.style.display = ''; }
+            el.classList.add('is-invalid');
+            valid = false;
+        } else {
+            if (warn) warn.style.display = 'none';
+            el.classList.remove('is-invalid');
+        }
+    });
+    return valid;
+}
+
+function checkChangeDuplicate(input) {
+    const val = (input.value || '').trim().toLowerCase();
+    if (!val) return;
+    const allInputs = Array.from(document.querySelectorAll('input[name="change_number[]"]'));
+    const isDupe = allInputs.some(el => el !== input && (el.value || '').trim().toLowerCase() === val);
+    const warn = input.parentElement.querySelector('.change-dup-warning');
+    if (isDupe) {
+        input.classList.add('is-invalid');
+        if (warn) { warn.textContent = `⚠ Change number "${input.value.trim()}" is already in this form.`; warn.style.display = ''; }
+    } else {
+        input.classList.remove('is-invalid');
+        if (warn) warn.style.display = 'none';
     }
-    return true;
+}
+
+function clearChangeDuplicateWarning(input) {
+    input.classList.remove('is-invalid');
+    const warn = input.parentElement.querySelector('.change-dup-warning');
+    if (warn) warn.style.display = 'none';
+}
+
+function checkKBDuplicate(input) {
+    const val = (input.value || '').trim().toLowerCase();
+    if (!val) return;
+    const allInputs = Array.from(document.querySelectorAll('input[name="kb_number[]"]'));
+    const isDupe = allInputs.some(el => el !== input && (el.value || '').trim().toLowerCase() === val);
+    const warn = input.parentElement.querySelector('.kb-dup-warning');
+    if (isDupe) {
+        input.classList.add('is-invalid');
+        if (warn) { warn.textContent = `⚠ KB number "${input.value.trim()}" is already in this form.`; warn.style.display = ''; }
+    } else {
+        input.classList.remove('is-invalid');
+        if (warn) warn.style.display = 'none';
+    }
+}
+
+function clearKBDuplicateWarning(input) {
+    input.classList.remove('is-invalid');
+    const warn = input.parentElement.querySelector('.kb-dup-warning');
+    if (warn) warn.style.display = 'none';
 }
 
 // ServiceNow Incident Auto-Population
@@ -3946,6 +4093,15 @@ function setupFormSubmissionHandling() {
                     console.error('❌ BLOCKING FINAL SUBMISSION - Validation failed:');
                     validationErrors.forEach(error => console.error('   - ' + error));
                     alert('Cannot submit form due to validation errors:\n\n• ' + validationErrors.join('\n• ') + '\n\nPlease fix these issues before submitting.');
+                    return false;
+                }
+
+                // Within-form incident duplicate check (always runs)
+                const allIncIds = Array.from(document.querySelectorAll('#incidents-container input[name="incident_id[]"]'))
+                    .map(el => el.value.trim().toLowerCase()).filter(Boolean);
+                const incDupeSet = new Set(allIncIds.filter((v, i) => allIncIds.indexOf(v) !== i));
+                if (incDupeSet.size > 0) {
+                    alert('Duplicate Incident IDs found: ' + [...incDupeSet].map(v => v.toUpperCase()).join(', ') + '\n\nPlease remove duplicates before submitting.');
                     return false;
                 }
 
@@ -5100,7 +5256,30 @@ async function checkIncidentDuplicate(input) {
     const val = (input.value || '').trim();
     if (!val) return;
 
-    // Only run when collaboration is active
+    // Always check within-form duplicates regardless of collab session
+    const allIncInputs = Array.from(document.querySelectorAll('#incidents-container input[name="incident_id[]"]'));
+    const localDupe = allIncInputs.some(el => el !== input && (el.value || '').trim().toLowerCase() === val.toLowerCase());
+    let warningDiv = input.parentElement.querySelector('.collab-incident-warning');
+    if (!warningDiv) {
+        warningDiv = document.createElement('div');
+        warningDiv.className = 'collab-incident-warning';
+        warningDiv.style.display = 'none';
+        input.parentElement.appendChild(warningDiv);
+    }
+    if (localDupe) {
+        warningDiv.style.display = 'block';
+        warningDiv.innerHTML = `<span class="text-warning small">
+            <i class="fas fa-exclamation-triangle me-1"></i>
+            <strong>${escapeHtml(val)}</strong> is already in this form.
+        </span>`;
+        input.classList.add('border-warning');
+        return; // no need to hit the API if it's already a local dup
+    } else {
+        warningDiv.style.display = 'none';
+        input.classList.remove('border-warning');
+    }
+
+    // Cross-user check — only when collaboration is active
     if (!window.collabInstance || !window.collabInstance.isConnected) return;
     const shiftId = window.collabInstance.shiftId;
     if (!shiftId) return;
@@ -5120,9 +5299,6 @@ async function checkIncidentDuplicate(input) {
         const resp = await fetch(`/api/collaboration/incident/check?shift_id=${shiftId}&incident_id=${encodeURIComponent(val)}`);
         const data = await resp.json();
         if (!data.success) return;
-
-        const warningDiv = input.parentElement.querySelector('.collab-incident-warning');
-        if (!warningDiv) return;
 
         if (data.duplicate) {
             warningDiv.style.display = 'block';
@@ -5365,6 +5541,7 @@ function _renderSnowList(incidents) {
     const list = document.getElementById('snow-list');
     if (!incidents.length) { _setSnowState('empty'); return; }
     _setSnowState('list');
+    const alreadyAdded = getFormIncidentIds();
     list.innerHTML = incidents.map((inc, idx) => {
         const isResolved  = inc.is_resolved;
         const badgeCls    = isResolved ? 'bg-success' : (inc.priority === 'Critical' ? 'bg-danger' : 'bg-warning text-dark');
@@ -5372,8 +5549,15 @@ function _renderSnowList(incidents) {
         const timeLabel   = isResolved
             ? `${inc.occurred_at} → ${inc.resolved_at}`
             : `Opened: ${inc.occurred_at}`;
+        const inForm = alreadyAdded.has((inc.incident_id || '').trim().toLowerCase());
+        const importBtn = inForm
+            ? `<span class="badge bg-success ms-2 flex-shrink-0"><i class="bi bi-check2 me-1"></i>Already Added</span>`
+            : `<button type="button" class="btn btn-sm btn-outline-primary py-0 flex-shrink-0 ms-2"
+                       onclick="importSnowIncident(${idx})">
+                   <i class="bi bi-download me-1"></i>Import
+               </button>`;
         return `
-        <div class="list-group-item list-group-item-action py-2 px-3" id="snow-item-${inc.id}">
+        <div class="list-group-item list-group-item-action py-2 px-3${inForm ? ' list-group-item-success' : ''}" id="snow-item-${inc.id}">
             <div class="d-flex justify-content-between align-items-start">
                 <div>
                     <span class="badge ${badgeCls} me-1">${_esc(statusLabel)}</span>
@@ -5381,10 +5565,7 @@ function _renderSnowList(incidents) {
                     <span class="ms-2 small fw-semibold">${_esc(inc.title)}</span>
                     ${inc.priority ? `<span class="badge bg-light text-dark border ms-1">${_esc(inc.priority)}</span>` : ''}
                 </div>
-                <button type="button" class="btn btn-sm btn-outline-primary py-0 flex-shrink-0 ms-2"
-                        onclick="importSnowIncident(${idx})">
-                    <i class="bi bi-download me-1"></i>Import
-                </button>
+                ${importBtn}
             </div>
             <div class="text-muted" style="font-size:0.78rem;margin-top:2px;">
                 ${_esc(inc.assignment_group) ? `<span class="me-2">Group: ${_esc(inc.assignment_group)}</span>` : ''}
@@ -5396,9 +5577,32 @@ function _renderSnowList(incidents) {
     }).join('');
 }
 
+function getFormIncidentIds() {
+    const ids = new Set();
+    document.querySelectorAll('#incidents-container input[name="incident_id[]"]').forEach(el => {
+        const v = (el.value || '').trim().toLowerCase();
+        if (v) ids.add(v);
+    });
+    return ids;
+}
+
 function importSnowIncident(idx) {
     const inc = _snowIncidents[idx];
     if (!inc) return;
+
+    // Block if already present in the form
+    const alreadyAdded = getFormIncidentIds();
+    if (alreadyAdded.has((inc.incident_id || '').trim().toLowerCase())) {
+        const toast = document.createElement('div');
+        toast.className = 'alert alert-warning alert-dismissible position-fixed shadow';
+        toast.style.cssText = 'top:80px;right:20px;z-index:9999;min-width:280px;';
+        toast.innerHTML = `<i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>${_esc(inc.incident_id)}</strong> is already in your handover form.
+            <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+        return;
+    }
 
     // Map ServiceNow status to form incident status
     const statusMap = {
@@ -5422,8 +5626,7 @@ function importSnowIncident(idx) {
         ].filter(Boolean).join('\n'),
     });
 
-    // Dismiss from the panel and mark inactive
-    fetch(`/api/webhook/incidents/${inc.id}/dismiss`, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    // Remove from panel UI only — do NOT dismiss so it stays visible on reload
     document.getElementById(`snow-item-${inc.id}`)?.remove();
     _snowIncidents.splice(idx, 1);
 
@@ -5436,8 +5639,26 @@ function importSnowIncident(idx) {
 }
 
 function importAllSnow() {
-    // Iterate a stable copy; importSnowIncident mutates the array
-    [..._snowIncidents].forEach((_, idx) => importSnowIncident(0));
+    const alreadyAdded = getFormIncidentIds();
+    // Only import those not already in the form; iterate stable copy
+    const toImport = _snowIncidents.filter(
+        inc => !alreadyAdded.has((inc.incident_id || '').trim().toLowerCase())
+    );
+    if (!toImport.length) {
+        const toast = document.createElement('div');
+        toast.className = 'alert alert-info alert-dismissible position-fixed shadow';
+        toast.style.cssText = 'top:80px;right:20px;z-index:9999;min-width:280px;';
+        toast.innerHTML = `<i class="bi bi-info-circle me-2"></i>All incidents are already in your handover form.
+            <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+        return;
+    }
+    // Import only the filtered items; look up each item's live index after prior splices
+    toImport.forEach(inc => {
+        const idx = _snowIncidents.indexOf(inc);
+        if (idx !== -1) importSnowIncident(idx);
+    });
 }
 
 function _esc(s) {
