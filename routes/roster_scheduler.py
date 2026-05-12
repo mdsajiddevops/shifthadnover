@@ -21,7 +21,7 @@ API endpoints:
 """
 from datetime import date, datetime
 
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, session
 from flask_login import login_required, current_user
 
 from models.models import db, TeamMember
