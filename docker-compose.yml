@@ -64,7 +64,6 @@ services:
     command: bash start.sh
     
     volumes:
-      - .:/app
       - app_logs:/app/logs
       - uploads_data:/app/uploads
     
@@ -76,7 +75,6 @@ services:
       FLASK_ENV: production
       FLASK_APP: app.py
       FLASK_DEBUG: 0
-      TEMPLATES_AUTO_RELOAD: 1
       
       # Database Configuration (uses Docker secrets)
       DATABASE_URL_FILE: /run/secrets/database_url
