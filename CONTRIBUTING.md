@@ -19,10 +19,21 @@ export DATABASE_URL=sqlite:///local_shifthandover.db
 python app.py
 ```
 
+## Git workflow
+
+```
+develop  →  staging  (auto-deploy on every merge to develop)
+master   →  production  (manual deploy, promoted from develop)
+```
+
+1. **Branch from `develop`** (not `master`)
+2. Open MR targeting `develop` — pipeline must pass, 1 approval required
+3. Merge to `develop` → auto-deploys to staging
+4. When staging is validated, `develop` is merged to `master` → manual deploy to prod
+
 ## Branch naming
-- Features: `feature/<short-description>`
-- Bugfixes: `fix/<short-description>`
-- Always branch from `master`
+- Features: `feature/SHO-<number>-<short-description>`
+- Bugfixes: `fix/SHO-<number>-<short-description>`
 
 ## Running tests
 
@@ -113,4 +124,4 @@ ruff format .
 - [ ] If new Celery task: registered in `celeryconfig.py` and tested in `tests/test_celery_tasks.py`
 - [ ] CHANGELOG.md updated if user-facing change
 - [ ] Confluence updated if architecture changed
-- [ ] Minimum 1 peer review approval required before merging to master/main (REQ-012)
+- [ ] Minimum 1 peer review approval required before merging to develop (REQ-012)
