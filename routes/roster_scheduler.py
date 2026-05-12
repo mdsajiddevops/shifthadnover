@@ -536,6 +536,7 @@ def api_get_members():
             'name': m.name,
             'role': m.role,
             'scheduling_role': getattr(m, 'scheduling_role', 'support') or 'support',
+            'lead_shift': getattr(m, 'lead_shift', 'E') or 'E',
         }
         for m in members
     ]})
@@ -554,6 +555,11 @@ def api_update_member_role(member_id):
 
     member = TeamMember.query.get_or_404(member_id)
     member.scheduling_role = scheduling_role
+    if scheduling_role == 'lead' and 'lead_shift' in body:
+        valid_shifts = ('D', 'E', 'N', 'OCN')
+        ls = str(body['lead_shift']).upper().strip()
+        if ls in valid_shifts:
+            member.lead_shift = ls
     db.session.commit()
     return jsonify({'success': True})
 

@@ -350,17 +350,28 @@
             container.innerHTML = '<div class="row g-2">' +
                 res.data.map(function(m){
                     const isLead = m.scheduling_role === 'lead';
+                    const ls = m.lead_shift || 'E';
+                    const shiftOpts = ['D','E','N','OCN'].map(function(s){
+                        return `<option value="${s}" ${ls===s?'selected':''}>${s}</option>`;
+                    }).join('');
                     return `<div class="col-md-6 col-lg-4">
-                        <div class="d-flex align-items-center justify-content-between
-                                    border rounded px-3 py-2" style="font-size:.85rem">
-                            <span>${m.name}</span>
-                            <div class="d-flex gap-1">
-                                <button class="btn btn-xs ${isLead ? 'btn-primary' : 'btn-outline-secondary'}"
-                                    style="font-size:.65rem;padding:2px 7px"
-                                    onclick="setRole(${m.id},'lead',this)">Lead</button>
-                                <button class="btn btn-xs ${!isLead ? 'btn-primary' : 'btn-outline-secondary'}"
-                                    style="font-size:.65rem;padding:2px 7px"
-                                    onclick="setRole(${m.id},'support',this)">Support</button>
+                        <div class="border rounded px-3 py-2" style="font-size:.85rem">
+                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                <span class="fw-semibold">${m.name}</span>
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-xs ${isLead ? 'btn-warning' : 'btn-outline-secondary'}"
+                                        style="font-size:.65rem;padding:2px 7px"
+                                        onclick="setRole(${m.id},'lead',this)">Fixed</button>
+                                    <button class="btn btn-xs ${!isLead ? 'btn-primary' : 'btn-outline-secondary'}"
+                                        style="font-size:.65rem;padding:2px 7px"
+                                        onclick="setRole(${m.id},'support',this)">Rotating</button>
+                                </div>
+                            </div>
+                            <div id="lead-shift-row-${m.id}" style="display:${isLead?'flex':'none'};align-items:center;gap:6px;font-size:.75rem">
+                                <span class="text-muted">Fixed shift:</span>
+                                <select class="form-select form-select-sm" style="width:auto;font-size:.75rem;padding:1px 4px"
+                                    onchange="saveLeadShift(${m.id}, this.value)">${shiftOpts}</select>
+                                <span class="text-muted" style="font-size:.7rem">(weekends off)</span>
                             </div>
                         </div>
                     </div>`;
@@ -377,8 +388,23 @@
         })
         .then(r => r.json())
         .then(function(res){
-            if (res.success) loadMembers(currentTeamId);
-            else alert('Error: ' + res.error);
+            if (res.success) {
+                loadMembers(currentTeamId);
+            } else {
+                alert('Error: ' + res.error);
+            }
+        });
+    };
+
+    window.saveLeadShift = function(memberId, leadShift) {
+        fetch(`/api/roster/members/${memberId}/role`, {
+            method:'PUT',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({scheduling_role: 'lead', lead_shift: leadShift})
+        })
+        .then(r => r.json())
+        .then(function(res){
+            if (!res.success) alert('Error saving fixed shift: ' + res.error);
         });
     };
 

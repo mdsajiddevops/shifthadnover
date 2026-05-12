@@ -100,7 +100,17 @@ def build_shift_pool(reqs: dict, num_supports: int) -> list[str]:
     num_e = min(num_e, ns - num_d)
     num_n = min(num_n, ns - num_d - num_e)
 
-    pool = ['D'] * num_d + ['E'] * num_e + ['N'] * num_n
+    # Spread D and N evenly so no two same minority-shifts sit in adjacent
+    # positions — prevents the same member getting D (or N) in consecutive weeks.
+    pool = ['E'] * ns
+    if num_d > 0:
+        for i in range(num_d):
+            pool[int(i * ns / num_d)] = 'D'
+    if num_n > 0:
+        e_slots = [idx for idx, s in enumerate(pool) if s == 'E']
+        n_total = len(e_slots)
+        for i in range(num_n):
+            pool[e_slots[int(i * n_total / num_n)]] = 'N'
     while len(pool) < ns:
         pool.append('E')
     return pool[:ns]
