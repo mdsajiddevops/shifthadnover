@@ -100,7 +100,17 @@ def build_shift_pool(reqs: dict, num_supports: int) -> list[str]:
     num_e = min(num_e, ns - num_d)
     num_n = min(num_n, ns - num_d - num_e)
 
-    pool = ['D'] * num_d + ['E'] * num_e + ['N'] * num_n
+    # Spread D and N evenly so no two same minority-shifts sit in adjacent
+    # positions — prevents the same member getting D (or N) in consecutive weeks.
+    pool = ['E'] * ns
+    if num_d > 0:
+        for i in range(num_d):
+            pool[int(i * ns / num_d)] = 'D'
+    if num_n > 0:
+        e_slots = [idx for idx, s in enumerate(pool) if s == 'E']
+        n_total = len(e_slots)
+        for i in range(num_n):
+            pool[e_slots[int(i * n_total / num_n)]] = 'N'
     while len(pool) < ns:
         pool.append('E')
     return pool[:ns]
@@ -146,7 +156,15 @@ def compute_month_plan(
 
     ns = len(supports)
     seed = month_seed(year, month, team_index)
-    pool = build_shift_pool(reqs, ns)
+
+    # Subtract fixed-shift (lead) members from coverage requirements so the
+    # support rotation pool doesn't double-count shifts already covered by leads.
+    effective_reqs = dict(reqs)
+    for lead in leads:
+        ls = (lead.get("lead_shift") or 'E').upper()
+        if ls in effective_reqs and effective_reqs[ls] != '*':
+            effective_reqs[ls] = max(0, int(effective_reqs[ls]) - 1)
+    pool = build_shift_pool(effective_reqs, ns)
     week_nums = weeks_in_month(year, month)
     rot_off = rotation_offset(seed, ns)
 
@@ -156,12 +174,31 @@ def compute_month_plan(
         week_off = (rot_off + wi) % ns
         week_assign[wn] = {supports[pi]["id"]: pool[(pi + week_off) % ns] for pi in range(ns)}
 
-    # OCN weekly rotation: one support member per week carries on-call night duty
-    # Their weekday shift code becomes "<base>/OCN" (e.g. "E/OCN")
-    ocn_duty: dict[int, int] = {}  # ISO week -> member_id with OCN duty
+    # Map each ISO week → its weekday day-numbers (for leave checking)
+    total_days_pre = days_in_month(year, month)
+    week_to_days: dict[int, list[int]] = {}
+    for _d in range(1, total_days_pre + 1):
+        _dt = date(year, month, _d)
+        if not is_weekend(_dt):
+            _wn = iso_week(_dt)
+            week_to_days.setdefault(_wn, []).append(_d)
+
+    # OCN weekly rotation: one E-shift support member per week carries on-call duty.
+    # Rules: (1) only E-shift members are eligible; (2) skip if member has any
+    # leave/protected day that week so OCN is always a continuous 5-day block.
+    ocn_duty: dict[int, int] = {}
     for wi, wn in enumerate(week_nums):
-        ocn_idx = (seed + wi) % ns
-        ocn_duty[wn] = supports[ocn_idx]["id"]
+        wk_days = week_to_days.get(wn, [])
+        for attempt in range(ns):
+            cid = supports[(seed + wi + attempt) % ns]["id"]
+            has_leave = any(
+                existing.get(cid, {}).get(d, '') in PROTECTED_CODES
+                for d in wk_days
+            )
+            on_e_shift = week_assign.get(wn, {}).get(cid, '') == 'E'
+            if on_e_shift and not has_leave:
+                ocn_duty[wn] = cid
+                break
 
     # Weekend counts
     wmo_req = reqs.get('OS', reqs.get('WMO', 1))
@@ -215,10 +252,9 @@ def compute_month_plan(
                 else:
                     wn = iso_week(d)
                     code = week_assign.get(wn, {}).get(mid, 'E')
-                    # OCN overlay: one member per week carries on-call night duty
-                    # Only applies to regular shift codes D/E/N, not leaves or weekend codes
-                    if ocn_duty.get(wn) == mid and code in ('D', 'E', 'N'):
-                        code = code + '/OCN'
+                    # OCN overlay: only E-shift members carry on-call duty
+                    if ocn_duty.get(wn) == mid and code == 'E':
+                        code = 'E/OCN'
 
             assignments.append({
                 "member_id": mid,

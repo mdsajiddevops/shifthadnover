@@ -38,9 +38,21 @@
         </div>
     </div>
 
-    <!-- Team selector -->
+    <!-- Account + Team selector -->
     <div class="rsa-card">
         <div class="row g-2 align-items-end">
+            {% if current_user.role == 'super_admin' %}
+            <div class="col-auto">
+                <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Account</label>
+                <select id="accountSelect" class="form-select form-select-sm" style="min-width:200px"
+                        onchange="window.location='/admin/roster-scheduler?account_id='+this.value">
+                    <option value="">— select account —</option>
+                    {% for a in accounts %}
+                    <option value="{{ a.id }}" {% if a.id == account_id %}selected{% endif %}>{{ a.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <div class="col-auto">
                 <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Team</label>
                 <select id="teamSelect" class="form-select form-select-sm" style="min-width:200px">
@@ -148,8 +160,9 @@
     <div class="rsa-card">
         <h5><i class="bi bi-people me-2"></i>Member Scheduling Roles</h5>
         <p class="small text-muted mb-3">
-            <strong>Lead</strong> members always get Evening shift on weekdays and Off on weekends.
-            <strong>Support</strong> members follow the rotation.
+            <strong>Fixed</strong> — always gets their chosen shift every weekday, always off on weekends.
+            <strong>Rotating</strong> — follows the normal weekly rotation pool.
+            <strong>Ignore</strong> — excluded from roster generation entirely (e.g. test accounts).
         </p>
         <div id="memberList" class="text-muted small">Select a team above to manage roles.</div>
     </div>
@@ -337,19 +350,35 @@
             }
             container.innerHTML = '<div class="row g-2">' +
                 res.data.map(function(m){
-                    const isLead = m.scheduling_role === 'lead';
+                    const isLead     = m.scheduling_role === 'lead';
+                    const isExcluded = m.scheduling_role === 'excluded';
+                    const ls = m.lead_shift || 'E';
+                    const shiftOpts = ['D','E','N','OCN'].map(function(s){
+                        return `<option value="${s}" ${ls===s?'selected':''}>${s}</option>`;
+                    }).join('');
                     return `<div class="col-md-6 col-lg-4">
-                        <div class="d-flex align-items-center justify-content-between
-                                    border rounded px-3 py-2" style="font-size:.85rem">
-                            <span>${m.name}</span>
-                            <div class="d-flex gap-1">
-                                <button class="btn btn-xs ${isLead ? 'btn-primary' : 'btn-outline-secondary'}"
-                                    style="font-size:.65rem;padding:2px 7px"
-                                    onclick="setRole(${m.id},'lead',this)">Lead</button>
-                                <button class="btn btn-xs ${!isLead ? 'btn-primary' : 'btn-outline-secondary'}"
-                                    style="font-size:.65rem;padding:2px 7px"
-                                    onclick="setRole(${m.id},'support',this)">Support</button>
+                        <div class="border rounded px-3 py-2${isExcluded?' bg-light opacity-75':''}" style="font-size:.85rem">
+                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                <span class="fw-semibold${isExcluded?' text-muted text-decoration-line-through':''}">${m.name}</span>
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-xs ${isLead ? 'btn-warning' : 'btn-outline-secondary'}"
+                                        style="font-size:.65rem;padding:2px 7px"
+                                        onclick="setRole(${m.id},'lead',this)">Fixed</button>
+                                    <button class="btn btn-xs ${(!isLead && !isExcluded) ? 'btn-primary' : 'btn-outline-secondary'}"
+                                        style="font-size:.65rem;padding:2px 7px"
+                                        onclick="setRole(${m.id},'support',this)">Rotating</button>
+                                    <button class="btn btn-xs ${isExcluded ? 'btn-danger' : 'btn-outline-danger'}"
+                                        style="font-size:.65rem;padding:2px 7px"
+                                        onclick="setRole(${m.id},'excluded',this)" title="Exclude from roster generation">Ignore</button>
+                                </div>
                             </div>
+                            <div id="lead-shift-row-${m.id}" style="display:${isLead?'flex':'none'};align-items:center;gap:6px;font-size:.75rem">
+                                <span class="text-muted">Fixed shift:</span>
+                                <select class="form-select form-select-sm" style="width:auto;font-size:.75rem;padding:1px 4px"
+                                    onchange="saveLeadShift(${m.id}, this.value, this)">${shiftOpts}</select>
+                                <span class="text-muted" style="font-size:.7rem">(weekends off)</span>
+                            </div>
+                            ${isExcluded ? '<div class="text-danger" style="font-size:.7rem;margin-top:2px"><i class="bi bi-slash-circle me-1"></i>Excluded from scheduling</div>' : ''}
                         </div>
                     </div>`;
                 }).join('') +
@@ -365,8 +394,32 @@
         })
         .then(r => r.json())
         .then(function(res){
-            if (res.success) loadMembers(currentTeamId);
-            else alert('Error: ' + res.error);
+            if (res.success) {
+                loadMembers(currentTeamId);
+            } else {
+                alert('Error: ' + res.error);
+            }
+        });
+    };
+
+    window.saveLeadShift = function(memberId, leadShift, selectEl) {
+        fetch(`/api/roster/members/${memberId}/role`, {
+            method:'PUT',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({scheduling_role: 'lead', lead_shift: leadShift})
+        })
+        .then(r => r.json())
+        .then(function(res){
+            if (res.success) {
+                if (selectEl) {
+                    const orig = selectEl.style.borderColor;
+                    selectEl.style.borderColor = '#198754';
+                    setTimeout(function(){ selectEl.style.borderColor = orig; }, 1500);
+                }
+                loadMembers(currentTeamId);
+            } else {
+                alert('Error saving fixed shift: ' + res.error);
+            }
         });
     };
 
@@ -379,11 +432,11 @@
 
     function loadTimings(teamId) {
         document.getElementById('timingFormWrap').style.display = 'block';
-        fetch(`/team-shift-timings/team/${teamId}`)
+        fetch(`/admin/secrets/team-shift-timings/team/${teamId}`)
         .then(r => r.json())
         .then(function(data) {
             const list = document.getElementById('timingList');
-            const configs = data.shift_configs || data || [];
+            const configs = data.configs || [];
             if (!configs.length) {
                 list.innerHTML = '<p class="text-muted small mb-0">No timings configured yet. Add one below or load defaults.</p>';
                 return;
@@ -442,7 +495,7 @@
             msgEl.textContent = 'Please enter start and end times.';
             msgEl.className = 'small mt-2 text-danger'; msgEl.style.display = 'block'; return;
         }
-        fetch('/team-shift-timings/create', {
+        fetch('/admin/secrets/team-shift-timings/create', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
             body: JSON.stringify({team_id: currentTeamId, account_id: {{ account_id or 1 }},
@@ -464,7 +517,7 @@
 
     window.deleteTiming = function(id) {
         if (!confirm('Remove this timing?')) return;
-        fetch(`/team-shift-timings/${id}`, {method:'DELETE'})
+        fetch(`/admin/secrets/team-shift-timings/${id}`, {method:'DELETE'})
         .then(r => r.json())
         .then(function(res){ if (res.success || res.message) loadTimings(currentTeamId); });
     };
@@ -472,7 +525,7 @@
     document.getElementById('btnLoadDefaults').addEventListener('click', function(){
         if (!currentTeamId) return;
         if (!confirm('This will add default D/E/N/LE/G timings for this team. Continue?')) return;
-        fetch('/team-shift-timings/create-defaults', {
+        fetch('/admin/secrets/team-shift-timings/create-defaults', {
             method:'POST',
             headers:{'Content-Type':'application/json'},
             body: JSON.stringify({team_id: currentTeamId, account_id: {{ account_id or 1 }}, shift_pattern: 'extended'})

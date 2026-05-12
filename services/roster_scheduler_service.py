@@ -94,6 +94,7 @@ def generate_month_schedule(
             "lead_shift": getattr(m, 'lead_shift', None) or 'E',
         }
         for m in db_members
+        if (getattr(m, 'scheduling_role', 'support') or 'support') != 'excluded'
     ]
 
     support_count = sum(1 for m in members if m["scheduling_role"] != "lead")

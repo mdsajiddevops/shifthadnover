@@ -21,7 +21,7 @@ API endpoints:
 """
 from datetime import date, datetime
 
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, session
 from flask_login import login_required, current_user
 
 from models.models import db, TeamMember
@@ -48,6 +48,20 @@ def _current_account_team():
     account_id = session.get('selected_account_id') or getattr(current_user, 'account_id', None)
     team_id = session.get('selected_team_id') or getattr(current_user, 'team_id', None)
     return account_id, team_id
+
+
+def _resolve_account_for_team(team_id, fallback_account_id):
+    """Return the account_id for the given team_id.
+    Super admins can operate across accounts — always derive from the team
+    so the API uses the correct account regardless of session state.
+    """
+    if not team_id:
+        return fallback_account_id
+    if current_user.role == 'super_admin':
+        from models.models import Team
+        team = Team.query.get(int(team_id))
+        return team.account_id if team else fallback_account_id
+    return fallback_account_id
 
 
 _MIN_YEAR = 2000
@@ -93,9 +107,31 @@ def roster_scheduler():
     import calendar
     month_name = calendar.month_name[month]
 
-    # Fetch teams for selector
-    from models.models import Team
-    teams = Team.query.filter_by(account_id=account_id).all() if account_id else []
+    from models.models import Account, Team
+
+    # Super admin: allow account selection via query param, persist to session
+    if current_user.role == 'super_admin':
+        req_account_id = request.args.get('account_id', type=int)
+        if req_account_id:
+            account_id = req_account_id
+            session['selected_account_id'] = req_account_id
+        accounts = Account.query.order_by(Account.name).all()
+    else:
+        accounts = []
+
+    # Fetch teams for the resolved account
+    teams = Team.query.filter_by(account_id=account_id).order_by(Team.name).all() if account_id else []
+
+    # Reset team_id if it doesn't belong to the selected account
+    if team_id and not any(t.id == team_id for t in teams):
+        team_id = teams[0].id if teams else None
+
+    # Also accept team_id override from query param, persist to session
+    req_team_id = request.args.get('team_id', type=int)
+    if req_team_id and any(t.id == req_team_id for t in teams):
+        team_id = req_team_id
+        session['selected_team_id'] = req_team_id
+
     no_account_warning = (current_user.role == 'super_admin' and not account_id)
 
     return render_template(
@@ -103,6 +139,7 @@ def roster_scheduler():
         year=year,
         month=month,
         month_name=month_name,
+        accounts=accounts,
         teams=teams,
         team_id=team_id,
         account_id=account_id,
@@ -120,13 +157,29 @@ def roster_scheduler_admin():
 
     account_id, team_id = _current_account_team()
 
-    from models.models import Team
-    teams = Team.query.filter_by(account_id=account_id).all() if account_id else []
+    from models.models import Account, Team
+
+    # Super admin: allow account selection via query param, persist to session
+    if current_user.role == 'super_admin':
+        req_account_id = request.args.get('account_id', type=int)
+        if req_account_id:
+            account_id = req_account_id
+            session['selected_account_id'] = req_account_id
+        accounts = Account.query.order_by(Account.name).all()
+    else:
+        accounts = []
+
+    teams = Team.query.filter_by(account_id=account_id).order_by(Team.name).all() if account_id else []
     no_account_warning = (current_user.role == 'super_admin' and not account_id)
+
+    # Reset team_id if it doesn't belong to the selected account
+    if team_id and not any(t.id == team_id for t in teams):
+        team_id = teams[0].id if teams else None
 
     today = date.today()
     return render_template(
         'roster_scheduler/admin.html',
+        accounts=accounts,
         teams=teams,
         team_id=team_id,
         account_id=account_id,
@@ -187,6 +240,8 @@ def api_get_schedule():
     except (ValueError, TypeError):
         return jsonify({'success': False, 'error': 'Invalid team_id'}), 400
 
+    account_id = _resolve_account_for_team(req_team_id, account_id)
+
     from services.roster_scheduler_service import get_shift_view
     try:
         data = get_shift_view(req_team_id, account_id, year, month)
@@ -243,6 +298,8 @@ def api_generate_schedule():
     except (ValueError, TypeError) as exc:
         return jsonify({'success': False, 'error': f'Invalid parameters: {exc}'}), 400
 
+    account_id = _resolve_account_for_team(req_team_id, account_id)
+
     from services.roster_scheduler_service import generate_month_schedule
     try:
         result = generate_month_schedule(req_team_id, account_id, year, month,
@@ -268,6 +325,8 @@ def api_preview_schedule():
         month = int(body.get('month', date.today().month))
     except (ValueError, TypeError) as exc:
         return jsonify({'success': False, 'error': f'Invalid parameters: {exc}'}), 400
+
+    account_id = _resolve_account_for_team(req_team_id, account_id)
 
     from services.roster_scheduler_service import preview_month_schedule
     try:
@@ -465,6 +524,8 @@ def api_get_members():
     except (ValueError, TypeError):
         return jsonify({'success': False, 'error': 'Invalid team_id'}), 400
 
+    account_id = _resolve_account_for_team(req_team_id, account_id)
+
     members = TeamMember.query.filter_by(
         team_id=req_team_id, account_id=account_id, is_active=True
     ).order_by(TeamMember.name).all()
@@ -475,6 +536,7 @@ def api_get_members():
             'name': m.name,
             'role': m.role,
             'scheduling_role': getattr(m, 'scheduling_role', 'support') or 'support',
+            'lead_shift': getattr(m, 'lead_shift', 'E') or 'E',
         }
         for m in members
     ]})
@@ -488,11 +550,16 @@ def api_update_member_role(member_id):
 
     body = request.get_json(force=True) or {}
     scheduling_role = str(body.get('scheduling_role', 'support')).lower()
-    if scheduling_role not in ('lead', 'support'):
-        return jsonify({'success': False, 'error': "scheduling_role must be 'lead' or 'support'"}), 400
+    if scheduling_role not in ('lead', 'support', 'excluded'):
+        return jsonify({'success': False, 'error': "scheduling_role must be 'lead', 'support', or 'excluded'"}), 400
 
     member = TeamMember.query.get_or_404(member_id)
     member.scheduling_role = scheduling_role
+    if scheduling_role == 'lead' and 'lead_shift' in body:
+        valid_shifts = ('D', 'E', 'N', 'OCN')
+        ls = str(body['lead_shift']).upper().strip()
+        if ls in valid_shifts:
+            member.lead_shift = ls
     db.session.commit()
     return jsonify({'success': True})
 
@@ -803,3 +870,74 @@ def api_upload_leave_plan():
         return jsonify({'success': False, 'error': str(exc)}), 400
     except Exception as exc:
         return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@roster_scheduler_bp.route('/api/roster/leave-plan-sample', methods=['GET'])
+@login_required
+def api_leave_plan_sample():
+    """Generate and return a sample leave plan Excel file."""
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from io import BytesIO
+    from flask import send_file
+    from datetime import date
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Leave Plan'
+
+    today = date.today()
+    months = []
+    for i in range(6):
+        m = today.month + i
+        y = today.year + (m - 1) // 12
+        m = ((m - 1) % 12) + 1
+        abbr = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]
+        months.append(f'{abbr}-{str(y)[2:]}')
+
+    headers = ['Resource Name', 'Stream'] + months
+    header_fill = PatternFill('solid', fgColor='1F4E79')
+    header_font = Font(bold=True, color='FFFFFF', size=10)
+    thin = Side(style='thin', color='BFBFBF')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=h)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border
+
+    sample_rows = [
+        ['John Smith',   'NOC L1', '3,4,5',  '',       '12,13', '',      '',      ''],
+        ['Jane Doe',     'NOC L2', '',        '1-5',    '',      '20,21', '',      ''],
+        ['Alex Johnson', 'NOC L1', '10,11',   '',       '',      '',      '1-3',   ''],
+    ]
+
+    alt_fill = PatternFill('solid', fgColor='EBF3FB')
+    for row_idx, row_data in enumerate(sample_rows, 2):
+        row_data_padded = row_data + [''] * (len(headers) - len(row_data))
+        fill = alt_fill if row_idx % 2 == 0 else None
+        for col_idx, val in enumerate(row_data_padded[:len(headers)], 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.alignment = Alignment(horizontal='center' if col_idx > 2 else 'left', vertical='center')
+            cell.border = border
+            if fill:
+                cell.fill = fill
+
+    ws.column_dimensions['A'].width = 22
+    ws.column_dimensions['B'].width = 14
+    for col_idx in range(3, len(headers) + 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = 12
+    ws.row_dimensions[1].height = 18
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(
+        buf,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name='leave_plan_sample.xlsx'
+    )

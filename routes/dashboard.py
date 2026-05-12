@@ -192,13 +192,13 @@ def dashboard():
     
     # Additional shift codes mapping (bidirectional relationships)
     additional_shift_codes = {
-        'Morning': ['G', 'OS'],      # Morning also shows General and OnShore engineers
-        'Evening': [],               # No additional codes for Evening
-        'Late Evening': ['N'],       # Late Evening also shows Night engineers
-        'Night': ['LE', 'OF'],       # Night also shows Late Evening and OffShore engineers
-        'General': ['D'],            # General also shows Morning (Day) engineers
-        'OnShore': ['D'],            # OnShore also shows Morning (Day) engineers
-        'OffShore': ['N']            # OffShore also shows Night engineers
+        'Morning': ['G', 'OS', 'WMO'],   # Morning also shows General, OnShore, Weekend Morning On-Call
+        'Evening': ['WEO'],              # Evening also shows Weekend Evening On-Call
+        'Late Evening': ['N'],           # Late Evening also shows Night engineers
+        'Night': ['LE', 'OF', 'OCN'],    # Night also shows Late Evening, OffShore, On-Call Night
+        'General': ['D'],                # General also shows Morning (Day) engineers
+        'OnShore': ['D'],                # OnShore also shows Morning (Day) engineers
+        'OffShore': ['N']                # OffShore also shows Night engineers
     }
     
     current_shift_type, next_shift_type = get_shift_type_and_next(ist_now)

@@ -148,6 +148,20 @@ table.sum-grid td.name-col { text-align:left; font-weight:600; color:#1e3c72; mi
     <!-- Controls -->
     <div class="rs-card">
         <form method="get" action="/roster-scheduler" class="row g-2 align-items-end">
+            {% if current_user.role == 'super_admin' %}
+            <div class="col-auto">
+                <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Account</label>
+                <select name="account_id" id="accountSelect" class="form-select form-select-sm"
+                        style="min-width:180px" onchange="this.form.submit()">
+                    <option value="">— select account —</option>
+                    {% for a in accounts %}
+                    <option value="{{ a.id }}" {% if a.id == account_id %}selected{% endif %}>
+                        {{ a.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <div class="col-auto">
                 <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Team</label>
                 <select name="team_id" id="teamSelect" class="form-select form-select-sm"
@@ -178,7 +192,6 @@ table.sum-grid td.name-col { text-align:left; font-weight:600; color:#1e3c72; mi
                 </select>
             </div>
             <div class="col-auto">
-                <input type="hidden" name="team_id" value="{{ team_id }}">
                 <button type="submit" class="btn btn-sm btn-primary">Go</button>
             </div>
         </form>
@@ -482,11 +495,15 @@ table.sum-grid td.name-col { text-align:left; font-weight:600; color:#1e3c72; mi
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <p class="small text-muted mb-3">
+        <p class="small text-muted mb-2">
           Upload your standard leave planner Excel sheet. Columns should be month headers like
           <strong>Jan-26</strong>, <strong>Feb-26</strong>, etc. Each cell contains comma-separated
           day numbers (e.g. <code>12,13,14</code> or <code>1-5</code>).
         </p>
+        <a href="/api/roster/leave-plan-sample" class="btn btn-sm btn-outline-secondary mb-3"
+           download="leave_plan_sample.xlsx">
+          <i class="bi bi-download me-1"></i>Download Sample File
+        </a>
         <div class="mb-3">
           <label class="form-label fw-semibold small">Leave Type</label>
           <select id="uploadLeaveType" class="form-select form-select-sm">
