@@ -58,12 +58,12 @@ unit-test:
     SECRETS_MASTER_KEY: ci-test-master-key-32chars-padding
     SSO_ENCRYPTION_KEY: ci-test-sso-encryption-key-32chr
   script:
-    - .venv/bin/pytest tests/test_startup_checks.py
-        tests/test_celery_app.py
-        tests/test_validators.py
-        tests/test_rbac_errors.py
-        tests/test_audit_service.py
-        -v --tb=short
+    - .venv/bin/pytest tests/ -v --tb=short
+        --ignore=tests/test_application.py
+        --ignore=tests/test_user_activities.py
+        --ignore=tests/test_admin_activities.py
+        --ignore=tests/test_handover_workflow.py
+        --ignore=tests/test_change_info.py
 
 integration-test:
   stage: test
@@ -115,10 +115,9 @@ integration-test:
     - APP_PID=$!
     - sleep 8
     - curl -sf http://localhost:5000/health || (kill $APP_PID; exit 1)
-    - .venv/bin/python tests/run_tests.py --url http://localhost:5000 --user superadmin --password admin123 --verbose || true
-    - .venv/bin/pytest tests/test_application.py -v --tb=short || true
+    - .venv/bin/python tests/run_tests.py --url http://localhost:5000 --user superadmin --password admin123 --verbose
+    - .venv/bin/pytest tests/test_application.py -v --tb=short
     - kill $APP_PID || true
-  allow_failure: true
 
 # Smoke test — import check + /health endpoint against SQLite
 smoke-test:
@@ -194,13 +193,18 @@ deploy-staging:
     - chmod 600 ~/.ssh/id_rsa
     - ssh-keyscan -H "$STAGING_HOST" >> ~/.ssh/known_hosts
   script:
-    - ssh "$STAGING_USER@$STAGING_HOST" "
-        set -e &&
-        cd /opt/shifthandover-staging &&
-        git pull origin develop &&
-        docker-compose -f docker-compose.prod.yml up -d --build &&
+    - |
+      ssh "$STAGING_USER@$STAGING_HOST" bash -s << ENDSSH
+        set -e
+        cd /opt/shifthandover-staging
+        git pull origin develop
+        echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+        docker pull $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+        docker tag  $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA $CI_REGISTRY_IMAGE:staging-latest
+        APP_IMAGE=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA \
+          docker-compose -f docker-compose.prod.yml up -d
         docker system prune -f --volumes=false
-      "
+      ENDSSH
   rules:
     - if: $CI_COMMIT_BRANCH == "develop"
       when: on_success
@@ -219,32 +223,37 @@ deploy:
     - ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
   script:
     - |
-      ssh "$DEPLOY_USER@$DEPLOY_HOST" bash -s << 'ENDSSH'
+      ssh "$DEPLOY_USER@$DEPLOY_HOST" bash -s << ENDSSH
         set -e
         cd /opt/shifthandover
 
-        # 1. Pull latest code
+        # 1. Pull latest infra files (compose, migrations, secrets structure)
         git pull origin master
 
-        # 2. Ensure DB container is running before migration
+        # 2. Login to GitLab registry and pull the CI-built image
+        echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+        docker pull $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+        docker tag  $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA $CI_REGISTRY_IMAGE:latest
+
+        # 3. Ensure DB container is running before migration
         docker-compose -f docker-compose.prod.yml up -d db
         echo "Waiting for DB to be ready..."
         until docker-compose -f docker-compose.prod.yml exec -T db \
-          mysqladmin ping -u root -p"$(cat ./secrets/mysql_root_password)" --silent 2>/dev/null; do
+          mysqladmin ping -u root -p"\$(cat ./secrets/mysql_root_password)" --silent 2>/dev/null; do
           sleep 3
         done
 
-        # 3. Run idempotent schema sync (additive only — never drops columns or data).
-        #    Fails loudly before new code starts if there is a problem.
+        # 4. Run idempotent schema sync
         docker-compose -f docker-compose.prod.yml exec -T db \
-          mysql -u root -p"$(cat ./secrets/mysql_root_password)" shift_handover \
+          mysql -u root -p"\$(cat ./secrets/mysql_root_password)" shift_handover \
           < scripts/migrations/prod_schema_sync.sql
         echo "Schema sync complete."
 
-        # 4. Rebuild and restart all services with the new code
-        docker-compose -f docker-compose.prod.yml up -d --build
+        # 5. Start with the pre-built registry image — no rebuild
+        APP_IMAGE=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA \
+          docker-compose -f docker-compose.prod.yml up -d
 
-        # 5. Prune dangling images (keep volumes intact)
+        # 6. Prune dangling images (keep volumes intact)
         docker system prune -f --volumes=false
       ENDSSH
   rules:
