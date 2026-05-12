@@ -83,6 +83,11 @@ integration-test:
     FLASK_ENV: testing
     CELERY_BROKER_URL: "memory://"
     CELERY_RESULT_BACKEND: "cache+memory://"
+    TEST_BASE_URL: "http://localhost:5000"
+    TEST_SUPERADMIN_USER: "superadmin"
+    TEST_SUPERADMIN_PASSWORD: "admin123"
+    TEST_USER: "ctctestuser"
+    TEST_USER_PASSWORD: "test123"
   script:
     - apt-get install -qq -y default-mysql-client
     - until mysqladmin ping -h mysql -u root -ptestroot --silent 2>/dev/null; do echo "Waiting for MySQL..."; sleep 3; done
@@ -108,6 +113,14 @@ integration-test:
                            role='super_admin', is_active=True,
                            session_token=secrets.token_hex(32))
               db.session.add(admin)
+              db.session.flush()
+              regular = User(username='ctctestuser',
+                             password_hash=generate_password_hash('test123'),
+                             role='user', is_active=True,
+                             account_id=acc.id, team_id=team.id,
+                             onboarding_completed=True,
+                             session_token=secrets.token_hex(32))
+              db.session.add(regular)
               db.session.commit()
               print('Seeded.')
       EOF
@@ -117,6 +130,7 @@ integration-test:
     - curl -sf http://localhost:5000/health || (kill $APP_PID; exit 1)
     - .venv/bin/python tests/run_tests.py --url http://localhost:5000 --user superadmin --password admin123 --verbose
     - .venv/bin/pytest tests/test_application.py -v --tb=short
+    - .venv/bin/pytest tests/regression/ -v --tb=short
     - kill $APP_PID || true
 
 # Smoke test — import check + /health endpoint against SQLite
