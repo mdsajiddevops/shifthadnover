@@ -160,8 +160,8 @@
     <div class="rsa-card">
         <h5><i class="bi bi-people me-2"></i>Member Scheduling Roles</h5>
         <p class="small text-muted mb-3">
-            <strong>Lead</strong> members always get Evening shift on weekdays and Off on weekends.
-            <strong>Support</strong> members follow the rotation.
+            <strong>Fixed</strong> members always get their chosen shift every weekday and are always off on weekends (no WMO/WEO rotation).
+            <strong>Rotating</strong> members follow the normal weekly rotation pool.
         </p>
         <div id="memberList" class="text-muted small">Select a team above to manage roles.</div>
     </div>
@@ -370,7 +370,7 @@
                             <div id="lead-shift-row-${m.id}" style="display:${isLead?'flex':'none'};align-items:center;gap:6px;font-size:.75rem">
                                 <span class="text-muted">Fixed shift:</span>
                                 <select class="form-select form-select-sm" style="width:auto;font-size:.75rem;padding:1px 4px"
-                                    onchange="saveLeadShift(${m.id}, this.value)">${shiftOpts}</select>
+                                    onchange="saveLeadShift(${m.id}, this.value, this)">${shiftOpts}</select>
                                 <span class="text-muted" style="font-size:.7rem">(weekends off)</span>
                             </div>
                         </div>
@@ -396,7 +396,7 @@
         });
     };
 
-    window.saveLeadShift = function(memberId, leadShift) {
+    window.saveLeadShift = function(memberId, leadShift, selectEl) {
         fetch(`/api/roster/members/${memberId}/role`, {
             method:'PUT',
             headers:{'Content-Type':'application/json'},
@@ -404,7 +404,16 @@
         })
         .then(r => r.json())
         .then(function(res){
-            if (!res.success) alert('Error saving fixed shift: ' + res.error);
+            if (res.success) {
+                if (selectEl) {
+                    const orig = selectEl.style.borderColor;
+                    selectEl.style.borderColor = '#198754';
+                    setTimeout(function(){ selectEl.style.borderColor = orig; }, 1500);
+                }
+                loadMembers(currentTeamId);
+            } else {
+                alert('Error saving fixed shift: ' + res.error);
+            }
         });
     };
 
