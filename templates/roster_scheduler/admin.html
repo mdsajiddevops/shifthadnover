@@ -391,7 +391,7 @@
 
     function loadTimings(teamId) {
         document.getElementById('timingFormWrap').style.display = 'block';
-        fetch(`/team-shift-timings/team/${teamId}`)
+        fetch(`/admin/secrets/team-shift-timings/team/${teamId}`)
         .then(r => r.json())
         .then(function(data) {
             const list = document.getElementById('timingList');
@@ -454,7 +454,7 @@
             msgEl.textContent = 'Please enter start and end times.';
             msgEl.className = 'small mt-2 text-danger'; msgEl.style.display = 'block'; return;
         }
-        fetch('/team-shift-timings/create', {
+        fetch('/admin/secrets/team-shift-timings/create', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
             body: JSON.stringify({team_id: currentTeamId, account_id: {{ account_id or 1 }},
@@ -476,7 +476,7 @@
 
     window.deleteTiming = function(id) {
         if (!confirm('Remove this timing?')) return;
-        fetch(`/team-shift-timings/${id}`, {method:'DELETE'})
+        fetch(`/admin/secrets/team-shift-timings/${id}`, {method:'DELETE'})
         .then(r => r.json())
         .then(function(res){ if (res.success || res.message) loadTimings(currentTeamId); });
     };
@@ -484,7 +484,7 @@
     document.getElementById('btnLoadDefaults').addEventListener('click', function(){
         if (!currentTeamId) return;
         if (!confirm('This will add default D/E/N/LE/G timings for this team. Continue?')) return;
-        fetch('/team-shift-timings/create-defaults', {
+        fetch('/admin/secrets/team-shift-timings/create-defaults', {
             method:'POST',
             headers:{'Content-Type':'application/json'},
             body: JSON.stringify({team_id: currentTeamId, account_id: {{ account_id or 1 }}, shift_pattern: 'extended'})
