@@ -1,0 +1,25 @@
+# CODEOWNERS — every MR must be reviewed and approved by at least one
+# person listed here who is NOT the MR author.
+#
+# GitLab docs: https://docs.gitlab.com/ee/user/project/codeowners/
+# To enforce approvals: Settings → General → Merge requests → Approvals
+# set "Minimum number of approvals required" = 1, "Prevent approval by
+# author" = enabled.
+
+# Default owner for all files not matched by a more specific rule
+* @sajid_mohammad
+
+# Security-sensitive paths — require explicit sign-off
+config.py                      @sajid_mohammad
+models/                        @sajid_mohammad
+routes/auth.py                 @sajid_mohammad
+routes/collaboration.py        @sajid_mohammad
+services/secrets_manager.py    @sajid_mohammad
+
+# CI/CD and infrastructure
+.gitlab-ci.yml                 @sajid_mohammad
+docker-compose*.yml            @sajid_mohammad
+Dockerfile                     @sajid_mohammad
+
+# Database migrations — must not be reverted once merged to develop/master
+migrations/                    @sajid_mohammad
