@@ -395,7 +395,7 @@
         .then(r => r.json())
         .then(function(data) {
             const list = document.getElementById('timingList');
-            const configs = data.shift_configs || data || [];
+            const configs = data.configs || [];
             if (!configs.length) {
                 list.innerHTML = '<p class="text-muted small mb-0">No timings configured yet. Add one below or load defaults.</p>';
                 return;
