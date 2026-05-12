@@ -50,6 +50,20 @@ def _current_account_team():
     return account_id, team_id
 
 
+def _resolve_account_for_team(team_id, fallback_account_id):
+    """Return the account_id for the given team_id.
+    Super admins can operate across accounts — always derive from the team
+    so the API uses the correct account regardless of session state.
+    """
+    if not team_id:
+        return fallback_account_id
+    if current_user.role == 'super_admin':
+        from models.models import Team
+        team = Team.query.get(int(team_id))
+        return team.account_id if team else fallback_account_id
+    return fallback_account_id
+
+
 _MIN_YEAR = 2000
 _MAX_YEAR = 2100
 
@@ -95,11 +109,12 @@ def roster_scheduler():
 
     from models.models import Account, Team
 
-    # Super admin: allow account selection via query param
+    # Super admin: allow account selection via query param, persist to session
     if current_user.role == 'super_admin':
         req_account_id = request.args.get('account_id', type=int)
         if req_account_id:
             account_id = req_account_id
+            session['selected_account_id'] = req_account_id
         accounts = Account.query.order_by(Account.name).all()
     else:
         accounts = []
@@ -111,10 +126,11 @@ def roster_scheduler():
     if team_id and not any(t.id == team_id for t in teams):
         team_id = teams[0].id if teams else None
 
-    # Also accept team_id override from query param
+    # Also accept team_id override from query param, persist to session
     req_team_id = request.args.get('team_id', type=int)
     if req_team_id and any(t.id == req_team_id for t in teams):
         team_id = req_team_id
+        session['selected_team_id'] = req_team_id
 
     no_account_warning = (current_user.role == 'super_admin' and not account_id)
 
@@ -143,11 +159,12 @@ def roster_scheduler_admin():
 
     from models.models import Account, Team
 
-    # Super admin: allow account selection via query param
+    # Super admin: allow account selection via query param, persist to session
     if current_user.role == 'super_admin':
         req_account_id = request.args.get('account_id', type=int)
         if req_account_id:
             account_id = req_account_id
+            session['selected_account_id'] = req_account_id
         accounts = Account.query.order_by(Account.name).all()
     else:
         accounts = []
@@ -223,6 +240,8 @@ def api_get_schedule():
     except (ValueError, TypeError):
         return jsonify({'success': False, 'error': 'Invalid team_id'}), 400
 
+    account_id = _resolve_account_for_team(req_team_id, account_id)
+
     from services.roster_scheduler_service import get_shift_view
     try:
         data = get_shift_view(req_team_id, account_id, year, month)
@@ -279,6 +298,8 @@ def api_generate_schedule():
     except (ValueError, TypeError) as exc:
         return jsonify({'success': False, 'error': f'Invalid parameters: {exc}'}), 400
 
+    account_id = _resolve_account_for_team(req_team_id, account_id)
+
     from services.roster_scheduler_service import generate_month_schedule
     try:
         result = generate_month_schedule(req_team_id, account_id, year, month,
@@ -304,6 +325,8 @@ def api_preview_schedule():
         month = int(body.get('month', date.today().month))
     except (ValueError, TypeError) as exc:
         return jsonify({'success': False, 'error': f'Invalid parameters: {exc}'}), 400
+
+    account_id = _resolve_account_for_team(req_team_id, account_id)
 
     from services.roster_scheduler_service import preview_month_schedule
     try:
@@ -500,6 +523,8 @@ def api_get_members():
         req_team_id = int(req_team_id)
     except (ValueError, TypeError):
         return jsonify({'success': False, 'error': 'Invalid team_id'}), 400
+
+    account_id = _resolve_account_for_team(req_team_id, account_id)
 
     members = TeamMember.query.filter_by(
         team_id=req_team_id, account_id=account_id, is_active=True
