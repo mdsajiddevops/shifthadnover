@@ -63,6 +63,7 @@ services:
 
   # Shift Handover Web Application
   web:
+    image: ${APP_IMAGE:-shifthandover-web:latest}
     build: .
     restart: unless-stopped
     command: bash start.sh
