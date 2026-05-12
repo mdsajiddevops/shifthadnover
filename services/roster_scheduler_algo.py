@@ -156,7 +156,15 @@ def compute_month_plan(
 
     ns = len(supports)
     seed = month_seed(year, month, team_index)
-    pool = build_shift_pool(reqs, ns)
+
+    # Subtract fixed-shift (lead) members from coverage requirements so the
+    # support rotation pool doesn't double-count shifts already covered by leads.
+    effective_reqs = dict(reqs)
+    for lead in leads:
+        ls = (lead.get("lead_shift") or 'E').upper()
+        if ls in effective_reqs and effective_reqs[ls] != '*':
+            effective_reqs[ls] = max(0, int(effective_reqs[ls]) - 1)
+    pool = build_shift_pool(effective_reqs, ns)
     week_nums = weeks_in_month(year, month)
     rot_off = rotation_offset(seed, ns)
 
