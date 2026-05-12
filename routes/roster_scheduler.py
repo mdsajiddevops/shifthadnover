@@ -550,8 +550,8 @@ def api_update_member_role(member_id):
 
     body = request.get_json(force=True) or {}
     scheduling_role = str(body.get('scheduling_role', 'support')).lower()
-    if scheduling_role not in ('lead', 'support'):
-        return jsonify({'success': False, 'error': "scheduling_role must be 'lead' or 'support'"}), 400
+    if scheduling_role not in ('lead', 'support', 'excluded'):
+        return jsonify({'success': False, 'error': "scheduling_role must be 'lead', 'support', or 'excluded'"}), 400
 
     member = TeamMember.query.get_or_404(member_id)
     member.scheduling_role = scheduling_role

@@ -160,8 +160,9 @@
     <div class="rsa-card">
         <h5><i class="bi bi-people me-2"></i>Member Scheduling Roles</h5>
         <p class="small text-muted mb-3">
-            <strong>Fixed</strong> members always get their chosen shift every weekday and are always off on weekends (no WMO/WEO rotation).
-            <strong>Rotating</strong> members follow the normal weekly rotation pool.
+            <strong>Fixed</strong> — always gets their chosen shift every weekday, always off on weekends.
+            <strong>Rotating</strong> — follows the normal weekly rotation pool.
+            <strong>Ignore</strong> — excluded from roster generation entirely (e.g. test accounts).
         </p>
         <div id="memberList" class="text-muted small">Select a team above to manage roles.</div>
     </div>
@@ -349,22 +350,26 @@
             }
             container.innerHTML = '<div class="row g-2">' +
                 res.data.map(function(m){
-                    const isLead = m.scheduling_role === 'lead';
+                    const isLead     = m.scheduling_role === 'lead';
+                    const isExcluded = m.scheduling_role === 'excluded';
                     const ls = m.lead_shift || 'E';
                     const shiftOpts = ['D','E','N','OCN'].map(function(s){
                         return `<option value="${s}" ${ls===s?'selected':''}>${s}</option>`;
                     }).join('');
                     return `<div class="col-md-6 col-lg-4">
-                        <div class="border rounded px-3 py-2" style="font-size:.85rem">
+                        <div class="border rounded px-3 py-2${isExcluded?' bg-light opacity-75':''}" style="font-size:.85rem">
                             <div class="d-flex align-items-center justify-content-between mb-1">
-                                <span class="fw-semibold">${m.name}</span>
+                                <span class="fw-semibold${isExcluded?' text-muted text-decoration-line-through':''}">${m.name}</span>
                                 <div class="d-flex gap-1">
                                     <button class="btn btn-xs ${isLead ? 'btn-warning' : 'btn-outline-secondary'}"
                                         style="font-size:.65rem;padding:2px 7px"
                                         onclick="setRole(${m.id},'lead',this)">Fixed</button>
-                                    <button class="btn btn-xs ${!isLead ? 'btn-primary' : 'btn-outline-secondary'}"
+                                    <button class="btn btn-xs ${(!isLead && !isExcluded) ? 'btn-primary' : 'btn-outline-secondary'}"
                                         style="font-size:.65rem;padding:2px 7px"
                                         onclick="setRole(${m.id},'support',this)">Rotating</button>
+                                    <button class="btn btn-xs ${isExcluded ? 'btn-danger' : 'btn-outline-danger'}"
+                                        style="font-size:.65rem;padding:2px 7px"
+                                        onclick="setRole(${m.id},'excluded',this)" title="Exclude from roster generation">Ignore</button>
                                 </div>
                             </div>
                             <div id="lead-shift-row-${m.id}" style="display:${isLead?'flex':'none'};align-items:center;gap:6px;font-size:.75rem">
@@ -373,6 +378,7 @@
                                     onchange="saveLeadShift(${m.id}, this.value, this)">${shiftOpts}</select>
                                 <span class="text-muted" style="font-size:.7rem">(weekends off)</span>
                             </div>
+                            ${isExcluded ? '<div class="text-danger" style="font-size:.7rem;margin-top:2px"><i class="bi bi-slash-circle me-1"></i>Excluded from scheduling</div>' : ''}
                         </div>
                     </div>`;
                 }).join('') +
