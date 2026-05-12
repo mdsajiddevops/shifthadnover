@@ -495,11 +495,15 @@ table.sum-grid td.name-col { text-align:left; font-weight:600; color:#1e3c72; mi
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <p class="small text-muted mb-3">
+        <p class="small text-muted mb-2">
           Upload your standard leave planner Excel sheet. Columns should be month headers like
           <strong>Jan-26</strong>, <strong>Feb-26</strong>, etc. Each cell contains comma-separated
           day numbers (e.g. <code>12,13,14</code> or <code>1-5</code>).
         </p>
+        <a href="/api/roster/leave-plan-sample" class="btn btn-sm btn-outline-secondary mb-3"
+           download="leave_plan_sample.xlsx">
+          <i class="bi bi-download me-1"></i>Download Sample File
+        </a>
         <div class="mb-3">
           <label class="form-label fw-semibold small">Leave Type</label>
           <select id="uploadLeaveType" class="form-select form-select-sm">

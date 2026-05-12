@@ -864,3 +864,74 @@ def api_upload_leave_plan():
         return jsonify({'success': False, 'error': str(exc)}), 400
     except Exception as exc:
         return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@roster_scheduler_bp.route('/api/roster/leave-plan-sample', methods=['GET'])
+@login_required
+def api_leave_plan_sample():
+    """Generate and return a sample leave plan Excel file."""
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from io import BytesIO
+    from flask import send_file
+    from datetime import date
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Leave Plan'
+
+    today = date.today()
+    months = []
+    for i in range(6):
+        m = today.month + i
+        y = today.year + (m - 1) // 12
+        m = ((m - 1) % 12) + 1
+        abbr = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]
+        months.append(f'{abbr}-{str(y)[2:]}')
+
+    headers = ['Resource Name', 'Stream'] + months
+    header_fill = PatternFill('solid', fgColor='1F4E79')
+    header_font = Font(bold=True, color='FFFFFF', size=10)
+    thin = Side(style='thin', color='BFBFBF')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=h)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border
+
+    sample_rows = [
+        ['John Smith',   'NOC L1', '3,4,5',  '',       '12,13', '',      '',      ''],
+        ['Jane Doe',     'NOC L2', '',        '1-5',    '',      '20,21', '',      ''],
+        ['Alex Johnson', 'NOC L1', '10,11',   '',       '',      '',      '1-3',   ''],
+    ]
+
+    alt_fill = PatternFill('solid', fgColor='EBF3FB')
+    for row_idx, row_data in enumerate(sample_rows, 2):
+        row_data_padded = row_data + [''] * (len(headers) - len(row_data))
+        fill = alt_fill if row_idx % 2 == 0 else None
+        for col_idx, val in enumerate(row_data_padded[:len(headers)], 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.alignment = Alignment(horizontal='center' if col_idx > 2 else 'left', vertical='center')
+            cell.border = border
+            if fill:
+                cell.fill = fill
+
+    ws.column_dimensions['A'].width = 22
+    ws.column_dimensions['B'].width = 14
+    for col_idx in range(3, len(headers) + 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = 12
+    ws.row_dimensions[1].height = 18
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(
+        buf,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name='leave_plan_sample.xlsx'
+    )
