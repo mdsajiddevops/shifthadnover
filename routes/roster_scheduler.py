@@ -93,9 +93,29 @@ def roster_scheduler():
     import calendar
     month_name = calendar.month_name[month]
 
-    # Fetch teams for selector
-    from models.models import Team
-    teams = Team.query.filter_by(account_id=account_id).all() if account_id else []
+    from models.models import Account, Team
+
+    # Super admin: allow account selection via query param
+    if current_user.role == 'super_admin':
+        req_account_id = request.args.get('account_id', type=int)
+        if req_account_id:
+            account_id = req_account_id
+        accounts = Account.query.order_by(Account.name).all()
+    else:
+        accounts = []
+
+    # Fetch teams for the resolved account
+    teams = Team.query.filter_by(account_id=account_id).order_by(Team.name).all() if account_id else []
+
+    # Reset team_id if it doesn't belong to the selected account
+    if team_id and not any(t.id == team_id for t in teams):
+        team_id = teams[0].id if teams else None
+
+    # Also accept team_id override from query param
+    req_team_id = request.args.get('team_id', type=int)
+    if req_team_id and any(t.id == req_team_id for t in teams):
+        team_id = req_team_id
+
     no_account_warning = (current_user.role == 'super_admin' and not account_id)
 
     return render_template(
@@ -103,6 +123,7 @@ def roster_scheduler():
         year=year,
         month=month,
         month_name=month_name,
+        accounts=accounts,
         teams=teams,
         team_id=team_id,
         account_id=account_id,
@@ -120,13 +141,28 @@ def roster_scheduler_admin():
 
     account_id, team_id = _current_account_team()
 
-    from models.models import Team
-    teams = Team.query.filter_by(account_id=account_id).all() if account_id else []
+    from models.models import Account, Team
+
+    # Super admin: allow account selection via query param
+    if current_user.role == 'super_admin':
+        req_account_id = request.args.get('account_id', type=int)
+        if req_account_id:
+            account_id = req_account_id
+        accounts = Account.query.order_by(Account.name).all()
+    else:
+        accounts = []
+
+    teams = Team.query.filter_by(account_id=account_id).order_by(Team.name).all() if account_id else []
     no_account_warning = (current_user.role == 'super_admin' and not account_id)
+
+    # Reset team_id if it doesn't belong to the selected account
+    if team_id and not any(t.id == team_id for t in teams):
+        team_id = teams[0].id if teams else None
 
     today = date.today()
     return render_template(
         'roster_scheduler/admin.html',
+        accounts=accounts,
         teams=teams,
         team_id=team_id,
         account_id=account_id,

@@ -38,9 +38,21 @@
         </div>
     </div>
 
-    <!-- Team selector -->
+    <!-- Account + Team selector -->
     <div class="rsa-card">
         <div class="row g-2 align-items-end">
+            {% if current_user.role == 'super_admin' %}
+            <div class="col-auto">
+                <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Account</label>
+                <select id="accountSelect" class="form-select form-select-sm" style="min-width:200px"
+                        onchange="window.location='/admin/roster-scheduler?account_id='+this.value">
+                    <option value="">— select account —</option>
+                    {% for a in accounts %}
+                    <option value="{{ a.id }}" {% if a.id == account_id %}selected{% endif %}>{{ a.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <div class="col-auto">
                 <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Team</label>
                 <select id="teamSelect" class="form-select form-select-sm" style="min-width:200px">
