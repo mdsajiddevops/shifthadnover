@@ -1,0 +1,21 @@
+# GitLab MR Approval Rules — CTCOAMSHM-115
+# Enforces REQ-002 (Maintainer approval required) and REQ-003 (self-approval blocked).
+#
+# NOTE: project-level settings must also enable:
+#   "Prevent approval by merge request author" and
+#   "Prevent approval by commits' authors"
+# These cannot be set via this file alone — they require the GitLab project Settings UI
+# or the Approval Rules API (POST /projects/:id/approval_rules).
+
+approvals_required: 1
+approver_type: maintainer
+prevent_author_approval: true
+prevent_committer_approval: true
+reset_approvals_on_push: true
+
+rules:
+  - name: "Maintainer approval required"
+    approvals_required: 1
+    user_or_group_based_approvers:
+      - type: group
+        name: maintainers

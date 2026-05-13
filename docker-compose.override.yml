@@ -1,0 +1,20 @@
+# Dev-only override. Never deploy this file to production.
+#
+# Docker Compose automatically merges this file with docker-compose.yml in local
+# development environments.  Production deployments use docker-compose.prod.yml
+# which has no host bind-mounts (REQ-005, CTCOAMSHM-115).
+#
+# To add live-reload during development, uncomment the volumes section below:
+#
+# services:
+#   app:
+#     volumes:
+#       - .:/app        # mounts host source tree into container for live-reload
+#
+# The base docker-compose.yml contains only named volumes (app_logs, uploads_data)
+# which are production-safe.  Any host bind-mount that overwrites /app must
+# live exclusively in this file.
+version: '3.7'
+
+# No overrides by default — add dev-specific overrides here as needed.
+services: {}

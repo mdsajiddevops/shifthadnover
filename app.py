@@ -603,6 +603,10 @@ app.register_blueprint(webhook_bp)
 from routes.collaboration import collaboration_bp
 app.register_blueprint(collaboration_bp)
 
+# Register CoreAction blueprint — CTCOAMSHM-115 (REQ-007–REQ-012)
+from routes.core_action import core_action_bp
+app.register_blueprint(core_action_bp)
+
 # Initialise flask-sock and register WebSocket handover relay (CTCOAMSHM-7).
 # Routes in routes/ws_handover.py are decorated with @sock.route(...)  which
 # stores them in the Sock object; init_app registers them on the Flask app.
