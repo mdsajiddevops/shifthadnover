@@ -26,6 +26,7 @@ stages:
   - install
   - lint
   - test
+  - regression-tests
   - security
   - build
   - deploy-staging
@@ -148,6 +149,69 @@ smoke-test:
     - sleep 5
     - .venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" && echo "Health check passed"
     - kill $APP_PID || true
+
+# --- CTCOAMSHM-115: REQ-004 — Exact dependency pin enforcement ---
+pin-lint:
+  stage: regression-tests
+  script:
+    - python scripts/validate_pins.py
+  rules:
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+  allow_failure: false
+
+# --- CTCOAMSHM-115: REQ-005 — Production compose must have no /app bind-mount ---
+compose-lint:
+  stage: regression-tests
+  script:
+    - docker compose -f docker-compose.yml -f docker-compose.prod.yml config |
+      python3 -c "
+import sys
+cfg = sys.stdin.read()
+# Named volumes like 'app_logs:/app/logs' are acceptable; host bind-mounts are not.
+# A host bind-mount appears as a relative or absolute path before the colon.
+import re
+host_mounts = re.findall(r'^\s+-\s+(?:\./|/)[^:]+:/app\b', cfg, re.MULTILINE)
+if host_mounts:
+    print('FAIL: host bind-mount to /app found in prod config:')
+    for m in host_mounts:
+        print(' ', m.strip())
+    sys.exit(1)
+print('OK: no host bind-mount to /app in prod config')
+"
+  rules:
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+  allow_failure: false
+
+# --- CTCOAMSHM-115: REQ-006 — Full regression test suite as a mandatory blocking stage ---
+regression-tests:
+  stage: regression-tests
+  services:
+    - name: mysql:8.0
+      alias: mysql
+      variables:
+        MYSQL_ROOT_PASSWORD: testroot
+        MYSQL_DATABASE: shifthandover_test
+        MYSQL_USER: testuser
+        MYSQL_PASSWORD: testpass
+  variables:
+    DATABASE_URL: "mysql+pymysql://testuser:testpass@mysql/shifthandover_test"
+    FLASK_SECRET_KEY: ci-test-secret-key
+    SECRETS_MASTER_KEY: "ci-test-master-key-32chars-pad!"
+    SSO_ENCRYPTION_KEY: "ci-test-sso-key-32characters!!"
+    FLASK_ENV: testing
+    CELERY_BROKER_URL: "memory://"
+    CELERY_RESULT_BACKEND: "cache+memory://"
+  script:
+    - apt-get install -qq -y default-mysql-client
+    - until mysqladmin ping -h mysql -u root -ptestroot --silent 2>/dev/null; do sleep 3; done
+    - .venv/bin/flask db upgrade
+    - .venv/bin/pytest tests/regression/ -v --tb=short
+  rules:
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+  allow_failure: false
 
 # Dependency CVE scan — blocking merge gate (REQ-008 / T-006)
 dependency-scan:

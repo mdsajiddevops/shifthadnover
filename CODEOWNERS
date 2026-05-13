@@ -1,0 +1,5 @@
+# CODEOWNERS — CTCOAMSHM-115
+# All files require approval from the project Maintainers group (REQ-002, REQ-003).
+# Adjust the group path below to match your GitLab namespace.
+
+* @maintainers
