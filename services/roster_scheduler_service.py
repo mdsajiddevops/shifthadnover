@@ -417,24 +417,33 @@ def bulk_fill(
 # Reset month
 # ---------------------------------------------------------------------------
 
-def reset_month_schedule(team_id: int, account_id: int, year: int, month: int) -> dict:
+def reset_month_schedule(
+    team_id: int,
+    account_id: int,
+    year: int,
+    month: int,
+    preserve_leaves: bool = True,
+) -> dict:
     """
-    Delete all non-protected ScheduledShift rows for team/month.
+    Delete ScheduledShift rows for team/month.
 
-    Protected rows (leave codes) are preserved.
+    preserve_leaves=True  (default): leave-code rows (is_protected=True) are kept.
+    preserve_leaves=False           : all rows including leave codes are deleted.
     Returns {"deleted_count": N}.
     """
     import calendar as _calendar
     start = date(year, month, 1)
     end = date(year, month, _calendar.monthrange(year, month)[1])
 
-    rows = ScheduledShift.query.filter(
+    q = ScheduledShift.query.filter(
         ScheduledShift.team_id == team_id,
         ScheduledShift.shift_date >= start,
         ScheduledShift.shift_date <= end,
-        ScheduledShift.is_protected == False,
-    ).all()
+    )
+    if preserve_leaves:
+        q = q.filter(ScheduledShift.is_protected == False)
 
+    rows = q.all()
     count = len(rows)
     for r in rows:
         db.session.delete(r)
