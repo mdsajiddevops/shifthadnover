@@ -518,6 +518,8 @@ def api_update_shift():
     except (KeyError, ValueError, TypeError) as exc:
         return jsonify({'success': False, 'error': f'Invalid parameters: {exc}'}), 400
 
+    account_id = _resolve_account_for_team(req_team_id, account_id)
+
     from services.roster_scheduler_service import update_shift
     try:
         result = update_shift(member_id, shift_date, shift_code, req_team_id, account_id,
@@ -594,9 +596,12 @@ def api_reset_schedule():
     except (ValueError, TypeError) as exc:
         return jsonify({'success': False, 'error': f'Invalid parameters: {exc}'}), 400
 
+    preserve_leaves = bool(body.get('preserve_leaves', True))
+
     from services.roster_scheduler_service import reset_month_schedule
     try:
-        result = reset_month_schedule(req_team_id, account_id, year, month)
+        result = reset_month_schedule(req_team_id, account_id, year, month,
+                                      preserve_leaves=preserve_leaves)
         return jsonify({'success': True, **result})
     except Exception as exc:
         return jsonify({'success': False, 'error': str(exc)}), 500

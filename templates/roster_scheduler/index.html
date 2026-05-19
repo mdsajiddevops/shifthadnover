@@ -595,7 +595,13 @@ table.sum-grid td.name-col { text-align:left; font-weight:600; color:#1e3c72; mi
       </div>
       <div class="modal-body">
         <p class="small">Delete all auto-generated entries for <strong id="resetLabel"></strong>.</p>
-        <p class="small text-muted mb-0">Leave entries (VL/SL/HL/CO) are preserved. This cannot be undone.</p>
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="resetPreserveLeaves" checked>
+          <label class="form-check-label small" for="resetPreserveLeaves">
+            Preserve leave entries (VL / SL / HL / CO)
+          </label>
+        </div>
+        <p class="small text-danger mt-2 mb-0"><i class="bi bi-exclamation-circle me-1"></i>This cannot be undone.</p>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -1268,11 +1274,12 @@ table.sum-grid td.name-col { text-align:left; font-weight:600; color:#1e3c72; mi
 
     const btnConfirmReset = document.getElementById('btnConfirmReset');
     if (btnConfirmReset) btnConfirmReset.addEventListener('click', function(){
+        const preserveLeaves = document.getElementById('resetPreserveLeaves').checked;
         btnConfirmReset.disabled = true; btnConfirmReset.textContent = 'Resetting…';
         fetch('/api/roster/schedule', {
             method: 'DELETE',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({team_id: TEAM_ID, year: YEAR, month: MONTH})
+            body: JSON.stringify({team_id: TEAM_ID, year: YEAR, month: MONTH, preserve_leaves: preserveLeaves})
         })
         .then(r => r.json())
         .then(function(res){
